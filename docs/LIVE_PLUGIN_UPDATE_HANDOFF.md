@@ -25,3 +25,9 @@ Update after the June 2026 Zazacaogren live-maintenance incident:
 - This is not an arbitrary installer. It is admin-only, defaults to dry-run, requires `confirm=true` for writes, supports an `expected_current_version` precondition, and only points at the fixed Strong Anchor GitHub dev branch package.
 - It uses WordPress' normal `Plugin_Upgrader::upgrade()` flow instead of a hand-written recursive replacement, so core temporary updater backups and rollback behavior still apply.
 - The endpoint only helps after a live site already has the version that contains it. Older sites still need one manual WordPress upload/update or server-side replacement to bootstrap onto that version.
+
+September 2026 preservation review for the normal Zazacaogren update:
+
+- Compare the complete installed runtime with the exact proposed dev package before updating. The review found deployed Copy/Split Word and recorder improvements that had not reached `origin/dev`; promote those source changes first so the normal update preserves them.
+- The recorder preservation uses the two complete recorder source variants and only the nine category-eligibility/cache-priming hunks already installed in `wordset-pages.php`. It excludes the fourteen later warmup/prewarm hunks and the unpublished category-privacy changes. Focused eligibility, category-map, image-map, and viewport regressions cover this deployed behavior.
+- This preservation does not resolve the historical cold Genç manager performance target: the September 25 benchmark reached 171 of 209 categories within 120 seconds.

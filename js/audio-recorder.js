@@ -59,6 +59,7 @@
     let categoryOverviewRetryTimer = 0;
     let categoryOverviewGeneration = '';
     let categoryOverviewNeedsSelection = false;
+    let categoryOverviewRequiresReload = false;
     const completedCategoryOverviewSlugs = new Set();
     const RECORDER_DIALOG_FOCUSABLE_SELECTOR = [
         'a[href]',
@@ -338,6 +339,47 @@
             fetch(url, requestOptions),
             timeoutPromise,
         ]).finally(() => {
+            if (timeoutId !== null) window.clearTimeout(timeoutId);
+            if (upstreamSignal && upstreamAbort) {
+                upstreamSignal.removeEventListener('abort', upstreamAbort);
+            }
+        });
+    }
+
+    function fetchJsonWithDeadline(url, options = {}, timeoutMs = requestTimeoutMs) {
+        const requestOptions = { ...options };
+        const upstreamSignal = requestOptions.signal || null;
+        const controller = typeof AbortController === 'function' ? new AbortController() : null;
+        let upstreamAbort = null;
+        let timeoutId = null;
+
+        if (controller) {
+            requestOptions.signal = controller.signal;
+            if (upstreamSignal) {
+                upstreamAbort = () => controller.abort();
+                if (upstreamSignal.aborted) {
+                    controller.abort();
+                } else {
+                    upstreamSignal.addEventListener('abort', upstreamAbort, { once: true });
+                }
+            }
+        }
+
+        const requestPromise = (async () => {
+            const response = await fetch(url, requestOptions);
+            const payload = await response.json();
+            return { response, payload };
+        })();
+        const timeoutPromise = new Promise((resolve, reject) => {
+            timeoutId = window.setTimeout(() => {
+                if (controller) controller.abort();
+                const error = new Error(i18n.request_failed || 'Request failed');
+                error.name = 'TimeoutError';
+                reject(error);
+            }, Math.max(50, Math.min(120000, Number(timeoutMs) || requestTimeoutMs)));
+        });
+
+        return Promise.race([requestPromise, timeoutPromise]).finally(() => {
             if (timeoutId !== null) window.clearTimeout(timeoutId);
             if (upstreamSignal && upstreamAbort) {
                 upstreamSignal.removeEventListener('abort', upstreamAbort);
@@ -1496,8 +1538,12 @@
         syncCategoryOverviewPlaceholderVisibility();
         const placeholders = getCategoryOverviewPlaceholders();
         const loadedCards = getLoadedCategoryOverviewCards();
-        const isLoading = state === 'loading';
-        const hasError = state === 'error';
+        const hasExhaustedPlaceholders = placeholders.some(placeholder => (
+            getCategoryOverviewRetryCount(placeholder) > categoryOverviewMaxAutoRetries
+        ));
+        const effectiveState = state === 'idle' && hasExhaustedPlaceholders ? 'error' : state;
+        const isLoading = effectiveState === 'loading';
+        const hasError = effectiveState === 'error';
         el.categoryOverview.classList.toggle('is-loading', isLoading);
         el.categoryOverview.classList.toggle('has-error', hasError);
         el.categoryOverview.setAttribute(
@@ -1563,21 +1609,44 @@
     }
 
     function selectFirstLoadedCategoryOverviewCard() {
-        if (!categoryOverviewNeedsSelection) return;
+        if (!categoryOverviewNeedsSelection) return false;
         const el = window.llRecorder;
         const card = getLoadedCategoryOverviewCards()[0] || null;
-        if (!el?.categorySelect || !card) return;
+        if (!el?.categorySelect || !card) return false;
         const slug = String(card.getAttribute('data-recorder-queue-category') || '');
-        if (!slug) return;
+        if (!slug) return false;
         categoryOverviewNeedsSelection = false;
         el.categorySelect.value = slug;
-        syncCategorySelectorUi();
         el.categorySelect.dispatchEvent(new Event('change', { bubbles: true }));
+        return true;
     }
 
-    function replaceCategoryOverviewCard(card) {
+    function prepareCategoryOverviewCard(card) {
         const slug = String(card?.slug || '');
         const html = String(card?.html || '');
+        const placeholder = getCategoryOverviewPlaceholder(slug);
+        const existingCard = getLoadedCategoryOverviewCards().find(candidate => (
+            candidate.getAttribute('data-recorder-queue-category') === slug
+        )) || null;
+        const replaceTarget = placeholder || existingCard;
+        if (!slug || !html || !replaceTarget) return null;
+        const template = document.createElement('template');
+        template.innerHTML = html.trim();
+        const cardElement = template.content.firstElementChild;
+        if (
+            !cardElement
+            || !cardElement.classList.contains('ll-recorder-category-card')
+            || String(cardElement.getAttribute('data-recorder-queue-category') || '') !== slug
+            || cardElement.tagName !== replaceTarget.tagName
+            || (cardElement.tagName === 'A' && !String(cardElement.getAttribute('href') || '').trim())
+        ) {
+            return null;
+        }
+        return { slug, replaceTarget, cardElement };
+    }
+
+    function replaceCategoryOverviewCard(card, preparedCard = null) {
+        const slug = String(card?.slug || '');
         const placeholder = getCategoryOverviewPlaceholder(slug);
         const existingCard = getLoadedCategoryOverviewCards().find(candidate => (
             candidate.getAttribute('data-recorder-queue-category') === slug
@@ -1588,31 +1657,86 @@
             removeCategoryOverviewOption(slug);
             return false;
         }
-        const replaceTarget = placeholder || existingCard;
-        if (!slug || !html || !replaceTarget) return false;
-        const template = document.createElement('template');
-        template.innerHTML = html.trim();
-        const cardElement = template.content.firstElementChild;
-        if (!cardElement) return false;
+        const prepared = preparedCard || prepareCategoryOverviewCard(card);
+        if (!prepared) return false;
+        const { replaceTarget, cardElement } = prepared;
+        const activeElement = document.activeElement;
+        const shouldRestoreFocus = activeElement === replaceTarget
+            || (activeElement && replaceTarget.contains(activeElement));
         replaceTarget.replaceWith(cardElement);
+        if (shouldRestoreFocus && typeof cardElement.focus === 'function') {
+            try {
+                cardElement.focus({ preventScroll: true });
+            } catch (error) {
+                cardElement.focus();
+            }
+        }
         updateCategoryOverviewOption(card);
-        syncCategoryOverviewPlaceholderVisibility();
         return true;
     }
 
     function categoryOverviewElementIsNearViewport(element) {
         if (!element || typeof element.getBoundingClientRect !== 'function') return false;
+        if (element.hidden) return false;
+        if (typeof element.getClientRects === 'function' && element.getClientRects().length === 0) return false;
         const rect = element.getBoundingClientRect();
         const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
         return rect.top <= viewportHeight + 720 && rect.bottom >= -720;
+    }
+
+    function getCategoryOverviewRetryCount(placeholder) {
+        return Math.max(
+            0,
+            parseInt(placeholder?.getAttribute('data-ll-recorder-queue-summary-retries'), 10) || 0
+        );
+    }
+
+    function getCategoryOverviewRequestCandidates(options = {}) {
+        const el = window.llRecorder;
+        const selectedSlug = String(el?.categorySelect?.value || '');
+        const placeholders = getCategoryOverviewPlaceholders().filter(placeholder => (
+            placeholder.getAttribute('data-ll-recorder-queue-summary-loading') !== 'true'
+        ));
+        if (options.resetRetries) {
+            placeholders.forEach(placeholder => {
+                placeholder.removeAttribute('data-ll-recorder-queue-summary-retries');
+            });
+        }
+
+        const requestable = placeholders.filter(placeholder => (
+            getCategoryOverviewRetryCount(placeholder) <= categoryOverviewMaxAutoRetries
+        ));
+        const nearby = requestable.filter(categoryOverviewElementIsNearViewport);
+        const selected = requestable.find(placeholder => (
+            String(placeholder.getAttribute('data-recorder-queue-category') || '') === selectedSlug
+        )) || null;
+        const pool = nearby.slice();
+        if (options.allowOffscreen && selected && !pool.includes(selected)) pool.unshift(selected);
+        if (!pool.length && options.allowOffscreen) {
+            pool.push(...requestable.slice(0, categoryOverviewBatchSize));
+        }
+
+        const documentOrder = new Map(placeholders.map((placeholder, index) => [placeholder, index]));
+        return pool
+            .sort((left, right) => {
+                const retryDifference = getCategoryOverviewRetryCount(left) - getCategoryOverviewRetryCount(right);
+                if (retryDifference !== 0) return retryDifference;
+                const leftSelected = left === selected;
+                const rightSelected = right === selected;
+                if (leftSelected !== rightSelected) return leftSelected ? -1 : 1;
+                return (documentOrder.get(left) || 0) - (documentOrder.get(right) || 0);
+            })
+            .slice(0, categoryOverviewBatchSize);
     }
 
     function observeNextCategoryOverviewPlaceholder() {
         if (categoryOverviewObserver) {
             categoryOverviewObserver.disconnect();
         }
-        const nextPlaceholder = getCategoryOverviewPlaceholders()[0] || null;
-        if (!nextPlaceholder || categoryOverviewRequest) return;
+        const placeholders = getCategoryOverviewPlaceholders().filter(placeholder => (
+            getCategoryOverviewRetryCount(placeholder) <= categoryOverviewMaxAutoRetries
+        ));
+        if (!placeholders.length || categoryOverviewRequest) return;
         if (typeof window.IntersectionObserver !== 'function') {
             setCategoryOverviewState('idle');
             return;
@@ -1626,32 +1750,24 @@
             rootMargin: '720px 0px',
             threshold: 0.01,
         });
-        categoryOverviewObserver.observe(nextPlaceholder);
+        placeholders.forEach(placeholder => categoryOverviewObserver.observe(placeholder));
     }
 
     async function requestCategoryOverviewBatch(options = {}) {
         const el = window.llRecorder;
         if (!categoryOverviewEnabled || !el?.categoryOverview || categoryOverviewRequest) return;
 
-        const placeholders = getCategoryOverviewPlaceholders().filter(placeholder => (
-            placeholder.getAttribute('data-ll-recorder-queue-summary-loading') !== 'true'
-        ));
-        if (!placeholders.length) {
+        const requested = getCategoryOverviewRequestCandidates(options);
+        if (!getCategoryOverviewPlaceholders().length) {
             setCategoryOverviewState('idle');
             return;
         }
-
-        const selectedSlug = String(el.categorySelect?.value || '');
-        placeholders.sort((left, right) => {
-            const leftSelected = left.getAttribute('data-recorder-queue-category') === selectedSlug;
-            const rightSelected = right.getAttribute('data-recorder-queue-category') === selectedSlug;
-            return leftSelected === rightSelected ? 0 : (leftSelected ? -1 : 1);
-        });
-        const requested = placeholders.slice(0, categoryOverviewBatchSize);
+        if (!requested.length) {
+            setCategoryOverviewState('idle');
+            observeNextCategoryOverviewPlaceholder();
+            return;
+        }
         const slugs = requested.map(placeholder => {
-            if (options.resetRetries) {
-                placeholder.removeAttribute('data-ll-recorder-queue-summary-retries');
-            }
             placeholder.setAttribute('data-ll-recorder-queue-summary-loading', 'true');
             return String(placeholder.getAttribute('data-recorder-queue-category') || '');
         }).filter(Boolean);
@@ -1675,77 +1791,99 @@
         if (categoryUrlBase) formData.append('category_url_base', categoryUrlBase);
         slugs.forEach(slug => formData.append('category_slugs[]', slug));
 
-        let retryAutomatically = false;
-        let pauseAutomaticLoading = false;
-        categoryOverviewRequest = fetchWithDeadline(ajaxUrl, { method: 'POST', body: formData });
+        let stopAutomaticLoading = false;
+        categoryOverviewRequest = fetchJsonWithDeadline(ajaxUrl, { method: 'POST', body: formData });
         try {
-            const response = await categoryOverviewRequest;
+            const { response, payload } = await categoryOverviewRequest;
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            const payload = await response.json();
             if (!payload?.success || !payload.data) throw new Error('invalid_response');
             const data = payload.data;
             if (data.catalogComplete === false) {
                 // Category discovery is not authoritative yet. Preserve every
                 // unresolved shell and wait for an explicit retry instead of
                 // resolving missing slugs or looping through partial batches.
+                categoryOverviewRequiresReload = true;
                 throw new Error('incomplete_catalog');
             }
             const responseGeneration = String(data.generation || '');
             if (categoryOverviewGeneration && responseGeneration && categoryOverviewGeneration !== responseGeneration) {
+                categoryOverviewRequiresReload = true;
                 throw new Error('stale_generation');
             }
             if (responseGeneration) categoryOverviewGeneration = responseGeneration;
 
+            const requestedSlugs = new Set(slugs);
+            const returnedCards = (Array.isArray(data.cards) ? data.cards : []).filter(card => (
+                requestedSlugs.has(String(card?.slug || ''))
+            ));
+            const preparedCards = returnedCards.map(card => ({
+                card,
+                prepared: prepareCategoryOverviewCard(card),
+            }));
+            if (preparedCards.some(item => !item.prepared)) {
+                throw new Error('invalid_card');
+            }
+            const resolvedSlugs = new Set((Array.isArray(data.resolvedSlugs) ? data.resolvedSlugs : [])
+                .map(String)
+                .filter(slug => requestedSlugs.has(slug)));
+            const pendingSlugs = new Set((Array.isArray(data.pendingSlugs) ? data.pendingSlugs : [])
+                .map(String)
+                .filter(slug => requestedSlugs.has(slug)));
+            const classifiedSlugs = new Set([
+                ...preparedCards.map(item => String(item.card.slug || '')),
+                ...resolvedSlugs,
+                ...pendingSlugs,
+            ]);
+            if (slugs.some(slug => !classifiedSlugs.has(slug))) {
+                throw new Error('incomplete_response');
+            }
+
             const renderedSlugs = new Set();
-            (Array.isArray(data.cards) ? data.cards : []).forEach(card => {
-                if (replaceCategoryOverviewCard(card)) {
-                    renderedSlugs.add(String(card.slug || ''));
-                }
+            preparedCards.forEach(({ card, prepared }) => {
+                if (!replaceCategoryOverviewCard(card, prepared)) throw new Error('invalid_card');
+                renderedSlugs.add(String(card.slug || ''));
             });
-            (Array.isArray(data.resolvedSlugs) ? data.resolvedSlugs : []).forEach(rawSlug => {
-                const slug = String(rawSlug || '');
+            resolvedSlugs.forEach(slug => {
                 if (!slug || renderedSlugs.has(slug)) return;
                 const placeholder = getCategoryOverviewPlaceholder(slug);
                 if (placeholder) placeholder.remove();
                 removeCategoryOverviewOption(slug);
             });
-            syncCategoryOverviewPlaceholderVisibility();
 
-            const pendingSlugs = new Set((Array.isArray(data.pendingSlugs) ? data.pendingSlugs : []).map(String));
             slugs.forEach(slug => {
                 const placeholder = getCategoryOverviewPlaceholder(slug);
                 if (!placeholder) return;
                 placeholder.removeAttribute('data-ll-recorder-queue-summary-loading');
                 if (!pendingSlugs.has(slug)) return;
-                const retries = Math.max(0, parseInt(placeholder.getAttribute('data-ll-recorder-queue-summary-retries'), 10) || 0) + 1;
+                const retries = getCategoryOverviewRetryCount(placeholder) + 1;
                 placeholder.setAttribute('data-ll-recorder-queue-summary-retries', String(retries));
-                if (retries <= categoryOverviewMaxAutoRetries) {
-                    retryAutomatically = true;
-                } else {
-                    pauseAutomaticLoading = true;
-                }
             });
-            selectFirstLoadedCategoryOverviewCard();
-            syncCategorySelectorUi();
-            setCategoryOverviewState(pauseAutomaticLoading ? 'error' : 'idle');
+            const remainingPlaceholders = getCategoryOverviewPlaceholders();
+            const hasExhaustedPlaceholders = remainingPlaceholders.some(placeholder => (
+                getCategoryOverviewRetryCount(placeholder) > categoryOverviewMaxAutoRetries
+            ));
+            stopAutomaticLoading = remainingPlaceholders.length > 0 && remainingPlaceholders.every(placeholder => (
+                getCategoryOverviewRetryCount(placeholder) > categoryOverviewMaxAutoRetries
+            ));
+            if (!selectFirstLoadedCategoryOverviewCard()) {
+                syncCategorySelectorUi();
+            }
+            setCategoryOverviewState(hasExhaustedPlaceholders ? 'error' : 'idle');
         } catch (error) {
-            pauseAutomaticLoading = true;
+            stopAutomaticLoading = true;
             slugs.forEach(slug => {
                 getCategoryOverviewPlaceholder(slug)?.removeAttribute('data-ll-recorder-queue-summary-loading');
             });
             setCategoryOverviewState('error');
         } finally {
             categoryOverviewRequest = null;
-            if (pauseAutomaticLoading) return;
-            if (retryAutomatically) {
-                const nextPlaceholder = getCategoryOverviewPlaceholders()[0] || null;
-                if (categoryOverviewElementIsNearViewport(nextPlaceholder)) {
-                    categoryOverviewRetryTimer = window.setTimeout(() => {
-                        categoryOverviewRetryTimer = 0;
-                        requestCategoryOverviewBatch();
-                    }, 180);
-                    return;
-                }
+            if (stopAutomaticLoading) return;
+            if (getCategoryOverviewRequestCandidates().length) {
+                categoryOverviewRetryTimer = window.setTimeout(() => {
+                    categoryOverviewRetryTimer = 0;
+                    requestCategoryOverviewBatch();
+                }, 180);
+                return;
             }
             observeNextCategoryOverviewPlaceholder();
         }
@@ -1789,12 +1927,11 @@
         });
         if (el.categoryOverviewRetry) {
             el.categoryOverviewRetry.addEventListener('click', () => {
-                if (!categoryOverviewCatalogComplete) {
+                if (!categoryOverviewCatalogComplete || categoryOverviewRequiresReload) {
                     window.location.reload();
                     return;
                 }
-                categoryOverviewGeneration = '';
-                requestCategoryOverviewBatch({ resetRetries: true });
+                requestCategoryOverviewBatch({ resetRetries: true, allowOffscreen: true });
             });
         }
         syncCategoryOverviewPlaceholderVisibility();
@@ -1803,7 +1940,7 @@
             return;
         }
         setCategoryOverviewState('idle');
-        requestCategoryOverviewBatch();
+        requestCategoryOverviewBatch({ allowOffscreen: true });
     }
 
     function removeCompletedCategoryOverview(slug, nextSlug = '') {

@@ -142,8 +142,22 @@ async function mountRecorder(page, options = {}) {
   }));
   await page.goto(initialUrl);
   await page.setContent(buildRecorderMarkup(view));
+  if (options.spaceCategoryOverviewPlaceholders) {
+    await page.evaluate(() => {
+      const grid = document.querySelector('[data-ll-recorder-category-grid]');
+      if (!grid) return;
+      grid.style.position = 'relative';
+      grid.style.height = '9000px';
+      Array.from(grid.querySelectorAll('[data-ll-recorder-queue-summary-placeholder="true"]')).forEach((placeholder, index) => {
+        placeholder.style.position = 'absolute';
+        placeholder.style.insetInline = '0';
+        placeholder.style.top = `${index * 1800}px`;
+        placeholder.style.height = '120px';
+      });
+    });
+  }
 
-  await page.evaluate(({ categoryPages, categoryResponseDelays, categoryFailures, categoryOverviewResponse, categoryOverviewDelay }) => {
+  await page.evaluate(({ categoryPages, categoryResponseDelays, categoryFailures, categoryOverviewResponse, categoryOverviewResponses, categoryOverviewDelay, categoryOverviewBodyDelay }) => {
     window.__requestedCategories = [];
     window.__requestedCategoryPages = [];
     window.__requestedQueueCursors = [];
@@ -151,12 +165,15 @@ async function mountRecorder(page, options = {}) {
     window.__categoryResponseDelays = categoryResponseDelays || {};
     window.__categoryFailures = categoryFailures || {};
     window.__categoryOverviewResponse = categoryOverviewResponse || null;
+    window.__categoryOverviewResponses = Array.isArray(categoryOverviewResponses) ? categoryOverviewResponses : null;
     window.__categoryOverviewDelay = Math.max(0, Number(categoryOverviewDelay) || 0);
+    window.__categoryOverviewBodyDelay = Math.max(0, Number(categoryOverviewBodyDelay) || 0);
     window.__categoryOverviewRequests = [];
     window.__categoryOverviewTypeScopes = [];
     window.sessionStorage.setItem('ll-recorder-fixture-queue-requests', '0');
+    window.sessionStorage.setItem('ll-recorder-fixture-overview-requests', '0');
 
-    const makeJsonResponse = (payload) => ({
+    const makeJsonResponse = (payload, bodyDelay = 0) => ({
       ok: true,
       status: 200,
       statusText: 'OK',
@@ -166,6 +183,9 @@ async function mountRecorder(page, options = {}) {
         }
       },
       async json() {
+        if (bodyDelay > 0) {
+          await new Promise(resolve => setTimeout(resolve, bodyDelay));
+        }
         return payload;
       }
     });
@@ -174,19 +194,27 @@ async function mountRecorder(page, options = {}) {
       const body = options.body;
       const action = body && typeof body.get === 'function' ? String(body.get('action') || '') : '';
       if (action === 'll_tools_recorder_queue_summaries') {
+        window.sessionStorage.setItem(
+          'll-recorder-fixture-overview-requests',
+          String((parseInt(window.sessionStorage.getItem('ll-recorder-fixture-overview-requests'), 10) || 0) + 1)
+        );
         window.__categoryOverviewRequests.push(body.getAll('category_slugs[]').map(String));
+        const requestIndex = window.__categoryOverviewRequests.length - 1;
         window.__categoryOverviewTypeScopes.push({
           include: String(body.get('include_recording_types') || ''),
           exclude: String(body.get('exclude_recording_types') || '')
         });
+        const configuredResponse = window.__categoryOverviewResponses
+          ? window.__categoryOverviewResponses[Math.min(requestIndex, window.__categoryOverviewResponses.length - 1)]
+          : window.__categoryOverviewResponse;
         const response = makeJsonResponse({
           success: true,
-          data: window.__categoryOverviewResponse || {
+          data: configuredResponse || {
             cards: [],
             resolvedSlugs: [],
             pendingSlugs: []
           }
-        });
+        }, window.__categoryOverviewBodyDelay);
         return window.__categoryOverviewDelay > 0
           ? new Promise(resolve => setTimeout(() => resolve(response), window.__categoryOverviewDelay))
           : Promise.resolve(response);
@@ -299,7 +327,9 @@ async function mountRecorder(page, options = {}) {
     categoryResponseDelays: options.categoryResponseDelays || null,
     categoryFailures: options.categoryFailures || null,
     categoryOverviewResponse: options.categoryOverviewResponse || null,
-    categoryOverviewDelay: Number(options.categoryOverviewDelay) || 0
+    categoryOverviewResponses: options.categoryOverviewResponses || null,
+    categoryOverviewDelay: Number(options.categoryOverviewDelay) || 0,
+    categoryOverviewBodyDelay: Number(options.categoryOverviewBodyDelay) || 0
   });
 
   const initialImages = Array.isArray(options.initialImages)
@@ -307,7 +337,7 @@ async function mountRecorder(page, options = {}) {
     : (view === 'overview'
       ? []
       : [options.initialImage || buildQueueItem('baby-animals', 'Baby animals', 'calf')]);
-  await page.evaluate(({ initialImages, hideRecorderText, categoryQueue, categoryOverview, catalogComplete, includeTypes, excludeTypes, requestTimeoutMs, view }) => {
+  await page.evaluate(({ initialImages, hideRecorderText, categoryQueue, categoryOverview, catalogComplete, categoryOverviewBatchSize, categoryOverviewMaxAutoRetries, categoryOverviewShowAllCategories, categoryOverviewGeneration, includeTypes, excludeTypes, requestTimeoutMs, view }) => {
     window.ll_recorder_data = {
       ajax_url: '/wp-admin/admin-ajax.php',
       nonce: 'test-nonce',
@@ -353,10 +383,11 @@ async function mountRecorder(page, options = {}) {
       category_overview: categoryOverview ? {
         enabled: true,
          action: 'll_tools_recorder_queue_summaries',
-         batch_size: 6,
-         max_auto_retries: 2,
-         show_all_categories: true,
-         catalog_complete: catalogComplete
+         batch_size: categoryOverviewBatchSize,
+         max_auto_retries: categoryOverviewMaxAutoRetries,
+         show_all_categories: categoryOverviewShowAllCategories,
+         catalog_complete: catalogComplete,
+         generation: categoryOverviewGeneration
       } : { enabled: false },
       stop_delay_ms: 0,
       current_user_id: 10,
@@ -381,6 +412,10 @@ async function mountRecorder(page, options = {}) {
     categoryQueue: options.categoryQueue || null,
     categoryOverview: !!options.categoryOverview,
     catalogComplete: options.catalogComplete !== false,
+    categoryOverviewBatchSize: Number.isFinite(options.categoryOverviewBatchSize) ? options.categoryOverviewBatchSize : 6,
+    categoryOverviewMaxAutoRetries: Number.isFinite(options.categoryOverviewMaxAutoRetries) ? options.categoryOverviewMaxAutoRetries : 2,
+    categoryOverviewShowAllCategories: options.categoryOverviewShowAllCategories !== false,
+    categoryOverviewGeneration: String(options.categoryOverviewGeneration || ''),
     includeTypes: String(options.includeTypes || ''),
     excludeTypes: String(options.excludeTypes || ''),
     requestTimeoutMs: Number.isFinite(options.requestTimeoutMs) ? options.requestTimeoutMs : undefined,
@@ -442,9 +477,13 @@ test('recorder overview names every category while counts and previews hydrate',
     .toHaveAttribute('aria-label', 'Baby animals');
   await expect(page.locator('[data-recorder-queue-category="baby-animals"]'))
     .toHaveAttribute('href', /ll_record_category=baby-animals/);
+  const focusedCategory = page.locator('[data-recorder-queue-category="baby-animals"]');
+  await focusedCategory.focus();
+  await expect(focusedCategory).toBeFocused();
 
   const loadedCards = page.locator('.ll-recorder-category-card:not([data-ll-recorder-queue-summary-placeholder="true"])');
   await expect(loadedCards).toHaveCount(2, { timeout: 8000 });
+  await expect(page.locator('[data-recorder-queue-category="baby-animals"]')).toBeFocused();
   await expect(page.locator('[data-recorder-queue-category="baby-animals"] .ll-wordset-settings-card__pill')).toHaveText('12 words');
   await expect(page.locator('[data-recorder-queue-category="baby-animals"]')).toHaveAttribute('data-recorder-queue-count', '12');
   await expect(page.locator('[data-recorder-queue-category="baby-animals"]')).toHaveJSProperty('tagName', 'A');
@@ -541,12 +580,20 @@ test('a late incomplete catalog response pauses overview loading without resolvi
   await expect(page.locator('[data-ll-recorder-queue-summary-placeholder="true"]')).toHaveCount(5);
   await page.waitForTimeout(500);
   await expect.poll(async () => page.evaluate(() => window.__categoryOverviewRequests.length)).toBe(1);
+  await Promise.all([
+    page.waitForEvent('framenavigated'),
+    page.locator('[data-ll-recorder-category-retry]').click()
+  ]);
+  await expect(page.locator('[data-ll-recorder-category-overview]')).toHaveCount(0);
+  await expect.poll(async () => page.evaluate(() => (
+    parseInt(window.sessionStorage.getItem('ll-recorder-fixture-overview-requests'), 10) || 0
+  ))).toBe(1);
 });
 
 test('a stalled overview request times out and restores an explicit retry state', async ({ page }) => {
   await mountRecorder(page, {
     categoryOverview: true,
-    categoryOverviewDelay: 1000,
+    categoryOverviewBodyDelay: 1000,
     requestTimeoutMs: 50
   });
 
@@ -558,6 +605,199 @@ test('a stalled overview request times out and restores an explicit retry state'
   await expect(page.locator('[data-ll-recorder-queue-summary-loading="true"]')).toHaveCount(0);
   await page.waitForTimeout(150);
   await expect.poll(async () => page.evaluate(() => window.__categoryOverviewRequests.length)).toBe(1);
+});
+
+test('overview scheduling gives untouched visible categories a turn before retrying pending ones', async ({ page }) => {
+  await mountRecorder(page, {
+    categoryOverview: true,
+    categoryOverviewBatchSize: 2,
+    categoryOverviewResponses: [
+      {
+        generation: 'fair-generation',
+        cards: [],
+        resolvedSlugs: [],
+        pendingSlugs: ['trees', 'baby-animals']
+      },
+      {
+        generation: 'fair-generation',
+        cards: [],
+        resolvedSlugs: ['colors', 'foods'],
+        pendingSlugs: []
+      },
+      {
+        generation: 'fair-generation',
+        cards: [],
+        resolvedSlugs: ['places'],
+        pendingSlugs: []
+      },
+      {
+        generation: 'fair-generation',
+        cards: [],
+        resolvedSlugs: ['trees', 'baby-animals'],
+        pendingSlugs: []
+      }
+    ]
+  });
+
+  await expect.poll(async () => page.evaluate(() => window.__categoryOverviewRequests.length)).toBeGreaterThanOrEqual(2);
+  await expect.poll(async () => page.evaluate(() => window.__categoryOverviewRequests.slice(0, 2))).toEqual([
+    ['trees', 'baby-animals'],
+    ['colors', 'foods']
+  ]);
+});
+
+test('jumping to a later overview shell hydrates it while earlier shells remain offscreen', async ({ page }) => {
+  await mountRecorder(page, {
+    categoryOverview: true,
+    categoryOverviewBatchSize: 1,
+    spaceCategoryOverviewPlaceholders: true,
+    categoryOverviewResponses: [
+      {
+        generation: 'viewport-generation',
+        cards: [],
+        resolvedSlugs: ['trees'],
+        pendingSlugs: []
+      },
+      {
+        generation: 'viewport-generation',
+        cards: [],
+        resolvedSlugs: ['places'],
+        pendingSlugs: []
+      }
+    ]
+  });
+
+  await expect.poll(async () => page.evaluate(() => window.__categoryOverviewRequests)).toEqual([['trees']]);
+  await page.locator('[data-recorder-queue-category="places"]').scrollIntoViewIfNeeded();
+  await expect.poll(async () => page.evaluate(() => window.__categoryOverviewRequests.length)).toBe(2);
+  await expect.poll(async () => page.evaluate(() => window.__categoryOverviewRequests[1])).toEqual(['places']);
+  await expect(page.locator('[data-recorder-queue-category="baby-animals"][data-ll-recorder-queue-summary-placeholder="true"]')).toHaveCount(1);
+});
+
+test('an exhausted visible shell stays retryable while later offscreen shells can continue', async ({ page }) => {
+  await mountRecorder(page, {
+    categoryOverview: true,
+    categoryOverviewBatchSize: 1,
+    categoryOverviewMaxAutoRetries: 1,
+    spaceCategoryOverviewPlaceholders: true,
+    categoryOverviewResponses: [
+      {
+        generation: 'partial-exhaustion-generation',
+        cards: [],
+        resolvedSlugs: [],
+        pendingSlugs: ['trees']
+      },
+      {
+        generation: 'partial-exhaustion-generation',
+        cards: [],
+        resolvedSlugs: [],
+        pendingSlugs: ['trees']
+      },
+      {
+        generation: 'partial-exhaustion-generation',
+        cards: [],
+        resolvedSlugs: ['baby-animals'],
+        pendingSlugs: []
+      }
+    ]
+  });
+
+  await expect.poll(async () => page.evaluate(() => window.__categoryOverviewRequests.length)).toBe(2);
+  await expect(page.locator('[data-ll-recorder-category-retry]')).toBeVisible();
+  await page.locator('[data-recorder-queue-category="baby-animals"]').scrollIntoViewIfNeeded();
+  await expect.poll(async () => page.evaluate(() => window.__categoryOverviewRequests.length)).toBe(3);
+  await expect.poll(async () => page.evaluate(() => window.__categoryOverviewRequests[2])).toEqual(['baby-animals']);
+  await expect(page.locator('[data-ll-recorder-category-retry]')).toBeVisible();
+  await expect(page.locator('[data-recorder-queue-category="trees"][data-ll-recorder-queue-summary-placeholder="true"]')).toHaveCount(1);
+});
+
+test('hidden overview shells wait until visible while exhausted shells keep Retry available', async ({ page }) => {
+  await mountRecorder(page, {
+    categoryOverview: true,
+    categoryOverviewBatchSize: 3,
+    categoryOverviewMaxAutoRetries: 1,
+    categoryOverviewShowAllCategories: false,
+    categoryOverviewResponses: [
+      {
+        generation: 'hidden-shell-generation',
+        cards: [],
+        resolvedSlugs: [],
+        pendingSlugs: ['trees', 'baby-animals', 'colors']
+      },
+      {
+        generation: 'hidden-shell-generation',
+        cards: [],
+        resolvedSlugs: [],
+        pendingSlugs: ['trees', 'baby-animals', 'colors']
+      },
+      {
+        generation: 'hidden-shell-generation',
+        cards: [],
+        resolvedSlugs: ['foods'],
+        pendingSlugs: []
+      }
+    ]
+  });
+
+  await expect.poll(async () => page.evaluate(() => window.__categoryOverviewRequests.length)).toBe(2);
+  await expect.poll(async () => page.evaluate(() => window.__categoryOverviewRequests.slice(0, 2))).toEqual([
+    ['trees', 'baby-animals', 'colors'],
+    ['trees', 'baby-animals', 'colors']
+  ]);
+  await expect(page.locator('[data-recorder-queue-category="foods"]')).toBeHidden();
+  await expect(page.locator('[data-ll-recorder-category-retry]')).toBeVisible();
+  await page.locator('[data-recorder-queue-category="foods"]').evaluate(element => {
+    element.hidden = false;
+  });
+  await expect.poll(async () => page.evaluate(() => window.__categoryOverviewRequests.length)).toBe(3);
+  await expect.poll(async () => page.evaluate(() => window.__categoryOverviewRequests[2])).toEqual(['foods']);
+  await expect(page.locator('[data-ll-recorder-category-retry]')).toBeVisible();
+});
+
+test('an invalid or incomplete overview classification preserves every shell and exposes retry', async ({ page }) => {
+  await mountRecorder(page, {
+    categoryOverview: true,
+    categoryOverviewResponse: {
+      generation: 'incomplete-response-generation',
+      cards: [{
+        slug: 'trees',
+        name: 'Tree varieties',
+        html: '<a class="unexpected-card" href="/record/?ll_record_category=trees" data-recorder-queue-category="trees">Tree varieties</a>'
+      }],
+      resolvedSlugs: ['baby-animals', 'colors', 'foods', 'places'],
+      pendingSlugs: []
+    }
+  });
+
+  await expect.poll(async () => page.evaluate(() => window.__categoryOverviewRequests.length)).toBe(1);
+  await expect(page.locator('[data-ll-recorder-category-overview]')).toHaveClass(/has-error/);
+  await expect(page.locator('[data-ll-recorder-category-retry]')).toBeVisible();
+  await expect(page.locator('[data-ll-recorder-queue-summary-placeholder="true"]')).toHaveCount(5);
+  await expect(page.locator('.ll-recorder-category-card:not([data-ll-recorder-queue-summary-placeholder="true"])')).toHaveCount(0);
+});
+
+test('retry reloads the overview after its generation becomes stale', async ({ page }) => {
+  await mountRecorder(page, {
+    categoryOverview: true,
+    categoryOverviewGeneration: 'old-generation',
+    categoryOverviewResponse: {
+      generation: 'new-generation',
+      cards: [],
+      resolvedSlugs: ['trees', 'baby-animals', 'colors', 'foods', 'places'],
+      pendingSlugs: []
+    }
+  });
+
+  const retry = page.locator('[data-ll-recorder-category-retry]');
+  await expect(retry).toBeVisible();
+  await Promise.all([
+    page.waitForEvent('framenavigated'),
+    retry.click()
+  ]);
+  await expect(page.locator('[data-ll-recorder-category-overview]')).toHaveCount(0);
+  await expect.poll(async () => page.evaluate(() => (
+    parseInt(window.sessionStorage.getItem('ll-recorder-fixture-overview-requests'), 10) || 0
+  ))).toBe(1);
 });
 
 test('initial empty queue follows its continuation before showing completion', async ({ page }) => {

@@ -2022,7 +2022,118 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
         }
     }
 
-    public function test_word_eligibility_failure_does_not_advance_candidate_or_summary_cursors_past_the_failed_row(): void
+    public function test_prepared_category_word_eligibility_is_reused_without_changing_exact_summary_counts(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+        $this->ensureRecordingType('Isolation', 'isolation');
+
+        $fixture = $this->createWordsetWithCategories(1);
+        $wordset_id = (int) $fixture['wordset_id'];
+        $category = $fixture['categories'][0];
+        $category_id = (int) $category['id'];
+        for ($index = 2; $index <= 5; $index++) {
+            $word_id = self::factory()->post->create([
+                'post_type' => 'words',
+                'post_status' => 'publish',
+                'post_title' => sprintf('Prepared Eligibility Word %02d', $index),
+            ]);
+            wp_set_post_terms($word_id, [$category_id], 'word-category', false);
+            wp_set_post_terms($word_id, [$wordset_id], 'wordset', false);
+        }
+
+        $context = ll_tools_wordset_page_prepare_recorder_queue_category_word_eligibility(
+            $category_id,
+            ['isolation']
+        );
+        $this->assertTrue((bool) ($context['complete'] ?? false));
+        $this->assertFalse((bool) ($context['disabled'] ?? true));
+        $this->assertTrue((bool) ($context['has_desired_types'] ?? false));
+        $this->assertSame(['isolation'], (array) ($context['types'] ?? []));
+
+        $word_ids = get_posts([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'fields' => 'ids',
+            'posts_per_page' => -1,
+            'no_found_rows' => true,
+            'tax_query' => [[
+                'taxonomy' => 'word-category',
+                'field' => 'term_id',
+                'terms' => [$category_id],
+            ]],
+        ]);
+        $this->assertCount(5, $word_ids);
+
+        $category_config_reads = 0;
+        $count_category_config_reads = static function ($value, $object_id, $meta_key) use (
+            $category_id,
+            &$category_config_reads
+        ) {
+            if ((int) $object_id === $category_id && (string) $meta_key === 'll_desired_recording_types') {
+                $category_config_reads++;
+            }
+            return $value;
+        };
+        add_filter('get_term_metadata', $count_category_config_reads, 10, 3);
+        try {
+            foreach ($word_ids as $word_id) {
+                $complete = false;
+                $this->assertTrue(ll_tools_wordset_page_word_needs_category_recording(
+                    (int) $word_id,
+                    $category_id,
+                    ['isolation'],
+                    $admin_id,
+                    $complete,
+                    $context
+                ));
+                $this->assertTrue($complete);
+            }
+        } finally {
+            remove_filter('get_term_metadata', $count_category_config_reads, 10);
+        }
+        $this->assertSame(0, $category_config_reads, 'Prepared category config must not be reread for every word.');
+
+        $fallback_context = $context;
+        $fallback_context['has_desired_types'] = false;
+        $fallback_context['types'] = [];
+        $category_config_reads = 0;
+        add_filter('get_term_metadata', $count_category_config_reads, 10, 3);
+        try {
+            $fallback_complete = false;
+            $this->assertTrue(ll_tools_wordset_page_word_needs_category_recording(
+                (int) $word_ids[0],
+                $category_id,
+                ['isolation'],
+                $admin_id,
+                $fallback_complete,
+                $fallback_context
+            ));
+            $this->assertTrue($fallback_complete);
+        } finally {
+            remove_filter('get_term_metadata', $count_category_config_reads, 10);
+        }
+        $this->assertGreaterThan(0, $category_config_reads, 'Categories without explicit types must retain the per-word fallback.');
+
+        $summary = ll_tools_wordset_page_build_recorder_queue_summary_group(
+            $category,
+            $wordset_id,
+            $admin_id,
+            'isolation'
+        );
+        $this->assertTrue((bool) ($summary['complete'] ?? false));
+        $this->assertSame(5, (int) ($summary['group']['count'] ?? 0));
+        $this->assertFalse((bool) ($summary['group']['count_is_lower_bound'] ?? true));
+
+        $focused_source = $this->getFunctionSource('ll_tools_wordset_page_get_recorder_queue_category_candidate_word_page');
+        $summary_source = $this->getFunctionSource('ll_tools_wordset_page_advance_recorder_queue_summary_scan');
+        $this->assertSame(1, substr_count($focused_source, 'll_tools_wordset_page_prepare_recorder_queue_category_word_eligibility('));
+        $this->assertSame(1, substr_count($summary_source, 'll_tools_wordset_page_prepare_recorder_queue_category_word_eligibility('));
+        $this->assertStringContainsString('$category_word_eligibility', $focused_source);
+        $this->assertStringContainsString('$category_word_eligibility', $summary_source);
+    }
+
+    public function test_category_eligibility_failure_does_not_advance_candidate_or_summary_cursors(): void
     {
         global $wpdb;
 
@@ -2055,10 +2166,8 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
         wp_set_post_terms($word_id, [$category_id], 'word-category', false);
         wp_set_post_terms($word_id, [$wordset_id], 'wordset', false);
 
-        // Prime category scope and configuration before fault injection. The
-        // query filter then evicts only the configuration cache when the raw
-        // candidate query is observed, so the injected failure occurs inside
-        // eligibility evaluation after this word has been discovered.
+        // Prime category scope so the injected error is isolated to the
+        // category eligibility configuration read.
         $category_complete = true;
         $this->assertInstanceOf(
             WP_Term::class,
@@ -2070,50 +2179,23 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
             )
         );
         $this->assertTrue($category_complete);
-        $configuration_complete = true;
-        $this->assertSame(
-            ['isolation'],
-            ll_tools_wordset_page_get_recorder_queue_category_recording_types(
-                $category_id,
-                ['isolation'],
-                $configuration_complete
-            )
-        );
-        $this->assertTrue($configuration_complete);
-
-        $raw_candidate_seen = false;
         $injected_failures = 0;
-        $break_word_eligibility = static function (string $sql) use (
+        $break_category_eligibility = static function ($value, $object_id, $meta_key, $single) use (
             $wpdb,
             $category_id,
-            &$raw_candidate_seen,
             &$injected_failures
-        ): string {
-            if (
-                !$raw_candidate_seen
-                && stripos($sql, $wpdb->posts) !== false
-                && stripos($sql, $wpdb->term_relationships) !== false
-                && preg_match("/post_type\\s*=\\s*'words'/i", $sql)
-            ) {
-                $raw_candidate_seen = true;
-                wp_cache_delete($category_id, 'term_meta');
-                return $sql;
-            }
-            if (
-                $raw_candidate_seen
-                && stripos($sql, $wpdb->termmeta) !== false
-                && preg_match('/term_id\\s+IN\\s*\\(\\s*' . $category_id . '\\s*\\)/i', $sql)
-            ) {
+        ) {
+            if ((int) $object_id === $category_id && (string) $meta_key === 'll_desired_recording_types') {
                 $injected_failures++;
-                return "SELECT term_id, meta_key, meta_value FROM {$wpdb->termmeta}_ll_tools_missing_word_eligibility";
+                $wpdb->last_error = 'll_tools_test_category_eligibility_failure';
+                return $single ? '' : [];
             }
 
-            return $sql;
+            return $value;
         };
 
-        $previous_suppress_errors = $wpdb->suppress_errors(true);
         try {
-            add_filter('query', $break_word_eligibility);
+            add_filter('get_term_metadata', $break_category_eligibility, 10, 4);
             $failed_page = ll_tools_wordset_page_get_recorder_queue_category_candidate_word_page(
                 $wordset_id,
                 (string) $category_term->slug,
@@ -2123,10 +2205,8 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
                 '',
                 $admin_id
             );
-            remove_filter('query', $break_word_eligibility);
+            remove_filter('get_term_metadata', $break_category_eligibility, 10);
             $wpdb->last_error = '';
-            wp_cache_delete($category_id, 'term_meta');
-            clean_object_term_cache($word_id, 'words');
 
             $retried_page = ll_tools_wordset_page_get_recorder_queue_category_candidate_word_page(
                 $wordset_id,
@@ -2139,18 +2219,15 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
                 (array) ($failed_page['cursor'] ?? [])
             );
 
-            $raw_candidate_seen = false;
-            add_filter('query', $break_word_eligibility);
+            add_filter('get_term_metadata', $break_category_eligibility, 10, 4);
             $failed_summary = ll_tools_wordset_page_build_recorder_queue_summary_group(
                 $category_source,
                 $wordset_id,
                 $admin_id,
                 'isolation'
             );
-            remove_filter('query', $break_word_eligibility);
+            remove_filter('get_term_metadata', $break_category_eligibility, 10);
             $wpdb->last_error = '';
-            wp_cache_delete($category_id, 'term_meta');
-            clean_object_term_cache($word_id, 'words');
 
             $retried_summary = ll_tools_wordset_page_build_recorder_queue_summary_group(
                 $category_source,
@@ -2161,12 +2238,10 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
                 (array) ($failed_summary['scan_state'] ?? [])
             );
         } finally {
-            remove_filter('query', $break_word_eligibility);
-            $wpdb->suppress_errors($previous_suppress_errors);
+            remove_filter('get_term_metadata', $break_category_eligibility, 10);
             $wpdb->last_error = '';
         }
 
-        $this->assertTrue($raw_candidate_seen);
         $this->assertGreaterThanOrEqual(2, $injected_failures, 'Focused and summary scans must both exercise the failed eligibility read.');
         $this->assertFalse((bool) ($failed_page['complete'] ?? true));
         $this->assertTrue((bool) ($failed_page['truncated'] ?? false));
@@ -3491,6 +3566,181 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
             array_column($fixture['categories'], 'slug'),
             array_column($categories, 'slug')
         );
+    }
+
+    public function test_recorder_category_catalog_bulk_remap_preserves_owned_shared_copy_and_failure_semantics(): void
+    {
+        global $wpdb;
+
+        wp_set_current_user(self::factory()->user->create(['role' => 'administrator']));
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+
+        $create_term_id = function (string $taxonomy, string $label): int {
+            $created = wp_insert_term($label . ' ' . wp_generate_password(6, false), $taxonomy);
+            $this->assertIsArray($created);
+            return (int) $created['term_id'];
+        };
+        $attach_word = static function (int $wordset_id, int $category_id, string $label) use ($wpdb): void {
+            $word_id = self::factory()->post->create([
+                'post_type' => 'words',
+                'post_status' => 'publish',
+                'post_title' => $label,
+            ]);
+            foreach ([
+                ['id' => $wordset_id, 'taxonomy' => 'wordset'],
+                ['id' => $category_id, 'taxonomy' => 'word-category'],
+            ] as $relationship) {
+                $term = get_term((int) $relationship['id'], (string) $relationship['taxonomy']);
+                if (!($term instanceof WP_Term)) {
+                    continue;
+                }
+                $wpdb->insert(
+                    $wpdb->term_relationships,
+                    [
+                        'object_id' => $word_id,
+                        'term_taxonomy_id' => (int) $term->term_taxonomy_id,
+                        'term_order' => 0,
+                    ],
+                    ['%d', '%d', '%d']
+                );
+            }
+            clean_object_term_cache($word_id, 'words');
+        };
+        $catalog_ids = static function (int $wordset_id, ?bool &$complete = null): array {
+            return array_map('intval', wp_list_pluck(
+                ll_tools_recorder_get_category_terms_for_wordsets(
+                    [$wordset_id],
+                    get_current_user_id(),
+                    $complete
+                ),
+                'term_id'
+            ));
+        };
+
+        $owned_wordset_id = $create_term_id('wordset', 'Bulk remap owned wordset');
+        $owned_category_id = $create_term_id('word-category', 'Bulk remap owned category');
+        ll_tools_set_category_wordset_owner($owned_category_id, $owned_wordset_id, $owned_category_id);
+        $owned_complete = false;
+        $this->assertSame([$owned_category_id], $catalog_ids($owned_wordset_id, $owned_complete));
+        $this->assertTrue($owned_complete);
+
+        $shared_wordset_id = $create_term_id('wordset', 'Bulk remap shared wordset');
+        $shared_category_id = $create_term_id('word-category', 'Bulk remap shared category');
+        $attach_word($shared_wordset_id, $shared_category_id, 'Bulk remap shared word');
+        $shared_complete = false;
+        $this->assertSame([$shared_category_id], $catalog_ids($shared_wordset_id, $shared_complete));
+        $this->assertTrue($shared_complete);
+
+        $copy_wordset_id = $create_term_id('wordset', 'Bulk remap copy wordset');
+        $copy_source_id = $create_term_id('word-category', 'Bulk remap copy source');
+        $attach_word($copy_wordset_id, $copy_source_id, 'Bulk remap copy word');
+        $copy_category_id = (int) ll_tools_get_or_create_isolated_category_copy($copy_source_id, $copy_wordset_id);
+        $this->assertGreaterThan(0, $copy_category_id);
+        $copy_complete = false;
+        $this->assertSame([$copy_category_id], $catalog_ids($copy_wordset_id, $copy_complete));
+        $this->assertTrue($copy_complete);
+
+        $foreign_owner_wordset_id = $create_term_id('wordset', 'Bulk remap foreign owner wordset');
+        $foreign_target_wordset_id = $create_term_id('wordset', 'Bulk remap foreign target wordset');
+        $foreign_category_id = $create_term_id('word-category', 'Bulk remap foreign category');
+        ll_tools_set_category_wordset_owner(
+            $foreign_category_id,
+            $foreign_owner_wordset_id,
+            $foreign_category_id
+        );
+        $attach_word($foreign_target_wordset_id, $foreign_category_id, 'Bulk remap foreign word');
+        $foreign_complete = false;
+        $this->assertSame([$foreign_category_id], $catalog_ids($foreign_target_wordset_id, $foreign_complete));
+        $this->assertTrue($foreign_complete);
+
+        $failure_wordset_id = $create_term_id('wordset', 'Bulk remap failure wordset');
+        $failure_category_id = $create_term_id('word-category', 'Bulk remap failure category');
+        ll_tools_set_category_wordset_owner($failure_category_id, $failure_wordset_id, $failure_category_id);
+        update_meta_cache('term', [$failure_category_id]);
+        $failure_reads = 0;
+        $break_owner_read = static function ($value, $object_id, $meta_key) use (
+            $wpdb,
+            $failure_category_id,
+            &$failure_reads
+        ) {
+            if (
+                (int) $object_id === $failure_category_id
+                && (string) $meta_key === LL_TOOLS_CATEGORY_WORDSET_OWNER_META_KEY
+            ) {
+                $failure_reads++;
+                $wpdb->last_error = 'll_tools_test_bulk_category_remap_failure';
+            }
+            return $value;
+        };
+        add_filter('get_term_metadata', $break_owner_read, 10, 3);
+        try {
+            $failure_complete = true;
+            $failure_ids = $catalog_ids($failure_wordset_id, $failure_complete);
+        } finally {
+            remove_filter('get_term_metadata', $break_owner_read, 10);
+            $wpdb->last_error = '';
+        }
+        $this->assertGreaterThan(0, $failure_reads);
+        $this->assertFalse($failure_complete);
+        $this->assertContains(
+            $failure_category_id,
+            $failure_ids,
+            'A remap read failure must retain the legacy identity fallback while marking the catalog incomplete.'
+        );
+    }
+
+    public function test_recorder_category_catalog_queries_remain_bounded_as_category_count_grows(): void
+    {
+        global $wpdb;
+
+        wp_set_current_user(self::factory()->user->create(['role' => 'administrator']));
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+        $fixture = $this->createWordsetWithCategories(12);
+        $category_ids = array_map('intval', array_column($fixture['categories'], 'id'));
+        foreach ($category_ids as $category_id) {
+            if (function_exists('ll_tools_epoch_request_cache_key')) {
+                unset($GLOBALS['ll_tools_epoch_request_cache'][ll_tools_epoch_request_cache_key(
+                    'term',
+                    $category_id,
+                    '_ll_wc_cache_version'
+                )]);
+            }
+        }
+        wp_cache_flush();
+
+        $queries = [];
+        $capture_queries = static function (string $sql) use (&$queries): string {
+            $queries[] = $sql;
+            return $sql;
+        };
+        add_filter('query', $capture_queries);
+        try {
+            $complete = false;
+            $terms = ll_tools_recorder_get_category_terms_for_wordsets(
+                [(int) $fixture['wordset_id']],
+                get_current_user_id(),
+                $complete
+            );
+        } finally {
+            remove_filter('query', $capture_queries);
+        }
+
+        $term_queries = array_values(array_filter($queries, static function (string $sql) use ($wpdb): bool {
+            return stripos($sql, $wpdb->terms) !== false
+                && stripos($sql, $wpdb->term_taxonomy) !== false;
+        }));
+        $version_queries = array_values(array_filter($queries, static function (string $sql): bool {
+            return stripos($sql, '_ll_wc_cache_version') !== false;
+        }));
+
+        $this->assertTrue($complete);
+        $this->assertCount(12, $terms);
+        $this->assertLessThan(8, count($term_queries), 'Term remapping must stay set-based instead of querying per category.');
+        $this->assertLessThanOrEqual(1, count($version_queries), 'Category cache versions must be primed in one query.');
+        $this->assertLessThan(25, count($queries), 'Recorder category discovery must not grow one SQL query per category.');
+
+        $catalog_source = $this->getFunctionSource('ll_tools_wordset_page_get_recorder_queue_summary_categories');
+        $this->assertStringContainsString('ll_tools_get_category_cache_versions($ordered_category_ids)', $catalog_source);
     }
 
     public function test_overview_category_source_includes_prompt_only_uncategorized_queue(): void
