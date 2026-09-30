@@ -19042,6 +19042,18 @@
 
         const categoryBulkActions = ['add_category', 'remove_category', 'move_category'];
         const categoryCreateActions = ['add_category', 'move_category'];
+        const $splitForm = $editor.find('[data-ll-wordset-editor-split-form]').first();
+
+        const syncSplitDestination = function () {
+            if (!$splitForm.length) { return; }
+            const isNew = $splitForm.find('[data-ll-wordset-editor-split-target-mode]').val() !== 'existing';
+            $splitForm.find('[data-ll-wordset-editor-split-new]').prop('hidden', !isNew)
+                .find('input').prop('disabled', !isNew);
+            $splitForm.find('input[name="ll_wordset_editor_new_category_name"]').prop('required', isNew);
+            $splitForm.find('[data-ll-wordset-editor-split-existing]').prop('hidden', isNew)
+                .find('select').prop('disabled', isNew).prop('required', !isNew);
+            $splitForm.find('[data-ll-wordset-editor-split-error]').prop('hidden', true);
+        };
 
         const syncBulkCategoryTarget = function ($form) {
             if (!$form || !$form.length) { return; }
@@ -19078,10 +19090,16 @@
             const singularLabel = String($editor.attr('data-ll-wordset-editor-selected-singular') || '1 selected');
             const pluralTemplate = String($editor.attr('data-ll-wordset-editor-selected-plural') || '%d selected');
             const allFiltered = !!$editor.find('[data-ll-wordset-editor-all-filtered]').is(':checked');
+            $splitForm.find('[data-ll-wordset-editor-split-submit]').prop('disabled', !checkedCount && !allFiltered);
+            $splitForm.find('[data-ll-wordset-editor-split-error]').prop('hidden', true);
             if (allFiltered) {
                 $editor.find('[data-ll-wordset-editor-selected-count]').text(
                     String($editor.attr('data-ll-wordset-editor-all-filtered') || '')
                 );
+                if ($splitForm.length) {
+                    $editor.find('[data-ll-wordset-editor-select-all]').prop('checked', true).prop('indeterminate', false);
+                    $checks.prop('checked', true);
+                }
                 return;
             }
             $editor.find('[data-ll-wordset-editor-selected-count]').text(
@@ -19095,13 +19113,26 @@
 
         $root.on('change', '[data-ll-wordset-editor-select-all]', function () {
             const checked = !!$(this).is(':checked');
+            if ($splitForm.length) {
+                $editor.find('[data-ll-wordset-editor-all-filtered]').prop('checked', false);
+            }
             $editor.find('[data-ll-wordset-editor-word]').prop('checked', checked);
             updateSelectionState();
         });
 
-        $root.on('change', '[data-ll-wordset-editor-word]', updateSelectionState);
+        $root.on('change', '[data-ll-wordset-editor-word]', function () {
+            if ($splitForm.length) {
+                $editor.find('[data-ll-wordset-editor-all-filtered]').prop('checked', false);
+            }
+            updateSelectionState();
+        });
 
         $root.on('change', '[data-ll-wordset-editor-all-filtered]', updateSelectionState);
+        $root.on('change', '[data-ll-wordset-editor-split-target-mode]', syncSplitDestination);
+        $root.on('input change', '[data-ll-wordset-editor-split-form] input[name="ll_wordset_editor_new_category_name"], [data-ll-wordset-editor-split-form] select[name="ll_wordset_editor_target_category"]', function () {
+            $splitForm.find('[data-ll-wordset-editor-split-error]').prop('hidden', true);
+        });
+        syncSplitDestination();
 
         $editor.find('[data-ll-wordset-editor-bulk-form]').each(function () {
             syncBulkCategoryTarget($(this));
@@ -19361,6 +19392,25 @@
                 note,
                 $editor.attr('data-ll-wordset-editor-review-note-label')
             );
+        });
+
+        $root.on('submit', '[data-ll-wordset-editor-split-form]', function (evt) {
+            const selectedCount = $editor.find('[data-ll-wordset-editor-word]:checked').length;
+            const allFiltered = $editor.find('[data-ll-wordset-editor-all-filtered]').is(':checked');
+            const isNew = $splitForm.find('[data-ll-wordset-editor-split-target-mode]').val() !== 'existing';
+            const hasDestination = isNew
+                ? String($splitForm.find('input[name="ll_wordset_editor_new_category_name"]').val() || '').trim().length > 0
+                : (parseInt($splitForm.find('select[name="ll_wordset_editor_target_category"]').val(), 10) || 0) > 0;
+            if ((!selectedCount && !allFiltered) || !hasDestination) {
+                evt.preventDefault();
+                const messageAttribute = (!selectedCount && !allFiltered)
+                    ? 'data-ll-wordset-editor-empty-selection' : 'data-ll-wordset-editor-category-required';
+                $splitForm.find('[data-ll-wordset-editor-split-error]')
+                    .text(String($splitForm.attr(messageAttribute) || '')).prop('hidden', false);
+                return;
+            }
+            // One explicit move; never replay an uncertain POST.
+            $splitForm.find('[data-ll-wordset-editor-split-submit]').prop('disabled', true);
         });
 
         $root.on('submit', '[data-ll-wordset-editor-bulk-form]', function (evt) {

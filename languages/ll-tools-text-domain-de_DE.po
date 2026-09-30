@@ -13687,17 +13687,6 @@ msgstr "Kategorie teilen"
 msgid "Split Category"
 msgstr "Kategorie teilen"
 
-#: includes/pages/wordset-editor.php:4355
-#, php-format
-msgid "Move %1$d filtered word out of %2$s."
-msgid_plural "Move %1$d filtered words out of %2$s."
-msgstr[0] "Verschiebe %1$d gefilterte Vokabel aus %2$s."
-msgstr[1] "Verschiebe %1$d gefilterte Vokabeln aus %2$s."
-
-#: includes/pages/wordset-editor.php:4363
-msgid "Move all filtered words to the target category?"
-msgstr "Alle gefilterten Vokabeln in die Zielkategorie verschieben?"
-
 #: includes/pages/wordset-editor.php:4373
 msgid "Existing target"
 msgstr "Vorhandenes Ziel"
@@ -13707,17 +13696,9 @@ msgstr "Vorhandenes Ziel"
 msgid "Choose category"
 msgstr "Kategorie wählen"
 
-#: includes/pages/wordset-editor.php:4384
-msgid "Or new category"
-msgstr "Oder neue Kategorie"
-
 #: includes/pages/wordset-editor.php:4389
 msgid "Copy quiz, game, and recording settings"
 msgstr "Quiz-, Spiel- und Aufnahmeeinstellungen kopieren"
-
-#: includes/pages/wordset-editor.php:4393
-msgid "Move Filtered Words"
-msgstr "Gefilterte Vokabeln verschieben"
 
 #: includes/pages/wordset-editor.php:4566
 msgid "1 selected"
@@ -25497,12 +25478,6 @@ msgstr "Die Aufnahmen konnten nicht geladen werden. Bitte versuche es erneut."
 msgid "Page %d"
 msgstr "Seite %d"
 
-#. translators: %d: known minimum number of recordings in a queue
-#: includes/admin/audio-processor-admin.php:222
-#, php-format
-msgid "%d+"
-msgstr "%d+"
-
 #: includes/admin/audio-processor-admin.php:223
 #: includes/lib/ai-crawler-support.php:1624
 msgid "Wordset:"
@@ -25515,12 +25490,6 @@ msgstr "Die Warteschlangenanfrage ist abgelaufen. Aktualisiere die Seite und ver
 #: includes/admin/audio-processor-admin.php:1087
 msgid "Invalid queue."
 msgstr "Ungültige Warteschlange."
-
-#: includes/admin/audio-processor-admin.php:1427
-#: includes/admin/audio-processor-admin.php:1438
-#: includes/admin/audio-processor-admin.php:1449
-msgid "Loading"
-msgstr "Wird geladen"
 
 #: includes/admin/bulk-word-import-admin.php:332
 #, php-format
@@ -30439,3 +30408,92 @@ msgstr "Wörter auswählen"
 #: includes/pages/wordset-pages.php:26262
 msgid "Older than 30 days"
 msgstr "Älter als 30 Tage"
+
+#. ll-tools-public-key: 0b528a52ed8d3afe13ff321464201321bd535432
+#: includes/pages/wordset-editor.php:4456
+msgid "Move selected words"
+msgstr "Ausgewählte Vokabeln verschieben"
+
+#. ll-tools-public-key: 126cdea126304fc8869a941b402c4abac18bcb57
+#: includes/pages/wordset-editor.php:4058
+msgid "Choose either a new category or an existing destination."
+msgstr "Wähle entweder eine neue Kategorie oder eine vorhandene Zielkategorie."
+
+#. ll-tools-public-key: 2211eb3fe2558fc233d577ceb14561a79c4f00f1
+#: includes/pages/wordset-editor.php:4413
+msgid "Select at least one word above."
+msgstr "Wähle oben mindestens eine Vokabel aus."
+
+#. ll-tools-public-key: 2a649536ecbc5fdec83218d18183b9f847ea466a
+#: includes/pages/wordset-editor.php:4422
+msgid "Destination"
+msgstr "Zielkategorie"
+
+#. ll-tools-public-key: 375d797a74f31f1c4ad5fea18ce0acdb0a063342
+#: includes/pages/wordset-editor.php:4867
+msgid "Select all %d matching word"
+msgid_plural "Select all %d matching words"
+msgstr[0] "%d passende Vokabel auswählen"
+msgstr[1] "Alle %d passenden Vokabeln auswählen"
+
+#. ll-tools-public-key: 5928ac4d47788f6f18a4c7a9093a6c1214c7f9d2
+#: includes/pages/wordset-editor.php:4651
+msgid "Find words (optional)"
+msgstr "Vokabeln suchen (optional)"
+
+#. ll-tools-public-key: 68ca1e523b66fb32b462d251c9a4d2d79c0cd956
+#: includes/pages/wordset-editor.php:4866
+msgid "Select this page"
+msgstr "Vokabeln auf dieser Seite auswählen"
+
+#. ll-tools-public-key: 70e306ee63deefb5cc094a2c4c1d7e12616dd89a
+#: includes/pages/wordset-editor.php:4086
+msgid "Moved %1$d word to \"%2$s\"."
+msgid_plural "Moved %1$d words to \"%2$s\"."
+msgstr[0] "%1$d Vokabel wurde in die Kategorie \"%2$s\" verschoben."
+msgstr[1] "%1$d Vokabeln wurden in die Kategorie \"%2$s\" verschoben."
+
+#. ll-tools-public-key: 7fa24417e3f484089c33ab4c2d17ad8a95cde197
+#: includes/pages/wordset-editor.php:4057
+msgid "Choose a destination different from the source category."
+msgstr "Wähle eine andere Zielkategorie als die Ausgangskategorie."
+
+#. ll-tools-public-key: 85a091332f121ce6b004f288d4379e44c04efc25
+#: includes/pages/wordset-editor.php:4054
+msgid "Select at least one word from the category you are splitting."
+msgstr "Wähle mindestens eine Vokabel aus der Kategorie aus, die du teilen möchtest."
+
+#. ll-tools-public-key: 9845d3f7d153dbfa2d0429dd5cbd5f9777d1dbe3
+#: includes/pages/wordset-editor.php:4413
+msgid "Enter a new category name or choose an existing category."
+msgstr "Gib einen neuen Kategorienamen ein oder wähle eine vorhandene Kategorie."
+
+#. ll-tools-public-key: a0be721a912e253a8f4c5f4d044511771f56a330
+#: includes/pages/wordset-editor.php:4055
+msgid "Choose one source category and open Split Category again."
+msgstr "Wähle eine Ausgangskategorie und öffne \"Kategorie teilen\" erneut."
+
+#. ll-tools-public-key: a9df7c1bd2f81ef10d705d80aedb3ebff8015510
+#: includes/pages/wordset-editor.php:4647
+msgid "Select the words to move out of %s, then choose their destination below."
+msgstr "Wähle die Vokabeln aus, die du aus %s verschieben möchtest, und wähle unten die Zielkategorie."
+
+#. ll-tools-public-key: b18470e877f1e4d1adc5b163d1caa5471209f7fd
+#: includes/pages/wordset-editor.php:4408
+msgid "Published words stay published; draft words stay drafts."
+msgstr "Veröffentlichte Vokabeln bleiben veröffentlicht; Entwürfe bleiben Entwürfe."
+
+#. ll-tools-public-key: c07cd68b4deafe3dba082b2be68b49b58b69d3f6
+#: includes/pages/wordset-editor.php:4864
+msgid "1. Select words"
+msgstr "1. Vokabeln auswählen"
+
+#. ll-tools-public-key: c5ef38e109c0ab0d1c4882ac7e92f275e45cc17f
+#: includes/pages/wordset-editor.php:4056
+msgid "Enter a new category name or choose a destination from this word set."
+msgstr "Gib einen neuen Kategorienamen ein oder wähle eine Zielkategorie aus diesem Vokabelset."
+
+#. ll-tools-public-key: cd3641122153bab6b8b1a06a8faf3467bb9d86b0
+#: includes/pages/wordset-editor.php:4405
+msgid "2. Choose destination"
+msgstr "2. Zielkategorie wählen"
