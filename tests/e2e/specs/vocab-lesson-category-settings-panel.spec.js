@@ -55,6 +55,19 @@ function buildLineupItems(count = 3) {
 function buildCategorySettingsMarkup(options = {}) {
   const lineupCount = Number.isFinite(options.lineupCount) ? Math.max(1, options.lineupCount) : 3;
   const includeOverlapShell = options.includeOverlapShell === true;
+  const privacySection = options.includePrivacy === true
+    ? `
+      <div class="ll-vocab-lesson-category-settings-section ll-vocab-lesson-category-settings-section--privacy">
+        <label class="ll-vocab-lesson-category-settings-field">
+          <span class="ll-vocab-lesson-category-settings-field__label">Visibility</span>
+          <select name="ll_vocab_lesson_category_visibility" class="ll-vocab-lesson-category-settings-select" ${options.inheritedPrivate ? 'disabled' : ''}>
+            <option value="public" ${options.inheritedPrivate ? '' : 'selected'}>Public</option>
+            <option value="private" ${options.inheritedPrivate ? 'selected' : ''}>Private</option>
+          </select>
+        </label>
+      </div>
+    `
+    : '';
   const lineupItems = buildLineupItems(lineupCount);
   const lineupIds = Array.from({ length: lineupCount }, (_, index) => String(41 + index)).join(',');
   const overlapShell = includeOverlapShell
@@ -103,6 +116,8 @@ function buildCategorySettingsMarkup(options = {}) {
                     <span class="ll-vocab-lesson-category-settings-summary-pill">1 recording type</span>
                   </div>
                 </div>
+
+                ${privacySection}
 
                 <div class="ll-vocab-lesson-category-settings-section">
                   <div class="ll-vocab-lesson-category-settings-section__heading">Quiz</div>
@@ -471,6 +486,35 @@ async function mountCategorySettingsHarness(page, viewport, options = {}) {
   await page.addScriptTag({ content: categoryLineupJsSource });
   await page.addScriptTag({ content: vocabLessonJsSource });
 }
+
+test('lesson category privacy autosaves both choices while keeping the popup open', async ({ page }) => {
+  await mountCategorySettingsHarness(page, { width: 1280, height: 900 }, { includePrivacy: true });
+  await page.locator('.ll-vocab-lesson-category-settings-trigger').click();
+  const privacy = page.locator('select[name="ll_vocab_lesson_category_visibility"]');
+  const status = page.locator('[data-ll-category-settings-status]');
+  await privacy.selectOption('private');
+  await expect(status).toHaveAttribute('data-state', 'saved');
+  const firstSave = await page.evaluate(() => window.__llCategorySettingsSaves.at(-1));
+  expect(firstSave.entries.ll_vocab_lesson_category_visibility).toEqual(['private']);
+  await expect(page.locator('.ll-vocab-lesson-category-settings-panel')).toHaveAttribute('aria-hidden', 'false');
+  await privacy.selectOption('public');
+  await expect.poll(() => page.evaluate(() => window.__llCategorySettingsServerState?.ll_vocab_lesson_category_visibility)).toEqual(['public']);
+  await expect(status).toHaveAttribute('data-state', 'saved');
+  expect(page.url()).toBe('about:blank');
+});
+
+test('inherited private visibility is omitted from unrelated settings autosaves', async ({ page }) => {
+  await mountCategorySettingsHarness(page, { width: 1280, height: 900 }, { includePrivacy: true, inheritedPrivate: true });
+  await page.locator('.ll-vocab-lesson-category-settings-trigger').click();
+  const privacy = page.locator('select[name="ll_vocab_lesson_category_visibility"]');
+  await expect(privacy).toBeDisabled();
+  await expect(privacy).toHaveValue('private');
+  await page.locator('select[name="ll_vocab_lesson_grid_text_visibility"]').selectOption('hide');
+  await expect(page.locator('[data-ll-category-settings-status]')).toHaveAttribute('data-state', 'saved');
+  const lastSave = await page.evaluate(() => window.__llCategorySettingsSaves.at(-1));
+  expect(lastSave.entries.ll_vocab_lesson_grid_text_visibility).toEqual(['hide']);
+  expect(lastSave.entries.ll_vocab_lesson_category_visibility).toBeUndefined();
+});
 
 test('lesson category settings panel opens, reorders Line-Up, and closes cleanly', async ({ page }) => {
   await mountCategorySettingsHarness(page, { width: 1366, height: 900 });

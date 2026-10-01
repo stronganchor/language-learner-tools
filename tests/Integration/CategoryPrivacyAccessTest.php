@@ -5,6 +5,69 @@ final class CategoryPrivacyAccessTest extends LL_Tools_TestCase
 {
     private const ONE_PIXEL_PNG_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+tmP8AAAAASUVORK5CYII=';
 
+    public function test_isolated_copy_restriction_does_not_bypass_source_privacy_or_change_legacy_inheritance(): void
+    {
+        $source_id = $this->ensure_term('word-category', 'Privacy Source', 'privacy-source');
+        $copy_id = $this->ensure_term('word-category', 'Privacy Copy', 'privacy-copy');
+        ll_tools_set_category_wordset_owner($copy_id, 0, $source_id);
+        update_term_meta($source_id, LL_TOOLS_CATEGORY_VISIBILITY_META_KEY, 'private');
+        update_term_meta($copy_id, LL_TOOLS_CATEGORY_VISIBILITY_META_KEY, 'public');
+        update_term_meta($copy_id, LL_TOOLS_CATEGORY_VISIBILITY_OVERRIDE_META_KEY, 'public');
+        $this->assertTrue(ll_tools_is_category_private($copy_id));
+        wp_set_current_user(0);
+        $this->assertFalse(ll_tools_user_can_view_category($copy_id));
+
+        update_term_meta($source_id, LL_TOOLS_CATEGORY_VISIBILITY_META_KEY, 'public');
+        update_term_meta($copy_id, LL_TOOLS_CATEGORY_VISIBILITY_META_KEY, 'private');
+        $this->assertFalse(ll_tools_is_category_private($copy_id), 'Legacy copied metadata must keep following its source.');
+        update_term_meta($copy_id, LL_TOOLS_CATEGORY_VISIBILITY_OVERRIDE_META_KEY, 'private');
+        $this->assertTrue(ll_tools_is_category_private($copy_id));
+        $this->assertFalse(ll_tools_is_category_private($source_id));
+    }
+
+    public function test_new_isolated_sibling_does_not_inherit_copy_only_privacy_restriction(): void
+    {
+        $source_id = $this->ensure_term('word-category', 'Clone Privacy Source', 'clone-privacy-source');
+        $copy_id = $this->ensure_term('word-category', 'Restricted Privacy Copy', 'restricted-privacy-copy');
+        $wordset_id = $this->ensure_term('wordset', 'Privacy Clone Wordset', 'privacy-clone-wordset');
+        ll_tools_set_category_wordset_owner($copy_id, 0, $source_id);
+        update_term_meta($copy_id, LL_TOOLS_CATEGORY_VISIBILITY_OVERRIDE_META_KEY, 'private');
+        $new_copy_id = ll_tools_get_or_create_isolated_category_copy($copy_id, $wordset_id);
+        $this->assertGreaterThan(0, $new_copy_id);
+        $this->assertNotSame($copy_id, $new_copy_id);
+        $this->assertFalse(metadata_exists('term', $new_copy_id, LL_TOOLS_CATEGORY_VISIBILITY_OVERRIDE_META_KEY));
+        $this->assertFalse(ll_tools_is_category_private($new_copy_id));
+        $this->assertTrue(ll_tools_is_category_private($copy_id));
+    }
+
+    public function test_isolated_copy_restriction_read_failure_fails_closed(): void
+    {
+        global $wpdb;
+
+        $source_id = $this->ensure_term('word-category', 'Restriction Read Source', 'restriction-read-source');
+        $copy_id = $this->ensure_term('word-category', 'Restriction Read Copy', 'restriction-read-copy');
+        ll_tools_set_category_wordset_owner($copy_id, 0, $source_id);
+        update_term_meta($copy_id, LL_TOOLS_CATEGORY_VISIBILITY_OVERRIDE_META_KEY, 'private');
+        $fail_read = static function ($value, $term_id, $meta_key) use ($wpdb, $copy_id) {
+            if ((int) $term_id === $copy_id && $meta_key === LL_TOOLS_CATEGORY_VISIBILITY_OVERRIDE_META_KEY) {
+                $wpdb->last_error = 'll_tools_test_private_restriction_read_failure';
+            }
+            return $value;
+        };
+        add_filter('get_term_metadata', $fail_read, 10, 3);
+        try {
+            $complete = true;
+            $this->assertFalse(ll_tools_user_can_view_category($copy_id, 0, $complete));
+            $this->assertFalse($complete);
+        } finally {
+            remove_filter('get_term_metadata', $fail_read, 10);
+            $wpdb->last_error = '';
+        }
+        $complete = false;
+        $this->assertSame('private', ll_tools_get_category_visibility($copy_id, $complete));
+        $this->assertTrue($complete);
+    }
+
     public function test_private_category_requires_assignment_for_learner_study_access(): void
     {
         $min_words_filter = static function (): int {

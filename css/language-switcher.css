@@ -260,6 +260,12 @@ button.ll-lang-switcher__summary {
     z-index: 99990;
 }
 
+/* Keep the page bar and its dropdown below the active lesson modal backdrop. */
+body.ll-vocab-lesson-category-settings-open .ll-tools-header-language-switcher,
+body.ll-vocab-lesson-bulk-open .ll-tools-header-language-switcher {
+    z-index: 1000;
+}
+
 .ll-tools-header-language-switcher .ll-lang-switcher {
     display: block;
 }

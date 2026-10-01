@@ -30538,3 +30538,11 @@ msgstr "Die Bereinigung gelöschter Konten läuft im Hintergrund weiter. Diese P
 #: includes/admin/privacy-cleanup-health.php:90
 msgid "LL Tools account cleanup"
 msgstr "LL Tools-Kontenbereinigung"
+
+#: templates/vocab-lesson-template.php:1095
+msgid "Private categories are visible only to administrators and assigned users."
+msgstr "Private Kategorien sind nur für Administratoren und zugewiesene Benutzer sichtbar."
+
+#: includes/taxonomies/word-category-taxonomy.php:2606 includes/taxonomies/word-category-taxonomy.php:804 templates/vocab-lesson-template.php:1097
+msgid "This category inherits private visibility from its source category."
+msgstr "Diese Kategorie übernimmt die private Sichtbarkeit ihrer Quellkategorie."

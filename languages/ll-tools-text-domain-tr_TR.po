@@ -30539,3 +30539,11 @@ msgstr "Silinen hesapların temizliği arka planda devam ediyor. Bu kontrol en f
 #: includes/admin/privacy-cleanup-health.php:90
 msgid "LL Tools account cleanup"
 msgstr "LL Tools hesap temizliği"
+
+#: templates/vocab-lesson-template.php:1095
+msgid "Private categories are visible only to administrators and assigned users."
+msgstr "Özel kategoriler yalnızca yöneticilere ve erişim izni verilen kullanıcılara görünür."
+
+#: includes/taxonomies/word-category-taxonomy.php:2606 includes/taxonomies/word-category-taxonomy.php:804 templates/vocab-lesson-template.php:1097
+msgid "This category inherits private visibility from its source category."
+msgstr "Bu kategori, kaynak kategorisinin özel görünürlüğünü devralır."

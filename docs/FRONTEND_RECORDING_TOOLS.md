@@ -4,6 +4,18 @@ These tools use existing wordset manager and recorder access. Open the wordset's
 **Word Set Tools** menu for editor/review work, or the **Recording Interface**
 for a contributor's own playback history.
 
+## Category privacy and prerequisites
+
+Open **Category settings** on a vocabulary lesson. Administrators can choose
+**Visibility → Private**; the change autosaves with the other category settings
+and preserves existing allowed-user assignments. A wordset-owned category can
+become private independently of its source and siblings. A private source keeps
+its copies private until that source is made public.
+
+Prerequisite choices use the same responsive columns and wrapping labels as the
+Edit Word category picker. The language bar stays behind an open category or
+bulk settings popup and returns to its normal layer when the popup closes.
+
 ## Split a category
 
 Open **Split Category** from a lesson's category settings. Select the words in

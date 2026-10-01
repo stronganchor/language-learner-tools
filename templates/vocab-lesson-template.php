@@ -1083,6 +1083,22 @@ if (have_posts()) {
                                         </div>
                                     </div>
 
+                                    <?php if (!empty($category_settings_panel['can_manage_privacy'])) : ?>
+                                        <div class="ll-vocab-lesson-category-settings-section ll-vocab-lesson-category-settings-section--privacy">
+                                            <label class="ll-vocab-lesson-category-settings-field">
+                                                <span class="ll-vocab-lesson-category-settings-field__label"><?php echo esc_html__('Visibility', 'll-tools-text-domain'); ?></span>
+                                                <select name="ll_vocab_lesson_category_visibility" class="ll-vocab-lesson-category-settings-select" <?php disabled(!empty($category_settings_panel['category_visibility_inherited_private'])); ?>>
+                                                    <option value="public" <?php selected($category_settings_panel['category_visibility'], 'public'); ?> <?php disabled(!empty($category_settings_panel['category_visibility_inherited_private'])); ?>><?php echo esc_html__('Public', 'll-tools-text-domain'); ?></option>
+                                                    <option value="private" <?php selected($category_settings_panel['category_visibility'], 'private'); ?>><?php echo esc_html__('Private', 'll-tools-text-domain'); ?></option>
+                                                </select>
+                                            </label>
+                                            <p class="ll-vocab-lesson-category-settings-help"><?php echo esc_html__('Private categories are visible only to administrators and assigned users.', 'll-tools-text-domain'); ?></p>
+                                            <?php if (!empty($category_settings_panel['category_visibility_inherited_private'])) : ?>
+                                                <p class="ll-vocab-lesson-category-settings-help"><?php echo esc_html__('This category inherits private visibility from its source category.', 'll-tools-text-domain'); ?></p>
+                                            <?php endif; ?>
+                                        </div>
+                                    <?php endif; ?>
+
                                     <?php if ($category_split_url !== '' || $can_delete_lesson_category || $lesson_category_delete_reason !== '') : ?>
                                         <div class="ll-vocab-lesson-category-settings-section ll-vocab-lesson-category-settings-section--tools">
                                             <div class="ll-vocab-lesson-category-settings-section__heading"><?php echo esc_html__('Tools', 'll-tools-text-domain'); ?></div>

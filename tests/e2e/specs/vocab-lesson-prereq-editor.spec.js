@@ -19,6 +19,10 @@ const vocabLessonCssSource = fs.readFileSync(
   path.resolve(__dirname, '../../../css/vocab-lesson-pages.css'),
   'utf8'
 );
+const languageSwitcherCssSource = fs.readFileSync(
+  path.resolve(__dirname, '../../../css/language-switcher.css'),
+  'utf8'
+);
 const hostileCategoryThemeCss = `
   .ll-vocab-lesson-page .ll-vocab-lesson-category-settings-panel button,
   .ll-vocab-lesson-page .ll-vocab-lesson-category-settings-panel input,
@@ -365,82 +369,140 @@ test('prerequisites editor reverts looped saves and only shows blocked options w
   expect((calls[0].prereq_ids || []).map(String)).toEqual(['13', '15']);
 });
 
-test('prerequisites editor keeps compact control chrome under hostile theme form styles', async ({ page }) => {
-  await mountPrereqEditor(page, { width: 1280, height: 900 });
-  await page.addStyleTag({ content: hostileCategoryThemeCss });
+[
+  { name: 'desktop', viewport: { width: 1280, height: 900 } },
+  { name: 'mobile', viewport: { width: 390, height: 844 } }
+].forEach(({ name, viewport }) => {
+  test(`${name} prerequisites editor keeps compact category choices under hostile theme form styles`, async ({ page }) => {
+    await mountPrereqEditor(page, viewport, {
+      options: defaultRows.concat([
+        { id: 16, label: 'A very long category title that needs to wrap without clipping its add icon or level badge', level: 0 }
+      ])
+    });
+    await page.addStyleTag({ content: hostileCategoryThemeCss });
+    await page.addStyleTag({ content: languageSwitcherCssSource });
+    await page.locator('.ll-vocab-lesson-category-settings-trigger').click();
+    await expect(page.locator('.ll-vocab-lesson-category-settings-panel')).toHaveCSS('opacity', '1');
+    await page.evaluate(() => {
+      document.body.insertAdjacentHTML('afterbegin', '<div class="ll-tools-header-language-switcher" style="position:fixed;top:0;left:0;height:90px">English</div>');
+    });
 
-  await page.locator('.ll-vocab-lesson-category-settings-trigger').click();
+    const layout = await page.evaluate(() => {
+      const list = document.querySelector('[data-ll-prereq-options-list]');
+      const listRect = list.getBoundingClientRect();
+      const choices = Array.from(list.querySelectorAll('[data-ll-prereq-option]')).map((option) => {
+        const rect = option.getBoundingClientRect();
+        const toggle = option.querySelector('.ll-vocab-lesson-prereq-option-toggle').getBoundingClientRect();
+        const level = option.querySelector('.ll-vocab-lesson-prereq-option-level').getBoundingClientRect();
+        return {
+          width: rect.width,
+          height: rect.height,
+          top: rect.top,
+          leftInset: toggle.left - rect.left,
+          topInset: toggle.top - rect.top,
+          bottomInset: rect.bottom - toggle.bottom,
+          rightInset: rect.right - level.right
+        };
+      });
+      const header = document.querySelector('.ll-tools-header-language-switcher');
+      return {
+        listWidth: listRect.width,
+        overflow: list.scrollWidth > list.clientWidth,
+        choices,
+        headerCovered: document.elementFromPoint(20, 20) !== header
+      };
+    });
+    expect(layout.overflow).toBe(false);
+    expect(layout.headerCovered).toBe(true);
+    layout.choices.forEach((choice) => {
+      expect(choice.height).toBeGreaterThanOrEqual(36);
+      expect(choice.leftInset).toBeGreaterThanOrEqual(9);
+      expect(choice.rightInset).toBeGreaterThanOrEqual(9);
+      expect(choice.topInset).toBeGreaterThanOrEqual(7);
+      expect(choice.bottomInset).toBeGreaterThanOrEqual(7);
+    });
+    if (name === 'desktop') {
+      expect(layout.choices[0].width).toBeLessThan(layout.listWidth / 2);
+      expect(layout.choices[0].top).toBe(layout.choices[1].top);
+    } else {
+      expect(layout.choices[1].top).toBeGreaterThan(layout.choices[0].top);
+    }
 
-  const searchInput = page.locator('[data-ll-prereq-input]');
-  await searchInput.fill('ba');
-  await expect(page.locator('[data-ll-prereq-search-clear]')).toBeVisible();
+    const searchInput = page.locator('[data-ll-prereq-input]');
+    await searchInput.fill('ba');
+    await expect(page.locator('[data-ll-prereq-search-clear]')).toBeVisible();
 
-  const styles = await page.evaluate(() => {
-    const input = document.querySelector('[data-ll-prereq-input]');
-    const clear = document.querySelector('[data-ll-prereq-search-clear]');
-    const chipRemove = document.querySelector('[data-ll-prereq-remove]');
-    const option = document.querySelector('[data-ll-prereq-option]');
+    const styles = await page.evaluate(() => {
+      const input = document.querySelector('[data-ll-prereq-input]');
+      const clear = document.querySelector('[data-ll-prereq-search-clear]');
+      const chipRemove = document.querySelector('[data-ll-prereq-remove]');
+      const option = document.querySelector('[data-ll-prereq-option]');
 
-    const inputStyles = window.getComputedStyle(input);
-    const clearStyles = window.getComputedStyle(clear);
-    const chipRemoveStyles = window.getComputedStyle(chipRemove);
-    const optionStyles = window.getComputedStyle(option);
-    const clearRect = clear.getBoundingClientRect();
-    const chipRemoveRect = chipRemove.getBoundingClientRect();
+      const inputStyles = window.getComputedStyle(input);
+      const clearStyles = window.getComputedStyle(clear);
+      const chipRemoveStyles = window.getComputedStyle(chipRemove);
+      const optionStyles = window.getComputedStyle(option);
+      const clearRect = clear.getBoundingClientRect();
+      const chipRemoveRect = chipRemove.getBoundingClientRect();
 
-    return {
-      input: {
-        paddingLeft: inputStyles.paddingLeft,
-        borderRadius: inputStyles.borderRadius,
-        textTransform: inputStyles.textTransform,
-        letterSpacing: inputStyles.letterSpacing,
-        backgroundColor: inputStyles.backgroundColor
-      },
-      clear: {
-        width: clearRect.width,
-        height: clearRect.height,
-        borderRadius: clearStyles.borderRadius,
-        marginTop: clearStyles.marginTop,
-        backgroundColor: clearStyles.backgroundColor
-      },
-      chipRemove: {
-        width: chipRemoveRect.width,
-        height: chipRemoveRect.height,
-        borderRadius: chipRemoveStyles.borderRadius,
-        marginTop: chipRemoveStyles.marginTop,
-        backgroundColor: chipRemoveStyles.backgroundColor
-      },
-      option: {
-        borderRadius: optionStyles.borderRadius,
-        textTransform: optionStyles.textTransform,
-        letterSpacing: optionStyles.letterSpacing,
-        boxShadow: optionStyles.boxShadow,
-        backgroundColor: optionStyles.backgroundColor
-      }
-    };
+      return {
+        input: {
+          paddingLeft: inputStyles.paddingLeft,
+          borderRadius: inputStyles.borderRadius,
+          textTransform: inputStyles.textTransform,
+          letterSpacing: inputStyles.letterSpacing,
+          backgroundColor: inputStyles.backgroundColor
+        },
+        clear: {
+          width: clearRect.width,
+          height: clearRect.height,
+          borderRadius: clearStyles.borderRadius,
+          marginTop: clearStyles.marginTop,
+          backgroundColor: clearStyles.backgroundColor
+        },
+        chipRemove: {
+          width: chipRemoveRect.width,
+          height: chipRemoveRect.height,
+          borderRadius: chipRemoveStyles.borderRadius,
+          marginTop: chipRemoveStyles.marginTop,
+          backgroundColor: chipRemoveStyles.backgroundColor
+        },
+        option: {
+          borderRadius: optionStyles.borderRadius,
+          textTransform: optionStyles.textTransform,
+          letterSpacing: optionStyles.letterSpacing,
+          boxShadow: optionStyles.boxShadow,
+          backgroundColor: optionStyles.backgroundColor
+        }
+      };
+    });
+
+    expect(styles.input.paddingLeft).toBe('56px');
+    expect(styles.input.borderRadius).toBe('8px');
+    expect(styles.input.textTransform).toBe('none');
+    expect(styles.input.letterSpacing).not.toBe('3.06px');
+    expect(styles.input.backgroundColor).toBe('rgb(255, 255, 255)');
+
+    expect(styles.clear.width).toBeLessThanOrEqual(26);
+    expect(styles.clear.height).toBeLessThanOrEqual(26);
+    expect(styles.clear.borderRadius).not.toBe('0px');
+    expect(styles.clear.marginTop).toBe('0px');
+    expect(styles.clear.backgroundColor).toBe('rgb(255, 255, 255)');
+
+    expect(styles.chipRemove.width).toBeLessThanOrEqual(22);
+    expect(styles.chipRemove.height).toBeLessThanOrEqual(22);
+    expect(styles.chipRemove.borderRadius).not.toBe('0px');
+    expect(styles.chipRemove.marginTop).toBe('0px');
+    expect(styles.chipRemove.backgroundColor).toBe('rgb(255, 255, 255)');
+
+    expect(styles.option.borderRadius).toBe('8px');
+    expect(styles.option.textTransform).toBe('none');
+    expect(styles.option.letterSpacing).not.toBe('3.06px');
+    expect(styles.option.boxShadow).toBe('none');
+    expect(styles.option.backgroundColor).toBe('rgb(255, 255, 255)');
+
+    await page.locator('[data-ll-category-settings-close]').click();
+    await expect(page.locator('body')).not.toHaveClass(/ll-vocab-lesson-category-settings-open/);
+    await expect(page.locator('.ll-tools-header-language-switcher')).toHaveCSS('z-index', '99990');
   });
-
-  expect(styles.input.paddingLeft).toBe('56px');
-  expect(styles.input.borderRadius).toBe('8px');
-  expect(styles.input.textTransform).toBe('none');
-  expect(styles.input.letterSpacing).not.toBe('3.06px');
-  expect(styles.input.backgroundColor).toBe('rgb(255, 255, 255)');
-
-  expect(styles.clear.width).toBeLessThanOrEqual(26);
-  expect(styles.clear.height).toBeLessThanOrEqual(26);
-  expect(styles.clear.borderRadius).not.toBe('0px');
-  expect(styles.clear.marginTop).toBe('0px');
-  expect(styles.clear.backgroundColor).toBe('rgb(255, 255, 255)');
-
-  expect(styles.chipRemove.width).toBeLessThanOrEqual(22);
-  expect(styles.chipRemove.height).toBeLessThanOrEqual(22);
-  expect(styles.chipRemove.borderRadius).not.toBe('0px');
-  expect(styles.chipRemove.marginTop).toBe('0px');
-  expect(styles.chipRemove.backgroundColor).toBe('rgb(255, 255, 255)');
-
-  expect(styles.option.borderRadius).toBe('10px');
-  expect(styles.option.textTransform).toBe('none');
-  expect(styles.option.letterSpacing).not.toBe('3.06px');
-  expect(styles.option.boxShadow).toBe('none');
-  expect(styles.option.backgroundColor).toBe('rgb(255, 255, 255)');
 });

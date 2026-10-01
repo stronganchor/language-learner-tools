@@ -20192,6 +20192,9 @@ function ll_tools_wordset_page_maybe_bump_recorder_queue_structure_for_category_
         defined('LL_TOOLS_CATEGORY_VISIBILITY_META_KEY')
             ? (string) LL_TOOLS_CATEGORY_VISIBILITY_META_KEY
             : 'll_category_visibility',
+        defined('LL_TOOLS_CATEGORY_VISIBILITY_OVERRIDE_META_KEY')
+            ? (string) LL_TOOLS_CATEGORY_VISIBILITY_OVERRIDE_META_KEY
+            : 'll_category_visibility_override',
         defined('LL_TOOLS_CATEGORY_ACCESS_USER_IDS_META_KEY')
             ? (string) LL_TOOLS_CATEGORY_ACCESS_USER_IDS_META_KEY
             : 'll_category_access_user_ids',

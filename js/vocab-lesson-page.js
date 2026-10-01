@@ -761,6 +761,7 @@
 
         const name = (target.getAttribute('name') || '').toString();
         return [
+            'll_vocab_lesson_category_visibility',
             'll_vocab_lesson_quiz_prompt_type',
             'll_vocab_lesson_quiz_option_type',
             'll_vocab_lesson_grid_text_visibility',
