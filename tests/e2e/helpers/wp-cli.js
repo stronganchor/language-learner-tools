@@ -3,7 +3,7 @@ const path = require('path');
 const { execFileSync } = require('child_process');
 
 const PLUGIN_ROOT = path.resolve(__dirname, '..', '..', '..');
-const WP_ROOT = path.resolve(PLUGIN_ROOT, '..', '..', '..');
+const WP_ROOT = process.env.LL_E2E_WP_ROOT || path.resolve(PLUGIN_ROOT, '..', '..', '..');
 
 class WpCliUnavailableError extends Error {
   constructor(message, cause = null) {

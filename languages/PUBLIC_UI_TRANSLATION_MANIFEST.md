@@ -18,6 +18,7 @@ source lines move. Numeric source ranges are not used.
 The policy includes:
 
 - Auth and learner account UI.
+- Moodle account connection/disconnection and learner assignment controls.
 - Public wordset, vocab lesson, quiz, card, game, dictionary, and content lesson UI.
 - Learner progress, category hiding/unhiding, study preferences, and game controls.
 - Public text/interlinear display labels where those surfaces are visible.

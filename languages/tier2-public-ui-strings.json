@@ -4,7 +4,7 @@
     "source_policy": "Public visitor and learner-facing UI strings. Excludes wp-admin, REST/CLI/admin tooling, front-end manager-only settings, recorder queue management, and teacher-class management. Includes language switching, auth, public lesson/card/game/dictionary surfaces, learner progress, hidden-category controls, and learner study preferences.",
     "source_config": "languages/tier2-public-ui-sources.php",
     "source_pot": "languages/ll-tools-text-domain.pot",
-    "entry_count": 799,
+    "entry_count": 837,
     "entries": [
         {
             "key": "97df477b40918339cf72087680438a4cb268a860",
@@ -65,10 +65,12 @@
             "msgid": "Continue learning",
             "msgid_plural": null,
             "references": [
-                "includes/content-lesson-progress.php:373"
+                "includes/content-lesson-progress.php:373",
+                "includes/lms/lti-accounts.php:550"
             ],
             "public_references": [
-                "includes/content-lesson-progress.php:373"
+                "includes/content-lesson-progress.php:373",
+                "includes/lms/lti-accounts.php:550"
             ]
         },
         {
@@ -1906,6 +1908,550 @@
             ]
         },
         {
+            "key": "2ed9c2a508e0c5470f8b23ead5c07545bb900cf5",
+            "context": "",
+            "msgid": "This assignment content is unavailable.",
+            "msgid_plural": null,
+            "references": [
+                "includes/lms/assignment-experience.php:143",
+                "includes/lms/assignment-experience.php:319"
+            ],
+            "public_references": [
+                "includes/lms/assignment-experience.php:319"
+            ]
+        },
+        {
+            "key": "f8abc7412031923e9c1fdd55029785afe2ec5827",
+            "context": "",
+            "msgid": "The answer and learning progress could not be saved. Please retry.",
+            "msgid_plural": null,
+            "references": [
+                "includes/lms/assignment-experience.php:334"
+            ],
+            "public_references": [
+                "includes/lms/assignment-experience.php:334"
+            ]
+        },
+        {
+            "key": "f2155fa2bd82c2e8e6b94a5e7b5675009f5cc61d",
+            "context": "",
+            "msgid": "This assignment is unavailable for your account.",
+            "msgid_plural": null,
+            "references": [
+                "includes/lms/assignment-experience.php:350"
+            ],
+            "public_references": [
+                "includes/lms/assignment-experience.php:350"
+            ]
+        },
+        {
+            "key": "1e597804c738a7d99a734ececded6b9f3c55be20",
+            "context": "",
+            "msgid": "This assignment player is unavailable.",
+            "msgid_plural": null,
+            "references": [
+                "includes/lms/assignment-experience.php:355"
+            ],
+            "public_references": [
+                "includes/lms/assignment-experience.php:355"
+            ]
+        },
+        {
+            "key": "a13a6989dbfdcac0b3feb3772d0dad5f16cb7cc1",
+            "context": "",
+            "msgid": "Your learning data is being erased. Please try again later.",
+            "msgid_plural": null,
+            "references": [
+                "includes/lms/assignment-experience.php:358",
+                "includes/lms/assignments.php:1560"
+            ],
+            "public_references": [
+                "includes/lms/assignment-experience.php:358"
+            ]
+        },
+        {
+            "key": "aaa019aaf847f343ccf8813b3cc84c42a8d1b2bf",
+            "context": "",
+            "msgid": "Answer saved.",
+            "msgid_plural": null,
+            "references": [
+                "includes/lms/assignment-experience.php:408"
+            ],
+            "public_references": [
+                "includes/lms/assignment-experience.php:408"
+            ]
+        },
+        {
+            "key": "4471313e07e922b1532ef4daa5f031cfddf69363",
+            "context": "",
+            "msgid": "Attempt score",
+            "msgid_plural": null,
+            "references": [
+                "includes/lms/assignment-experience.php:408"
+            ],
+            "public_references": [
+                "includes/lms/assignment-experience.php:408"
+            ]
+        },
+        {
+            "key": "55f79092aa0a1690a5def3b220f8b8268dc2dfd8",
+            "context": "",
+            "msgid": "Choose an answer first.",
+            "msgid_plural": null,
+            "references": [
+                "includes/lms/assignment-experience.php:408"
+            ],
+            "public_references": [
+                "includes/lms/assignment-experience.php:408"
+            ]
+        },
+        {
+            "key": "6d671147e07d4e6fd27f89c8e74005376ae729d7",
+            "context": "",
+            "msgid": "Finish assignment",
+            "msgid_plural": null,
+            "references": [
+                "includes/lms/assignment-experience.php:408"
+            ],
+            "public_references": [
+                "includes/lms/assignment-experience.php:408"
+            ]
+        },
+        {
+            "key": "65cf103f2570cc44d71e6d3264694476acc1a1b6",
+            "context": "",
+            "msgid": "Loading assignment\u2026",
+            "msgid_plural": null,
+            "references": [
+                "includes/lms/assignment-experience.php:408",
+                "templates/assignment-player.php:7"
+            ],
+            "public_references": [
+                "includes/lms/assignment-experience.php:408",
+                "templates/assignment-player.php:7"
+            ]
+        },
+        {
+            "key": "6328aed54690d71b5d0d22ec990cc4eb8b84ee11",
+            "context": "",
+            "msgid": "Next question",
+            "msgid_plural": null,
+            "references": [
+                "includes/lms/assignment-experience.php:408"
+            ],
+            "public_references": [
+                "includes/lms/assignment-experience.php:408"
+            ]
+        },
+        {
+            "key": "aeb6743c42e56deec715bceece77a85f9cc93915",
+            "context": "",
+            "msgid": "Play audio",
+            "msgid_plural": null,
+            "references": [
+                "includes/lms/assignment-experience.php:408",
+                "includes/pages/vocab-lesson-pages.php:2012",
+                "includes/pages/vocab-lesson-pages.php:2033",
+                "includes/pages/wordset-pages.php:26887",
+                "includes/shortcodes/flashcard-widget.php:650",
+                "includes/shortcodes/flashcard-widget.php:655",
+                "includes/shortcodes/ranked-word-list-shortcode.php:377",
+                "includes/shortcodes/ranked-word-list-shortcode.php:383",
+                "includes/shortcodes/word-audio-shortcode.php:210",
+                "includes/taxonomies/word-category-taxonomy.php:2900"
+            ],
+            "public_references": [
+                "includes/lms/assignment-experience.php:408",
+                "includes/pages/vocab-lesson-pages.php:2012",
+                "includes/pages/vocab-lesson-pages.php:2033",
+                "includes/pages/wordset-pages.php:26887",
+                "includes/shortcodes/flashcard-widget.php:650",
+                "includes/shortcodes/flashcard-widget.php:655",
+                "includes/shortcodes/ranked-word-list-shortcode.php:377",
+                "includes/shortcodes/ranked-word-list-shortcode.php:383",
+                "includes/shortcodes/word-audio-shortcode.php:210"
+            ]
+        },
+        {
+            "key": "acfb4faef880cf553926018fec3690ec6371a349",
+            "context": "",
+            "msgid": "Question",
+            "msgid_plural": null,
+            "references": [
+                "includes/admin/export-import.php:591",
+                "includes/lms/assignment-experience.php:408",
+                "includes/shortcodes/audio-recording-shortcode.php:30",
+                "includes/shortcodes/editor-hub-shortcode.php:301",
+                "includes/shortcodes/word-grid-shortcode.php:5372",
+                "includes/shortcodes/word-grid-shortcode.php:5840",
+                "includes/shortcodes/word-grid-shortcode.php:7875",
+                "includes/taxonomies/recording-type-taxonomy.php:42"
+            ],
+            "public_references": [
+                "includes/lms/assignment-experience.php:408",
+                "includes/shortcodes/word-grid-shortcode.php:5372",
+                "includes/shortcodes/word-grid-shortcode.php:5840",
+                "includes/shortcodes/word-grid-shortcode.php:7875"
+            ]
+        },
+        {
+            "key": "e0074b8b19544bd789cefcb9f4cbf174f333771f",
+            "context": "",
+            "msgid": "Retry",
+            "msgid_plural": null,
+            "references": [
+                "includes/admin/audio-image-matcher.php:76",
+                "includes/admin/audio-processor-admin.php:1409",
+                "includes/admin/audio-processor-admin.php:213",
+                "includes/admin/ipa-keyboard-admin.php:450",
+                "includes/admin/site-sync-admin.php:1934",
+                "includes/admin/site-sync-admin.php:655",
+                "includes/lib/recording-history.php:279",
+                "includes/lib/word-copy.php:465",
+                "includes/lms/assignment-experience.php:408",
+                "includes/pages/content-lesson-pages.php:1299",
+                "includes/pages/quiz-pages.php:1120",
+                "includes/pages/quiz-pages.php:2075",
+                "includes/pages/vocab-lesson-pages.php:4831",
+                "includes/pages/wordset-pages.php:13562",
+                "includes/pages/wordset-pages.php:24293",
+                "includes/pages/wordset-pages.php:24356",
+                "includes/pages/wordset-pages.php:26956",
+                "includes/pages/wordset-pages.php:27060",
+                "includes/pages/wordset-pages.php:27482",
+                "includes/pages/wordset-pages.php:27989",
+                "includes/pages/wordset-pages.php:29069",
+                "includes/shortcodes/audio-recording-shortcode.php:1643",
+                "includes/shortcodes/audio-recording-shortcode.php:1862",
+                "includes/shortcodes/flashcard-widget.php:715",
+                "includes/shortcodes/quiz-pages-shortcodes.php:2389",
+                "templates/audio-image-matcher-template.php:57",
+                "templates/quiz-page-template.php:25",
+                "templates/vocab-lesson-template.php:399"
+            ],
+            "public_references": [
+                "includes/lms/assignment-experience.php:408",
+                "includes/pages/quiz-pages.php:1120",
+                "includes/pages/quiz-pages.php:2075",
+                "includes/pages/wordset-pages.php:13562",
+                "includes/pages/wordset-pages.php:27060",
+                "includes/pages/wordset-pages.php:27482",
+                "includes/pages/wordset-pages.php:27989",
+                "includes/pages/wordset-pages.php:29069",
+                "includes/shortcodes/flashcard-widget.php:715",
+                "includes/shortcodes/quiz-pages-shortcodes.php:2389",
+                "templates/quiz-page-template.php:25",
+                "templates/vocab-lesson-template.php:399"
+            ]
+        },
+        {
+            "key": "37094231b0ad0f3cd571af0ae20c8a6a173af380",
+            "context": "",
+            "msgid": "Save answer",
+            "msgid_plural": null,
+            "references": [
+                "includes/lms/assignment-experience.php:408"
+            ],
+            "public_references": [
+                "includes/lms/assignment-experience.php:408"
+            ]
+        },
+        {
+            "key": "2e50e09155fa8eff3221bfc7a2e98a6f0e2e2275",
+            "context": "",
+            "msgid": "Saving\u2026",
+            "msgid_plural": null,
+            "references": [
+                "includes/lms/assignment-experience.php:408",
+                "includes/pages/wordset-transcription-review.php:283",
+                "includes/shortcodes/editor-hub-shortcode.php:1067"
+            ],
+            "public_references": [
+                "includes/lms/assignment-experience.php:408"
+            ]
+        },
+        {
+            "key": "d3173564fa5f5579289d417969500d9353081bdd",
+            "context": "",
+            "msgid": "Selected grade",
+            "msgid_plural": null,
+            "references": [
+                "includes/lms/assignment-experience.php:408",
+                "includes/lms/assignments.php:2126"
+            ],
+            "public_references": [
+                "includes/lms/assignment-experience.php:408"
+            ]
+        },
+        {
+            "key": "797a7361cedf56b0fd3cb21eede74ea0da8d1625",
+            "context": "",
+            "msgid": "Start assignment",
+            "msgid_plural": null,
+            "references": [
+                "includes/lms/assignment-experience.php:408"
+            ],
+            "public_references": [
+                "includes/lms/assignment-experience.php:408"
+            ]
+        },
+        {
+            "key": "823e50e146a546c1b11780992de4d76b132fe188",
+            "context": "",
+            "msgid": "The request could not be confirmed. Retry to read the saved state.",
+            "msgid_plural": null,
+            "references": [
+                "includes/lms/assignment-experience.php:408"
+            ],
+            "public_references": [
+                "includes/lms/assignment-experience.php:408"
+            ]
+        },
+        {
+            "key": "c919d81f27c494f672e184d6dcd22a0d9d206b36",
+            "context": "",
+            "msgid": "This attempt has expired.",
+            "msgid_plural": null,
+            "references": [
+                "includes/lms/assignment-experience.php:408"
+            ],
+            "public_references": [
+                "includes/lms/assignment-experience.php:408"
+            ]
+        },
+        {
+            "key": "8832e6ee305241ba76d276289b99e8ad88b6041e",
+            "context": "",
+            "msgid": "Try another attempt",
+            "msgid_plural": null,
+            "references": [
+                "includes/lms/assignment-experience.php:408"
+            ],
+            "public_references": [
+                "includes/lms/assignment-experience.php:408"
+            ]
+        },
+        {
+            "key": "1552d8baee8e37cb10bb1e1629c6f4a861a89ff0",
+            "context": "",
+            "msgid": "of",
+            "msgid_plural": null,
+            "references": [
+                "includes/lms/assignment-experience.php:408"
+            ],
+            "public_references": [
+                "includes/lms/assignment-experience.php:408"
+            ]
+        },
+        {
+            "key": "a0731f580edc6c4a324cded394675be089c52baf",
+            "context": "",
+            "msgid": "You are signed in to a different learning account. Sign out, then open this activity from Moodle again.",
+            "msgid_plural": null,
+            "references": [
+                "includes/lms/lti-accounts.php:26"
+            ],
+            "public_references": [
+                "includes/lms/lti-accounts.php:26"
+            ]
+        },
+        {
+            "key": "27b4a3b34ae3c8e7284922057e3008fb1f72f675",
+            "context": "",
+            "msgid": "This Moodle identity is already connected to another account, or was disconnected. Ask the site administrator to review the link.",
+            "msgid_plural": null,
+            "references": [
+                "includes/lms/lti-accounts.php:27"
+            ],
+            "public_references": [
+                "includes/lms/lti-accounts.php:27"
+            ]
+        },
+        {
+            "key": "a4c9d2c5c9433cdba0e1a2c0e3d542dcbd78776a",
+            "context": "",
+            "msgid": "Your access to this class has been removed. Your personal learning account remains available.",
+            "msgid_plural": null,
+            "references": [
+                "includes/lms/lti-accounts.php:28"
+            ],
+            "public_references": [
+                "includes/lms/lti-accounts.php:28"
+            ]
+        },
+        {
+            "key": "d8662f11c71dcfeb8e9a753257bff3c850558fa8",
+            "context": "",
+            "msgid": "Use a learner account for this activity. Staff accounts cannot be connected as Moodle students.",
+            "msgid_plural": null,
+            "references": [
+                "includes/lms/lti-accounts.php:29",
+                "includes/lms/lti-accounts.php:451"
+            ],
+            "public_references": [
+                "includes/lms/lti-accounts.php:29",
+                "includes/lms/lti-accounts.php:451"
+            ]
+        },
+        {
+            "key": "208be803850750e24db068dfeac32630a0b1419f",
+            "context": "",
+            "msgid": "This Moodle activity could not be opened. Return to Moodle and try again, or contact your teacher.",
+            "msgid_plural": null,
+            "references": [
+                "includes/lms/lti-accounts.php:31"
+            ],
+            "public_references": [
+                "includes/lms/lti-accounts.php:31"
+            ]
+        },
+        {
+            "key": "08039be94d4f0f2353fcb12469924722d94042b7",
+            "context": "",
+            "msgid": "Connect your learning account",
+            "msgid_plural": null,
+            "references": [
+                "includes/lms/lti-accounts.php:444",
+                "includes/lms/lti-accounts.php:445"
+            ],
+            "public_references": [
+                "includes/lms/lti-accounts.php:444",
+                "includes/lms/lti-accounts.php:445"
+            ]
+        },
+        {
+            "key": "1093118753f31b01c91e6ed758f393b8d5f35a47",
+            "context": "",
+            "msgid": "This Moodle identity already belongs to a different account, or has been disconnected. Sign in to the original account; ask the site administrator to review a disconnected link.",
+            "msgid_plural": null,
+            "references": [
+                "includes/lms/lti-accounts.php:447"
+            ],
+            "public_references": [
+                "includes/lms/lti-accounts.php:447"
+            ]
+        },
+        {
+            "key": "2be511d259c7a7445ba5e25047f8213e772b5d5d",
+            "context": "",
+            "msgid": "Sign in or create a permanent learner account. Your class activities and personal practice can save progress in this account.",
+            "msgid_plural": null,
+            "references": [
+                "includes/lms/lti-accounts.php:449"
+            ],
+            "public_references": [
+                "includes/lms/lti-accounts.php:449"
+            ]
+        },
+        {
+            "key": "5e2a3e9875372eda40e3e611ff2263e7639d2486",
+            "context": "",
+            "msgid": "Connect Moodle to %s? Assigned results may be returned to your course. Personal practice stays in this account; your class teacher can view progress for the class wordset.",
+            "msgid_plural": null,
+            "references": [
+                "includes/lms/lti-accounts.php:453"
+            ],
+            "public_references": [
+                "includes/lms/lti-accounts.php:453"
+            ]
+        },
+        {
+            "key": "e39f702abd6b5b332c4541fdf6a3938bcefbfcbd",
+            "context": "",
+            "msgid": "Connect account and open activity",
+            "msgid_plural": null,
+            "references": [
+                "includes/lms/lti-accounts.php:454"
+            ],
+            "public_references": [
+                "includes/lms/lti-accounts.php:454"
+            ]
+        },
+        {
+            "key": "80e7407dad93c560bf92f6a066af68d4a80fba39",
+            "context": "",
+            "msgid": "Use another account",
+            "msgid_plural": null,
+            "references": [
+                "includes/lms/lti-accounts.php:456"
+            ],
+            "public_references": [
+                "includes/lms/lti-accounts.php:456"
+            ]
+        },
+        {
+            "key": "99d13fbfa203a7974bf7962175d1c68a6f530ed5",
+            "context": "",
+            "msgid": "Manage Moodle connections",
+            "msgid_plural": null,
+            "references": [
+                "includes/lms/lti-accounts.php:457"
+            ],
+            "public_references": [
+                "includes/lms/lti-accounts.php:457"
+            ]
+        },
+        {
+            "key": "132e6d32b12091181be4639932dc859c91ee3f68",
+            "context": "",
+            "msgid": "Disconnecting stops future Moodle launches and grade delivery through this identity. Your account and personal progress remain. An administrator must review any later reconnection.",
+            "msgid_plural": null,
+            "references": [
+                "includes/lms/lti-accounts.php:543"
+            ],
+            "public_references": [
+                "includes/lms/lti-accounts.php:543"
+            ]
+        },
+        {
+            "key": "ad31ac32ca06ed1aa0be0a6851846fbf4949b220",
+            "context": "",
+            "msgid": "Moodle connections",
+            "msgid_plural": null,
+            "references": [
+                "includes/lms/lti-accounts.php:543"
+            ],
+            "public_references": [
+                "includes/lms/lti-accounts.php:543"
+            ]
+        },
+        {
+            "key": "5ba36240b7df7f8158c628a33104c4f60828ecba",
+            "context": "",
+            "msgid": "Moodle",
+            "msgid_plural": null,
+            "references": [
+                "includes/lms/lti-accounts.php:545"
+            ],
+            "public_references": [
+                "includes/lms/lti-accounts.php:545"
+            ]
+        },
+        {
+            "key": "77091b51d86fa50a58ec193409dc4af574debac1",
+            "context": "",
+            "msgid": "Disconnect Moodle",
+            "msgid_plural": null,
+            "references": [
+                "includes/lms/lti-accounts.php:549"
+            ],
+            "public_references": [
+                "includes/lms/lti-accounts.php:549"
+            ]
+        },
+        {
+            "key": "ffdfcf5707dbb3f2abc0fa3308d57195f7b03045",
+            "context": "",
+            "msgid": "Disconnected",
+            "msgid_plural": null,
+            "references": [
+                "includes/lms/lti-accounts.php:549"
+            ],
+            "public_references": [
+                "includes/lms/lti-accounts.php:549"
+            ]
+        },
+        {
             "key": "dabcef52004f1ad1306849d90f7cb84268aeef27",
             "context": "",
             "msgid": "Too many sign-up attempts from this connection. Please try again in a few minutes.",
@@ -2850,54 +3396,6 @@
             ]
         },
         {
-            "key": "e0074b8b19544bd789cefcb9f4cbf174f333771f",
-            "context": "",
-            "msgid": "Retry",
-            "msgid_plural": null,
-            "references": [
-                "includes/admin/audio-image-matcher.php:76",
-                "includes/admin/audio-processor-admin.php:1409",
-                "includes/admin/audio-processor-admin.php:213",
-                "includes/admin/ipa-keyboard-admin.php:450",
-                "includes/admin/site-sync-admin.php:1934",
-                "includes/admin/site-sync-admin.php:655",
-                "includes/lib/recording-history.php:279",
-                "includes/lib/word-copy.php:465",
-                "includes/pages/content-lesson-pages.php:1299",
-                "includes/pages/quiz-pages.php:1120",
-                "includes/pages/quiz-pages.php:2075",
-                "includes/pages/vocab-lesson-pages.php:4831",
-                "includes/pages/wordset-pages.php:13562",
-                "includes/pages/wordset-pages.php:24293",
-                "includes/pages/wordset-pages.php:24356",
-                "includes/pages/wordset-pages.php:26956",
-                "includes/pages/wordset-pages.php:27060",
-                "includes/pages/wordset-pages.php:27482",
-                "includes/pages/wordset-pages.php:27989",
-                "includes/pages/wordset-pages.php:29069",
-                "includes/shortcodes/audio-recording-shortcode.php:1643",
-                "includes/shortcodes/audio-recording-shortcode.php:1862",
-                "includes/shortcodes/flashcard-widget.php:715",
-                "includes/shortcodes/quiz-pages-shortcodes.php:2389",
-                "templates/audio-image-matcher-template.php:57",
-                "templates/quiz-page-template.php:25",
-                "templates/vocab-lesson-template.php:399"
-            ],
-            "public_references": [
-                "includes/pages/quiz-pages.php:1120",
-                "includes/pages/quiz-pages.php:2075",
-                "includes/pages/wordset-pages.php:13562",
-                "includes/pages/wordset-pages.php:27060",
-                "includes/pages/wordset-pages.php:27482",
-                "includes/pages/wordset-pages.php:27989",
-                "includes/pages/wordset-pages.php:29069",
-                "includes/shortcodes/flashcard-widget.php:715",
-                "includes/shortcodes/quiz-pages-shortcodes.php:2389",
-                "templates/quiz-page-template.php:25",
-                "templates/vocab-lesson-template.php:399"
-            ]
-        },
-        {
             "key": "0b4ece4a5048f94783de077553f3700d609b2ffa",
             "context": "",
             "msgid": "Open quiz in a new tab",
@@ -3102,33 +3600,6 @@
                 "includes/pages/wordset-pages.php:27394",
                 "includes/pages/wordset-pages.php:27405",
                 "includes/pages/wordset-pages.php:27406"
-            ]
-        },
-        {
-            "key": "aeb6743c42e56deec715bceece77a85f9cc93915",
-            "context": "",
-            "msgid": "Play audio",
-            "msgid_plural": null,
-            "references": [
-                "includes/pages/vocab-lesson-pages.php:2012",
-                "includes/pages/vocab-lesson-pages.php:2033",
-                "includes/pages/wordset-pages.php:26887",
-                "includes/shortcodes/flashcard-widget.php:650",
-                "includes/shortcodes/flashcard-widget.php:655",
-                "includes/shortcodes/ranked-word-list-shortcode.php:377",
-                "includes/shortcodes/ranked-word-list-shortcode.php:383",
-                "includes/shortcodes/word-audio-shortcode.php:210",
-                "includes/taxonomies/word-category-taxonomy.php:2900"
-            ],
-            "public_references": [
-                "includes/pages/vocab-lesson-pages.php:2012",
-                "includes/pages/vocab-lesson-pages.php:2033",
-                "includes/pages/wordset-pages.php:26887",
-                "includes/shortcodes/flashcard-widget.php:650",
-                "includes/shortcodes/flashcard-widget.php:655",
-                "includes/shortcodes/ranked-word-list-shortcode.php:377",
-                "includes/shortcodes/ranked-word-list-shortcode.php:383",
-                "includes/shortcodes/word-audio-shortcode.php:210"
             ]
         },
         {
@@ -4977,8 +5448,8 @@
                 "includes/pages/wordset-pages.php:29049",
                 "includes/post-types/word-audio-post-type.php:114",
                 "includes/post-types/words-post-type.php:22",
-                "includes/privacy.php:1015",
-                "includes/privacy.php:846",
+                "includes/privacy.php:1028",
+                "includes/privacy.php:859",
                 "includes/shortcodes/editor-hub-shortcode.php:1052",
                 "includes/shortcodes/editor-hub-shortcode.php:510",
                 "includes/shortcodes/ranked-word-list-shortcode.php:635",
@@ -5797,7 +6268,7 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/wordset-pages.php:25096",
-                "includes/privacy.php:740"
+                "includes/privacy.php:753"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:25096"
@@ -5809,6 +6280,7 @@
             "msgid": "Practice",
             "msgid_plural": null,
             "references": [
+                "includes/admin/lti-integration.php:145",
                 "includes/flashcard-shell.php:65",
                 "includes/flashcard-shell.php:90",
                 "includes/pages/wordset-pages.php:25461",
@@ -6681,9 +7153,9 @@
                 "includes/pages/wordset-pages.php:27285",
                 "includes/pages/wordset-pages.php:27293",
                 "includes/post-types/prompt-card-post-type.php:1352",
-                "includes/privacy.php:1019",
-                "includes/privacy.php:848",
-                "includes/privacy.php:937",
+                "includes/privacy.php:1032",
+                "includes/privacy.php:861",
+                "includes/privacy.php:950",
                 "includes/shortcodes/audio-recording-shortcode.php:1924",
                 "includes/shortcodes/editor-hub-shortcode.php:1077",
                 "includes/shortcodes/editor-hub-shortcode.php:1109",
@@ -6724,6 +7196,7 @@
             "msgid": "Activity",
             "msgid_plural": null,
             "references": [
+                "includes/admin/lti-integration.php:144",
                 "includes/pages/wordset-pages.php:26863",
                 "includes/pages/wordset-pages.php:27181"
             ],
@@ -6913,15 +7386,16 @@
             "references": [
                 "includes/admin/bulk-translation-admin.php:204",
                 "includes/admin/ipa-keyboard-admin.php:597",
+                "includes/admin/lti-integration.php:118",
                 "includes/admin/split-word-admin.php:383",
                 "includes/admin/user-progress-report.php:1159",
-                "includes/lms/assignments.php:2039",
+                "includes/lms/assignments.php:2119",
                 "includes/pages/wordset-editor.php:4710",
                 "includes/pages/wordset-pages.php:26892",
                 "includes/pages/wordset-pages.php:27323",
                 "includes/pages/wordset-pages.php:27331",
-                "includes/privacy.php:854",
-                "includes/privacy.php:943"
+                "includes/privacy.php:867",
+                "includes/privacy.php:956"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:26892",
@@ -7348,7 +7822,7 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/wordset-pages.php:26933",
-                "includes/privacy.php:870",
+                "includes/privacy.php:883",
                 "includes/shortcodes/flashcard-widget.php:684"
             ],
             "public_references": [
@@ -10279,10 +10753,10 @@
                 "includes/admin/word-option-rules-admin.php:1875",
                 "includes/pages/wordset-pages.php:12960",
                 "includes/post-types/content-lesson-post-type.php:1930",
-                "includes/privacy.php:1021",
-                "includes/privacy.php:470",
-                "includes/privacy.php:850",
-                "includes/privacy.php:939",
+                "includes/privacy.php:1034",
+                "includes/privacy.php:475",
+                "includes/privacy.php:863",
+                "includes/privacy.php:952",
                 "includes/shortcodes/audio-recording-shortcode.php:1726",
                 "includes/shortcodes/image-copyright-grid-shortcode.php:207",
                 "templates/content-lesson-template.php:131",
@@ -10796,26 +11270,6 @@
             ]
         },
         {
-            "key": "acfb4faef880cf553926018fec3690ec6371a349",
-            "context": "",
-            "msgid": "Question",
-            "msgid_plural": null,
-            "references": [
-                "includes/admin/export-import.php:591",
-                "includes/shortcodes/audio-recording-shortcode.php:30",
-                "includes/shortcodes/editor-hub-shortcode.php:301",
-                "includes/shortcodes/word-grid-shortcode.php:5372",
-                "includes/shortcodes/word-grid-shortcode.php:5840",
-                "includes/shortcodes/word-grid-shortcode.php:7875",
-                "includes/taxonomies/recording-type-taxonomy.php:42"
-            ],
-            "public_references": [
-                "includes/shortcodes/word-grid-shortcode.php:5372",
-                "includes/shortcodes/word-grid-shortcode.php:5840",
-                "includes/shortcodes/word-grid-shortcode.php:7875"
-            ]
-        },
-        {
             "key": "dbc208ad1d4f711a5330ed59025d6bb26d684a44",
             "context": "",
             "msgid": "Sentence",
@@ -10986,6 +11440,30 @@
             ],
             "public_references": [
                 "includes/shortcodes/wordset-buttons-shortcode.php:2024"
+            ]
+        },
+        {
+            "key": "3ab990c4df96e084a8a3ec0a420d91aba8491524",
+            "context": "",
+            "msgid": "Vocabulary assignment",
+            "msgid_plural": null,
+            "references": [
+                "templates/assignment-player.php:6"
+            ],
+            "public_references": [
+                "templates/assignment-player.php:6"
+            ]
+        },
+        {
+            "key": "f61c36ec6c251c785a66e5951d9182def627829a",
+            "context": "",
+            "msgid": "Enable JavaScript to answer this assignment.",
+            "msgid_plural": null,
+            "references": [
+                "templates/assignment-player.php:9"
+            ],
+            "public_references": [
+                "templates/assignment-player.php:9"
             ]
         },
         {

@@ -5650,3 +5650,193 @@ msgstr "단어 선택"
 #: includes/pages/wordset-pages.php:25173 includes/pages/wordset-pages.php:26237
 msgid "Older than 30 days"
 msgstr "30일 넘게 보지 않은 단어"
+
+#. ll-tools-public-key: 2ed9c2a508e0c5470f8b23ead5c07545bb900cf5
+#: includes/lms/assignment-experience.php:319
+msgid "This assignment content is unavailable."
+msgstr "이 과제의 내용을 이용할 수 없습니다."
+
+#. ll-tools-public-key: f8abc7412031923e9c1fdd55029785afe2ec5827
+#: includes/lms/assignment-experience.php:334
+msgid "The answer and learning progress could not be saved. Please retry."
+msgstr "답변과 학습 진행 상황을 저장하지 못했습니다. 다시 시도하세요."
+
+#. ll-tools-public-key: f2155fa2bd82c2e8e6b94a5e7b5675009f5cc61d
+#: includes/lms/assignment-experience.php:350
+msgid "This assignment is unavailable for your account."
+msgstr "현재 계정으로는 이 과제를 이용할 수 없습니다."
+
+#. ll-tools-public-key: 1e597804c738a7d99a734ececded6b9f3c55be20
+#: includes/lms/assignment-experience.php:355
+msgid "This assignment player is unavailable."
+msgstr "이 과제 화면을 이용할 수 없습니다."
+
+#. ll-tools-public-key: a13a6989dbfdcac0b3feb3772d0dad5f16cb7cc1
+#: includes/lms/assignment-experience.php:358
+msgid "Your learning data is being erased. Please try again later."
+msgstr "학습 데이터가 삭제되고 있습니다. 나중에 다시 시도하세요."
+
+#. ll-tools-public-key: aaa019aaf847f343ccf8813b3cc84c42a8d1b2bf
+#: includes/lms/assignment-experience.php:408
+msgid "Answer saved."
+msgstr "답변을 저장했습니다."
+
+#. ll-tools-public-key: 4471313e07e922b1532ef4daa5f031cfddf69363
+#: includes/lms/assignment-experience.php:408
+msgid "Attempt score"
+msgstr "시도 점수"
+
+#. ll-tools-public-key: 55f79092aa0a1690a5def3b220f8b8268dc2dfd8
+#: includes/lms/assignment-experience.php:408
+msgid "Choose an answer first."
+msgstr "먼저 답을 선택하세요."
+
+#. ll-tools-public-key: 6d671147e07d4e6fd27f89c8e74005376ae729d7
+#: includes/lms/assignment-experience.php:408
+msgid "Finish assignment"
+msgstr "과제 완료"
+
+#. ll-tools-public-key: 65cf103f2570cc44d71e6d3264694476acc1a1b6
+#: includes/lms/assignment-experience.php:408 templates/assignment-player.php:7
+msgid "Loading assignment…"
+msgstr "과제 불러오는 중…"
+
+#. ll-tools-public-key: 6328aed54690d71b5d0d22ec990cc4eb8b84ee11
+#: includes/lms/assignment-experience.php:408
+msgid "Next question"
+msgstr "다음 문제"
+
+#. ll-tools-public-key: 37094231b0ad0f3cd571af0ae20c8a6a173af380
+#: includes/lms/assignment-experience.php:408
+msgid "Save answer"
+msgstr "답변 저장"
+
+#. ll-tools-public-key: 2e50e09155fa8eff3221bfc7a2e98a6f0e2e2275
+#: includes/lms/assignment-experience.php:408
+msgid "Saving…"
+msgstr "저장 중…"
+
+#. ll-tools-public-key: d3173564fa5f5579289d417969500d9353081bdd
+#: includes/lms/assignment-experience.php:408
+msgid "Selected grade"
+msgstr "선택된 성적"
+
+#. ll-tools-public-key: 797a7361cedf56b0fd3cb21eede74ea0da8d1625
+#: includes/lms/assignment-experience.php:408
+msgid "Start assignment"
+msgstr "과제 시작"
+
+#. ll-tools-public-key: 823e50e146a546c1b11780992de4d76b132fe188
+#: includes/lms/assignment-experience.php:408
+msgid "The request could not be confirmed. Retry to read the saved state."
+msgstr "요청을 확인하지 못했습니다. 저장된 상태를 불러오려면 다시 시도하세요."
+
+#. ll-tools-public-key: c919d81f27c494f672e184d6dcd22a0d9d206b36
+#: includes/lms/assignment-experience.php:408
+msgid "This attempt has expired."
+msgstr "이 시도의 유효 시간이 지났습니다."
+
+#. ll-tools-public-key: 8832e6ee305241ba76d276289b99e8ad88b6041e
+#: includes/lms/assignment-experience.php:408
+msgid "Try another attempt"
+msgstr "다시 도전"
+
+#. ll-tools-public-key: 1552d8baee8e37cb10bb1e1629c6f4a861a89ff0
+#: includes/lms/assignment-experience.php:408
+msgid "of"
+msgstr "/"
+
+#. ll-tools-public-key: a0731f580edc6c4a324cded394675be089c52baf
+#: includes/lms/lti-accounts.php:26
+msgid "You are signed in to a different learning account. Sign out, then open this activity from Moodle again."
+msgstr "다른 학습 계정으로 로그인되어 있습니다. 로그아웃한 후 Moodle에서 이 활동을 다시 여세요."
+
+#. ll-tools-public-key: 27b4a3b34ae3c8e7284922057e3008fb1f72f675
+#: includes/lms/lti-accounts.php:27
+msgid "This Moodle identity is already connected to another account, or was disconnected. Ask the site administrator to review the link."
+msgstr "이 Moodle 사용자 정보는 이미 다른 계정에 연결되어 있거나 연결이 해제되었습니다. 사이트 관리자에게 연결 상태 확인을 요청하세요."
+
+#. ll-tools-public-key: a4c9d2c5c9433cdba0e1a2c0e3d542dcbd78776a
+#: includes/lms/lti-accounts.php:28
+msgid "Your access to this class has been removed. Your personal learning account remains available."
+msgstr "이 수업에 대한 접근 권한이 해제되었습니다. 개인 학습 계정은 계속 이용할 수 있습니다."
+
+#. ll-tools-public-key: d8662f11c71dcfeb8e9a753257bff3c850558fa8
+#: includes/lms/lti-accounts.php:29 includes/lms/lti-accounts.php:451
+msgid "Use a learner account for this activity. Staff accounts cannot be connected as Moodle students."
+msgstr "이 활동에는 학습자 계정을 사용하세요. 교직원 계정은 Moodle 학생으로 연결할 수 없습니다."
+
+#. ll-tools-public-key: 208be803850750e24db068dfeac32630a0b1419f
+#: includes/lms/lti-accounts.php:31
+msgid "This Moodle activity could not be opened. Return to Moodle and try again, or contact your teacher."
+msgstr "이 Moodle 활동을 열지 못했습니다. Moodle로 돌아가 다시 시도하거나 선생님에게 문의하세요."
+
+#. ll-tools-public-key: 08039be94d4f0f2353fcb12469924722d94042b7
+#: includes/lms/lti-accounts.php:444 includes/lms/lti-accounts.php:445
+msgid "Connect your learning account"
+msgstr "학습 계정 연결"
+
+#. ll-tools-public-key: 1093118753f31b01c91e6ed758f393b8d5f35a47
+#: includes/lms/lti-accounts.php:447
+msgid "This Moodle identity already belongs to a different account, or has been disconnected. Sign in to the original account; ask the site administrator to review a disconnected link."
+msgstr "이 Moodle 사용자 정보는 이미 다른 계정에 속해 있거나 연결이 해제되었습니다. 원래 계정으로 로그인하세요. 연결이 해제된 경우 사이트 관리자에게 확인을 요청하세요."
+
+#. ll-tools-public-key: 2be511d259c7a7445ba5e25047f8213e772b5d5d
+#: includes/lms/lti-accounts.php:449
+msgid "Sign in or create a permanent learner account. Your class activities and personal practice can save progress in this account."
+msgstr "로그인하거나 계속 사용할 학습자 계정을 만드세요. 이 계정에 수업 활동과 개인 연습의 진행 상황을 저장할 수 있습니다."
+
+#. ll-tools-public-key: 5e2a3e9875372eda40e3e611ff2263e7639d2486
+#: includes/lms/lti-accounts.php:453
+msgid "Connect Moodle to %s? Assigned results may be returned to your course. Personal practice stays in this account; your class teacher can view progress for the class wordset."
+msgstr "Moodle을 %s 계정에 연결할까요? 배정된 과제의 결과가 Moodle 강좌로 전송될 수 있습니다. 개인 연습의 진행 상황은 이 계정에 저장되며, 선생님은 수업의 단어 세트에 대한 진행 상황을 볼 수 있습니다."
+
+#. ll-tools-public-key: e39f702abd6b5b332c4541fdf6a3938bcefbfcbd
+#: includes/lms/lti-accounts.php:454
+msgid "Connect account and open activity"
+msgstr "계정 연결 후 활동 열기"
+
+#. ll-tools-public-key: 80e7407dad93c560bf92f6a066af68d4a80fba39
+#: includes/lms/lti-accounts.php:456
+msgid "Use another account"
+msgstr "다른 계정 사용"
+
+#. ll-tools-public-key: 99d13fbfa203a7974bf7962175d1c68a6f530ed5
+#: includes/lms/lti-accounts.php:457
+msgid "Manage Moodle connections"
+msgstr "Moodle 연결 관리"
+
+#. ll-tools-public-key: 132e6d32b12091181be4639932dc859c91ee3f68
+#: includes/lms/lti-accounts.php:543
+msgid "Disconnecting stops future Moodle launches and grade delivery through this identity. Your account and personal progress remain. An administrator must review any later reconnection."
+msgstr "연결을 해제하면 이 사용자 정보로 Moodle 활동을 시작하거나 성적을 전송할 수 없습니다. 계정과 개인 학습 진행 상황은 유지됩니다. 나중에 다시 연결하려면 관리자의 확인이 필요합니다."
+
+#. ll-tools-public-key: ad31ac32ca06ed1aa0be0a6851846fbf4949b220
+#: includes/lms/lti-accounts.php:543
+msgid "Moodle connections"
+msgstr "Moodle 연결"
+
+#. ll-tools-public-key: 5ba36240b7df7f8158c628a33104c4f60828ecba
+#: includes/lms/lti-accounts.php:545
+msgid "Moodle"
+msgstr "Moodle"
+
+#. ll-tools-public-key: 77091b51d86fa50a58ec193409dc4af574debac1
+#: includes/lms/lti-accounts.php:549
+msgid "Disconnect Moodle"
+msgstr "Moodle 연결 해제"
+
+#. ll-tools-public-key: ffdfcf5707dbb3f2abc0fa3308d57195f7b03045
+#: includes/lms/lti-accounts.php:549
+msgid "Disconnected"
+msgstr "연결 해제됨"
+
+#. ll-tools-public-key: 3ab990c4df96e084a8a3ec0a420d91aba8491524
+#: templates/assignment-player.php:6
+msgid "Vocabulary assignment"
+msgstr "어휘 과제"
+
+#. ll-tools-public-key: f61c36ec6c251c785a66e5951d9182def627829a
+#: templates/assignment-player.php:9
+msgid "Enable JavaScript to answer this assignment."
+msgstr "이 과제의 문제에 답하려면 JavaScript를 활성화하세요."

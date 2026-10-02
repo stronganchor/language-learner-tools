@@ -78,6 +78,10 @@ require_once(__DIR__ . '/user-progress-report-data.php');
 require_once(__DIR__ . '/lms/credential-store.php');
 require_once(__DIR__ . '/lms/assignments.php');
 require_once(__DIR__ . '/lms/grade-delivery.php');
+require_once(__DIR__ . '/vendor/php-jwt/autoload.php');
+require_once(__DIR__ . '/lms/assignment-experience.php');
+require_once(__DIR__ . '/lms/lti.php');
+require_once(__DIR__ . '/lms/lti-accounts.php');
 require_once(__DIR__ . '/lms/google-classroom.php');
 require_once(__DIR__ . '/offline-app-sync.php');
 require_once(__DIR__ . '/privacy.php');
@@ -129,6 +133,7 @@ if (ll_tools_should_load_admin_modules()) {
     require_once(__DIR__ . '/admin/user-progress-report.php');
     require_once(__DIR__ . '/admin/teacher-classes-page.php');
     require_once(__DIR__ . '/admin/google-classroom-integration.php');
+    require_once(__DIR__ . '/admin/lti-integration.php');
     require_once(__DIR__ . '/admin/word-images-fixer.php');
     require_once(__DIR__ . '/admin/ipa-keyboard-admin.php');
     require_once(__DIR__ . '/admin/image-aspect-normalizer-admin.php');

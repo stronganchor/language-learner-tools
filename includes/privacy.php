@@ -439,6 +439,11 @@ if (!function_exists('ll_tools_privacy_register_exporters')) {
             'callback' => 'll_tools_privacy_export_google_classroom_connections',
         ];
 
+        $exporters['ll-tools-lti'] = [
+            'exporter_friendly_name' => __('LL Tools Moodle Connections', 'll-tools-text-domain'),
+            'callback' => 'll_tools_privacy_export_lti',
+        ];
+
         return $exporters;
     }
 }
@@ -475,6 +480,14 @@ if (!function_exists('ll_tools_privacy_export_class_memberships')) {
 
         return ['data' => $export_items, 'done' => true];
     }
+}
+
+function ll_tools_privacy_export_lti(string $email_address, int $page = 1) {
+    $user = ll_tools_privacy_get_user_by_email($email_address);
+    if (!($user instanceof WP_User)) {
+        return ['data' => [], 'done' => true];
+    }
+    return ll_tools_lti_export_user_data((int) $user->ID, max(1, $page));
 }
 
 if (!function_exists('ll_tools_privacy_export_lms_assignments')) {
@@ -1197,6 +1210,7 @@ function ll_tools_privacy_local_erasure_meta_keys(): array {
         defined('LL_TOOLS_USER_RECOMMENDATION_DEFERRALS_META') ? LL_TOOLS_USER_RECOMMENDATION_DEFERRALS_META : 'll_user_study_recommendation_deferrals',
         defined('LL_TOOLS_USER_CONTENT_LESSON_COMPLETION_META') ? LL_TOOLS_USER_CONTENT_LESSON_COMPLETION_META : 'll_tools_completed_content_lessons',
         'tt_completed_lessons',
+        '_ll_tools_lti_class_admissions',
     ]))));
 }
 
@@ -1890,6 +1904,18 @@ if (!function_exists('ll_tools_privacy_erase_personal_data')) {
             if ($connections !== [] || $state_count > 0) {
                 $messages[] = __('Local Google Classroom credentials were erased. Privacy erasure did not change grades or revoke access in Google; the user can separately revoke the application in their Google Account.', 'll-tools-text-domain');
             }
+        }
+
+        $lti_erasure = ll_tools_lti_erase_user_data($user_id);
+        if (is_wp_error($lti_erasure)) {
+            return $abort_erasure($lti_erasure);
+        }
+        $removed = $removed || !empty($lti_erasure['items_removed']);
+        if (empty($lti_erasure['done'])) {
+            if (!ll_tools_privacy_pause_user_lms_erasure($user_id, $erasure_call_token)) {
+                return new WP_Error('lms_privacy_erasure_fence_pause_failed');
+            }
+            return ['items_removed' => $removed, 'items_retained' => false, 'messages' => $messages, 'done' => false];
         }
 
         $personal_erasure = ll_tools_privacy_delete_user_personal_data_verified($user_id);
@@ -2701,7 +2727,22 @@ function ll_tools_privacy_cleanup_deleted_user_lms_data(int $user_id): void {
             }
         }
 
+        $lti_done = false;
         if ($delivery_done && $assignment_done && $google_done) {
+            for ($pass = 0; $pass < $passes; $pass++) {
+                $result = ll_tools_lti_erase_user_data($user_id);
+                if (is_wp_error($result)) {
+                    $failure = $result;
+                    break;
+                }
+                if (!empty($result['done'])) {
+                    $lti_done = true;
+                    break;
+                }
+            }
+        }
+
+        if ($delivery_done && $assignment_done && $google_done && $lti_done) {
             // Re-certify under the same lock after bounded LMS cleanup, before
             // removing either fence. A read failure is never proof of absence.
             $final_empty = ll_tools_privacy_deleted_user_local_data_is_empty_locked($user_id, $session_lock);
