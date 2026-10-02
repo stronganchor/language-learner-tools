@@ -15,7 +15,7 @@ path to standards-based grade passback for major LMS platforms. Compatibility
 with any particular LMS is not complete until that platform's current sandbox
 and production setup have been tested.
 
-### Implementation status (source checked 2026-09-06)
+### Implementation status (source checked 2026-10-02)
 
 - Phase 1 is implemented: bounded formative Practice results appear in the
   existing teacher Classes report.
@@ -23,9 +23,10 @@ and production setup have been tested.
   immutable bounded closed-response revisions, current-class learner attempts,
   server-derived first answers and scores, `first`/`latest`/`best` selected
   grades, cookie-authenticated native REST routes, privacy export/erasure, and
-  a provider-neutral ordered delivery outbox. A complete teacher assignment
-  authoring/player UI and provider mappings are still required before this is
-  a finished production assessment workflow.
+  a provider-neutral ordered delivery outbox. The Moodle pilot now adds bounded
+  category-based vocabulary authoring and a learner player. Schema-2 snapshots
+  carry media and exact word semantics privately; accepted answers and per-word
+  progress commit atomically. Schema-1 domain assignments remain supported.
 - A Google Classroom connection foundation is implemented: configuration-only
   OAuth secrets, one-use state plus PKCE, authenticated encryption for refresh
   credentials, fixed Google origins, scope readback, a teacher connection
@@ -33,10 +34,12 @@ and production setup have been tested.
   CourseWork and `draftGrade` exist but have no UI/adapter registration and are
   disabled unless the explicit production-write gate is enabled. They do not
   accept Phase 1 results.
-- LTI 1.3/AGS is not implemented or claimed. The repository still has no
-  audited production JOSE/OIDC dependency, signing-key custody/rotation model,
-  registration/deployment store, or LMS sandbox proof. Those are one security
-  boundary, not a small transport patch.
+- A manual Moodle LTI 1.3/score-only AGS pilot is implemented with a pinned scoped
+  JWT dependency, protected configuration keys, explicit registrations,
+  browser-bound one-use launch state, persistent confirmed learner accounts,
+  exact course/activity mappings and the durable grade outbox. See
+  `docs/MOODLE_SETUP.md` for setup, limits and real-platform acceptance. Local
+  WordPress tests do not establish Moodle interoperability or LTI certification.
 
 See `docs/GOOGLE_CLASSROOM_SETUP.md` for the connector's deployment boundary
 and remaining acceptance gates.
@@ -50,6 +53,7 @@ and remaining acceptance gates.
 | Assignment schema, immutable revisions, scoring and grade selection | `includes/lms/assignments.php` | `LmsAssignmentFoundationTest` |
 | Native request shape, permissions and route registration | `includes/api/lms-rest.php` | `LmsRestApiTest` |
 | Provider-neutral mappings, outbox, leases and scheduling | `includes/lms/grade-delivery.php` | `LmsGradeDeliveryTest` |
+| Moodle launch, confirmed accounts, fixed vocabulary player and AGS | `includes/lms/lti.php`, `includes/lms/lti-accounts.php`, `includes/lms/assignment-experience.php`, `includes/admin/lti-integration.php` | `LtiFoundationTest`, `LtiAccountsTest`, `LmsAssignmentExperienceTest`, `lti-accounts.spec.js`, `lms-assignment-player.spec.js` |
 | Google connection and credential envelope | `includes/lms/google-classroom.php`, `includes/lms/credential-store.php`, `includes/admin/google-classroom-integration.php` | `GoogleClassroomFoundationTest`, `google-classroom-admin-ui.spec.js` |
 | Export/erasure and durable account-deletion cleanup | `includes/privacy.php` plus each LMS module's privacy helpers | `LmsPrivacyLifecycleTest`, `OfflineAppSyncTest`, `MultisiteRegistrationAndMaintenanceTest` |
 
@@ -66,9 +70,11 @@ outbox rows in one transaction. For a caller-owned transaction, the returned
 after its own commit; releasing the nested savepoint is insufficient.
 
 The `ll_tools_lms_assignment_create_revision()` PHP helper has no corresponding
-native REST route in the current inventory. Treat teacher authoring, learner
-assignment navigation/player UI, and provider mapping controls as unfinished
-product work; do not infer those interfaces from the domain helpers.
+native REST route. The Moodle pilot provides category-based fixed assignment
+authoring and an explicit player URL, not a general assessment editor. Native
+routes additionally include `POST /lms/assignments/from-category` and
+`GET /lms/assignments/{uuid}/player-state`; signed platform endpoints are
+`GET|POST /lti/login`, `POST /lti/launch`, and `GET /lti/jwks`.
 
 ### Native LMS REST route inventory
 

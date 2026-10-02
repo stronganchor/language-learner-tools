@@ -30546,3 +30546,519 @@ msgstr "Private Kategorien sind nur für Administratoren und zugewiesene Benutze
 #: includes/taxonomies/word-category-taxonomy.php:2606 includes/taxonomies/word-category-taxonomy.php:804 templates/vocab-lesson-template.php:1097
 msgid "This category inherits private visibility from its source category."
 msgstr "Diese Kategorie übernimmt die private Sichtbarkeit ihrer Quellkategorie."
+
+#: includes/admin/lti-integration.php:109 includes/admin/lti-integration.php:12
+msgid "Moodle / LTI"
+msgstr "Moodle / LTI"
+
+#: includes/admin/lti-integration.php:29
+msgid "You cannot manage Moodle activities."
+msgstr "Du kannst keine Moodle-Aktivitäten verwalten."
+
+#: includes/admin/lti-integration.php:46
+msgid "Only a site administrator can register Moodle."
+msgstr "Nur Website-Administratoren können Moodle registrieren."
+
+#: includes/admin/lti-integration.php:110
+msgid "The change could not be saved. Check the registered URLs, class ownership, and selected activity, then retry."
+msgstr "Die Änderung konnte nicht gespeichert werden. Prüfe die registrierten URLs, deine Berechtigung für die Klasse und die ausgewählte Aktivität. Versuche es dann erneut."
+
+#: includes/admin/lti-integration.php:111
+msgid "The assignment was created. Reuse this UUID when retrying the activity setup:"
+msgstr "Die Aufgabe wurde erstellt. Verwende diese UUID erneut, wenn du die Einrichtung der Aktivität wiederholst:"
+
+#: includes/admin/lti-integration.php:112
+msgid "Use Moodle’s External tool activity with LTI 1.3. Choose a new-window launch so students can connect their permanent learner accounts. Practice saves personal progress; graded assignments can return the selected result to Moodle."
+msgstr "Verwende in Moodle die Aktivität „Externes Tool“ mit LTI 1.3. Wähle den Start in einem neuen Fenster, damit Lernende ihre dauerhaften Lernkonten verbinden können. Übungen speichern den persönlichen Fortschritt; bewertete Aufgaben können das ausgewählte Ergebnis an Moodle zurückgeben."
+
+#: includes/admin/lti-integration.php:113
+msgid "A configuration-only LMS credential encryption key is required before Moodle launches or account linking are available."
+msgstr "Ein ausschließlich in der Konfiguration hinterlegter Verschlüsselungsschlüssel für LMS-Zugangsdaten ist erforderlich, bevor Moodle-Starts oder Kontoverknüpfungen verfügbar sind."
+
+#: includes/admin/lti-integration.php:114
+msgid "Moodle account linking and enrollment are paused. The core users, usermeta, posts, postmeta and options tables must all be InnoDB so account, class and grade changes can roll back together. Ask the database administrator to prepare a backed-up migration; this plugin will not convert core tables."
+msgstr "Die Moodle-Kontoverknüpfung und die Aufnahme in Klassen sind pausiert. Die WordPress-Kerntabellen users, usermeta, posts, postmeta und options müssen alle InnoDB verwenden, damit Änderungen an Konten, Klassen und Noten gemeinsam zurückgerollt werden können. Bitte die Datenbankadministration, eine Migration mit vorheriger Datensicherung vorzubereiten. Dieses Plugin konvertiert keine Kerntabellen."
+
+#: includes/admin/lti-integration.php:115
+msgid "Tool details for the Moodle administrator"
+msgstr "Tool-Daten für die Moodle-Administration"
+
+#: includes/admin/lti-integration.php:116
+msgid "Tool URL"
+msgstr "Tool-URL"
+
+#: includes/admin/lti-integration.php:116
+msgid "Initiate login URL"
+msgstr "URL zur Login-Einleitung"
+
+#: includes/admin/lti-integration.php:116
+msgid "Redirection URI"
+msgstr "Weiterleitungs-URI"
+
+#: includes/admin/lti-integration.php:116
+msgid "Public keyset URL"
+msgstr "URL des öffentlichen Schlüsselsatzes"
+
+#: includes/admin/lti-integration.php:118
+msgid "Registered Moodle platforms"
+msgstr "Registrierte Moodle-Plattformen"
+
+#: includes/admin/lti-integration.php:118 includes/admin/lti-integration.php:124 includes/lms/lti-accounts.php:510
+msgid "Platform issuer"
+msgstr "Issuer der Plattform"
+
+#: includes/admin/lti-integration.php:118 includes/admin/lti-integration.php:124 includes/lms/lti-accounts.php:510
+msgid "Deployment ID"
+msgstr "Deployment-ID"
+
+#: includes/admin/lti-integration.php:119 includes/admin/lti-integration.php:125
+msgid "Enabled"
+msgstr "Aktiviert"
+
+#: includes/admin/lti-integration.php:122
+msgid "Register or update a platform"
+msgstr "Plattform registrieren oder aktualisieren"
+
+#: includes/admin/lti-integration.php:122
+msgid "Copy these values from Moodle’s tool configuration. Registration is limited to the Moodle issuer’s HTTPS origin. Reusing an ID updates that registration; uncheck Enabled to stop its launches."
+msgstr "Kopiere diese Werte aus der Tool-Konfiguration in Moodle. Die Registrierung ist auf den HTTPS-Origin des Moodle-Issuers beschränkt. Eine bereits verwendete ID aktualisiert die zugehörige Registrierung. Deaktiviere „Aktiviert“, um weitere Starts zu verhindern."
+
+#: includes/admin/lti-integration.php:124
+msgid "Local registration ID"
+msgstr "Lokale Registrierungs-ID"
+
+#: includes/admin/lti-integration.php:124
+msgid "Display name"
+msgstr "Anzeigename"
+
+#: includes/admin/lti-integration.php:124
+msgid "Authentication request URL"
+msgstr "URL für Authentifizierungsanfragen"
+
+#: includes/admin/lti-integration.php:124
+msgid "Platform public keyset URL"
+msgstr "URL des öffentlichen Schlüsselsatzes der Plattform"
+
+#: includes/admin/lti-integration.php:124
+msgid "Access token URL"
+msgstr "URL für Zugriffstokens"
+
+#: includes/admin/lti-integration.php:125
+msgid "Allow launches"
+msgstr "Starts erlauben"
+
+#: includes/admin/lti-integration.php:126
+msgid "Save platform"
+msgstr "Plattform speichern"
+
+#: includes/admin/lti-integration.php:128
+msgid "Class activities"
+msgstr "Klassenaktivitäten"
+
+#: includes/admin/lti-integration.php:128
+msgid "Create the class in LL Tools first. Students are enrolled on their first trusted launch; removing them from the LL Tools class blocks later launches without deleting their personal accounts."
+msgstr "Erstelle zuerst die Klasse in LL Tools. Lernende werden beim ersten vertrauenswürdigen Start aufgenommen. Wenn du sie aus der LL Tools-Klasse entfernst, werden spätere Starts blockiert, ohne ihre persönlichen Konten zu löschen."
+
+#: includes/admin/lti-integration.php:129
+msgid "Select class"
+msgstr "Klasse auswählen"
+
+#: includes/admin/lti-integration.php:129
+msgid "Choose class"
+msgstr "Klasse wählen"
+
+#: includes/admin/lti-integration.php:132
+msgid "Moodle platform"
+msgstr "Moodle-Plattform"
+
+#: includes/admin/lti-integration.php:133 includes/lms/lti-accounts.php:510
+msgid "Moodle course context ID"
+msgstr "Kontext-ID des Moodle-Kurses"
+
+#: includes/admin/lti-integration.php:133
+msgid "Use the exact LTI context ID sent by this Moodle course."
+msgstr "Verwende die genaue LTI-Kontext-ID, die dieser Moodle-Kurs übermittelt."
+
+#: includes/admin/lti-integration.php:134 includes/lms/lti-accounts.php:510
+msgid "Moodle resource link ID"
+msgstr "Ressourcenlink-ID in Moodle"
+
+#: includes/admin/lti-integration.php:134
+msgid "Optional before the first launch. The first verified launch pins the resource link, preventing reuse by a different Moodle activity."
+msgstr "Vor dem ersten Start optional. Der erste überprüfte Start bindet den Ressourcenlink fest, damit keine andere Moodle-Aktivität ihn wiederverwenden kann."
+
+#: includes/admin/lti-integration.php:135
+msgid "Activity name"
+msgstr "Aktivitätsname"
+
+#: includes/admin/lti-integration.php:136
+msgid "Lesson category"
+msgstr "Lektionskategorie"
+
+#: includes/admin/lti-integration.php:137
+msgid "Activity type"
+msgstr "Aktivitätstyp"
+
+#: includes/admin/lti-integration.php:137
+msgid "Practice — personal progress, no Moodle grade"
+msgstr "Übung — persönlicher Fortschritt, keine Moodle-Note"
+
+#: includes/admin/lti-integration.php:137
+msgid "Graded assignment"
+msgstr "Bewertete Aufgabe"
+
+#: includes/admin/lti-integration.php:138
+msgid "Existing assignment UUID"
+msgstr "UUID einer vorhandenen Aufgabe"
+
+#: includes/admin/lti-integration.php:138
+msgid "Optional. Leave blank to create and publish a fixed assignment from this category."
+msgstr "Optional. Lass das Feld leer, um eine feste Aufgabe aus dieser Kategorie zu erstellen und zu veröffentlichen."
+
+#: includes/admin/lti-integration.php:139
+msgid "Maximum grade"
+msgstr "Maximale Punktzahl"
+
+#: includes/admin/lti-integration.php:140
+msgid "Attempt limit"
+msgstr "Maximale Anzahl an Versuchen"
+
+#: includes/admin/lti-integration.php:141
+msgid "Grade policy"
+msgstr "Bewertungsregel"
+
+#: includes/admin/lti-integration.php:141
+msgid "Best completed attempt"
+msgstr "Bester abgeschlossener Versuch"
+
+#: includes/admin/lti-integration.php:141
+msgid "Latest completed attempt"
+msgstr "Letzter abgeschlossener Versuch"
+
+#: includes/admin/lti-integration.php:141
+msgid "First completed attempt"
+msgstr "Erster abgeschlossener Versuch"
+
+#: includes/admin/lti-integration.php:142
+msgid "Create Moodle activity"
+msgstr "Moodle-Aktivität erstellen"
+
+#: includes/admin/lti-integration.php:143
+msgid "No eligible lesson categories are available for this class wordset."
+msgstr "Für das Vokabelset dieser Klasse sind keine geeigneten Lektionskategorien verfügbar."
+
+#: includes/admin/lti-integration.php:144
+msgid "Configured activities"
+msgstr "Eingerichtete Aktivitäten"
+
+#: includes/admin/lti-integration.php:144
+msgid "Course context"
+msgstr "Kurskontext"
+
+#: includes/admin/lti-integration.php:144
+msgid "Moodle custom parameter"
+msgstr "Benutzerdefinierter Moodle-Parameter"
+
+#: includes/admin/lti-integration.php:144
+msgid "Type / assignment"
+msgstr "Typ / Aufgabe"
+
+#: includes/admin/lti-integration.php:145
+msgid "Disable"
+msgstr "Deaktivieren"
+
+#: includes/lms/assignment-experience.php:12 includes/lms/assignment-experience.php:17
+msgid "The question presentation is invalid."
+msgstr "Die Darstellung der Frage ist ungültig."
+
+#: includes/lms/assignment-experience.php:25
+msgid "The question media is invalid."
+msgstr "Die Medien der Frage sind ungültig."
+
+#: includes/lms/assignment-experience.php:31
+msgid "A question or choice has no usable presentation."
+msgstr "Eine Frage oder Antwortoption hat keine verwendbare Darstellung."
+
+#: includes/lms/assignment-experience.php:39
+msgid "Vocabulary assignments require 5 to 15 questions."
+msgstr "Vokabelaufgaben müssen 5 bis 15 Fragen enthalten."
+
+#: includes/lms/assignment-experience.php:45
+msgid "Each vocabulary question needs 2 to 4 distinct choices."
+msgstr "Jede Vokabelfrage benötigt 2 bis 4 unterschiedliche Antwortoptionen."
+
+#: includes/lms/assignment-experience.php:49
+msgid "Assignment question keys must be unique."
+msgstr "Die Schlüssel für Aufgabenfragen müssen eindeutig sein."
+
+#: includes/lms/assignment-experience.php:56 includes/lms/assignment-experience.php:61 includes/lms/assignment-experience.php:67 includes/lms/assignment-experience.php:73
+msgid "The vocabulary mapping is invalid."
+msgstr "Die Vokabelzuordnung ist ungültig."
+
+#: includes/lms/assignment-experience.php:77
+msgid "Audio progress requires an audio prompt."
+msgstr "Audiofortschritt erfordert einen Audioimpuls."
+
+#: includes/lms/assignment-experience.php:80
+msgid "The prompt recording type is invalid."
+msgstr "Der Aufnahmetyp des Aufgabenimpulses ist ungültig."
+
+#: includes/lms/assignment-experience.php:89
+msgid "Assignment choice keys must be unique."
+msgstr "Die Schlüssel für Antwortoptionen müssen eindeutig sein."
+
+#: includes/lms/assignment-experience.php:95
+msgid "Two answer choices look or sound identical."
+msgstr "Zwei Antwortoptionen sehen gleich aus oder klingen gleich."
+
+#: includes/lms/assignment-experience.php:103
+msgid "Each question must have exactly one correct choice."
+msgstr "Jede Frage muss genau eine richtige Antwortoption haben."
+
+#: includes/lms/assignment-experience.php:143 includes/lms/assignment-experience.php:319
+msgid "This assignment content is unavailable."
+msgstr "Der Inhalt dieser Aufgabe ist nicht verfügbar."
+
+#: includes/lms/assignment-experience.php:154
+msgid "Every assignment question must map to a distinct current word in this class wordset and category."
+msgstr "Jede Aufgabenfrage muss einer anderen aktuellen Vokabel im Vokabelset und in der Kategorie dieser Klasse zugeordnet sein."
+
+#: includes/lms/assignment-experience.php:201 includes/lms/assignment-experience.php:295
+msgid "You cannot manage this class."
+msgstr "Du kannst diese Klasse nicht verwalten."
+
+#: includes/lms/assignment-experience.php:207
+msgid "This category is unavailable."
+msgstr "Diese Kategorie ist nicht verfügbar."
+
+#: includes/lms/assignment-experience.php:212
+msgid "Choose a category in this class wordset."
+msgstr "Wähle eine Kategorie im Vokabelset dieser Klasse."
+
+#: includes/lms/assignment-experience.php:216
+msgid "Choose 5 to 15 distinct words."
+msgstr "Wähle 5 bis 15 unterschiedliche Vokabeln."
+
+#: includes/lms/assignment-experience.php:223
+msgid "The vocabulary could not be read. Please try again."
+msgstr "Die Vokabeln konnten nicht gelesen werden. Bitte versuche es erneut."
+
+#: includes/lms/assignment-experience.php:228
+msgid "The category must have 5 to 15 usable words, or select an exact 5 to 15 word subset."
+msgstr "Die Kategorie muss 5 bis 15 verwendbare Vokabeln enthalten. Alternativ kannst du eine genaue Auswahl von 5 bis 15 Vokabeln festlegen."
+
+#: includes/lms/assignment-experience.php:232
+msgid "The quiz configuration could not be read."
+msgstr "Die Quiz-Konfiguration konnte nicht gelesen werden."
+
+#: includes/lms/assignment-experience.php:240
+msgid "Every selected word needs the category’s configured quiz media."
+msgstr "Jede ausgewählte Vokabel benötigt die für das Quiz dieser Kategorie festgelegten Medien."
+
+#: includes/lms/assignment-experience.php:244
+msgid "This pilot supports ordinary vocabulary words only."
+msgstr "Diese Pilotversion unterstützt nur normale Vokabeln."
+
+#: includes/lms/assignment-experience.php:248
+msgid "The selected words changed. Please retry."
+msgstr "Die ausgewählten Vokabeln haben sich geändert. Bitte versuche es erneut."
+
+#: includes/lms/assignment-experience.php:278
+msgid "A selected word has no distinct allowed distractor."
+msgstr "Für eine ausgewählte Vokabel gibt es keine eindeutige zulässige falsche Antwortoption."
+
+#: includes/lms/assignment-experience.php:300
+msgid "Categories could not be read."
+msgstr "Die Kategorien konnten nicht gelesen werden."
+
+#: includes/lms/assignment-experience.php:308
+msgid "Category ownership could not be read."
+msgstr "Die Zuständigkeit für die Kategorie konnte nicht gelesen werden."
+
+#: includes/lms/assignment-experience.php:334
+msgid "The answer and learning progress could not be saved. Please retry."
+msgstr "Die Antwort und der Lernfortschritt konnten nicht gespeichert werden. Bitte versuche es erneut."
+
+#: includes/lms/assignment-experience.php:350
+msgid "This assignment is unavailable for your account."
+msgstr "Diese Aufgabe ist für dein Konto nicht verfügbar."
+
+#: includes/lms/assignment-experience.php:355
+msgid "This assignment player is unavailable."
+msgstr "Diese Aufgabenansicht ist nicht verfügbar."
+
+#: includes/lms/assignment-experience.php:358 includes/lms/assignments.php:1560
+msgid "Your learning data is being erased. Please try again later."
+msgstr "Deine Lerndaten werden gerade gelöscht. Bitte versuche es später erneut."
+
+#: includes/lms/assignment-experience.php:363
+msgid "The attempt could not be read. Please retry."
+msgstr "Der Versuch konnte nicht gelesen werden. Bitte versuche es erneut."
+
+#: includes/lms/assignment-experience.php:368
+msgid "The answers could not be read. Please retry."
+msgstr "Die Antworten konnten nicht gelesen werden. Bitte versuche es erneut."
+
+#: includes/lms/assignment-experience.php:379
+msgid "Choose a class and category."
+msgstr "Wähle eine Klasse und eine Kategorie."
+
+#: includes/lms/assignment-experience.php:408 templates/assignment-player.php:7
+msgid "Loading assignment…"
+msgstr "Aufgabe wird geladen…"
+
+#: includes/lms/assignment-experience.php:408
+msgid "Start assignment"
+msgstr "Aufgabe starten"
+
+#: includes/lms/assignment-experience.php:408
+msgid "Try another attempt"
+msgstr "Weiteren Versuch starten"
+
+#: includes/lms/assignment-experience.php:408
+msgid "of"
+msgstr "von"
+
+#: includes/lms/assignment-experience.php:408
+msgid "Save answer"
+msgstr "Antwort speichern"
+
+#: includes/lms/assignment-experience.php:408
+msgid "Next question"
+msgstr "Nächste Frage"
+
+#: includes/lms/assignment-experience.php:408
+msgid "Finish assignment"
+msgstr "Aufgabe abschließen"
+
+#: includes/lms/assignment-experience.php:408
+msgid "Answer saved."
+msgstr "Antwort gespeichert."
+
+#: includes/lms/assignment-experience.php:408
+msgid "The request could not be confirmed. Retry to read the saved state."
+msgstr "Die Anfrage konnte nicht bestätigt werden. Versuche es erneut, um den gespeicherten Stand abzurufen."
+
+#: includes/lms/assignment-experience.php:408
+msgid "Attempt score"
+msgstr "Punktzahl dieses Versuchs"
+
+#: includes/lms/assignment-experience.php:408
+msgid "This attempt has expired."
+msgstr "Dieser Versuch ist abgelaufen."
+
+#: includes/lms/assignment-experience.php:408
+msgid "Choose an answer first."
+msgstr "Wähle zuerst eine Antwort."
+
+#: includes/lms/lti-accounts.php:26
+msgid "You are signed in to a different learning account. Sign out, then open this activity from Moodle again."
+msgstr "Du bist mit einem anderen Lernkonto angemeldet. Melde dich ab und öffne diese Aktivität erneut von Moodle aus."
+
+#: includes/lms/lti-accounts.php:27
+msgid "This Moodle identity is already connected to another account, or was disconnected. Ask the site administrator to review the link."
+msgstr "Diese Moodle-Identität ist bereits mit einem anderen Konto verbunden oder wurde getrennt. Bitte die Website-Administration, die Verknüpfung zu prüfen."
+
+#: includes/lms/lti-accounts.php:28
+msgid "Your access to this class has been removed. Your personal learning account remains available."
+msgstr "Dein Zugang zu dieser Klasse wurde entfernt. Dein persönliches Lernkonto bleibt verfügbar."
+
+#: includes/lms/lti-accounts.php:29 includes/lms/lti-accounts.php:451
+msgid "Use a learner account for this activity. Staff accounts cannot be connected as Moodle students."
+msgstr "Verwende für diese Aktivität ein Lernkonto. Konten von Lehrkräften und anderen Mitarbeitenden können nicht als Moodle-Lernende verbunden werden."
+
+#: includes/lms/lti-accounts.php:31
+msgid "This Moodle activity could not be opened. Return to Moodle and try again, or contact your teacher."
+msgstr "Diese Moodle-Aktivität konnte nicht geöffnet werden. Kehre zu Moodle zurück und versuche es erneut oder wende dich an deine Lehrkraft."
+
+#: includes/lms/lti-accounts.php:444 includes/lms/lti-accounts.php:445
+msgid "Connect your learning account"
+msgstr "Lernkonto verbinden"
+
+#: includes/lms/lti-accounts.php:447
+msgid "This Moodle identity already belongs to a different account, or has been disconnected. Sign in to the original account; ask the site administrator to review a disconnected link."
+msgstr "Diese Moodle-Identität gehört bereits zu einem anderen Konto oder wurde getrennt. Melde dich mit dem ursprünglichen Konto an. Bitte die Website-Administration, eine getrennte Verknüpfung zu prüfen."
+
+#: includes/lms/lti-accounts.php:449
+msgid "Sign in or create a permanent learner account. Your class activities and personal practice can save progress in this account."
+msgstr "Melde dich an oder erstelle ein dauerhaftes Lernkonto. Deine Klassenaktivitäten und persönlichen Übungen können den Fortschritt in diesem Konto speichern."
+
+#: includes/lms/lti-accounts.php:453
+msgid "Connect Moodle to %s? Assigned results may be returned to your course. Personal practice stays in this account; your class teacher can view progress for the class wordset."
+msgstr "Moodle mit %s verbinden? Ergebnisse zugewiesener Aufgaben können an deinen Kurs zurückgegeben werden. Persönliche Übungen bleiben in diesem Konto. Deine Lehrkraft kann den Fortschritt im Vokabelset der Klasse sehen."
+
+#: includes/lms/lti-accounts.php:454
+msgid "Connect account and open activity"
+msgstr "Konto verbinden und Aktivität öffnen"
+
+#: includes/lms/lti-accounts.php:456
+msgid "Use another account"
+msgstr "Anderes Konto verwenden"
+
+#: includes/lms/lti-accounts.php:457
+msgid "Manage Moodle connections"
+msgstr "Moodle-Verbindungen verwalten"
+
+#: includes/lms/lti-accounts.php:485
+msgid "To configure this activity, sign in to a local teacher account and open it from Moodle again."
+msgstr "Melde dich mit einem lokalen Lehrkonto an und öffne diese Aktivität erneut von Moodle aus, um sie einzurichten."
+
+#: includes/lms/lti-accounts.php:509
+msgid "Moodle activity setup"
+msgstr "Moodle-Aktivität einrichten"
+
+#: includes/lms/lti-accounts.php:509
+msgid "This instructor launch was verified. Copy its course and resource identifiers into your Moodle / LTI activity configuration."
+msgstr "Dieser Start durch eine Lehrkraft wurde überprüft. Kopiere die Kurs- und Ressourcenkennungen in die Aktivitätskonfiguration unter Moodle / LTI."
+
+#: includes/lms/lti-accounts.php:511
+msgid "Open Moodle / LTI settings"
+msgstr "Moodle / LTI-Einstellungen öffnen"
+
+#: includes/lms/lti-accounts.php:543
+msgid "Moodle connections"
+msgstr "Moodle-Verbindungen"
+
+#: includes/lms/lti-accounts.php:543
+msgid "Disconnecting stops future Moodle launches and grade delivery through this identity. Your account and personal progress remain. An administrator must review any later reconnection."
+msgstr "Wenn du die Verbindung trennst, werden spätere Moodle-Starts und die Übermittlung von Noten über diese Identität gestoppt. Dein Konto und dein persönlicher Fortschritt bleiben erhalten. Eine spätere erneute Verbindung muss von der Administration geprüft werden."
+
+#: includes/lms/lti-accounts.php:545
+msgid "Moodle"
+msgstr "Moodle"
+
+#: includes/lms/lti-accounts.php:549
+msgid "Disconnect Moodle"
+msgstr "Moodle trennen"
+
+#: includes/lms/lti-accounts.php:549
+msgid "Disconnected"
+msgstr "Getrennt"
+
+#: includes/lms/lti.php:12
+msgid "The learning platform request could not be verified."
+msgstr "Die Anfrage der Lernplattform konnte nicht überprüft werden."
+
+#: includes/lms/lti.php:736
+msgid "Learning platform connections"
+msgstr "Verbindungen zu Lernplattformen"
+
+#: includes/lms/lti.php:738
+msgid "Platform"
+msgstr "Plattform"
+
+#: includes/lms/lti.php:739
+msgid "Learner identifier"
+msgstr "Kennung der lernenden Person"
+
+#: includes/privacy.php:443
+msgid "LL Tools Moodle Connections"
+msgstr "LL Tools Moodle-Verbindungen"
+
+#: templates/assignment-player.php:6
+msgid "Vocabulary assignment"
+msgstr "Vokabelaufgabe"
+
+#: templates/assignment-player.php:9
+msgid "Enable JavaScript to answer this assignment."
+msgstr "Aktiviere JavaScript, um diese Aufgabe zu beantworten."

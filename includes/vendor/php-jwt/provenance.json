@@ -1,0 +1,40 @@
+{
+    "package": "firebase/php-jwt",
+    "version": "v7.2.1",
+    "source_reference": "0501f5729b9e2448516674aff07c7d1727869b8e",
+    "namespace": "LLTools\\Vendor\\Firebase\\JWT",
+    "files": {
+        "BeforeValidException.php": {
+            "upstream_sha256": "77fe003a44eb941bfd2fac7399f8ca761511a2ad49117f093ef12489b6f09cd0",
+            "scoped_sha256": "be70c01b6c95769bdffe4a1fec22c120c04a49b222fb019da8a24bbb25622a6d"
+        },
+        "CachedKeySet.php": {
+            "upstream_sha256": "835406341fb1b5770330e103ae41106a5cb04ce41eb2976fee008e0441213854",
+            "scoped_sha256": "79e904c00c79d6f6e7e1f4734da99e0ce07efc05a77e221007a96026066c5219"
+        },
+        "ExpiredException.php": {
+            "upstream_sha256": "fe92315afbde5a898deabc1562b0f1bc3793bade3c2e61231619aa4849cf476d",
+            "scoped_sha256": "5311672b88b884ab67984a8f2e5a4a02b817e90216911cc29e3941cad3a0664f"
+        },
+        "JWK.php": {
+            "upstream_sha256": "f4895c87128079ec16ba130b0eab0717a34622afb1578e42bb4dec61f4728411",
+            "scoped_sha256": "940b523f6434e69d60bad2dbf1e7de4224928840f7ebb58cbc34e719c2826a8a"
+        },
+        "JWT.php": {
+            "upstream_sha256": "fa59d2771a8a6542cb33f40de460fd60f54c49b0334a568b1697be7154f6522c",
+            "scoped_sha256": "62f2e0cff420e0772193f7cdc86ef4e68b439c1b393c1fcf1da2bff02187f76e"
+        },
+        "JWTExceptionWithPayloadInterface.php": {
+            "upstream_sha256": "899678f85fe560248895cf921b70ec95ad87b68d5c4da4ff561870d6942cacac",
+            "scoped_sha256": "0511a2bd9d8b1a5f399bebdfefa715da6d3c86ed7e2ea3ab92746a70d997b269"
+        },
+        "Key.php": {
+            "upstream_sha256": "458bc77981ae49a8fd15dee7781d5b69e88e701536901488a90241134d522e07",
+            "scoped_sha256": "31512e9b0967bc2dad6bdd900e509659e8d98d41dbbecc2c3eeb2f4408b19aa1"
+        },
+        "SignatureInvalidException.php": {
+            "upstream_sha256": "fc624b17bf730387079c3b25dd282743259bd3c6c20920e007879412c85ebdee",
+            "scoped_sha256": "120e4c6b48cc46bb9edcdd64e9f258693169632c8cfb4368d70a62a3d9315909"
+        }
+    }
+}

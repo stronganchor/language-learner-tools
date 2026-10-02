@@ -1,0 +1,6 @@
+{
+  "name": "stronganchor/ll-tools-lti-dependencies",
+  "description": "Pinned audited JWT implementation for the isolated LL Tools LTI runtime",
+  "require": { "firebase/php-jwt": "7.2.1" },
+  "config": { "vendor-dir": "../../_codex_temp/lti-vendor", "sort-packages": true, "platform": { "php": "8.0.30" } }
+}

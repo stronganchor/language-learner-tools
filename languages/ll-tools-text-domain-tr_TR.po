@@ -30547,3 +30547,538 @@ msgstr "Özel kategoriler yalnızca yöneticilere ve erişim izni verilen kullan
 #: includes/taxonomies/word-category-taxonomy.php:2606 includes/taxonomies/word-category-taxonomy.php:804 templates/vocab-lesson-template.php:1097
 msgid "This category inherits private visibility from its source category."
 msgstr "Bu kategori, kaynak kategorisinin özel görünürlüğünü devralır."
+
+
+#: includes/admin/lti-integration.php:109
+#: includes/admin/lti-integration.php:12
+msgid "Moodle / LTI"
+msgstr "Moodle / LTI"
+
+#: includes/admin/lti-integration.php:29
+msgid "You cannot manage Moodle activities."
+msgstr "Moodle etkinliklerini yönetme iznin yok."
+
+#: includes/admin/lti-integration.php:46
+msgid "Only a site administrator can register Moodle."
+msgstr "Moodle'ı yalnızca bir site yöneticisi kaydedebilir."
+
+#: includes/admin/lti-integration.php:110
+msgid "The change could not be saved. Check the registered URLs, class ownership, and selected activity, then retry."
+msgstr "Değişiklik kaydedilemedi. Kayıtlı URL'leri, sınıfın sahibini ve seçilen etkinliği kontrol edip yeniden dene."
+
+#: includes/admin/lti-integration.php:111
+msgid "The assignment was created. Reuse this UUID when retrying the activity setup:"
+msgstr "Ödev oluşturuldu. Etkinliği yeniden kurarken aynı UUID'yi kullan:"
+
+#: includes/admin/lti-integration.php:112
+msgid "Use Moodle’s External tool activity with LTI 1.3. Choose a new-window launch so students can connect their permanent learner accounts. Practice saves personal progress; graded assignments can return the selected result to Moodle."
+msgstr "Moodle'ın Harici araç etkinliğini LTI 1.3 ile kullan. Öğrencilerin kalıcı öğrenci hesaplarını bağlayabilmesi için etkinliği yeni pencerede açmayı seç. Alıştırmalar kişisel ilerlemeyi kaydeder; notlandırılan ödevler seçilen sonucu Moodle'a gönderebilir."
+
+#: includes/admin/lti-integration.php:113
+msgid "A configuration-only LMS credential encryption key is required before Moodle launches or account linking are available."
+msgstr "Moodle etkinliklerini açmak veya hesapları bağlamak için yalnızca sunucu yapılandırmasında tanımlanan bir LMS kimlik bilgisi şifreleme anahtarı gerekir."
+
+#: includes/admin/lti-integration.php:114
+msgid "Moodle account linking and enrollment are paused. The core users, usermeta, posts, postmeta and options tables must all be InnoDB so account, class and grade changes can roll back together. Ask the database administrator to prepare a backed-up migration; this plugin will not convert core tables."
+msgstr "Moodle hesap bağlantıları ve sınıfa kayıt işlemleri duraklatıldı. Hesap, sınıf ve not değişikliklerinin birlikte geri alınabilmesi için çekirdek users, usermeta, posts, postmeta ve options tablolarının tümü InnoDB olmalıdır. Veritabanı yöneticisinden yedek alınarak bir geçiş hazırlanmasını iste; bu eklenti çekirdek tabloları dönüştürmez."
+
+#: includes/admin/lti-integration.php:115
+msgid "Tool details for the Moodle administrator"
+msgstr "Moodle yöneticisi için araç bilgileri"
+
+#: includes/admin/lti-integration.php:116
+msgid "Tool URL"
+msgstr "Araç URL'si"
+
+#: includes/admin/lti-integration.php:116
+msgid "Initiate login URL"
+msgstr "Giriş başlatma URL'si"
+
+#: includes/admin/lti-integration.php:116
+msgid "Redirection URI"
+msgstr "Yönlendirme URI'si"
+
+#: includes/admin/lti-integration.php:116
+msgid "Public keyset URL"
+msgstr "Açık anahtar seti URL'si"
+
+#: includes/admin/lti-integration.php:118
+msgid "Registered Moodle platforms"
+msgstr "Kayıtlı Moodle platformları"
+
+#: includes/admin/lti-integration.php:118
+#: includes/admin/lti-integration.php:124
+#: includes/lms/lti-accounts.php:510
+msgid "Platform issuer"
+msgstr "Platform kimliği (issuer)"
+
+#: includes/admin/lti-integration.php:118
+#: includes/admin/lti-integration.php:124
+#: includes/lms/lti-accounts.php:510
+msgid "Deployment ID"
+msgstr "Dağıtım kimliği"
+
+#: includes/admin/lti-integration.php:119
+#: includes/admin/lti-integration.php:125
+msgid "Enabled"
+msgstr "Etkin"
+
+#: includes/admin/lti-integration.php:122
+msgid "Register or update a platform"
+msgstr "Platform kaydet veya güncelle"
+
+#: includes/admin/lti-integration.php:122
+msgid "Copy these values from Moodle’s tool configuration. Registration is limited to the Moodle issuer’s HTTPS origin. Reusing an ID updates that registration; uncheck Enabled to stop its launches."
+msgstr "Bu değerleri Moodle'ın araç yapılandırmasından kopyala. Kayıt, Moodle issuer adresinin HTTPS kökeniyle sınırlıdır. Aynı kimliği kullanmak mevcut kaydı günceller; etkinlik açılışlarını durdurmak için Etkin seçeneğinin işaretini kaldır."
+
+#: includes/admin/lti-integration.php:124
+msgid "Local registration ID"
+msgstr "Yerel kayıt kimliği"
+
+#: includes/admin/lti-integration.php:124
+msgid "Display name"
+msgstr "Görünen ad"
+
+#: includes/admin/lti-integration.php:124
+msgid "Authentication request URL"
+msgstr "Kimlik doğrulama isteği URL'si"
+
+#: includes/admin/lti-integration.php:124
+msgid "Platform public keyset URL"
+msgstr "Platformun açık anahtar seti URL'si"
+
+#: includes/admin/lti-integration.php:124
+msgid "Access token URL"
+msgstr "Erişim belirteci URL'si"
+
+#: includes/admin/lti-integration.php:125
+msgid "Allow launches"
+msgstr "Etkinlik açılışlarına izin ver"
+
+#: includes/admin/lti-integration.php:126
+msgid "Save platform"
+msgstr "Platformu kaydet"
+
+#: includes/admin/lti-integration.php:128
+msgid "Class activities"
+msgstr "Sınıf etkinlikleri"
+
+#: includes/admin/lti-integration.php:128
+msgid "Create the class in LL Tools first. Students are enrolled on their first trusted launch; removing them from the LL Tools class blocks later launches without deleting their personal accounts."
+msgstr "Önce sınıfı LL Tools içinde oluştur. Öğrenciler ilk güvenilir etkinlik açılışında sınıfa kaydedilir; öğrencileri LL Tools sınıfından çıkarmak, kişisel hesaplarını silmeden sonraki açılışları engeller."
+
+#: includes/admin/lti-integration.php:129
+msgid "Select class"
+msgstr "Sınıf seç"
+
+#: includes/admin/lti-integration.php:129
+msgid "Choose class"
+msgstr "Sınıf seç"
+
+#: includes/admin/lti-integration.php:132
+msgid "Moodle platform"
+msgstr "Moodle platformu"
+
+#: includes/admin/lti-integration.php:133
+#: includes/lms/lti-accounts.php:510
+msgid "Moodle course context ID"
+msgstr "Moodle ders bağlamı kimliği"
+
+#: includes/admin/lti-integration.php:133
+msgid "Use the exact LTI context ID sent by this Moodle course."
+msgstr "Bu Moodle dersinin gönderdiği LTI bağlam kimliğini aynen kullan."
+
+#: includes/admin/lti-integration.php:134
+#: includes/lms/lti-accounts.php:510
+msgid "Moodle resource link ID"
+msgstr "Moodle kaynak bağlantısı kimliği"
+
+#: includes/admin/lti-integration.php:134
+msgid "Optional before the first launch. The first verified launch pins the resource link, preventing reuse by a different Moodle activity."
+msgstr "İlk açılıştan önce isteğe bağlıdır. İlk doğrulanmış açılış kaynak bağlantısını sabitler ve farklı bir Moodle etkinliğinde yeniden kullanılmasını önler."
+
+#: includes/admin/lti-integration.php:135
+msgid "Activity name"
+msgstr "Etkinlik adı"
+
+#: includes/admin/lti-integration.php:136
+msgid "Lesson category"
+msgstr "Ders kategorisi"
+
+#: includes/admin/lti-integration.php:137
+msgid "Activity type"
+msgstr "Etkinlik türü"
+
+#: includes/admin/lti-integration.php:137
+msgid "Practice — personal progress, no Moodle grade"
+msgstr "Alıştırma — kişisel ilerleme, Moodle notu yok"
+
+#: includes/admin/lti-integration.php:137
+msgid "Graded assignment"
+msgstr "Notlandırılan ödev"
+
+#: includes/admin/lti-integration.php:138
+msgid "Existing assignment UUID"
+msgstr "Mevcut ödevin UUID'si"
+
+#: includes/admin/lti-integration.php:138
+msgid "Optional. Leave blank to create and publish a fixed assignment from this category."
+msgstr "İsteğe bağlı. Bu kategoriden içeriği sabit bir ödev oluşturup yayımlamak için boş bırak."
+
+#: includes/admin/lti-integration.php:139
+msgid "Maximum grade"
+msgstr "En yüksek not"
+
+#: includes/admin/lti-integration.php:140
+msgid "Attempt limit"
+msgstr "Deneme sınırı"
+
+#: includes/admin/lti-integration.php:141
+msgid "Grade policy"
+msgstr "Notlandırma politikası"
+
+#: includes/admin/lti-integration.php:141
+msgid "Best completed attempt"
+msgstr "Tamamlanan en iyi deneme"
+
+#: includes/admin/lti-integration.php:141
+msgid "Latest completed attempt"
+msgstr "Tamamlanan en son deneme"
+
+#: includes/admin/lti-integration.php:141
+msgid "First completed attempt"
+msgstr "Tamamlanan ilk deneme"
+
+#: includes/admin/lti-integration.php:142
+msgid "Create Moodle activity"
+msgstr "Moodle etkinliği oluştur"
+
+#: includes/admin/lti-integration.php:143
+msgid "No eligible lesson categories are available for this class wordset."
+msgstr "Bu sınıfın kelime setinde uygun ders kategorisi yok."
+
+#: includes/admin/lti-integration.php:144
+msgid "Configured activities"
+msgstr "Yapılandırılmış etkinlikler"
+
+#: includes/admin/lti-integration.php:144
+msgid "Course context"
+msgstr "Ders bağlamı"
+
+#: includes/admin/lti-integration.php:144
+msgid "Moodle custom parameter"
+msgstr "Moodle özel parametresi"
+
+#: includes/admin/lti-integration.php:144
+msgid "Type / assignment"
+msgstr "Tür / ödev"
+
+#: includes/admin/lti-integration.php:145
+msgid "Disable"
+msgstr "Devre dışı bırak"
+
+#: includes/lms/assignment-experience.php:12
+#: includes/lms/assignment-experience.php:17
+msgid "The question presentation is invalid."
+msgstr "Sorunun sunumu geçersiz."
+
+#: includes/lms/assignment-experience.php:25
+msgid "The question media is invalid."
+msgstr "Sorunun medyası geçersiz."
+
+#: includes/lms/assignment-experience.php:31
+msgid "A question or choice has no usable presentation."
+msgstr "Bir sorunun veya seçeneğin kullanılabilir sunumu yok."
+
+#: includes/lms/assignment-experience.php:39
+msgid "Vocabulary assignments require 5 to 15 questions."
+msgstr "Kelime ödevlerinde 5 ile 15 arasında soru olmalıdır."
+
+#: includes/lms/assignment-experience.php:45
+msgid "Each vocabulary question needs 2 to 4 distinct choices."
+msgstr "Her kelime sorusunda 2 ile 4 arasında farklı seçenek olmalıdır."
+
+#: includes/lms/assignment-experience.php:49
+msgid "Assignment question keys must be unique."
+msgstr "Ödevdeki soru anahtarları benzersiz olmalıdır."
+
+#: includes/lms/assignment-experience.php:56
+#: includes/lms/assignment-experience.php:61
+#: includes/lms/assignment-experience.php:67
+#: includes/lms/assignment-experience.php:73
+msgid "The vocabulary mapping is invalid."
+msgstr "Kelime eşlemesi geçersiz."
+
+#: includes/lms/assignment-experience.php:77
+msgid "Audio progress requires an audio prompt."
+msgstr "Ses ilerlemesi için sesli bir soru gerekir."
+
+#: includes/lms/assignment-experience.php:80
+msgid "The prompt recording type is invalid."
+msgstr "Sorunun kayıt türü geçersiz."
+
+#: includes/lms/assignment-experience.php:89
+msgid "Assignment choice keys must be unique."
+msgstr "Ödevdeki seçenek anahtarları benzersiz olmalıdır."
+
+#: includes/lms/assignment-experience.php:95
+msgid "Two answer choices look or sound identical."
+msgstr "İki cevap seçeneği aynı görünüyor veya aynı şekilde duyuluyor."
+
+#: includes/lms/assignment-experience.php:103
+msgid "Each question must have exactly one correct choice."
+msgstr "Her sorunun tam olarak bir doğru seçeneği olmalıdır."
+
+#: includes/lms/assignment-experience.php:143
+#: includes/lms/assignment-experience.php:319
+msgid "This assignment content is unavailable."
+msgstr "Bu ödevin içeriği kullanılamıyor."
+
+#: includes/lms/assignment-experience.php:154
+msgid "Every assignment question must map to a distinct current word in this class wordset and category."
+msgstr "Her ödev sorusu, bu sınıfın kelime setinde ve kategorisinde bulunan farklı bir güncel kelimeyle eşleşmelidir."
+
+#: includes/lms/assignment-experience.php:201
+#: includes/lms/assignment-experience.php:295
+msgid "You cannot manage this class."
+msgstr "Bu sınıfı yönetme iznin yok."
+
+#: includes/lms/assignment-experience.php:207
+msgid "This category is unavailable."
+msgstr "Bu kategori kullanılamıyor."
+
+#: includes/lms/assignment-experience.php:212
+msgid "Choose a category in this class wordset."
+msgstr "Bu sınıfın kelime setinden bir kategori seç."
+
+#: includes/lms/assignment-experience.php:216
+msgid "Choose 5 to 15 distinct words."
+msgstr "5 ile 15 arasında farklı kelime seç."
+
+#: includes/lms/assignment-experience.php:223
+msgid "The vocabulary could not be read. Please try again."
+msgstr "Kelimeler okunamadı. Lütfen yeniden dene."
+
+#: includes/lms/assignment-experience.php:228
+msgid "The category must have 5 to 15 usable words, or select an exact 5 to 15 word subset."
+msgstr "Kategoride 5 ile 15 arasında kullanılabilir kelime olmalıdır; alternatif olarak bu aralıkta kesin bir kelime alt kümesi seç."
+
+#: includes/lms/assignment-experience.php:232
+msgid "The quiz configuration could not be read."
+msgstr "Quiz yapılandırması okunamadı."
+
+#: includes/lms/assignment-experience.php:240
+msgid "Every selected word needs the category’s configured quiz media."
+msgstr "Seçilen her kelimede kategorinin quiz ayarlarında belirlenen medya bulunmalıdır."
+
+#: includes/lms/assignment-experience.php:244
+msgid "This pilot supports ordinary vocabulary words only."
+msgstr "Bu pilot yalnızca normal kelimeleri destekler."
+
+#: includes/lms/assignment-experience.php:248
+msgid "The selected words changed. Please retry."
+msgstr "Seçilen kelimeler değişti. Lütfen yeniden dene."
+
+#: includes/lms/assignment-experience.php:278
+msgid "A selected word has no distinct allowed distractor."
+msgstr "Seçilen bir kelime için uygun, farklı bir çeldirici seçenek yok."
+
+#: includes/lms/assignment-experience.php:300
+msgid "Categories could not be read."
+msgstr "Kategoriler okunamadı."
+
+#: includes/lms/assignment-experience.php:308
+msgid "Category ownership could not be read."
+msgstr "Kategorinin sahibi okunamadı."
+
+#: includes/lms/assignment-experience.php:334
+msgid "The answer and learning progress could not be saved. Please retry."
+msgstr "Cevap ve öğrenme ilerlemesi kaydedilemedi. Lütfen yeniden dene."
+
+#: includes/lms/assignment-experience.php:350
+msgid "This assignment is unavailable for your account."
+msgstr "Bu ödev hesabın için kullanılamıyor."
+
+#: includes/lms/assignment-experience.php:355
+msgid "This assignment player is unavailable."
+msgstr "Bu ödevin çözüm ekranı kullanılamıyor."
+
+#: includes/lms/assignment-experience.php:358
+#: includes/lms/assignments.php:1560
+msgid "Your learning data is being erased. Please try again later."
+msgstr "Öğrenme verilerin siliniyor. Lütfen daha sonra yeniden dene."
+
+#: includes/lms/assignment-experience.php:363
+msgid "The attempt could not be read. Please retry."
+msgstr "Deneme okunamadı. Lütfen yeniden dene."
+
+#: includes/lms/assignment-experience.php:368
+msgid "The answers could not be read. Please retry."
+msgstr "Cevaplar okunamadı. Lütfen yeniden dene."
+
+#: includes/lms/assignment-experience.php:379
+msgid "Choose a class and category."
+msgstr "Bir sınıf ve kategori seç."
+
+#: includes/lms/assignment-experience.php:408
+#: templates/assignment-player.php:7
+msgid "Loading assignment…"
+msgstr "Ödev yükleniyor…"
+
+#: includes/lms/assignment-experience.php:408
+msgid "Start assignment"
+msgstr "Ödeve başla"
+
+#: includes/lms/assignment-experience.php:408
+msgid "Try another attempt"
+msgstr "Yeniden dene"
+
+#: includes/lms/assignment-experience.php:408
+msgid "of"
+msgstr "/"
+
+#: includes/lms/assignment-experience.php:408
+msgid "Save answer"
+msgstr "Cevabı kaydet"
+
+#: includes/lms/assignment-experience.php:408
+msgid "Next question"
+msgstr "Sonraki soru"
+
+#: includes/lms/assignment-experience.php:408
+msgid "Finish assignment"
+msgstr "Ödevi bitir"
+
+#: includes/lms/assignment-experience.php:408
+msgid "Answer saved."
+msgstr "Cevap kaydedildi."
+
+#: includes/lms/assignment-experience.php:408
+msgid "The request could not be confirmed. Retry to read the saved state."
+msgstr "İstek doğrulanamadı. Kaydedilen durumu okumak için yeniden dene."
+
+#: includes/lms/assignment-experience.php:408
+msgid "Attempt score"
+msgstr "Deneme skoru"
+
+#: includes/lms/assignment-experience.php:408
+msgid "This attempt has expired."
+msgstr "Bu denemenin süresi doldu."
+
+#: includes/lms/assignment-experience.php:408
+msgid "Choose an answer first."
+msgstr "Önce bir cevap seç."
+
+#: includes/lms/lti-accounts.php:26
+msgid "You are signed in to a different learning account. Sign out, then open this activity from Moodle again."
+msgstr "Farklı bir öğrenme hesabına giriş yapmışsın. Çıkış yap, ardından bu etkinliği Moodle'dan yeniden aç."
+
+#: includes/lms/lti-accounts.php:27
+msgid "This Moodle identity is already connected to another account, or was disconnected. Ask the site administrator to review the link."
+msgstr "Bu Moodle kimliği zaten başka bir hesaba bağlı veya bağlantısı kesilmiş. Site yöneticisinden bağlantıyı incelemesini iste."
+
+#: includes/lms/lti-accounts.php:28
+msgid "Your access to this class has been removed. Your personal learning account remains available."
+msgstr "Bu sınıfa erişimin kaldırıldı. Kişisel öğrenme hesabın kullanılabilir durumda kalır."
+
+#: includes/lms/lti-accounts.php:29
+#: includes/lms/lti-accounts.php:451
+msgid "Use a learner account for this activity. Staff accounts cannot be connected as Moodle students."
+msgstr "Bu etkinlik için bir öğrenci hesabı kullan. Görevli hesapları Moodle öğrencisi olarak bağlanamaz."
+
+#: includes/lms/lti-accounts.php:31
+msgid "This Moodle activity could not be opened. Return to Moodle and try again, or contact your teacher."
+msgstr "Bu Moodle etkinliği açılamadı. Moodle'a dönüp yeniden dene veya öğretmeninle iletişime geç."
+
+#: includes/lms/lti-accounts.php:444
+#: includes/lms/lti-accounts.php:445
+msgid "Connect your learning account"
+msgstr "Öğrenme hesabını bağla"
+
+#: includes/lms/lti-accounts.php:447
+msgid "This Moodle identity already belongs to a different account, or has been disconnected. Sign in to the original account; ask the site administrator to review a disconnected link."
+msgstr "Bu Moodle kimliği zaten farklı bir hesaba ait veya bağlantısı kesilmiş. İlk bağlı hesaba giriş yap; kesilmiş bir bağlantıyı incelemesi için site yöneticisine başvur."
+
+#: includes/lms/lti-accounts.php:449
+msgid "Sign in or create a permanent learner account. Your class activities and personal practice can save progress in this account."
+msgstr "Giriş yap veya kalıcı bir öğrenci hesabı oluştur. Sınıf etkinliklerin ve kişisel alıştırmaların ilerlemeyi bu hesapta kaydedebilir."
+
+#: includes/lms/lti-accounts.php:453
+msgid "Connect Moodle to %s? Assigned results may be returned to your course. Personal practice stays in this account; your class teacher can view progress for the class wordset."
+msgstr "%s hesabını Moodle'a bağlamak istiyor musun? Ödev sonuçları dersine gönderilebilir. Kişisel alıştırmaların bu hesapta kalır; sınıf öğretmenin sınıfın kelime setindeki ilerlemeni görebilir."
+
+#: includes/lms/lti-accounts.php:454
+msgid "Connect account and open activity"
+msgstr "Hesabı bağla ve etkinliği aç"
+
+#: includes/lms/lti-accounts.php:456
+msgid "Use another account"
+msgstr "Başka bir hesap kullan"
+
+#: includes/lms/lti-accounts.php:457
+msgid "Manage Moodle connections"
+msgstr "Moodle bağlantılarını yönet"
+
+#: includes/lms/lti-accounts.php:485
+msgid "To configure this activity, sign in to a local teacher account and open it from Moodle again."
+msgstr "Bu etkinliği yapılandırmak için bu sitedeki bir öğretmen hesabına giriş yap ve etkinliği Moodle'dan yeniden aç."
+
+#: includes/lms/lti-accounts.php:509
+msgid "Moodle activity setup"
+msgstr "Moodle etkinliği kurulumu"
+
+#: includes/lms/lti-accounts.php:509
+msgid "This instructor launch was verified. Copy its course and resource identifiers into your Moodle / LTI activity configuration."
+msgstr "Bu öğretmen etkinlik açılışı doğrulandı. Ders ve kaynak kimliklerini Moodle / LTI etkinlik yapılandırmana kopyala."
+
+#: includes/lms/lti-accounts.php:511
+msgid "Open Moodle / LTI settings"
+msgstr "Moodle / LTI ayarlarını aç"
+
+#: includes/lms/lti-accounts.php:543
+msgid "Moodle connections"
+msgstr "Moodle bağlantıları"
+
+#: includes/lms/lti-accounts.php:543
+msgid "Disconnecting stops future Moodle launches and grade delivery through this identity. Your account and personal progress remain. An administrator must review any later reconnection."
+msgstr "Bağlantıyı kesmek, bu kimlik üzerinden sonraki Moodle etkinlik açılışlarını ve not gönderimini durdurur. Hesabın ve kişisel ilerlemen korunur. Daha sonra yeniden bağlanmak için bir yöneticinin incelemesi gerekir."
+
+#: includes/lms/lti-accounts.php:545
+msgid "Moodle"
+msgstr "Moodle"
+
+#: includes/lms/lti-accounts.php:549
+msgid "Disconnect Moodle"
+msgstr "Moodle bağlantısını kes"
+
+#: includes/lms/lti-accounts.php:549
+msgid "Disconnected"
+msgstr "Bağlantı kesildi"
+
+#: includes/lms/lti.php:12
+msgid "The learning platform request could not be verified."
+msgstr "Öğrenme platformunun isteği doğrulanamadı."
+
+#: includes/lms/lti.php:736
+msgid "Learning platform connections"
+msgstr "Öğrenme platformu bağlantıları"
+
+#: includes/lms/lti.php:738
+msgid "Platform"
+msgstr "Platform"
+
+#: includes/lms/lti.php:739
+msgid "Learner identifier"
+msgstr "Öğrenci kimliği"
+
+#: includes/privacy.php:443
+msgid "LL Tools Moodle Connections"
+msgstr "LL Tools Moodle Bağlantıları"
+
+#: templates/assignment-player.php:6
+msgid "Vocabulary assignment"
+msgstr "Kelime ödevi"
+
+#: templates/assignment-player.php:9
+msgid "Enable JavaScript to answer this assignment."
+msgstr "Bu ödevi cevaplamak için JavaScript'i etkinleştir."

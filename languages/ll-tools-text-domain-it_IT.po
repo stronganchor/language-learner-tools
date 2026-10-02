@@ -5674,3 +5674,193 @@ msgstr "Seleziona parole"
 #: includes/pages/wordset-pages.php:25173 includes/pages/wordset-pages.php:26237
 msgid "Older than 30 days"
 msgstr "Oltre 30 giorni fa"
+
+#. ll-tools-public-key: 2ed9c2a508e0c5470f8b23ead5c07545bb900cf5
+#: includes/lms/assignment-experience.php:319
+msgid "This assignment content is unavailable."
+msgstr "Il contenuto di questo compito non è disponibile."
+
+#. ll-tools-public-key: f8abc7412031923e9c1fdd55029785afe2ec5827
+#: includes/lms/assignment-experience.php:334
+msgid "The answer and learning progress could not be saved. Please retry."
+msgstr "Non è stato possibile salvare la risposta e i progressi di apprendimento. Riprova."
+
+#. ll-tools-public-key: f2155fa2bd82c2e8e6b94a5e7b5675009f5cc61d
+#: includes/lms/assignment-experience.php:350
+msgid "This assignment is unavailable for your account."
+msgstr "Questo compito non è disponibile per il tuo account."
+
+#. ll-tools-public-key: 1e597804c738a7d99a734ececded6b9f3c55be20
+#: includes/lms/assignment-experience.php:355
+msgid "This assignment player is unavailable."
+msgstr "L'interfaccia di questo compito non è disponibile."
+
+#. ll-tools-public-key: a13a6989dbfdcac0b3feb3772d0dad5f16cb7cc1
+#: includes/lms/assignment-experience.php:358
+msgid "Your learning data is being erased. Please try again later."
+msgstr "L'eliminazione dei tuoi dati di apprendimento è in corso. Riprova più tardi."
+
+#. ll-tools-public-key: aaa019aaf847f343ccf8813b3cc84c42a8d1b2bf
+#: includes/lms/assignment-experience.php:408
+msgid "Answer saved."
+msgstr "Risposta salvata."
+
+#. ll-tools-public-key: 4471313e07e922b1532ef4daa5f031cfddf69363
+#: includes/lms/assignment-experience.php:408
+msgid "Attempt score"
+msgstr "Punteggio del tentativo"
+
+#. ll-tools-public-key: 55f79092aa0a1690a5def3b220f8b8268dc2dfd8
+#: includes/lms/assignment-experience.php:408
+msgid "Choose an answer first."
+msgstr "Scegli prima una risposta."
+
+#. ll-tools-public-key: 6d671147e07d4e6fd27f89c8e74005376ae729d7
+#: includes/lms/assignment-experience.php:408
+msgid "Finish assignment"
+msgstr "Termina compito"
+
+#. ll-tools-public-key: 65cf103f2570cc44d71e6d3264694476acc1a1b6
+#: includes/lms/assignment-experience.php:408 templates/assignment-player.php:7
+msgid "Loading assignment…"
+msgstr "Caricamento del compito…"
+
+#. ll-tools-public-key: 6328aed54690d71b5d0d22ec990cc4eb8b84ee11
+#: includes/lms/assignment-experience.php:408
+msgid "Next question"
+msgstr "Domanda successiva"
+
+#. ll-tools-public-key: 37094231b0ad0f3cd571af0ae20c8a6a173af380
+#: includes/lms/assignment-experience.php:408
+msgid "Save answer"
+msgstr "Salva risposta"
+
+#. ll-tools-public-key: 2e50e09155fa8eff3221bfc7a2e98a6f0e2e2275
+#: includes/lms/assignment-experience.php:408
+msgid "Saving…"
+msgstr "Salvataggio…"
+
+#. ll-tools-public-key: d3173564fa5f5579289d417969500d9353081bdd
+#: includes/lms/assignment-experience.php:408
+msgid "Selected grade"
+msgstr "Voto selezionato"
+
+#. ll-tools-public-key: 797a7361cedf56b0fd3cb21eede74ea0da8d1625
+#: includes/lms/assignment-experience.php:408
+msgid "Start assignment"
+msgstr "Inizia compito"
+
+#. ll-tools-public-key: 823e50e146a546c1b11780992de4d76b132fe188
+#: includes/lms/assignment-experience.php:408
+msgid "The request could not be confirmed. Retry to read the saved state."
+msgstr "Non è stato possibile confermare la richiesta. Riprova per consultare lo stato salvato."
+
+#. ll-tools-public-key: c919d81f27c494f672e184d6dcd22a0d9d206b36
+#: includes/lms/assignment-experience.php:408
+msgid "This attempt has expired."
+msgstr "Questo tentativo è scaduto."
+
+#. ll-tools-public-key: 8832e6ee305241ba76d276289b99e8ad88b6041e
+#: includes/lms/assignment-experience.php:408
+msgid "Try another attempt"
+msgstr "Fai un altro tentativo"
+
+#. ll-tools-public-key: 1552d8baee8e37cb10bb1e1629c6f4a861a89ff0
+#: includes/lms/assignment-experience.php:408
+msgid "of"
+msgstr "di"
+
+#. ll-tools-public-key: a0731f580edc6c4a324cded394675be089c52baf
+#: includes/lms/lti-accounts.php:26
+msgid "You are signed in to a different learning account. Sign out, then open this activity from Moodle again."
+msgstr "Hai effettuato l'accesso a un altro account per lo studio. Esci e riapri questa attività da Moodle."
+
+#. ll-tools-public-key: 27b4a3b34ae3c8e7284922057e3008fb1f72f675
+#: includes/lms/lti-accounts.php:27
+msgid "This Moodle identity is already connected to another account, or was disconnected. Ask the site administrator to review the link."
+msgstr "Questa identità Moodle è già collegata a un altro account oppure è stata scollegata. Chiedi all'amministratore del sito di verificare il collegamento."
+
+#. ll-tools-public-key: a4c9d2c5c9433cdba0e1a2c0e3d542dcbd78776a
+#: includes/lms/lti-accounts.php:28
+msgid "Your access to this class has been removed. Your personal learning account remains available."
+msgstr "Il tuo accesso a questa classe è stato rimosso. Il tuo account personale per lo studio resta disponibile."
+
+#. ll-tools-public-key: d8662f11c71dcfeb8e9a753257bff3c850558fa8
+#: includes/lms/lti-accounts.php:29 includes/lms/lti-accounts.php:451
+msgid "Use a learner account for this activity. Staff accounts cannot be connected as Moodle students."
+msgstr "Usa un account studente per questa attività. Gli account del personale non possono essere collegati come studenti Moodle."
+
+#. ll-tools-public-key: 208be803850750e24db068dfeac32630a0b1419f
+#: includes/lms/lti-accounts.php:31
+msgid "This Moodle activity could not be opened. Return to Moodle and try again, or contact your teacher."
+msgstr "Non è stato possibile aprire questa attività Moodle. Torna su Moodle e riprova oppure contatta il tuo insegnante."
+
+#. ll-tools-public-key: 08039be94d4f0f2353fcb12469924722d94042b7
+#: includes/lms/lti-accounts.php:444 includes/lms/lti-accounts.php:445
+msgid "Connect your learning account"
+msgstr "Collega il tuo account per lo studio"
+
+#. ll-tools-public-key: 1093118753f31b01c91e6ed758f393b8d5f35a47
+#: includes/lms/lti-accounts.php:447
+msgid "This Moodle identity already belongs to a different account, or has been disconnected. Sign in to the original account; ask the site administrator to review a disconnected link."
+msgstr "Questa identità Moodle appartiene già a un altro account oppure è stata scollegata. Accedi all'account originale; chiedi all'amministratore del sito di verificare un collegamento interrotto."
+
+#. ll-tools-public-key: 2be511d259c7a7445ba5e25047f8213e772b5d5d
+#: includes/lms/lti-accounts.php:449
+msgid "Sign in or create a permanent learner account. Your class activities and personal practice can save progress in this account."
+msgstr "Accedi o crea un account studente permanente. I progressi delle attività di classe e della pratica personale possono essere salvati in questo account."
+
+#. ll-tools-public-key: 5e2a3e9875372eda40e3e611ff2263e7639d2486
+#: includes/lms/lti-accounts.php:453
+msgid "Connect Moodle to %s? Assigned results may be returned to your course. Personal practice stays in this account; your class teacher can view progress for the class wordset."
+msgstr "Collegare Moodle a %s? I risultati dei compiti possono essere inviati al tuo corso. La pratica personale resta in questo account; il tuo insegnante può vedere i progressi nell'insieme di parole della classe."
+
+#. ll-tools-public-key: e39f702abd6b5b332c4541fdf6a3938bcefbfcbd
+#: includes/lms/lti-accounts.php:454
+msgid "Connect account and open activity"
+msgstr "Collega account e apri attività"
+
+#. ll-tools-public-key: 80e7407dad93c560bf92f6a066af68d4a80fba39
+#: includes/lms/lti-accounts.php:456
+msgid "Use another account"
+msgstr "Usa un altro account"
+
+#. ll-tools-public-key: 99d13fbfa203a7974bf7962175d1c68a6f530ed5
+#: includes/lms/lti-accounts.php:457
+msgid "Manage Moodle connections"
+msgstr "Gestisci collegamenti con Moodle"
+
+#. ll-tools-public-key: 132e6d32b12091181be4639932dc859c91ee3f68
+#: includes/lms/lti-accounts.php:543
+msgid "Disconnecting stops future Moodle launches and grade delivery through this identity. Your account and personal progress remain. An administrator must review any later reconnection."
+msgstr "Scollegando questa identità si impediscono le future aperture da Moodle e l'invio dei voti tramite essa. Il tuo account e i tuoi progressi personali vengono conservati. Un amministratore deve verificare qualsiasi collegamento successivo."
+
+#. ll-tools-public-key: ad31ac32ca06ed1aa0be0a6851846fbf4949b220
+#: includes/lms/lti-accounts.php:543
+msgid "Moodle connections"
+msgstr "Collegamenti con Moodle"
+
+#. ll-tools-public-key: 5ba36240b7df7f8158c628a33104c4f60828ecba
+#: includes/lms/lti-accounts.php:545
+msgid "Moodle"
+msgstr "Moodle"
+
+#. ll-tools-public-key: 77091b51d86fa50a58ec193409dc4af574debac1
+#: includes/lms/lti-accounts.php:549
+msgid "Disconnect Moodle"
+msgstr "Scollega Moodle"
+
+#. ll-tools-public-key: ffdfcf5707dbb3f2abc0fa3308d57195f7b03045
+#: includes/lms/lti-accounts.php:549
+msgid "Disconnected"
+msgstr "Scollegato"
+
+#. ll-tools-public-key: 3ab990c4df96e084a8a3ec0a420d91aba8491524
+#: templates/assignment-player.php:6
+msgid "Vocabulary assignment"
+msgstr "Compito di vocabolario"
+
+#. ll-tools-public-key: f61c36ec6c251c785a66e5951d9182def627829a
+#: templates/assignment-player.php:9
+msgid "Enable JavaScript to answer this assignment."
+msgstr "Abilita JavaScript per rispondere a questo compito."

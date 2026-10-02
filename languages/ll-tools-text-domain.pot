@@ -2,21 +2,21 @@
 # This file is distributed under the same license as the Language Learner Tools plugin.
 msgid ""
 msgstr ""
-"Project-Id-Version: Language Learner Tools 6.7.46\n"
+"Project-Id-Version: Language Learner Tools 6.7.48\n"
 "Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/language-learner-tools\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-10-01T08:14:48+00:00\n"
+"POT-Creation-Date: 2026-10-02T10:54:40+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.10.0\n"
 "X-Domain: ll-tools-text-domain\n"
 
 #. Plugin Name of the plugin
 #: language-learner-tools.php
-#: includes/privacy.php:2755
+#: includes/privacy.php:2796
 msgid "Language Learner Tools"
 msgstr ""
 
@@ -746,6 +746,7 @@ msgstr ""
 #: includes/admin/site-sync-admin.php:1934
 #: includes/lib/recording-history.php:279
 #: includes/lib/word-copy.php:465
+#: includes/lms/assignment-experience.php:408
 #: includes/pages/content-lesson-pages.php:1299
 #: includes/pages/quiz-pages.php:1120
 #: includes/pages/quiz-pages.php:2075
@@ -981,8 +982,8 @@ msgstr ""
 #: includes/pages/wordset-pages.php:29049
 #: includes/post-types/word-audio-post-type.php:114
 #: includes/post-types/words-post-type.php:22
-#: includes/privacy.php:846
-#: includes/privacy.php:1015
+#: includes/privacy.php:859
+#: includes/privacy.php:1028
 #: includes/shortcodes/editor-hub-shortcode.php:510
 #: includes/shortcodes/editor-hub-shortcode.php:1052
 #: includes/shortcodes/ranked-word-list-shortcode.php:635
@@ -1687,9 +1688,9 @@ msgstr ""
 #: includes/pages/wordset-pages.php:27285
 #: includes/pages/wordset-pages.php:27293
 #: includes/post-types/prompt-card-post-type.php:1352
-#: includes/privacy.php:848
-#: includes/privacy.php:937
-#: includes/privacy.php:1019
+#: includes/privacy.php:861
+#: includes/privacy.php:950
+#: includes/privacy.php:1032
 #: includes/shortcodes/audio-recording-shortcode.php:1924
 #: includes/shortcodes/editor-hub-shortcode.php:1077
 #: includes/shortcodes/editor-hub-shortcode.php:1109
@@ -1786,15 +1787,16 @@ msgstr ""
 
 #: includes/admin/bulk-translation-admin.php:204
 #: includes/admin/ipa-keyboard-admin.php:597
+#: includes/admin/lti-integration.php:118
 #: includes/admin/split-word-admin.php:383
 #: includes/admin/user-progress-report.php:1159
-#: includes/lms/assignments.php:2039
+#: includes/lms/assignments.php:2119
 #: includes/pages/wordset-editor.php:4710
 #: includes/pages/wordset-pages.php:26892
 #: includes/pages/wordset-pages.php:27323
 #: includes/pages/wordset-pages.php:27331
-#: includes/privacy.php:854
-#: includes/privacy.php:943
+#: includes/privacy.php:867
+#: includes/privacy.php:956
 msgid "Status"
 msgstr ""
 
@@ -3419,6 +3421,7 @@ msgid "The export may still fail if the server times out while preparing the zip
 msgstr ""
 
 #: includes/admin/export-import.php:591
+#: includes/lms/assignment-experience.php:408
 #: includes/shortcodes/audio-recording-shortcode.php:30
 #: includes/shortcodes/editor-hub-shortcode.php:301
 #: includes/shortcodes/word-grid-shortcode.php:5372
@@ -4388,10 +4391,10 @@ msgstr ""
 #: includes/admin/word-option-rules-admin.php:1875
 #: includes/pages/wordset-pages.php:12960
 #: includes/post-types/content-lesson-post-type.php:1930
-#: includes/privacy.php:470
-#: includes/privacy.php:850
-#: includes/privacy.php:939
-#: includes/privacy.php:1021
+#: includes/privacy.php:475
+#: includes/privacy.php:863
+#: includes/privacy.php:952
+#: includes/privacy.php:1034
 #: includes/shortcodes/audio-recording-shortcode.php:1726
 #: includes/shortcodes/image-copyright-grid-shortcode.php:207
 #: templates/content-lesson-template.php:131
@@ -6041,6 +6044,9 @@ msgid "Authorized redirect URI"
 msgstr ""
 
 #: includes/admin/google-classroom-integration.php:258
+#: includes/admin/lti-integration.php:118
+#: includes/admin/lti-integration.php:124
+#: includes/lms/lti-accounts.php:510
 msgid "Client ID"
 msgstr ""
 
@@ -6099,6 +6105,7 @@ msgid "Connected since"
 msgstr ""
 
 #: includes/admin/google-classroom-integration.php:282
+#: includes/admin/lti-integration.php:144
 #: includes/admin/missing-audio-admin-page.php:638
 #: includes/admin/missing-audio-admin-page.php:941
 #: includes/admin/orphan-media-admin.php:1826
@@ -6575,6 +6582,7 @@ msgid "Optimize Image"
 msgstr ""
 
 #: includes/admin/image-webp-optimizer-admin.php:1609
+#: includes/admin/lti-integration.php:114
 #: includes/admin/teacher-classes-page.php:647
 #: includes/admin/teacher-classes-page.php:927
 #: includes/admin/teacher-classes-page.php:1085
@@ -6862,6 +6870,7 @@ msgid "No special characters found for this word set."
 msgstr ""
 
 #: includes/admin/ipa-keyboard-admin.php:396
+#: includes/admin/lti-integration.php:110
 #: includes/shortcodes/editor-hub-shortcode.php:1068
 #: includes/shortcodes/word-grid-shortcode.php:4107
 #: includes/shortcodes/word-grid-shortcode.php:4154
@@ -8340,6 +8349,282 @@ msgstr ""
 msgid "Release"
 msgstr ""
 
+#: includes/admin/lti-integration.php:12
+#: includes/admin/lti-integration.php:109
+msgid "Moodle / LTI"
+msgstr ""
+
+#: includes/admin/lti-integration.php:29
+msgid "You cannot manage Moodle activities."
+msgstr ""
+
+#: includes/admin/lti-integration.php:46
+msgid "Only a site administrator can register Moodle."
+msgstr ""
+
+#: includes/admin/lti-integration.php:110
+msgid "The change could not be saved. Check the registered URLs, class ownership, and selected activity, then retry."
+msgstr ""
+
+#: includes/admin/lti-integration.php:111
+msgid "The assignment was created. Reuse this UUID when retrying the activity setup:"
+msgstr ""
+
+#: includes/admin/lti-integration.php:112
+msgid "Use Moodle’s External tool activity with LTI 1.3. Choose a new-window launch so students can connect their permanent learner accounts. Practice saves personal progress; graded assignments can return the selected result to Moodle."
+msgstr ""
+
+#: includes/admin/lti-integration.php:113
+msgid "A configuration-only LMS credential encryption key is required before Moodle launches or account linking are available."
+msgstr ""
+
+#: includes/admin/lti-integration.php:114
+msgid "Moodle account linking and enrollment are paused. The core users, usermeta, posts, postmeta and options tables must all be InnoDB so account, class and grade changes can roll back together. Ask the database administrator to prepare a backed-up migration; this plugin will not convert core tables."
+msgstr ""
+
+#: includes/admin/lti-integration.php:115
+msgid "Tool details for the Moodle administrator"
+msgstr ""
+
+#: includes/admin/lti-integration.php:116
+msgid "Tool URL"
+msgstr ""
+
+#: includes/admin/lti-integration.php:116
+msgid "Initiate login URL"
+msgstr ""
+
+#: includes/admin/lti-integration.php:116
+msgid "Redirection URI"
+msgstr ""
+
+#: includes/admin/lti-integration.php:116
+msgid "Public keyset URL"
+msgstr ""
+
+#: includes/admin/lti-integration.php:118
+msgid "Registered Moodle platforms"
+msgstr ""
+
+#: includes/admin/lti-integration.php:118
+#: includes/admin/recording-types-admin.php:112
+#: includes/admin/recording-types-admin.php:137
+#: includes/shortcodes/site-tools-shortcode.php:1249
+msgid "Name"
+msgstr ""
+
+#: includes/admin/lti-integration.php:118
+#: includes/admin/lti-integration.php:124
+#: includes/lms/lti-accounts.php:510
+msgid "Platform issuer"
+msgstr ""
+
+#: includes/admin/lti-integration.php:118
+#: includes/admin/lti-integration.php:124
+#: includes/lms/lti-accounts.php:510
+msgid "Deployment ID"
+msgstr ""
+
+#: includes/admin/lti-integration.php:119
+#: includes/admin/lti-integration.php:125
+msgid "Enabled"
+msgstr ""
+
+#: includes/admin/lti-integration.php:119
+#: includes/admin/lti-integration.php:145
+#: includes/lib/wordset-language-settings.php:1238
+#: includes/pages/wordset-pages.php:17808
+#: includes/pages/wordset-pages.php:17926
+#: includes/pages/wordset-pages.php:26195
+msgid "Disabled"
+msgstr ""
+
+#: includes/admin/lti-integration.php:122
+msgid "Register or update a platform"
+msgstr ""
+
+#: includes/admin/lti-integration.php:122
+msgid "Copy these values from Moodle’s tool configuration. Registration is limited to the Moodle issuer’s HTTPS origin. Reusing an ID updates that registration; uncheck Enabled to stop its launches."
+msgstr ""
+
+#: includes/admin/lti-integration.php:124
+msgid "Local registration ID"
+msgstr ""
+
+#: includes/admin/lti-integration.php:124
+msgid "Display name"
+msgstr ""
+
+#: includes/admin/lti-integration.php:124
+msgid "Authentication request URL"
+msgstr ""
+
+#: includes/admin/lti-integration.php:124
+msgid "Platform public keyset URL"
+msgstr ""
+
+#: includes/admin/lti-integration.php:124
+msgid "Access token URL"
+msgstr ""
+
+#: includes/admin/lti-integration.php:125
+msgid "Allow launches"
+msgstr ""
+
+#: includes/admin/lti-integration.php:126
+msgid "Save platform"
+msgstr ""
+
+#: includes/admin/lti-integration.php:128
+msgid "Class activities"
+msgstr ""
+
+#: includes/admin/lti-integration.php:128
+msgid "Create the class in LL Tools first. Students are enrolled on their first trusted launch; removing them from the LL Tools class blocks later launches without deleting their personal accounts."
+msgstr ""
+
+#: includes/admin/lti-integration.php:129
+#: includes/admin/teacher-classes-page.php:836
+#: includes/privacy.php:473
+#: includes/teacher-classes.php:27
+msgid "Class"
+msgstr ""
+
+#: includes/admin/lti-integration.php:129
+msgid "Select class"
+msgstr ""
+
+#: includes/admin/lti-integration.php:129
+msgid "Choose class"
+msgstr ""
+
+#: includes/admin/lti-integration.php:132
+msgid "Moodle platform"
+msgstr ""
+
+#: includes/admin/lti-integration.php:133
+#: includes/lms/lti-accounts.php:510
+msgid "Moodle course context ID"
+msgstr ""
+
+#: includes/admin/lti-integration.php:133
+msgid "Use the exact LTI context ID sent by this Moodle course."
+msgstr ""
+
+#: includes/admin/lti-integration.php:134
+#: includes/lms/lti-accounts.php:510
+msgid "Moodle resource link ID"
+msgstr ""
+
+#: includes/admin/lti-integration.php:134
+msgid "Optional before the first launch. The first verified launch pins the resource link, preventing reuse by a different Moodle activity."
+msgstr ""
+
+#: includes/admin/lti-integration.php:135
+msgid "Activity name"
+msgstr ""
+
+#: includes/admin/lti-integration.php:136
+msgid "Lesson category"
+msgstr ""
+
+#: includes/admin/lti-integration.php:137
+msgid "Activity type"
+msgstr ""
+
+#: includes/admin/lti-integration.php:137
+msgid "Practice — personal progress, no Moodle grade"
+msgstr ""
+
+#: includes/admin/lti-integration.php:137
+msgid "Graded assignment"
+msgstr ""
+
+#: includes/admin/lti-integration.php:138
+msgid "Existing assignment UUID"
+msgstr ""
+
+#: includes/admin/lti-integration.php:138
+msgid "Optional. Leave blank to create and publish a fixed assignment from this category."
+msgstr ""
+
+#: includes/admin/lti-integration.php:139
+msgid "Maximum grade"
+msgstr ""
+
+#: includes/admin/lti-integration.php:140
+msgid "Attempt limit"
+msgstr ""
+
+#: includes/admin/lti-integration.php:141
+msgid "Grade policy"
+msgstr ""
+
+#: includes/admin/lti-integration.php:141
+msgid "Best completed attempt"
+msgstr ""
+
+#: includes/admin/lti-integration.php:141
+msgid "Latest completed attempt"
+msgstr ""
+
+#: includes/admin/lti-integration.php:141
+msgid "First completed attempt"
+msgstr ""
+
+#: includes/admin/lti-integration.php:142
+msgid "Create Moodle activity"
+msgstr ""
+
+#: includes/admin/lti-integration.php:143
+msgid "No eligible lesson categories are available for this class wordset."
+msgstr ""
+
+#: includes/admin/lti-integration.php:144
+msgid "Configured activities"
+msgstr ""
+
+#: includes/admin/lti-integration.php:144
+#: includes/pages/wordset-pages.php:26863
+#: includes/pages/wordset-pages.php:27181
+msgid "Activity"
+msgstr ""
+
+#: includes/admin/lti-integration.php:144
+msgid "Course context"
+msgstr ""
+
+#: includes/admin/lti-integration.php:144
+msgid "Moodle custom parameter"
+msgstr ""
+
+#: includes/admin/lti-integration.php:144
+msgid "Type / assignment"
+msgstr ""
+
+#: includes/admin/lti-integration.php:145
+#: includes/flashcard-shell.php:65
+#: includes/flashcard-shell.php:90
+#: includes/pages/wordset-pages.php:6763
+#: includes/pages/wordset-pages.php:25461
+#: includes/pages/wordset-pages.php:26940
+#: includes/shortcodes/flashcard-widget.php:660
+#: includes/shortcodes/flashcard-widget.php:665
+#: includes/shortcodes/flashcard-widget.php:670
+#: includes/shortcodes/flashcard-widget.php:730
+#: includes/shortcodes/flashcard-widget.php:735
+#: includes/shortcodes/flashcard-widget.php:795
+#: includes/shortcodes/flashcard-widget.php:796
+#: templates/content-lesson-template.php:253
+#: templates/offline-app-shell-template.php:820
+#: templates/vocab-lesson-template.php:177
+msgid "Practice"
+msgstr ""
+
+#: includes/admin/lti-integration.php:145
+msgid "Disable"
+msgstr ""
+
 #: includes/admin/metabox-word-audio-parent.php:23
 msgid "Parent Word (ID)"
 msgstr ""
@@ -9809,8 +10094,8 @@ msgid "LL Prompt Audio Queue"
 msgstr ""
 
 #: includes/admin/prompt-audio-import-admin.php:124
-#: includes/privacy.php:932
-#: includes/privacy.php:1017
+#: includes/privacy.php:945
+#: includes/privacy.php:1030
 msgid "Prompt card"
 msgstr ""
 
@@ -9946,12 +10231,6 @@ msgstr ""
 #: includes/admin/recording-types-admin.php:107
 #: includes/taxonomies/recording-type-taxonomy.php:16
 msgid "Add New Recording Type"
-msgstr ""
-
-#: includes/admin/recording-types-admin.php:112
-#: includes/admin/recording-types-admin.php:137
-#: includes/shortcodes/site-tools-shortcode.php:1249
-msgid "Name"
 msgstr ""
 
 #: includes/admin/recording-types-admin.php:115
@@ -10466,14 +10745,14 @@ msgid "(none)"
 msgstr ""
 
 #: includes/admin/site-sync-admin.php:1146
-#: includes/lms/assignments.php:2048
+#: includes/lms/assignments.php:2128
 #: includes/post-types/words-post-type.php:2273
 #: includes/privacy.php:389
 msgid "Yes"
 msgstr ""
 
 #: includes/admin/site-sync-admin.php:1146
-#: includes/lms/assignments.php:2049
+#: includes/lms/assignments.php:2129
 #: includes/post-types/words-post-type.php:2274
 #: includes/privacy.php:389
 msgid "No"
@@ -11085,7 +11364,7 @@ msgstr ""
 #: includes/admin/teacher-classes-page.php:839
 #: includes/admin/teacher-classes-page.php:906
 #: includes/pages/wordset-pages.php:12971
-#: includes/privacy.php:471
+#: includes/privacy.php:476
 #: includes/user-roles/teacher-role.php:36
 msgid "Teacher"
 msgstr ""
@@ -11115,12 +11394,6 @@ msgstr ""
 
 #: includes/admin/teacher-classes-page.php:828
 msgid "No classes exist yet. Create one to start inviting learners."
-msgstr ""
-
-#: includes/admin/teacher-classes-page.php:836
-#: includes/privacy.php:468
-#: includes/teacher-classes.php:27
-msgid "Class"
 msgstr ""
 
 #: includes/admin/teacher-classes-page.php:841
@@ -13322,7 +13595,7 @@ msgid "The assignment request contains an unsupported field."
 msgstr ""
 
 #: includes/api/lms-rest.php:152
-#: includes/lms/assignments.php:1480
+#: includes/lms/assignments.php:1513
 msgid "The assignment was not found."
 msgstr ""
 
@@ -13343,7 +13616,8 @@ msgid "The attempt start request must be empty."
 msgstr ""
 
 #: includes/api/lms-rest.php:273
-#: includes/lms/assignments.php:1519
+#: includes/lms/assignments.php:1546
+#: includes/lms/assignments.php:1587
 msgid "The assignment answer is invalid."
 msgstr ""
 
@@ -13352,8 +13626,8 @@ msgid "The server calculates the assignment score; the finalize request must be 
 msgstr ""
 
 #: includes/api/lms-rest.php:307
-#: includes/lms/assignments.php:1645
-#: includes/lms/assignments.php:1946
+#: includes/lms/assignments.php:1725
+#: includes/lms/assignments.php:2026
 msgid "The assignment attempt was not found."
 msgstr ""
 
@@ -13638,6 +13912,7 @@ msgid "Not completed"
 msgstr ""
 
 #: includes/content-lesson-progress.php:373
+#: includes/lms/lti-accounts.php:550
 msgid "Continue learning"
 msgstr ""
 
@@ -13706,24 +13981,6 @@ msgstr ""
 #: templates/offline-app-shell-template.php:817
 #: templates/vocab-lesson-template.php:178
 msgid "Learn"
-msgstr ""
-
-#: includes/flashcard-shell.php:65
-#: includes/flashcard-shell.php:90
-#: includes/pages/wordset-pages.php:6763
-#: includes/pages/wordset-pages.php:25461
-#: includes/pages/wordset-pages.php:26940
-#: includes/shortcodes/flashcard-widget.php:660
-#: includes/shortcodes/flashcard-widget.php:665
-#: includes/shortcodes/flashcard-widget.php:670
-#: includes/shortcodes/flashcard-widget.php:730
-#: includes/shortcodes/flashcard-widget.php:735
-#: includes/shortcodes/flashcard-widget.php:795
-#: includes/shortcodes/flashcard-widget.php:796
-#: templates/content-lesson-template.php:253
-#: templates/offline-app-shell-template.php:820
-#: templates/vocab-lesson-template.php:177
-msgid "Practice"
 msgstr ""
 
 #: includes/flashcard-shell.php:71
@@ -16179,13 +16436,6 @@ msgstr ""
 msgid "Built-in audio matcher"
 msgstr ""
 
-#: includes/lib/wordset-language-settings.php:1238
-#: includes/pages/wordset-pages.php:17808
-#: includes/pages/wordset-pages.php:17926
-#: includes/pages/wordset-pages.php:26195
-msgid "Disabled"
-msgstr ""
-
 #: includes/lib/wordset-language-settings.php:1245
 #: includes/pages/wordset-pages.php:17787
 msgid "Secondary transcription field"
@@ -16355,326 +16605,540 @@ msgstr ""
 msgid "Translation failed for category ID %1$d (%2$s)."
 msgstr ""
 
+#: includes/lms/assignment-experience.php:12
+#: includes/lms/assignment-experience.php:17
+msgid "The question presentation is invalid."
+msgstr ""
+
+#: includes/lms/assignment-experience.php:25
+msgid "The question media is invalid."
+msgstr ""
+
+#: includes/lms/assignment-experience.php:31
+msgid "A question or choice has no usable presentation."
+msgstr ""
+
+#: includes/lms/assignment-experience.php:39
+msgid "Vocabulary assignments require 5 to 15 questions."
+msgstr ""
+
+#: includes/lms/assignment-experience.php:45
+msgid "Each vocabulary question needs 2 to 4 distinct choices."
+msgstr ""
+
+#: includes/lms/assignment-experience.php:49
+msgid "Assignment question keys must be unique."
+msgstr ""
+
+#: includes/lms/assignment-experience.php:56
+#: includes/lms/assignment-experience.php:61
+#: includes/lms/assignment-experience.php:67
+#: includes/lms/assignment-experience.php:73
+msgid "The vocabulary mapping is invalid."
+msgstr ""
+
+#: includes/lms/assignment-experience.php:77
+msgid "Audio progress requires an audio prompt."
+msgstr ""
+
+#: includes/lms/assignment-experience.php:80
+msgid "The prompt recording type is invalid."
+msgstr ""
+
+#: includes/lms/assignment-experience.php:89
+msgid "Assignment choice keys must be unique."
+msgstr ""
+
+#: includes/lms/assignment-experience.php:95
+msgid "Two answer choices look or sound identical."
+msgstr ""
+
+#: includes/lms/assignment-experience.php:103
+msgid "Each question must have exactly one correct choice."
+msgstr ""
+
+#: includes/lms/assignment-experience.php:143
+#: includes/lms/assignment-experience.php:319
+msgid "This assignment content is unavailable."
+msgstr ""
+
+#: includes/lms/assignment-experience.php:154
+msgid "Every assignment question must map to a distinct current word in this class wordset and category."
+msgstr ""
+
+#: includes/lms/assignment-experience.php:201
+#: includes/lms/assignment-experience.php:295
+msgid "You cannot manage this class."
+msgstr ""
+
+#: includes/lms/assignment-experience.php:207
+msgid "This category is unavailable."
+msgstr ""
+
+#: includes/lms/assignment-experience.php:212
+msgid "Choose a category in this class wordset."
+msgstr ""
+
+#: includes/lms/assignment-experience.php:216
+msgid "Choose 5 to 15 distinct words."
+msgstr ""
+
+#: includes/lms/assignment-experience.php:223
+msgid "The vocabulary could not be read. Please try again."
+msgstr ""
+
+#: includes/lms/assignment-experience.php:228
+msgid "The category must have 5 to 15 usable words, or select an exact 5 to 15 word subset."
+msgstr ""
+
+#: includes/lms/assignment-experience.php:232
+msgid "The quiz configuration could not be read."
+msgstr ""
+
+#: includes/lms/assignment-experience.php:240
+msgid "Every selected word needs the category’s configured quiz media."
+msgstr ""
+
+#: includes/lms/assignment-experience.php:244
+msgid "This pilot supports ordinary vocabulary words only."
+msgstr ""
+
+#: includes/lms/assignment-experience.php:248
+msgid "The selected words changed. Please retry."
+msgstr ""
+
+#: includes/lms/assignment-experience.php:278
+msgid "A selected word has no distinct allowed distractor."
+msgstr ""
+
+#: includes/lms/assignment-experience.php:300
+msgid "Categories could not be read."
+msgstr ""
+
+#: includes/lms/assignment-experience.php:308
+msgid "Category ownership could not be read."
+msgstr ""
+
+#: includes/lms/assignment-experience.php:334
+msgid "The answer and learning progress could not be saved. Please retry."
+msgstr ""
+
+#: includes/lms/assignment-experience.php:350
+msgid "This assignment is unavailable for your account."
+msgstr ""
+
+#: includes/lms/assignment-experience.php:355
+msgid "This assignment player is unavailable."
+msgstr ""
+
+#: includes/lms/assignment-experience.php:358
+#: includes/lms/assignments.php:1560
+msgid "Your learning data is being erased. Please try again later."
+msgstr ""
+
+#: includes/lms/assignment-experience.php:363
+msgid "The attempt could not be read. Please retry."
+msgstr ""
+
+#: includes/lms/assignment-experience.php:368
+msgid "The answers could not be read. Please retry."
+msgstr ""
+
+#: includes/lms/assignment-experience.php:379
+msgid "Choose a class and category."
+msgstr ""
+
+#: includes/lms/assignment-experience.php:408
+#: templates/assignment-player.php:7
+msgid "Loading assignment…"
+msgstr ""
+
+#: includes/lms/assignment-experience.php:408
+msgid "Start assignment"
+msgstr ""
+
+#: includes/lms/assignment-experience.php:408
+msgid "Try another attempt"
+msgstr ""
+
+#: includes/lms/assignment-experience.php:408
+msgid "of"
+msgstr ""
+
+#: includes/lms/assignment-experience.php:408
+msgid "Save answer"
+msgstr ""
+
+#: includes/lms/assignment-experience.php:408
+msgid "Next question"
+msgstr ""
+
+#: includes/lms/assignment-experience.php:408
+msgid "Finish assignment"
+msgstr ""
+
+#: includes/lms/assignment-experience.php:408
+msgid "Answer saved."
+msgstr ""
+
+#: includes/lms/assignment-experience.php:408
+#: includes/pages/wordset-transcription-review.php:283
+#: includes/shortcodes/editor-hub-shortcode.php:1067
+msgid "Saving…"
+msgstr ""
+
+#: includes/lms/assignment-experience.php:408
+msgid "The request could not be confirmed. Retry to read the saved state."
+msgstr ""
+
+#: includes/lms/assignment-experience.php:408
+msgid "Attempt score"
+msgstr ""
+
+#: includes/lms/assignment-experience.php:408
+#: includes/lms/assignments.php:2126
+msgid "Selected grade"
+msgstr ""
+
+#: includes/lms/assignment-experience.php:408
+msgid "This attempt has expired."
+msgstr ""
+
+#: includes/lms/assignment-experience.php:408
+msgid "Choose an answer first."
+msgstr ""
+
+#: includes/lms/assignment-experience.php:408
+#: includes/pages/vocab-lesson-pages.php:2012
+#: includes/pages/vocab-lesson-pages.php:2033
+#: includes/pages/wordset-pages.php:26887
+#: includes/shortcodes/flashcard-widget.php:650
+#: includes/shortcodes/flashcard-widget.php:655
+#: includes/shortcodes/ranked-word-list-shortcode.php:377
+#: includes/shortcodes/ranked-word-list-shortcode.php:383
+#: includes/shortcodes/word-audio-shortcode.php:210
+#: includes/taxonomies/word-category-taxonomy.php:2900
+msgid "Play audio"
+msgstr ""
+
 #: includes/lms/assignments.php:495
 msgid "The assignment manifest is invalid."
 msgstr ""
 
 #: includes/lms/assignments.php:499
-#: includes/lms/assignments.php:575
-#: includes/lms/assignments.php:682
+#: includes/lms/assignments.php:578
+#: includes/lms/assignments.php:688
 msgid "The assignment manifest is too large."
 msgstr ""
 
-#: includes/lms/assignments.php:502
+#: includes/lms/assignments.php:505
 msgid "The assignment manifest version is not supported."
 msgstr ""
 
-#: includes/lms/assignments.php:505
+#: includes/lms/assignments.php:508
 msgid "Only closed-response assignments are supported."
 msgstr ""
 
 #. translators: 1: minimum questions, 2: maximum questions
-#: includes/lms/assignments.php:515
+#: includes/lms/assignments.php:518
 msgid "Assignments must contain between %1$d and %2$d questions."
 msgstr ""
 
-#: includes/lms/assignments.php:526
+#: includes/lms/assignments.php:529
 msgid "An assignment question is invalid."
 msgstr ""
 
-#: includes/lms/assignments.php:530
+#: includes/lms/assignments.php:533
 msgid "Assignment question keys must be unique and URL-safe."
 msgstr ""
 
-#: includes/lms/assignments.php:536
+#: includes/lms/assignments.php:539
 msgid "Each assignment question must have between 2 and 20 choices."
 msgstr ""
 
-#: includes/lms/assignments.php:544
+#: includes/lms/assignments.php:547
 msgid "An assignment choice is invalid."
 msgstr ""
 
-#: includes/lms/assignments.php:548
+#: includes/lms/assignments.php:551
 msgid "Assignment choice keys and correctness values are invalid."
 msgstr ""
 
-#: includes/lms/assignments.php:559
+#: includes/lms/assignments.php:562
 msgid "Each assignment question must have exactly one correct choice."
 msgstr ""
 
-#: includes/lms/assignments.php:607
-#: includes/lms/assignments.php:617
+#: includes/lms/assignments.php:613
+#: includes/lms/assignments.php:623
 msgid "The assignment date is invalid."
 msgstr ""
 
-#: includes/lms/assignments.php:625
-#: includes/lms/assignments.php:629
+#: includes/lms/assignments.php:631
+#: includes/lms/assignments.php:635
 msgid "The assignment points value is invalid."
 msgstr ""
 
-#: includes/lms/assignments.php:652
-#: includes/lms/assignments.php:656
+#: includes/lms/assignments.php:658
+#: includes/lms/assignments.php:662
 msgid "The assignment attempt limit must be between 1 and 100."
 msgstr ""
 
-#: includes/lms/assignments.php:661
-#: includes/lms/assignments.php:665
+#: includes/lms/assignments.php:667
+#: includes/lms/assignments.php:671
 msgid "The assignment grading policy is invalid."
 msgstr ""
 
-#: includes/lms/assignments.php:677
+#: includes/lms/assignments.php:683
 msgid "The assignment due date must be after its availability date."
 msgstr ""
 
-#: includes/lms/assignments.php:701
+#: includes/lms/assignments.php:707
 msgid "Assignments are temporarily unavailable while storage is being prepared."
 msgstr ""
 
-#: includes/lms/assignments.php:898
-#: includes/lms/assignments.php:905
-#: includes/lms/assignments.php:909
+#: includes/lms/assignments.php:904
+#: includes/lms/assignments.php:911
+#: includes/lms/assignments.php:915
 msgid "The stored assignment manifest is unavailable."
 msgstr ""
 
-#: includes/lms/assignments.php:901
-#: includes/lms/assignments.php:928
+#: includes/lms/assignments.php:907
+#: includes/lms/assignments.php:935
 msgid "The stored assignment manifest failed verification."
 msgstr ""
 
-#: includes/lms/assignments.php:959
+#: includes/lms/assignments.php:966
 msgid "The assignment revision could not be saved."
 msgstr ""
 
-#: includes/lms/assignments.php:977
+#: includes/lms/assignments.php:984
 msgid "You cannot create assignments for this class."
 msgstr ""
 
-#: includes/lms/assignments.php:980
+#: includes/lms/assignments.php:987
 msgid "The assignment class is unavailable."
 msgstr ""
 
-#: includes/lms/assignments.php:984
+#: includes/lms/assignments.php:991
 msgid "The class word set is unavailable."
 msgstr ""
 
-#: includes/lms/assignments.php:987
-#: includes/lms/assignments.php:991
+#: includes/lms/assignments.php:994
+#: includes/lms/assignments.php:998
 msgid "Enter an assignment title no longer than 191 characters."
 msgstr ""
 
-#: includes/lms/assignments.php:1000
-#: includes/lms/assignments.php:1047
-#: includes/lms/assignments.php:1070
-#: includes/lms/assignments.php:1106
+#: includes/lms/assignments.php:1012
+#: includes/lms/assignments.php:1059
+#: includes/lms/assignments.php:1086
+#: includes/lms/assignments.php:1122
 msgid "The assignment could not be saved right now."
 msgstr ""
 
-#: includes/lms/assignments.php:1061
+#: includes/lms/assignments.php:1073
 msgid "You cannot edit this assignment."
 msgstr ""
 
-#: includes/lms/assignments.php:1103
+#: includes/lms/assignments.php:1119
 msgid "Published and archived assignment revisions cannot be changed."
 msgstr ""
 
-#: includes/lms/assignments.php:1119
+#: includes/lms/assignments.php:1135
 msgid "You cannot publish this assignment."
 msgstr ""
 
-#: includes/lms/assignments.php:1125
-#: includes/lms/assignments.php:1168
+#: includes/lms/assignments.php:1141
+#: includes/lms/assignments.php:1184
 msgid "Only draft assignments can be published."
 msgstr ""
 
-#: includes/lms/assignments.php:1130
+#: includes/lms/assignments.php:1146
 msgid "The assignment revision is unavailable."
 msgstr ""
 
-#: includes/lms/assignments.php:1135
-#: includes/lms/assignments.php:1171
+#: includes/lms/assignments.php:1151
+#: includes/lms/assignments.php:1187
 msgid "The assignment could not be published right now."
 msgstr ""
 
-#: includes/lms/assignments.php:1184
+#: includes/lms/assignments.php:1200
 msgid "You cannot archive this assignment."
 msgstr ""
 
-#: includes/lms/assignments.php:1196
+#: includes/lms/assignments.php:1212
 msgid "The assignment could not be archived."
 msgstr ""
 
-#: includes/lms/assignments.php:1208
+#: includes/lms/assignments.php:1224
 msgid "You cannot view assignments for this class."
 msgstr ""
 
-#: includes/lms/assignments.php:1214
+#: includes/lms/assignments.php:1230
 msgid "The assignment status filter is invalid."
 msgstr ""
 
-#: includes/lms/assignments.php:1336
-#: includes/lms/assignments.php:1481
-#: includes/lms/assignments.php:1647
-#: includes/lms/assignments.php:1948
+#: includes/lms/assignments.php:1352
+#: includes/lms/assignments.php:1514
+#: includes/lms/assignments.php:1727
+#: includes/lms/assignments.php:2028
 msgid "This assignment is not published."
 msgstr ""
 
-#: includes/lms/assignments.php:1344
+#: includes/lms/assignments.php:1360
 msgid "The assignment window is unavailable."
 msgstr ""
 
-#: includes/lms/assignments.php:1347
-#: includes/lms/assignments.php:1483
-#: includes/lms/assignments.php:1649
-#: includes/lms/assignments.php:1950
+#: includes/lms/assignments.php:1363
+#: includes/lms/assignments.php:1516
+#: includes/lms/assignments.php:1729
+#: includes/lms/assignments.php:2030
 msgid "This assignment is not available yet."
 msgstr ""
 
-#: includes/lms/assignments.php:1350
-#: includes/lms/assignments.php:1484
-#: includes/lms/assignments.php:1650
-#: includes/lms/assignments.php:1951
+#: includes/lms/assignments.php:1366
+#: includes/lms/assignments.php:1517
+#: includes/lms/assignments.php:1730
+#: includes/lms/assignments.php:2031
 msgid "This assignment is closed."
 msgstr ""
 
-#: includes/lms/assignments.php:1378
+#: includes/lms/assignments.php:1394
 msgid "Sign in to start this assignment."
 msgstr ""
 
-#: includes/lms/assignments.php:1383
-#: includes/lms/assignments.php:1491
+#: includes/lms/assignments.php:1399
+#: includes/lms/assignments.php:1524
 msgid "The assignment could not be started right now."
 msgstr ""
 
-#: includes/lms/assignments.php:1482
-#: includes/lms/assignments.php:1648
-#: includes/lms/assignments.php:1949
+#: includes/lms/assignments.php:1515
+#: includes/lms/assignments.php:1728
+#: includes/lms/assignments.php:2029
 msgid "You are not a current member of this class."
 msgstr ""
 
-#: includes/lms/assignments.php:1485
+#: includes/lms/assignments.php:1518
 msgid "You have reached the attempt limit for this assignment."
 msgstr ""
 
-#: includes/lms/assignments.php:1488
+#: includes/lms/assignments.php:1521
 msgid "The assignment could not be started."
 msgstr ""
 
-#: includes/lms/assignments.php:1524
-#: includes/lms/assignments.php:1661
+#: includes/lms/assignments.php:1549
+#: includes/lms/assignments.php:1556
+#: includes/lms/assignments.php:1592
+#: includes/lms/assignments.php:1741
 msgid "The answer could not be saved right now."
 msgstr ""
 
-#: includes/lms/assignments.php:1646
+#: includes/lms/assignments.php:1726
 msgid "This assignment attempt is already finalized."
 msgstr ""
 
-#: includes/lms/assignments.php:1651
-#: includes/lms/assignments.php:1952
+#: includes/lms/assignments.php:1731
+#: includes/lms/assignments.php:2032
 msgid "This assignment attempt has expired."
 msgstr ""
 
-#: includes/lms/assignments.php:1652
+#: includes/lms/assignments.php:1732
 msgid "The assignment item was not found."
 msgstr ""
 
-#: includes/lms/assignments.php:1653
+#: includes/lms/assignments.php:1733
 msgid "The assignment option was not found."
 msgstr ""
 
-#: includes/lms/assignments.php:1654
+#: includes/lms/assignments.php:1734
 msgid "That answer identifier was already used for different answer data."
 msgstr ""
 
-#: includes/lms/assignments.php:1655
+#: includes/lms/assignments.php:1735
 msgid "This assignment item has already been answered."
 msgstr ""
 
-#: includes/lms/assignments.php:1658
+#: includes/lms/assignments.php:1738
 msgid "The answer could not be saved."
 msgstr ""
 
-#: includes/lms/assignments.php:1714
+#: includes/lms/assignments.php:1794
 msgid "The assignment attempt is invalid."
 msgstr ""
 
-#: includes/lms/assignments.php:1719
-#: includes/lms/assignments.php:1958
+#: includes/lms/assignments.php:1799
+#: includes/lms/assignments.php:2038
 msgid "The assignment could not be finalized right now."
 msgstr ""
 
-#: includes/lms/assignments.php:1947
+#: includes/lms/assignments.php:2027
 msgid "This assignment attempt is unavailable."
 msgstr ""
 
-#: includes/lms/assignments.php:1955
+#: includes/lms/assignments.php:2035
 msgid "The assignment could not be finalized."
 msgstr ""
 
-#: includes/lms/assignments.php:1972
-#: includes/lms/assignments.php:2084
+#: includes/lms/assignments.php:2052
+#: includes/lms/assignments.php:2164
 msgid "The assignment learner is invalid."
 msgstr ""
 
-#: includes/lms/assignments.php:2003
-#: includes/lms/assignments.php:2022
+#: includes/lms/assignments.php:2083
+#: includes/lms/assignments.php:2102
 msgid "Assignment data could not be exported."
 msgstr ""
 
-#: includes/lms/assignments.php:2036
+#: includes/lms/assignments.php:2116
 msgid "Assignment"
 msgstr ""
 
-#: includes/lms/assignments.php:2037
+#: includes/lms/assignments.php:2117
 msgid "Assignment revision"
 msgstr ""
 
-#: includes/lms/assignments.php:2038
+#: includes/lms/assignments.php:2118
 msgid "Attempt number"
 msgstr ""
 
-#: includes/lms/assignments.php:2040
-#: includes/privacy.php:534
+#: includes/lms/assignments.php:2120
+#: includes/privacy.php:547
 msgid "Score"
 msgstr ""
 
-#: includes/lms/assignments.php:2041
-#: includes/privacy.php:535
+#: includes/lms/assignments.php:2121
+#: includes/privacy.php:548
 msgid "Points"
 msgstr ""
 
-#: includes/lms/assignments.php:2042
+#: includes/lms/assignments.php:2122
 msgid "Started at"
 msgstr ""
 
-#: includes/lms/assignments.php:2043
+#: includes/lms/assignments.php:2123
 msgid "Expires at"
 msgstr ""
 
-#: includes/lms/assignments.php:2044
+#: includes/lms/assignments.php:2124
 msgid "Finalized at"
 msgstr ""
 
-#: includes/lms/assignments.php:2046
-msgid "Selected grade"
-msgstr ""
-
-#: includes/lms/assignments.php:2051
-#: includes/privacy.php:533
+#: includes/lms/assignments.php:2131
+#: includes/privacy.php:546
 msgid "Grade revision"
 msgstr ""
 
 #. translators: %s is the stable assignment item key.
-#: includes/lms/assignments.php:2057
+#: includes/lms/assignments.php:2137
 msgid "Response to %s"
 msgstr ""
 
-#: includes/lms/assignments.php:2065
+#: includes/lms/assignments.php:2145
 #: includes/privacy.php:430
 msgid "LL Tools Assignments"
 msgstr ""
 
-#: includes/lms/assignments.php:2094
-#: includes/lms/assignments.php:2220
+#: includes/lms/assignments.php:2174
+#: includes/lms/assignments.php:2300
 msgid "Assignment data could not be erased right now."
 msgstr ""
 
@@ -17087,6 +17551,108 @@ msgstr ""
 
 #: includes/lms/grade-delivery.php:2383
 msgid "An external grade delivery is currently in progress. Retry erasure after it finishes."
+msgstr ""
+
+#: includes/lms/lti-accounts.php:26
+msgid "You are signed in to a different learning account. Sign out, then open this activity from Moodle again."
+msgstr ""
+
+#: includes/lms/lti-accounts.php:27
+msgid "This Moodle identity is already connected to another account, or was disconnected. Ask the site administrator to review the link."
+msgstr ""
+
+#: includes/lms/lti-accounts.php:28
+msgid "Your access to this class has been removed. Your personal learning account remains available."
+msgstr ""
+
+#: includes/lms/lti-accounts.php:29
+#: includes/lms/lti-accounts.php:451
+msgid "Use a learner account for this activity. Staff accounts cannot be connected as Moodle students."
+msgstr ""
+
+#: includes/lms/lti-accounts.php:31
+msgid "This Moodle activity could not be opened. Return to Moodle and try again, or contact your teacher."
+msgstr ""
+
+#: includes/lms/lti-accounts.php:444
+#: includes/lms/lti-accounts.php:445
+msgid "Connect your learning account"
+msgstr ""
+
+#: includes/lms/lti-accounts.php:447
+msgid "This Moodle identity already belongs to a different account, or has been disconnected. Sign in to the original account; ask the site administrator to review a disconnected link."
+msgstr ""
+
+#: includes/lms/lti-accounts.php:449
+msgid "Sign in or create a permanent learner account. Your class activities and personal practice can save progress in this account."
+msgstr ""
+
+#: includes/lms/lti-accounts.php:453
+msgid "Connect Moodle to %s? Assigned results may be returned to your course. Personal practice stays in this account; your class teacher can view progress for the class wordset."
+msgstr ""
+
+#: includes/lms/lti-accounts.php:454
+msgid "Connect account and open activity"
+msgstr ""
+
+#: includes/lms/lti-accounts.php:456
+msgid "Use another account"
+msgstr ""
+
+#: includes/lms/lti-accounts.php:457
+msgid "Manage Moodle connections"
+msgstr ""
+
+#: includes/lms/lti-accounts.php:485
+msgid "To configure this activity, sign in to a local teacher account and open it from Moodle again."
+msgstr ""
+
+#: includes/lms/lti-accounts.php:509
+msgid "Moodle activity setup"
+msgstr ""
+
+#: includes/lms/lti-accounts.php:509
+msgid "This instructor launch was verified. Copy its course and resource identifiers into your Moodle / LTI activity configuration."
+msgstr ""
+
+#: includes/lms/lti-accounts.php:511
+msgid "Open Moodle / LTI settings"
+msgstr ""
+
+#: includes/lms/lti-accounts.php:543
+msgid "Moodle connections"
+msgstr ""
+
+#: includes/lms/lti-accounts.php:543
+msgid "Disconnecting stops future Moodle launches and grade delivery through this identity. Your account and personal progress remain. An administrator must review any later reconnection."
+msgstr ""
+
+#: includes/lms/lti-accounts.php:545
+msgid "Moodle"
+msgstr ""
+
+#: includes/lms/lti-accounts.php:549
+msgid "Disconnect Moodle"
+msgstr ""
+
+#: includes/lms/lti-accounts.php:549
+msgid "Disconnected"
+msgstr ""
+
+#: includes/lms/lti.php:12
+msgid "The learning platform request could not be verified."
+msgstr ""
+
+#: includes/lms/lti.php:736
+msgid "Learning platform connections"
+msgstr ""
+
+#: includes/lms/lti.php:738
+msgid "Platform"
+msgstr ""
+
+#: includes/lms/lti.php:739
+msgid "Learner identifier"
 msgstr ""
 
 #: includes/login-window.php:147
@@ -17621,23 +18187,23 @@ msgstr ""
 #: includes/offline-app-sync.php:1526
 #: includes/offline-app-sync.php:1537
 #: includes/offline-app-sync.php:1561
-#: includes/privacy.php:1175
-#: includes/privacy.php:1435
-#: includes/privacy.php:1444
-#: includes/privacy.php:1484
-#: includes/privacy.php:1518
-#: includes/privacy.php:1534
-#: includes/privacy.php:1563
-#: includes/privacy.php:1575
-#: includes/privacy.php:1584
-#: includes/privacy.php:1600
-#: includes/privacy.php:1624
-#: includes/privacy.php:1635
-#: includes/privacy.php:1657
-#: includes/privacy.php:1670
-#: includes/privacy.php:1687
-#: includes/privacy.php:1715
-#: includes/privacy.php:1723
+#: includes/privacy.php:1188
+#: includes/privacy.php:1449
+#: includes/privacy.php:1458
+#: includes/privacy.php:1498
+#: includes/privacy.php:1532
+#: includes/privacy.php:1548
+#: includes/privacy.php:1577
+#: includes/privacy.php:1589
+#: includes/privacy.php:1598
+#: includes/privacy.php:1614
+#: includes/privacy.php:1638
+#: includes/privacy.php:1649
+#: includes/privacy.php:1671
+#: includes/privacy.php:1684
+#: includes/privacy.php:1701
+#: includes/privacy.php:1729
+#: includes/privacy.php:1737
 #: includes/teacher-classes.php:1130
 #: includes/teacher-classes.php:1136
 #: includes/teacher-classes.php:1203
@@ -18107,18 +18673,6 @@ msgstr ""
 #: includes/pages/wordset-pages.php:27405
 #: includes/pages/wordset-pages.php:27406
 msgid "Wrong"
-msgstr ""
-
-#: includes/pages/vocab-lesson-pages.php:2012
-#: includes/pages/vocab-lesson-pages.php:2033
-#: includes/pages/wordset-pages.php:26887
-#: includes/shortcodes/flashcard-widget.php:650
-#: includes/shortcodes/flashcard-widget.php:655
-#: includes/shortcodes/ranked-word-list-shortcode.php:377
-#: includes/shortcodes/ranked-word-list-shortcode.php:383
-#: includes/shortcodes/word-audio-shortcode.php:210
-#: includes/taxonomies/word-category-taxonomy.php:2900
-msgid "Play audio"
 msgstr ""
 
 #: includes/pages/vocab-lesson-pages.php:2977
@@ -22510,7 +23064,7 @@ msgid "Learning goals"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:25096
-#: includes/privacy.php:740
+#: includes/privacy.php:753
 msgid "Enabled modes"
 msgstr ""
 
@@ -22821,11 +23375,6 @@ msgstr ""
 msgid "Part of speech"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:26863
-#: includes/pages/wordset-pages.php:27181
-msgid "Activity"
-msgstr ""
-
 #: includes/pages/wordset-pages.php:26864
 #: includes/pages/wordset-pages.php:27175
 msgid "Word Progress"
@@ -23010,7 +23559,7 @@ msgid "Last practiced"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:26933
-#: includes/privacy.php:870
+#: includes/privacy.php:883
 #: includes/shortcodes/flashcard-widget.php:684
 msgid "Gender progress"
 msgstr ""
@@ -23325,11 +23874,6 @@ msgstr ""
 
 #: includes/pages/wordset-transcription-review.php:196
 msgid "This recording changed. Reload it before editing again."
-msgstr ""
-
-#: includes/pages/wordset-transcription-review.php:283
-#: includes/shortcodes/editor-hub-shortcode.php:1067
-msgid "Saving…"
 msgstr ""
 
 #: includes/pages/wordset-transcription-review.php:284
@@ -23840,7 +24384,7 @@ msgid "Assign this card to the lesson category and wordset using the taxonomy bo
 msgstr ""
 
 #: includes/post-types/prompt-card-post-type.php:1159
-#: includes/privacy.php:933
+#: includes/privacy.php:946
 msgid "Prompt text"
 msgstr ""
 
@@ -23865,7 +24409,7 @@ msgid "Pick the existing word whose image should be shown for this card. Leave e
 msgstr ""
 
 #: includes/post-types/prompt-card-post-type.php:1193
-#: includes/privacy.php:934
+#: includes/privacy.php:947
 msgid "Correct answer word ID"
 msgstr ""
 
@@ -24319,488 +24863,492 @@ msgid "Detailed activity log rows are deleted automatically after this many days
 msgstr ""
 
 #: includes/privacy.php:406
-#: includes/privacy.php:722
+#: includes/privacy.php:735
 msgid "LL Tools Study Settings"
 msgstr ""
 
 #: includes/privacy.php:410
-#: includes/privacy.php:842
+#: includes/privacy.php:855
 msgid "LL Tools Study Progress"
 msgstr ""
 
 #: includes/privacy.php:414
-#: includes/privacy.php:928
+#: includes/privacy.php:941
 msgid "LL Tools Prompt Card Progress"
 msgstr ""
 
 #: includes/privacy.php:418
-#: includes/privacy.php:1008
+#: includes/privacy.php:1021
 msgid "LL Tools Study Activity"
 msgstr ""
 
 #: includes/privacy.php:422
-#: includes/privacy.php:1064
+#: includes/privacy.php:1077
 msgid "LL Tools Offline Sessions"
 msgstr ""
 
 #: includes/privacy.php:426
-#: includes/privacy.php:464
+#: includes/privacy.php:469
 msgid "LL Tools Class Memberships"
 msgstr ""
 
 #: includes/privacy.php:434
-#: includes/privacy.php:527
-#: includes/privacy.php:552
+#: includes/privacy.php:540
+#: includes/privacy.php:565
 msgid "LL Tools External Grade Deliveries"
 msgstr ""
 
 #: includes/privacy.php:438
-#: includes/privacy.php:622
-#: includes/privacy.php:659
+#: includes/privacy.php:635
+#: includes/privacy.php:672
 msgid "LL Tools Google Classroom Connections"
 msgstr ""
 
-#: includes/privacy.php:467
+#: includes/privacy.php:443
+msgid "LL Tools Moodle Connections"
+msgstr ""
+
+#: includes/privacy.php:472
 msgid "Class ID"
 msgstr ""
 
-#: includes/privacy.php:469
-#: includes/privacy.php:849
-#: includes/privacy.php:938
-#: includes/privacy.php:1020
+#: includes/privacy.php:474
+#: includes/privacy.php:862
+#: includes/privacy.php:951
+#: includes/privacy.php:1033
 msgid "Word set ID"
 msgstr ""
 
-#: includes/privacy.php:489
+#: includes/privacy.php:502
 msgid "Assignment data is temporarily unavailable for export."
 msgstr ""
 
-#: includes/privacy.php:512
+#: includes/privacy.php:525
 msgid "External grade delivery data is temporarily unavailable for export."
 msgstr ""
 
-#: includes/privacy.php:530
+#: includes/privacy.php:543
 msgid "Provider adapter"
 msgstr ""
 
-#: includes/privacy.php:531
+#: includes/privacy.php:544
 msgid "Assignment ID"
 msgstr ""
 
-#: includes/privacy.php:532
+#: includes/privacy.php:545
 msgid "Assignment revision ID"
 msgstr ""
 
-#: includes/privacy.php:536
+#: includes/privacy.php:549
 msgid "Delivery status"
 msgstr ""
 
-#: includes/privacy.php:537
+#: includes/privacy.php:550
 msgid "Delivery attempts"
 msgstr ""
 
-#: includes/privacy.php:538
+#: includes/privacy.php:551
 msgid "Last HTTP status"
 msgstr ""
 
-#: includes/privacy.php:539
+#: includes/privacy.php:552
 msgid "Last error code"
 msgstr ""
 
-#: includes/privacy.php:540
-#: includes/privacy.php:1068
+#: includes/privacy.php:553
+#: includes/privacy.php:1081
 msgid "Created at (UTC)"
 msgstr ""
 
-#: includes/privacy.php:541
-#: includes/privacy.php:633
+#: includes/privacy.php:554
+#: includes/privacy.php:646
 msgid "Updated at (UTC)"
 msgstr ""
 
-#: includes/privacy.php:542
+#: includes/privacy.php:555
 msgid "Delivered at (UTC)"
 msgstr ""
 
-#: includes/privacy.php:543
+#: includes/privacy.php:556
 msgid "Superseded at (UTC)"
 msgstr ""
 
-#: includes/privacy.php:555
+#: includes/privacy.php:568
 msgid "External identity mappings"
 msgstr ""
 
-#: includes/privacy.php:556
+#: includes/privacy.php:569
 msgid "Grade recipient mappings"
 msgstr ""
 
-#: includes/privacy.php:580
+#: includes/privacy.php:593
 msgid "Google Classroom connection data is temporarily unavailable for export."
 msgstr ""
 
-#: includes/privacy.php:597
-#: includes/privacy.php:608
-#: includes/privacy.php:617
-#: includes/privacy.php:653
+#: includes/privacy.php:610
+#: includes/privacy.php:621
+#: includes/privacy.php:630
+#: includes/privacy.php:666
 msgid "Google Classroom connection data could not be exported."
 msgstr ""
 
-#: includes/privacy.php:625
+#: includes/privacy.php:638
 msgid "Provider"
 msgstr ""
 
-#: includes/privacy.php:626
+#: includes/privacy.php:639
 msgid "Connection status"
 msgstr ""
 
-#: includes/privacy.php:627
+#: includes/privacy.php:640
 msgid "Google account email"
 msgstr ""
 
-#: includes/privacy.php:628
+#: includes/privacy.php:641
 msgid "Google account name"
 msgstr ""
 
-#: includes/privacy.php:629
+#: includes/privacy.php:642
 msgid "Google Workspace domain"
 msgstr ""
 
-#: includes/privacy.php:630
+#: includes/privacy.php:643
 msgid "Google email verified"
 msgstr ""
 
-#: includes/privacy.php:631
+#: includes/privacy.php:644
 msgid "Authorized scopes"
 msgstr ""
 
-#: includes/privacy.php:632
+#: includes/privacy.php:645
 msgid "Connected at (UTC)"
 msgstr ""
 
-#: includes/privacy.php:634
+#: includes/privacy.php:647
 msgid "Disconnected at (UTC)"
 msgstr ""
 
-#: includes/privacy.php:662
+#: includes/privacy.php:675
 msgid "Stored authorization attempts"
 msgstr ""
 
-#: includes/privacy.php:663
+#: includes/privacy.php:676
 msgid "Consumed authorization attempts"
 msgstr ""
 
-#: includes/privacy.php:664
+#: includes/privacy.php:677
 msgid "Oldest authorization attempt (UTC)"
 msgstr ""
 
-#: includes/privacy.php:665
+#: includes/privacy.php:678
 msgid "Latest authorization expiry (UTC)"
 msgstr ""
 
-#: includes/privacy.php:725
+#: includes/privacy.php:738
 msgid "Selected word set ID"
 msgstr ""
 
-#: includes/privacy.php:726
+#: includes/privacy.php:739
 msgid "Selected word set"
 msgstr ""
 
-#: includes/privacy.php:727
+#: includes/privacy.php:740
 msgid "Selected category IDs"
 msgstr ""
 
-#: includes/privacy.php:728
+#: includes/privacy.php:741
 msgid "Starred word IDs"
 msgstr ""
 
-#: includes/privacy.php:729
+#: includes/privacy.php:742
 msgid "Fast transitions enabled"
 msgstr ""
 
-#: includes/privacy.php:737
+#: includes/privacy.php:750
 msgid "LL Tools Study Goals"
 msgstr ""
 
-#: includes/privacy.php:741
+#: includes/privacy.php:754
 msgid "Ignored category IDs"
 msgstr ""
 
-#: includes/privacy.php:742
+#: includes/privacy.php:755
 msgid "Preferred word set IDs"
 msgstr ""
 
-#: includes/privacy.php:743
+#: includes/privacy.php:756
 msgid "Placement-known category IDs"
 msgstr ""
 
-#: includes/privacy.php:744
+#: includes/privacy.php:757
 msgid "Daily new-word target"
 msgstr ""
 
-#: includes/privacy.php:745
+#: includes/privacy.php:758
 msgid "Priority focus"
 msgstr ""
 
-#: includes/privacy.php:753
+#: includes/privacy.php:766
 msgid "LL Tools Category Progress"
 msgstr ""
 
-#: includes/privacy.php:756
+#: includes/privacy.php:769
 msgid "Category progress"
 msgstr ""
 
-#: includes/privacy.php:765
+#: includes/privacy.php:778
 msgid "Completed content lesson IDs"
 msgstr ""
 
-#: includes/privacy.php:771
+#: includes/privacy.php:784
 msgid "Legacy completed lesson data"
 msgstr ""
 
-#: includes/privacy.php:777
+#: includes/privacy.php:790
 msgid "LL Tools Content Lesson Progress"
 msgstr ""
 
-#: includes/privacy.php:786
+#: includes/privacy.php:799
 msgid "LL Tools Recommendation State"
 msgstr ""
 
-#: includes/privacy.php:789
+#: includes/privacy.php:802
 msgid "Recommendation queue"
 msgstr ""
 
-#: includes/privacy.php:790
+#: includes/privacy.php:803
 msgid "Last recommendation"
 msgstr ""
 
-#: includes/privacy.php:791
+#: includes/privacy.php:804
 msgid "Dismissed recommendation signatures"
 msgstr ""
 
-#: includes/privacy.php:792
+#: includes/privacy.php:805
 msgid "Recommendation deferrals"
 msgstr ""
 
-#: includes/privacy.php:845
-#: includes/privacy.php:1014
+#: includes/privacy.php:858
+#: includes/privacy.php:1027
 msgid "Word ID"
 msgstr ""
 
-#: includes/privacy.php:847
-#: includes/privacy.php:936
-#: includes/privacy.php:1018
+#: includes/privacy.php:860
+#: includes/privacy.php:949
+#: includes/privacy.php:1031
 msgid "Category ID"
 msgstr ""
 
-#: includes/privacy.php:851
-#: includes/privacy.php:940
+#: includes/privacy.php:864
+#: includes/privacy.php:953
 msgid "First seen at (UTC)"
 msgstr ""
 
-#: includes/privacy.php:852
-#: includes/privacy.php:941
+#: includes/privacy.php:865
+#: includes/privacy.php:954
 msgid "Last seen at (UTC)"
 msgstr ""
 
-#: includes/privacy.php:853
-#: includes/privacy.php:942
+#: includes/privacy.php:866
+#: includes/privacy.php:955
 msgid "Last mode"
 msgstr ""
 
-#: includes/privacy.php:855
+#: includes/privacy.php:868
 msgid "Difficulty score"
 msgstr ""
 
-#: includes/privacy.php:856
+#: includes/privacy.php:869
 msgid "Total coverage"
 msgstr ""
 
-#: includes/privacy.php:857
+#: includes/privacy.php:870
 msgid "Learning coverage"
 msgstr ""
 
-#: includes/privacy.php:858
+#: includes/privacy.php:871
 msgid "Practice coverage"
 msgstr ""
 
-#: includes/privacy.php:859
+#: includes/privacy.php:872
 msgid "Listening coverage"
 msgstr ""
 
-#: includes/privacy.php:860
+#: includes/privacy.php:873
 msgid "Gender coverage"
 msgstr ""
 
-#: includes/privacy.php:861
+#: includes/privacy.php:874
 msgid "Self-check coverage"
 msgstr ""
 
-#: includes/privacy.php:862
-#: includes/privacy.php:945
+#: includes/privacy.php:875
+#: includes/privacy.php:958
 msgid "Correct on first try"
 msgstr ""
 
-#: includes/privacy.php:863
-#: includes/privacy.php:946
+#: includes/privacy.php:876
+#: includes/privacy.php:959
 msgid "Correct after retry"
 msgstr ""
 
-#: includes/privacy.php:864
-#: includes/privacy.php:947
+#: includes/privacy.php:877
+#: includes/privacy.php:960
 msgid "Incorrect answers"
 msgstr ""
 
-#: includes/privacy.php:865
+#: includes/privacy.php:878
 msgid "Lapse count"
 msgstr ""
 
-#: includes/privacy.php:866
-#: includes/privacy.php:948
+#: includes/privacy.php:879
+#: includes/privacy.php:961
 msgid "Current streak"
 msgstr ""
 
-#: includes/privacy.php:867
+#: includes/privacy.php:880
 msgid "Stage"
 msgstr ""
 
-#: includes/privacy.php:868
+#: includes/privacy.php:881
 msgid "Due at (UTC)"
 msgstr ""
 
-#: includes/privacy.php:869
-#: includes/privacy.php:949
+#: includes/privacy.php:882
+#: includes/privacy.php:962
 msgid "Mastery unlocked"
 msgstr ""
 
-#: includes/privacy.php:871
+#: includes/privacy.php:884
 msgid "Required practice recording types"
 msgstr ""
 
-#: includes/privacy.php:872
+#: includes/privacy.php:885
 msgid "Correct practice recording types"
 msgstr ""
 
-#: includes/privacy.php:931
-#: includes/privacy.php:1016
+#: includes/privacy.php:944
+#: includes/privacy.php:1029
 msgid "Prompt card ID"
 msgstr ""
 
-#: includes/privacy.php:935
+#: includes/privacy.php:948
 msgid "Correct answer word"
 msgstr ""
 
-#: includes/privacy.php:944
+#: includes/privacy.php:957
 msgid "Exposure total"
 msgstr ""
 
-#: includes/privacy.php:1011
+#: includes/privacy.php:1024
 msgid "Recorded at (UTC)"
 msgstr ""
 
-#: includes/privacy.php:1012
+#: includes/privacy.php:1025
 msgid "Event type"
 msgstr ""
 
-#: includes/privacy.php:1013
+#: includes/privacy.php:1026
 msgid "Mode"
 msgstr ""
 
-#: includes/privacy.php:1022
+#: includes/privacy.php:1035
 msgid "Correct result"
 msgstr ""
 
-#: includes/privacy.php:1023
+#: includes/privacy.php:1036
 msgid "Had wrong answer before success"
 msgstr ""
 
-#: includes/privacy.php:1024
+#: includes/privacy.php:1037
 msgid "Payload"
 msgstr ""
 
-#: includes/privacy.php:1067
+#: includes/privacy.php:1080
 msgid "Session key"
 msgstr ""
 
-#: includes/privacy.php:1069
+#: includes/privacy.php:1082
 msgid "Last used at (UTC)"
 msgstr ""
 
-#: includes/privacy.php:1070
+#: includes/privacy.php:1083
 msgid "Expires at (UTC)"
 msgstr ""
 
-#: includes/privacy.php:1071
+#: includes/privacy.php:1084
 msgid "Device identifier"
 msgstr ""
 
-#: includes/privacy.php:1072
+#: includes/privacy.php:1085
 msgid "Profile identifier"
 msgstr ""
 
-#: includes/privacy.php:1453
-#: includes/privacy.php:1464
+#: includes/privacy.php:1467
+#: includes/privacy.php:1478
 msgid "LL Tools personal data cannot be erased safely while transactional storage is unavailable."
 msgstr ""
 
-#: includes/privacy.php:1755
+#: includes/privacy.php:1769
 msgid "LL Tools Study Data"
 msgstr ""
 
-#: includes/privacy.php:1784
+#: includes/privacy.php:1798
 msgid "LL Tools data could not be fenced for erasure because another pass is active or storage is temporarily unavailable."
 msgstr ""
 
-#: includes/privacy.php:1795
+#: includes/privacy.php:1809
 msgid "LL Tools data erasure stopped and the account write fence could not be released. The fence will expire automatically."
 msgstr ""
 
-#: includes/privacy.php:1809
+#: includes/privacy.php:1823
 msgid "External grade delivery data is temporarily unavailable for erasure. No external system was changed."
 msgstr ""
 
-#: includes/privacy.php:1821
-#: includes/privacy.php:1849
+#: includes/privacy.php:1835
+#: includes/privacy.php:1863
 msgid "LL Tools data erasure paused, but its account write fence could not be renewed."
 msgstr ""
 
-#: includes/privacy.php:1827
+#: includes/privacy.php:1841
 msgid "Additional local external-grade records remain for the next bounded erasure pass. No external system was changed."
 msgstr ""
 
-#: includes/privacy.php:1837
+#: includes/privacy.php:1851
 msgid "Assignment attempt data is temporarily unavailable for erasure."
 msgstr ""
 
-#: includes/privacy.php:1855
+#: includes/privacy.php:1869
 msgid "Additional assignment attempt records remain for the next bounded erasure pass."
 msgstr ""
 
-#: includes/privacy.php:1865
+#: includes/privacy.php:1879
 msgid "Google Classroom connection data is temporarily unavailable for erasure. No request was sent to Google."
 msgstr ""
 
-#: includes/privacy.php:1880
-#: includes/privacy.php:1886
+#: includes/privacy.php:1894
+#: includes/privacy.php:1900
 msgid "The local Google Classroom connection could not be erased. No request was sent to Google."
 msgstr ""
 
-#: includes/privacy.php:1891
+#: includes/privacy.php:1905
 msgid "Local Google Classroom credentials were erased. Privacy erasure did not change grades or revoke access in Google; the user can separately revoke the application in their Google Account."
 msgstr ""
 
-#: includes/privacy.php:1903
+#: includes/privacy.php:1929
 msgid "LL Tools data was erased, but the account write fence could not be released."
 msgstr ""
 
-#: includes/privacy.php:2744
+#: includes/privacy.php:2785
 msgid "Suggested text for sites that use LL Tools learner progress features."
 msgstr ""
 
-#: includes/privacy.php:2746
+#: includes/privacy.php:2787
 msgid "Suggested Text:"
 msgstr ""
 
 #. translators: %d: retention days
-#: includes/privacy.php:2749
+#: includes/privacy.php:2790
 msgid "When you use LL Tools while signed in, this site stores your study progress, learning preferences, selected word set/categories, starred words, progress summaries for studied words, formative practice results, and detailed activity history such as quiz exposures and outcomes. If you use the offline sync feature, the site also stores limited offline-session device/profile identifiers needed to keep that sync working. When your teacher uses official LL Tools assignments, the site stores the frozen assignment revision, your attempts and responses, the server-calculated score, and the selected grade. If an LMS connector is configured and explicitly mapped, the site also stores hashed external identity/resource mappings and a delivery audit needed to send or correct that selected grade. A teacher who connects Google Classroom authorizes this site to retain an encrypted refresh credential and limited account details for that connection; access tokens are short lived and are not stored. This information is used to save your progress, personalize next-study recommendations, restore your study state across sessions, sync offline study activity back to your account, let site administrators and assigned teachers review learner work, and deliver an authorized official assignment grade to the configured learning system. Detailed activity log entries are kept for %d days. Summary progress and official assignment data remain until your account is deleted, the connection is removed, or the site erases your LL Tools personal data according to its education-record retention policy. Local privacy erasure does not silently alter or delete a grade already held by an external LMS. You can request an export or erasure of local data through the site’s privacy request tools."
 msgstr ""
 
@@ -29447,6 +29995,14 @@ msgstr ""
 #. translators: %s: available plugin version
 #: language-learner-tools.php:895
 msgid "Language Learner Tools update available: version %s."
+msgstr ""
+
+#: templates/assignment-player.php:6
+msgid "Vocabulary assignment"
+msgstr ""
+
+#: templates/assignment-player.php:9
+msgid "Enable JavaScript to answer this assignment."
 msgstr ""
 
 #: templates/audio-image-matcher-template.php:14

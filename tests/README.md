@@ -166,6 +166,10 @@ Configuration:
 - `LL_TOOLS_LOCAL_START_TIMEOUT_SECONDS` sets the bounded startup wait (120 seconds by default; 1–600 accepted).
 - `LL_TOOLS_LOCAL_APP_PATH` overrides the Windows Local executable path.
 - `LL_TOOLS_LOCAL_USER_DATA` overrides Local's user-data directory.
+- `LL_E2E_WP_ROOT` points WP-CLI-backed browser fixtures at an isolated WordPress
+  installation. Set it together with `LL_E2E_BASE_URL`; otherwise fixtures use
+  the WordPress root containing this plugin checkout. Do not mix one site's URL
+  with another site's fixture database.
 
 Playwright discovery, runner help, and the filesystem-only maintenance/startup
 contracts do not start Local. PHPUnit discovery still loads WordPress and needs
