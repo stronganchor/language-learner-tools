@@ -177,7 +177,12 @@ function ll_tools_public_static_cache_quarantine(string $owner_token = ''): bool
     }
 
     try {
-        return @file_put_contents($file, $owner_token, LOCK_EX) !== false;
+        $state = ll_tools_public_static_cache_read_quarantine_state($file);
+        if ($state === false) {
+            return false;
+        }
+        $state['failure'] = $owner_token;
+        return ll_tools_public_static_cache_write_quarantine_state($file, $state);
     } finally {
         ll_tools_public_static_cache_close_quarantine_lock($lock);
     }
@@ -189,6 +194,7 @@ function ll_tools_public_static_cache_is_quarantined(): bool {
     }
 
     $file = ll_tools_public_static_cache_quarantine_file();
+    if ($file !== '') { clearstatcache(true, $file); }
     return $file !== '' && is_file($file);
 }
 
@@ -204,8 +210,8 @@ function ll_tools_public_static_cache_clear_quarantine(string $owner_token): boo
 
     try {
         if (is_file($file)) {
-            $stored_owner = file_get_contents($file);
-            if (!is_string($stored_owner) || !hash_equals($owner_token, $stored_owner) || !@unlink($file)) {
+            $state = ll_tools_public_static_cache_read_quarantine_state($file);
+            if ($state === false || !empty($state['active']) || !hash_equals($owner_token, $state['failure']) || !@unlink($file)) {
                 return false;
             }
         }
@@ -220,6 +226,102 @@ function ll_tools_public_static_cache_clear_quarantine(string $owner_token): boo
         );
     }
     return true;
+}
+
+/** @return array{active:array<string,int>,failure:string}|false */
+function ll_tools_public_static_cache_read_quarantine_state(string $file) {
+    clearstatcache(true, $file);
+    if (!is_file($file)) {
+        return ['active' => [], 'failure' => ''];
+    }
+    $raw = @file_get_contents($file);
+    if (!is_string($raw)) {
+        return false;
+    }
+    $state = json_decode($raw, true);
+    if (is_array($state) && isset($state['active'], $state['failure']) && is_array($state['active']) && is_string($state['failure'])) {
+        return $state;
+    }
+    // Preserve markers written by the previous plugin version or a failed
+    // publisher. Only a successful full purge may recover this failure.
+    return ['active' => [], 'failure' => $raw !== '' ? $raw : 'unreadable-owner'];
+}
+
+function ll_tools_public_static_cache_write_quarantine_state(string $file, array $state): bool {
+    $value = empty($state['active']) ? (string) $state['failure'] : wp_json_encode($state);
+    if ($value === '') {
+        return !is_file($file) || @unlink($file);
+    }
+    return is_string($value) && @file_put_contents($file, $value, LOCK_EX) === strlen($value);
+}
+
+/**
+ * Register each overlapping purge without overwriting another worker's owner.
+ * Expired owners become a retained failure until a full recovery purge succeeds.
+ *
+ * @return array|false
+ */
+function ll_tools_public_static_cache_begin_purge(string $owner) {
+    $file = ll_tools_public_static_cache_quarantine_file();
+    $lock = ll_tools_public_static_cache_open_quarantine_lock();
+    if ($file === '' || !is_resource($lock)) {
+        return false;
+    }
+    try {
+        $state = ll_tools_public_static_cache_read_quarantine_state($file);
+        if ($state === false) {
+            return false;
+        }
+        foreach ($state['active'] as $token => $started_at) {
+            if ((int) $started_at <= time() - 10 * MINUTE_IN_SECONDS) {
+                unset($state['active'][$token]);
+                $state['failure'] = 'expired-' . $token;
+            }
+        }
+        if (empty($state['failure']) && !empty($GLOBALS['ll_tools_public_static_cache_quarantined'])) {
+            $state['failure'] = (string) ($GLOBALS['ll_tools_public_static_cache_quarantine_owner'] ?? 'failed-marker-write');
+        }
+        $previous_failure = $state['failure'];
+        $state['active'][$owner] = time();
+        return ll_tools_public_static_cache_write_quarantine_state($file, $state)
+            ? ['previous_failure' => $previous_failure]
+            : false;
+    } finally {
+        ll_tools_public_static_cache_close_quarantine_lock($lock);
+    }
+}
+
+/**
+ * Remove only this purge's owner. Full recovery may clear the failure observed
+ * at admission, but never a later publisher/purge failure or an active owner.
+ */
+function ll_tools_public_static_cache_finish_purge(string $owner, bool $success, ?string $recover_failure = null): bool {
+    $file = ll_tools_public_static_cache_quarantine_file();
+    $lock = ll_tools_public_static_cache_open_quarantine_lock();
+    if ($file === '' || !is_resource($lock)) {
+        return false;
+    }
+    try {
+        $state = ll_tools_public_static_cache_read_quarantine_state($file);
+        if ($state === false || !isset($state['active'][$owner])) {
+            return false;
+        }
+        unset($state['active'][$owner]);
+        if (!$success) {
+            $state['failure'] = $owner;
+        } elseif ($recover_failure !== null && hash_equals($recover_failure, $state['failure'])) {
+            $state['failure'] = '';
+        }
+        if (!ll_tools_public_static_cache_write_quarantine_state($file, $state)) {
+            return false;
+        }
+        if (empty($state['active']) && $state['failure'] === '') {
+            unset($GLOBALS['ll_tools_public_static_cache_quarantined'], $GLOBALS['ll_tools_public_static_cache_quarantine_owner']);
+        }
+        return true;
+    } finally {
+        ll_tools_public_static_cache_close_quarantine_lock($lock);
+    }
 }
 
 /**
@@ -613,7 +715,8 @@ function ll_tools_public_static_cache_request_identity(): ?array {
  * Determine whether the current request can use the anonymous public static cache.
  */
 function ll_tools_is_cacheable_public_static_request(): bool {
-    if (ll_tools_public_static_cache_is_quarantined()) {
+    if ((int) get_option(LL_TOOLS_PUBLIC_STATIC_CACHE_SCHEMA_OPTION, 0) < LL_TOOLS_PUBLIC_STATIC_CACHE_SCHEMA
+        || ll_tools_public_static_cache_is_quarantined()) {
         return false;
     }
 
@@ -1034,7 +1137,8 @@ function ll_tools_public_static_cache_publication_is_current(array $context): bo
     $lease_value = (string) ($context['lease_value'] ?? '');
     $generation = (string) ($context['generation'] ?? '');
 
-    return !ll_tools_public_static_cache_is_quarantined()
+    return (int) get_option(LL_TOOLS_PUBLIC_STATIC_CACHE_SCHEMA_OPTION, 0) >= LL_TOOLS_PUBLIC_STATIC_CACHE_SCHEMA
+        && !ll_tools_public_static_cache_is_quarantined()
         && $generation !== ''
         && hash_equals(
             $generation,
@@ -1764,17 +1868,27 @@ add_action('shutdown', 'll_tools_store_public_static_cache', 0);
 function ll_tools_purge_public_static_cache(array $criteria = []): int {
     $dir = ll_tools_public_static_cache_dir();
     $deleted = 0;
-    $was_quarantined = ll_tools_public_static_cache_is_quarantined();
-    $quarantine_owner = wp_generate_password(32, false, false);
-    $purge_failed = !ll_tools_public_static_cache_quarantine($quarantine_owner);
     $criteria = ll_tools_public_static_cache_normalize_purge_criteria($criteria);
+    $quarantine_owner = wp_generate_password(32, false, false);
+    $purge_state = ll_tools_public_static_cache_begin_purge($quarantine_owner);
+    if ($purge_state === false) {
+        // A broken marker must not leave old generated HTML on disk. Continue
+        // deletion and the database generation fence, retaining failure state.
+        ll_tools_public_static_cache_quarantine($quarantine_owner);
+        ll_tools_schedule_schema_maintenance('public_static_cache', 30);
+    }
+    $purge_failed = $purge_state === false;
+    // Retain a recovery transport if this worker is killed before completion.
+    ll_tools_schedule_schema_maintenance('public_static_cache', 10 * MINUTE_IN_SECONDS);
     if (ll_tools_public_static_cache_rotate_generation($criteria) === '') {
         $purge_failed = true;
     }
     ll_tools_public_static_cache_delete_rebuild_locks();
 
     if ($dir !== '' && is_dir($dir)) {
-        foreach (glob(trailingslashit($dir) . 'public-*.html') ?: [] as $file) {
+        $files = ll_tools_static_cache_generated_files(trailingslashit($dir) . 'public-*.html');
+        $purge_failed = $purge_failed || $files === false;
+        foreach ($files ?: [] as $file) {
             if (!is_file($file)) {
                 continue;
             }
@@ -1799,7 +1913,9 @@ function ll_tools_purge_public_static_cache(array $criteria = []): int {
         }
 
         if (empty($criteria)) {
-            foreach (glob(trailingslashit($dir) . 'public-*.meta.json') ?: [] as $meta_file) {
+            $files = ll_tools_static_cache_generated_files(trailingslashit($dir) . 'public-*.meta.json');
+            $purge_failed = $purge_failed || $files === false;
+            foreach ($files ?: [] as $meta_file) {
                 if (is_file($meta_file)) {
                     if (!@unlink($meta_file)) {
                         $purge_failed = true;
@@ -1808,7 +1924,9 @@ function ll_tools_purge_public_static_cache(array $criteria = []): int {
             }
         }
 
-        foreach (glob(trailingslashit($dir) . 'public-*.html.tmp-*') ?: [] as $tmp_file) {
+        $files = ll_tools_static_cache_generated_files(trailingslashit($dir) . 'public-*.html.tmp-*');
+        $purge_failed = $purge_failed || $files === false;
+        foreach ($files ?: [] as $tmp_file) {
             if (is_file($tmp_file)) {
                 if (@unlink($tmp_file)) {
                     $deleted++;
@@ -1818,7 +1936,9 @@ function ll_tools_purge_public_static_cache(array $criteria = []): int {
             }
         }
 
-        foreach (glob(trailingslashit($dir) . 'public-*.meta.json.tmp-*') ?: [] as $tmp_file) {
+        $files = ll_tools_static_cache_generated_files(trailingslashit($dir) . 'public-*.meta.json.tmp-*');
+        $purge_failed = $purge_failed || $files === false;
+        foreach ($files ?: [] as $tmp_file) {
             if (is_file($tmp_file)) {
                 if (!@unlink($tmp_file)) {
                     $purge_failed = true;
@@ -1827,19 +1947,16 @@ function ll_tools_purge_public_static_cache(array $criteria = []): int {
         }
     }
 
-    $can_clear_quarantine = !$was_quarantined || empty($criteria);
-    if (
-        !$purge_failed
-        && $can_clear_quarantine
-        && !ll_tools_public_static_cache_clear_quarantine($quarantine_owner)
-    ) {
+    if ($purge_state !== false && !ll_tools_public_static_cache_finish_purge(
+        $quarantine_owner,
+        !$purge_failed,
+        empty($criteria) ? $purge_state['previous_failure'] : null
+    )) {
         $purge_failed = true;
+        ll_tools_public_static_cache_quarantine($quarantine_owner);
     }
-    if ($purge_failed || !$can_clear_quarantine) {
-        $quarantine_file = ll_tools_public_static_cache_quarantine_file();
-        if ($quarantine_file === '' || !is_file($quarantine_file)) {
-            ll_tools_public_static_cache_quarantine($quarantine_owner);
-        }
+    if ($purge_failed || ll_tools_public_static_cache_is_quarantined()) {
+        ll_tools_schedule_schema_maintenance('public_static_cache', 5 * MINUTE_IN_SECONDS);
         ll_tools_public_static_cache_debug_log('purge_quarantined', [
             'criteria' => empty($criteria) ? 'all' : md5((string) wp_json_encode($criteria)),
         ]);
@@ -1859,24 +1976,29 @@ function ll_tools_purge_public_static_cache(array $criteria = []): int {
  * Remove only generated public-cache files from older security schemas.
  */
 function ll_tools_public_static_cache_maybe_purge_legacy_schema(): void {
-    $installed_schema = (int) get_option(LL_TOOLS_PUBLIC_STATIC_CACHE_SCHEMA_OPTION, 0);
-    if ($installed_schema >= LL_TOOLS_PUBLIC_STATIC_CACHE_SCHEMA) {
-        return;
-    }
-
-    ll_tools_purge_public_static_cache();
-    $dir = ll_tools_public_static_cache_dir();
-    $remaining = $dir !== '' && is_dir($dir)
-        ? array_merge(
-            glob(trailingslashit($dir) . 'public-*.html') ?: [],
-            glob(trailingslashit($dir) . 'public-*.html.tmp-*') ?: [],
-            glob(trailingslashit($dir) . 'public-*.meta.json') ?: [],
-            glob(trailingslashit($dir) . 'public-*.meta.json.tmp-*') ?: []
-        )
-        : [];
-    if (empty($remaining) && !ll_tools_public_static_cache_is_quarantined()) {
+    ll_tools_maybe_run_static_cache_maintenance('public_static_cache', static function (): bool {
+        return (int) get_option(LL_TOOLS_PUBLIC_STATIC_CACHE_SCHEMA_OPTION, 0) >= LL_TOOLS_PUBLIC_STATIC_CACHE_SCHEMA
+            && !ll_tools_public_static_cache_is_quarantined();
+    }, static function (): bool {
+        ll_tools_purge_public_static_cache();
+        $dir = ll_tools_public_static_cache_dir();
+        if ($dir === '') {
+            return false;
+        }
+        if (is_dir($dir)) {
+            foreach (['public-*.html', 'public-*.html.tmp-*', 'public-*.meta.json', 'public-*.meta.json.tmp-*'] as $pattern) {
+                $remaining = ll_tools_static_cache_generated_files(trailingslashit($dir) . $pattern);
+                if ($remaining === false || !empty($remaining)) {
+                    return false;
+                }
+            }
+        }
+        if (ll_tools_public_static_cache_is_quarantined()) {
+            return false;
+        }
         update_option(LL_TOOLS_PUBLIC_STATIC_CACHE_SCHEMA_OPTION, LL_TOOLS_PUBLIC_STATIC_CACHE_SCHEMA, false);
-    }
+        return (int) get_option(LL_TOOLS_PUBLIC_STATIC_CACHE_SCHEMA_OPTION, 0) >= LL_TOOLS_PUBLIC_STATIC_CACHE_SCHEMA;
+    });
 }
 add_action('init', 'll_tools_public_static_cache_maybe_purge_legacy_schema', 2);
 

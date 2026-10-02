@@ -169,6 +169,7 @@ module list.
 - includes/lib/php-compat.php
 - includes/lib/learner-registration-settings.php
 - includes/lib/schema-maintenance.php
+- includes/lib/static-cache-maintenance.php
 - includes/lib/expired-transient-maintenance.php
 - includes/lib/public-ajax-resource-guards.php
 - includes/lib/wordset-category-search-index.php
@@ -1011,6 +1012,30 @@ Use one shared status palette across user-facing plugin UI so progress states al
 - Confirm no old conflicting shades were reintroduced.
 - Confirm new user-facing status colors map to the canonical palette above.
 - Confirm related surfaces (wordset page, flashcard modes, self-check) stay aligned.
+
+# Static-cache cleanup and lesson mutation recovery
+
+- `includes/lib/static-cache-maintenance.php` admits dictionary/public legacy-file
+  cleanup through the shared schema-maintenance whitelist and exact-owner lease.
+  Anonymous initialization only checks markers and coalesces a cron event; it
+  never enumerates cache files or calls an edge provider. Failed/interrupted
+  maintenance attempts retain a five-minute durable cooldown. An unavailable
+  directory enumeration cannot acknowledge a migration. Reads/publication stay
+  disabled until the security schema is current.
+- Public-cache quarantine tracks all active purge owners under its stable file
+  lock, separately from retained failure ownership. Completion removes only its
+  own token; a full successful purge may clear only the failure observed when
+  it began. Later failures and other active workers remain quarantined. Owners
+  abandoned for ten minutes become a retained failure recovered by the scheduled
+  full purge. `PublicStaticCacheTest` covers overlapping completion/failure,
+  old owners, recovery, anonymous admission, and enumeration/backoff failures.
+- A completed copy in a paged vocab lesson restarts the bounded order loader
+  with replacement semantics, retains the copied card while its new page is
+  prepared, preserves its focus, and deduplicates its eventual canonical page.
+  Generation checks fence aborted or late prior responses and timers. A typed
+  invalid cursor receives one automatic restart; an unrelated transport failure
+  keeps its cursor for explicit Retry. Canonical browser coverage lives in
+  `vocab-lesson-deferred-grid.spec.js` plus `word-copy-popup.spec.js`.
 
 # Common tasks (file pointers)
 - Register/adjust CPTs or taxonomies: `includes/post-types/*.php`, `includes/taxonomies/*.php`.

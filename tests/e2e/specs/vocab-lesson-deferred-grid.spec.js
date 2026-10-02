@@ -409,6 +409,81 @@ test('hidden lesson feedback stays invisible when theme overrides hidden styling
   expect(await feedback.evaluate((node) => window.getComputedStyle(node).display)).toBe('none');
 });
 
+async function prepareControlledPagedLesson(page) {
+  await page.goto('about:blank');
+  await page.setContent(buildDeferredLessonMarkup().replace('data-ll-vocab-lesson-grid-shell', 'data-ll-vocab-lesson-grid-shell data-ll-grid-paged="1"'));
+  await page.addScriptTag({ content: jquerySource });
+  await page.evaluate(() => {
+    window.llToolsVocabLessonData = { ajaxUrl: '/ajax', i18n: { retry: 'Retry' } };
+    window.lessonRequests = [];
+    jQuery.ajax = options => {
+      const deferred = jQuery.Deferred();
+      // Deliberately non-abortable, to verify stale-response fencing too.
+      window.lessonRequests.push({ cursor: options.data.cursor, deferred });
+      return deferred.promise();
+    };
+  });
+  await page.addScriptTag({ content: vocabLessonScriptSource });
+  await expect.poll(() => page.evaluate(() => window.lessonRequests.length)).toBe(1);
+}
+
+async function settleLessonPage(page, index, ids, nextCursor = '') {
+  await page.evaluate(({ index, ids, nextCursor }) => {
+    window.lessonRequests[index].deferred.resolve({ success: true, data: {
+      paged: true, has_more: !!nextCursor, next_cursor: nextCursor,
+      loaded: ids.length, total: 4, scanned: 4,
+      html: '<div data-ll-word-grid data-ll-wordset-id="1" data-ll-category-id="99">'
+        + ids.map(id => `<article class="word-item" data-word-id="${id}">${id}</article>`).join('') + '</div>'
+    } });
+  }, { index, ids, nextCursor });
+}
+
+test('copy restarts partial lesson order, fences old responses, and preserves copy focus without duplicates', async ({ page }) => {
+  await prepareControlledPagedLesson(page);
+  await settleLessonPage(page, 0, [1, 2], 'old-cursor');
+  await expect.poll(() => page.evaluate(() => window.lessonRequests.length)).toBe(2);
+  await page.evaluate(() => {
+    const card = document.createElement('article');
+    card.className = 'word-item'; card.dataset.wordId = '4'; card.tabIndex = -1; card.textContent = 'New copy';
+    document.querySelector('[data-ll-word-grid]').appendChild(card);
+    card.focus();
+    document.dispatchEvent(new CustomEvent('ll-word-copy-completed', { bubbles: true, detail: {
+      new_word_id: 4, wordsetId: 1, category_ids: [99]
+    } }));
+  });
+  await expect.poll(() => page.evaluate(() => window.lessonRequests.length)).toBe(3);
+  await settleLessonPage(page, 1, [999]);
+  await expect(page.locator('[data-word-id="999"]')).toHaveCount(0);
+  await settleLessonPage(page, 2, [1, 2], 'new-cursor');
+  await expect(page.locator('[data-word-id="4"]')).toBeFocused();
+  await expect(page.locator('[data-word-id]')).toHaveCount(3);
+  await expect.poll(() => page.evaluate(() => window.lessonRequests.length)).toBe(4);
+  await settleLessonPage(page, 3, [3, 4]);
+  await expect(page.locator('[data-word-id]')).toHaveCount(4);
+  await expect(page.locator('[data-word-id="4"]')).toHaveCount(1);
+  await expect(page.locator('[data-word-id="4"]')).toBeFocused();
+  expect(await page.evaluate(() => window.lessonRequests.map(request => request.cursor))).toEqual(['', 'old-cursor', '', 'new-cursor']);
+});
+
+test('invalid cursor restarts once with replacement while transport retry retains its cursor', async ({ page }) => {
+  await prepareControlledPagedLesson(page);
+  await settleLessonPage(page, 0, [1, 2], 'old-cursor');
+  await expect.poll(() => page.evaluate(() => window.lessonRequests.length)).toBe(2);
+  await page.evaluate(() => { window.lessonRequests[1].deferred.reject({ responseJSON: { data: { code: 'invalid_cursor' } } }); });
+  await expect.poll(() => page.evaluate(() => window.lessonRequests.length)).toBe(3);
+  await settleLessonPage(page, 2, [1, 2], 'new-cursor');
+  await expect(page.locator('[data-word-id]')).toHaveCount(2);
+  await expect.poll(() => page.evaluate(() => window.lessonRequests.length)).toBe(4);
+  await page.evaluate(() => { window.lessonRequests[3].deferred.reject({ status: 503 }); });
+  await expect(page.locator('[data-ll-vocab-lesson-grid-retry]')).toBeVisible();
+  await expect(page.locator('[data-word-id]')).toHaveCount(2);
+  await page.locator('[data-ll-vocab-lesson-grid-retry]').click();
+  await expect.poll(() => page.evaluate(() => window.lessonRequests.length)).toBe(5);
+  await settleLessonPage(page, 4, [3, 4]);
+  await expect(page.locator('[data-word-id]')).toHaveCount(4);
+  expect(await page.evaluate(() => window.lessonRequests.map(request => request.cursor))).toEqual(['', 'old-cursor', '', 'new-cursor', 'new-cursor']);
+});
+
 test('prompt-card loading shell renders full-row skeleton cards', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.goto('about:blank');

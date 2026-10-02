@@ -1,6 +1,6 @@
 # Maintenance Backlog
 
-Updated September 25, 2026 during the authorized 6.7.43 maintenance and 6.7.44 recorder-performance passes.
+Updated October 2, 2026 during the authorized maintenance follow-up.
 The original September 18 evidence and line numbers below refer to
 `ed4405812767784e1d4e3eb688fc9ebbf632a41b` (6.7.39); current status notes identify
 the implemented follow-up without erasing that history. This maintenance pass
@@ -9,9 +9,69 @@ does not deploy the changes or authorize provider/live-site testing.
 This file is for worthwhile work that should be planned deliberately instead of
 being folded into a small opportunistic fix.
 
+## October 2 maintenance follow-up (6.7.45)
+
+- **Implemented:** overlapping public-cache purges track independent active
+  owners and retained failures; targeted success cannot clear an unrelated
+  failure, and successful full recovery cannot clear a newer failure. Abandoned
+  owners have scheduled recovery. Filesystem admission failure still rotates
+  the database generation to fence prior captures and cached keys, and still
+  removes old generated HTML even when the marker itself is unwritable.
+- **Implemented:** legacy static-cache cleanup is admitted through the shared
+  maintenance lease, runs outside anonymous requests, and retains a durable
+  five-minute retry cooldown. Failed file enumeration leaves schemas pending;
+  stale schemas cannot read or publish static HTML. Source/POT and public
+  manifest references were refreshed without changing translation keys.
+- **Implemented:** paged lesson copying/invalid-cursor recovery (details below)
+  and the offline builder's dev-only `brace-expansion` update to 5.0.12. Builder
+  tests pass 19/19 and its npm advisory check is clean.
+- **Audio Processor investigation:** the read-only Local profile found 15,142
+  published recordings but no pending queue, so its 1–36 ms samples are not
+  large-queue evidence. An isolated transactional profile then checked 200
+  pending rows (3.164–4.219 ms) and 2,000 pending rows over 400 words
+  (52.039–58.560 ms), with exact 400 queue / 1,600 duplicate totals. These are
+  warm-data PHP helper samples on Local, not admin-page or production timings.
+  Keep the exact counts; these results do not justify a cache/materialization
+  redesign. `AudioProcessorCountPerformanceTest` and the read-only CLI profile
+  are repeatable diagnostics. Larger queues, varied recording types/access
+  scopes, production database plans, and whole-page TTFB remain follow-up.
+- **Still open:** `AUDIT-2026-09-18-08`; no recorder algorithm or timing budget
+  changed in this pass. Actual authenticated HTTP phase attribution is still
+  needed before changing the serial batch protocol. Native Turkish tone review
+  also remains a human review queue; no uncertain translations were rewritten.
+- **Local blocker resolved:** restarted an isolated Local background process
+  with no children, site services, or listeners, then used the documented
+  matching-site startup helper. The initial full PHP run executed 2,732 tests
+  and exposed only four stale POT reference sets; final verification is recorded
+  separately rather than treating that run as green.
+
+### Follow-up verification
+
+- Full PHPUnit: 2,736 tests / 66,434 assertions / 10 expected skips passed.
+  After that run, the final marker-write error-path correction passed the
+  focused public-cache suite (56 tests / 336 assertions), and refreshed public
+  translation references passed 32 tests / 13,994 assertions. The full suite
+  was not rerun after that narrowly covered correction.
+- Focused browser suites: 61 distinct tests passed (documentation contracts,
+  deferred lesson grid, and copy popup); final deferred-grid and documentation
+  reruns also passed 10/10 and 34/34. This is not a full browser-matrix run.
+- Offline builder: 19/19 tests and zero reported npm advisories. The opt-in
+  Audio Processor profile passed 1 test / 6,018 assertions. All eight context
+  manifests and source/POT freshness passed; Turkish/German catalogs retain
+  6,396 keys each with compiled-catalog parity, and the public manifest retains
+  800 keys. No translation identities changed.
+- No named live site, deployment, edge-provider acceptance, or whole-page
+  production timing was tested. Historical live-runbook notes are not current
+  live verification. Local services remain running for follow-up work.
+
 ## September 30 copy workflow follow-up
 
-- **Bounded lesson continuation after a content mutation:** Copying a word rotates
+- **October 2 status: implemented.** A completed scoped copy restarts the bounded
+  loader with replacement semantics, preserves the copied card and focus,
+  and ignores old in-flight responses. Invalid cursors also get one bounded
+  restart; unrelated transport retries retain their cursor. Browser guards
+  verify continuation without duplicate cards and copy focus preservation.
+- **Original evidence — bounded lesson continuation after a content mutation:** Copying a word rotates
   the wordset/quiz epochs used by the lesson paging cursor. An already loaded
   partial category keeps its old cursor, and `js/vocab-lesson-page.js` currently
   reports `invalid_cursor` without replacing that cursor on Retry. Add a bounded
@@ -396,7 +456,7 @@ The local Google Classroom and authorized-private-wordset browser gaps are now
 closed with controlled fixtures; live provider/site assertions remain outside
 the normal regression suite.
 
-### Current verification inventory (September 25 implementation)
+### Historical verification inventory (September 25 implementation)
 
 - The full PHP run executed 2,695 tests / 65,689 assertions / nine expected
   skips and exposed three dictionary regressions. Their SQL/password fixes

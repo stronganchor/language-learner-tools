@@ -8,6 +8,15 @@ each subsystem and the tooling/native boundaries; one suggested pack is not a
 complete repository inventory. Review procedure and local findings storage are
 documented in [AGENT_WORKFLOW.md](AGENT_WORKFLOW.md).
 
+Static-cache quarantine/purge overlap and legacy-schema cleanup belong to
+`dictionary-i18n-cache`: start with `static-cache-maintenance.php`,
+`ll_tools_public_static_cache_begin_purge`, `ll_tools_public_static_cache_finish_purge`,
+and `PublicStaticCacheTest`. Public initialization only schedules cleanup;
+maintenance retries retain a durable cooldown and exact-owner admission.
+For a copied word invalidating a large lesson cursor, use `wordset-vocab-manager`
+and `vocab-lesson-deferred-grid.spec.js`: restart with bounded replacement,
+retain the copied card/focus, fence old responses, and avoid duplicate cards.
+
 ```bash
 php scripts/build-ai-context-pack.php --suggest-pack "short task description"
 php scripts/build-ai-context-pack.php --activity-report --output -

@@ -86,6 +86,13 @@ configuration and is not a setup step for this checkout.
 
 ## 4) Run tests
 
+Static-cache maintenance and overlap guards are in
+`Integration/PublicStaticCacheTest.php`. Lesson copy/pagination restart and
+focus guards are in `specs/vocab-lesson-deferred-grid.spec.js` and
+`specs/word-copy-popup.spec.js`; these browser fixtures use `about:blank` and
+mocked transport, so they can run directly through the installed Playwright CLI.
+Use the normal PHPUnit wrapper for the cache guards, which require WordPress.
+
 ### Documentation and source review without WordPress
 
 From the plugin root, with local dependencies already installed:

@@ -765,6 +765,9 @@ add_action('template_redirect', 'll_tools_dictionary_static_cache_maybe_redirect
  * Determine whether the current request can use the anonymous dictionary static cache.
  */
 function ll_tools_is_cacheable_dictionary_request(): bool {
+    if ((int) get_option(LL_TOOLS_DICTIONARY_STATIC_CACHE_SCHEMA_OPTION, 0) < LL_TOOLS_DICTIONARY_STATIC_CACHE_SCHEMA) {
+        return false;
+    }
     if (!ll_tools_dictionary_static_cache_has_safe_request_shape()) {
         return false;
     }
@@ -1160,6 +1163,9 @@ function ll_tools_store_dictionary_static_cache(): void {
     $release_lock = !empty($context['lock_acquired']) && !empty($context['key']);
 
     try {
+        if ((int) get_option(LL_TOOLS_DICTIONARY_STATIC_CACHE_SCHEMA_OPTION, 0) < LL_TOOLS_DICTIONARY_STATIC_CACHE_SCHEMA) {
+            return;
+        }
         $status = ll_tools_dictionary_static_cache_current_status_code();
         if ($status < 200 || $status >= 300) {
             ll_tools_dictionary_static_cache_debug_log('skip_status', [
@@ -1269,7 +1275,7 @@ function ll_tools_purge_dictionary_static_cache(): int {
         ];
 
         foreach ($patterns as $pattern) {
-            foreach (glob($pattern) ?: [] as $file) {
+            foreach (ll_tools_static_cache_generated_files($pattern) ?: [] as $file) {
                 if (is_file($file) && @unlink($file)) {
                     $deleted++;
                 }
@@ -1293,22 +1299,25 @@ function ll_tools_purge_dictionary_static_cache(): int {
  * Remove only generated dictionary-cache files from older security schemas.
  */
 function ll_tools_dictionary_static_cache_maybe_purge_legacy_schema(): void {
-    $installed_schema = (int) get_option(LL_TOOLS_DICTIONARY_STATIC_CACHE_SCHEMA_OPTION, 0);
-    if ($installed_schema >= LL_TOOLS_DICTIONARY_STATIC_CACHE_SCHEMA) {
-        return;
-    }
-
-    ll_tools_purge_dictionary_static_cache();
-    $dir = ll_tools_dictionary_static_cache_dir();
-    $remaining = $dir !== '' && is_dir($dir)
-        ? array_merge(
-            glob(trailingslashit($dir) . 'dictionary-*.html') ?: [],
-            glob(trailingslashit($dir) . 'dictionary-*.html.tmp-*') ?: []
-        )
-        : [];
-    if (empty($remaining)) {
+    ll_tools_maybe_run_static_cache_maintenance('dictionary_static_cache', static function (): bool {
+        return (int) get_option(LL_TOOLS_DICTIONARY_STATIC_CACHE_SCHEMA_OPTION, 0) >= LL_TOOLS_DICTIONARY_STATIC_CACHE_SCHEMA;
+    }, static function (): bool {
+        ll_tools_purge_dictionary_static_cache();
+        $dir = ll_tools_dictionary_static_cache_dir();
+        if ($dir === '') {
+            return false;
+        }
+        if (is_dir($dir)) {
+            foreach (['dictionary-*.html', 'dictionary-*.html.tmp-*'] as $pattern) {
+                $remaining = ll_tools_static_cache_generated_files(trailingslashit($dir) . $pattern);
+                if ($remaining === false || !empty($remaining)) {
+                    return false;
+                }
+            }
+        }
         update_option(LL_TOOLS_DICTIONARY_STATIC_CACHE_SCHEMA_OPTION, LL_TOOLS_DICTIONARY_STATIC_CACHE_SCHEMA, false);
-    }
+        return (int) get_option(LL_TOOLS_DICTIONARY_STATIC_CACHE_SCHEMA_OPTION, 0) >= LL_TOOLS_DICTIONARY_STATIC_CACHE_SCHEMA;
+    });
 }
 add_action('init', 'll_tools_dictionary_static_cache_maybe_purge_legacy_schema', 2);
 

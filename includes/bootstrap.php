@@ -6,6 +6,7 @@ require_once(__DIR__ . '/assets.php');
 require_once __DIR__ . '/lib/php-compat.php';
 require_once __DIR__ . '/lib/learner-registration-settings.php';
 require_once __DIR__ . '/lib/schema-maintenance.php';
+require_once __DIR__ . '/lib/static-cache-maintenance.php';
 require_once __DIR__ . '/lib/expired-transient-maintenance.php';
 require_once __DIR__ . '/lib/public-ajax-resource-guards.php';
 require_once __DIR__ . '/lib/wordset-category-search-index.php';

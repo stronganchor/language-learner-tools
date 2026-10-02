@@ -3,6 +3,27 @@
 The benchmark suite is opt-in because performance timings are noisier and slower
 than normal regression tests.
 
+For a read-only Audio Processor count profile against existing Local data, run
+`wp eval-file tests/performance/profile-audio-processor-counts.php --user=<staff-user>`
+from the matching WordPress installation (use the absolute script path when
+outside the plugin directory). It prints three helper timings, scoped exact
+counts, recording-row totals, and both SQL `EXPLAIN` plans. It requires a
+`.local`/`.test` home host, this exact checkout, and `view_ll_tools`. The script
+does not create queue data: an empty/small processing queue cannot establish
+large-queue performance, even when many published recordings exist.
+
+For a synthetic pending-queue comparison in the isolated PHPUnit database:
+
+```bash
+LL_TOOLS_AUDIO_PROCESSOR_PROFILE=1 tests/bin/run-tests.sh --filter AudioProcessorCountPerformanceTest
+```
+
+This opt-in test profiles 200 and 2,000 pending recordings over 400 words,
+checks exact queue/duplicate totals, and saves timings/plans under ignored
+`test-results/audio-processor-counts/profile.json`. It uses transactional SQL
+fixtures and performs no recording upload, processing, or main-site data edit.
+Do not run it concurrently with Local-backed regression/browser timings.
+
 Run from the plugin root:
 
 ```bash

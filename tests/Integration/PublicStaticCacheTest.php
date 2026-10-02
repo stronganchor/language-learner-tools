@@ -538,6 +538,186 @@ final class PublicStaticCacheTest extends LL_Tools_TestCase
         $this->assertFalse(ll_tools_public_static_cache_is_quarantined());
     }
 
+    public function test_overlapping_targeted_purges_release_only_their_own_active_markers(): void
+    {
+        $this->assertIsArray(ll_tools_public_static_cache_begin_purge('overlap-a'));
+        $this->assertIsArray(ll_tools_public_static_cache_begin_purge('overlap-b'));
+        $this->assertTrue(ll_tools_public_static_cache_finish_purge('overlap-a', true));
+        $this->assertTrue(ll_tools_public_static_cache_is_quarantined());
+        $this->assertFalse(ll_tools_public_static_cache_finish_purge('overlap-a', true));
+        $this->assertTrue(ll_tools_public_static_cache_finish_purge('overlap-b', true));
+        $this->assertFalse(ll_tools_public_static_cache_is_quarantined());
+    }
+
+    public function test_targeted_purge_can_overlap_another_targeted_purge_without_retained_quarantine(): void
+    {
+        $overlap = false;
+        $trigger = static function ($files, string $pattern) use (&$overlap) {
+            if (!$overlap && str_ends_with($pattern, 'public-*.html')) {
+                $overlap = true;
+                ll_tools_purge_public_static_cache(['wordset_ids' => [999998]]);
+            }
+            return $files;
+        };
+        add_filter('ll_tools_static_cache_generated_files', $trigger, 10, 2);
+        try {
+            ll_tools_purge_public_static_cache(['wordset_ids' => [999999]]);
+            $this->assertTrue($overlap);
+            $this->assertFalse(ll_tools_public_static_cache_is_quarantined());
+        } finally {
+            remove_filter('ll_tools_static_cache_generated_files', $trigger);
+        }
+    }
+
+    public function test_marker_admission_failure_still_rotates_the_requested_generation(): void
+    {
+        $identity = ['type' => 'wordset_main', 'id' => 17, 'wordset_id' => 17, 'path' => '/scope-17'];
+        $before = ll_tools_public_static_cache_generation($identity);
+        $fail_directory = static fn() => ['error' => 'unavailable'];
+        add_filter('upload_dir', $fail_directory);
+        try {
+            $this->assertSame(0, ll_tools_purge_public_static_cache(['wordset_ids' => [17]]));
+            $this->assertNotSame($before, ll_tools_public_static_cache_generation($identity));
+        } finally {
+            remove_filter('upload_dir', $fail_directory);
+        }
+        ll_tools_purge_public_static_cache();
+        $this->assertFalse(ll_tools_public_static_cache_is_quarantined());
+    }
+
+    public function test_marker_write_failure_does_not_prevent_deleting_old_generated_html(): void
+    {
+        $file = trailingslashit(ll_tools_public_static_cache_dir()) . 'public-marker-write-failure.html';
+        $marker = ll_tools_public_static_cache_quarantine_file();
+        file_put_contents($file, '<!doctype html><html><body>old content</body></html>');
+        $this->assertTrue(wp_mkdir_p($marker));
+        try {
+            $this->assertSame(1, ll_tools_purge_public_static_cache());
+            $this->assertFileDoesNotExist($file);
+            $this->assertTrue(ll_tools_public_static_cache_is_quarantined());
+        } finally {
+            rmdir($marker);
+            ll_tools_purge_public_static_cache();
+        }
+        $this->assertFalse(ll_tools_public_static_cache_is_quarantined());
+    }
+
+    public function test_overlapping_purge_failure_survives_successful_targeted_completion(): void
+    {
+        ll_tools_public_static_cache_begin_purge('failed-a');
+        ll_tools_public_static_cache_begin_purge('successful-b');
+        $this->assertTrue(ll_tools_public_static_cache_finish_purge('failed-a', false));
+        $this->assertTrue(ll_tools_public_static_cache_finish_purge('successful-b', true));
+        $this->assertTrue(ll_tools_public_static_cache_is_quarantined());
+        ll_tools_purge_public_static_cache();
+        $this->assertFalse(ll_tools_public_static_cache_is_quarantined());
+    }
+
+    public function test_full_purge_cannot_clear_a_later_failure_or_an_active_purge(): void
+    {
+        ll_tools_public_static_cache_quarantine('original-failure');
+        $full = ll_tools_public_static_cache_begin_purge('full-a');
+        ll_tools_public_static_cache_begin_purge('targeted-b');
+        ll_tools_public_static_cache_quarantine('later-publisher-failure');
+        $this->assertTrue(ll_tools_public_static_cache_finish_purge('full-a', true, $full['previous_failure']));
+        $this->assertTrue(ll_tools_public_static_cache_is_quarantined());
+        $this->assertFalse(ll_tools_public_static_cache_clear_quarantine('later-publisher-failure'));
+        $this->assertTrue(ll_tools_public_static_cache_finish_purge('targeted-b', true));
+        $this->assertSame('later-publisher-failure', file_get_contents(ll_tools_public_static_cache_quarantine_file()));
+        ll_tools_purge_public_static_cache();
+        $this->assertFalse(ll_tools_public_static_cache_is_quarantined());
+    }
+
+    public function test_interrupted_purge_is_recovered_only_by_a_full_purge(): void
+    {
+        $file = ll_tools_public_static_cache_quarantine_file();
+        file_put_contents($file, wp_json_encode(['active' => ['interrupted' => time() - 11 * MINUTE_IN_SECONDS], 'failure' => '']));
+        ll_tools_purge_public_static_cache(['wordset_ids' => [999999]]);
+        $this->assertTrue(ll_tools_public_static_cache_is_quarantined());
+        ll_tools_purge_public_static_cache();
+        $this->assertFalse(ll_tools_public_static_cache_is_quarantined());
+    }
+
+    public function test_public_schema_requests_only_schedule_cleanup_and_do_not_scan_or_call_providers(): void
+    {
+        $deny = static fn() => false;
+        $scans = 0;
+        $count = static function ($files) use (&$scans) { $scans++; return $files; };
+        $old_dictionary = get_option(LL_TOOLS_DICTIONARY_STATIC_CACHE_SCHEMA_OPTION);
+        $old_public = get_option(LL_TOOLS_PUBLIC_STATIC_CACHE_SCHEMA_OPTION);
+        update_option(LL_TOOLS_DICTIONARY_STATIC_CACHE_SCHEMA_OPTION, 0, false);
+        update_option(LL_TOOLS_PUBLIC_STATIC_CACHE_SCHEMA_OPTION, 0, false);
+        delete_option('ll_tools_dictionary_static_cache_retry_after');
+        delete_option('ll_tools_public_static_cache_retry_after');
+        add_filter('ll_tools_schema_maintenance_upgrade_is_allowed', $deny);
+        add_filter('ll_tools_static_cache_generated_files', $count);
+        try {
+            for ($i = 0; $i < 3; $i++) {
+                ll_tools_dictionary_static_cache_maybe_purge_legacy_schema();
+                ll_tools_public_static_cache_maybe_purge_legacy_schema();
+            }
+            $this->assertSame(0, $scans);
+            $this->assertFalse(ll_tools_is_cacheable_dictionary_request());
+            $this->assertFalse(ll_tools_is_cacheable_public_static_request());
+            $this->assertNotFalse(wp_next_scheduled(LL_TOOLS_SCHEMA_MAINTENANCE_HOOK, ['dictionary_static_cache']));
+            $this->assertNotFalse(wp_next_scheduled(LL_TOOLS_SCHEMA_MAINTENANCE_HOOK, ['public_static_cache']));
+        } finally {
+            remove_filter('ll_tools_schema_maintenance_upgrade_is_allowed', $deny);
+            remove_filter('ll_tools_static_cache_generated_files', $count);
+            update_option(LL_TOOLS_DICTIONARY_STATIC_CACHE_SCHEMA_OPTION, $old_dictionary, false);
+            update_option(LL_TOOLS_PUBLIC_STATIC_CACHE_SCHEMA_OPTION, $old_public, false);
+        }
+    }
+
+    public function test_failed_enumeration_preserves_schema_and_backs_off_across_requests(): void
+    {
+        $old = get_option(LL_TOOLS_DICTIONARY_STATIC_CACHE_SCHEMA_OPTION);
+        $scans = 0;
+        $fail = static function () use (&$scans) { $scans++; return false; };
+        update_option(LL_TOOLS_DICTIONARY_STATIC_CACHE_SCHEMA_OPTION, 0, false);
+        delete_option('ll_tools_dictionary_static_cache_retry_after');
+        wp_mkdir_p(ll_tools_dictionary_static_cache_dir());
+        add_filter('ll_tools_static_cache_generated_files', $fail);
+        try {
+            ll_tools_dictionary_static_cache_maybe_purge_legacy_schema();
+            $this->assertSame(0, (int) get_option(LL_TOOLS_DICTIONARY_STATIC_CACHE_SCHEMA_OPTION));
+            $this->assertGreaterThan(time(), (int) get_option('ll_tools_dictionary_static_cache_retry_after'));
+            $first_scans = $scans;
+            $this->completeLlToolsSimulatedRequest();
+            ll_tools_dictionary_static_cache_maybe_purge_legacy_schema();
+            $this->assertSame($first_scans, $scans);
+        } finally {
+            remove_filter('ll_tools_static_cache_generated_files', $fail);
+            delete_option('ll_tools_dictionary_static_cache_retry_after');
+            update_option(LL_TOOLS_DICTIONARY_STATIC_CACHE_SCHEMA_OPTION, $old, false);
+        }
+    }
+
+    public function test_public_enumeration_failure_retains_quarantine_and_durable_retry(): void
+    {
+        $old = get_option(LL_TOOLS_PUBLIC_STATIC_CACHE_SCHEMA_OPTION);
+        $scans = 0;
+        $fail = static function () use (&$scans) { $scans++; return false; };
+        update_option(LL_TOOLS_PUBLIC_STATIC_CACHE_SCHEMA_OPTION, 0, false);
+        delete_option('ll_tools_public_static_cache_retry_after');
+        add_filter('ll_tools_static_cache_generated_files', $fail);
+        try {
+            ll_tools_public_static_cache_maybe_purge_legacy_schema();
+            $this->assertSame(0, (int) get_option(LL_TOOLS_PUBLIC_STATIC_CACHE_SCHEMA_OPTION));
+            $this->assertTrue(ll_tools_public_static_cache_is_quarantined());
+            $this->assertGreaterThan(time(), (int) get_option('ll_tools_public_static_cache_retry_after'));
+            $first_scans = $scans;
+            $this->completeLlToolsSimulatedRequest();
+            ll_tools_public_static_cache_maybe_purge_legacy_schema();
+            $this->assertSame($first_scans, $scans);
+        } finally {
+            remove_filter('ll_tools_static_cache_generated_files', $fail);
+            delete_option('ll_tools_public_static_cache_retry_after');
+            update_option(LL_TOOLS_PUBLIC_STATIC_CACHE_SCHEMA_OPTION, $old, false);
+            ll_tools_purge_public_static_cache();
+        }
+    }
+
     public function test_public_static_cache_lock_and_generation_fail_closed_on_option_table_error(): void
     {
         global $wpdb;
