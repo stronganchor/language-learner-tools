@@ -120,6 +120,9 @@ For the frontend manager and recorder tools, see
 owners and focused PHP/browser guards. The real-route browser smoke test is
 `frontend-recording-tools-wp.spec.js`; it creates and cleans up a marked fixture
 using WP-CLI and must run serially with other tests using the Local site.
+Its completed-copy check verifies automatic dialog closure, restored editor
+focus, one mutation, persisted recording ownership, and fresh source recordings
+when the editor is reopened.
 
 From plugin root:
 
