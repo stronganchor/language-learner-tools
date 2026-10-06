@@ -15,33 +15,28 @@ msgstr ""
 "X-Generator: DeepL API glossary + LL Tools German review pass\n"
 
 #. Plugin Name of the plugin
-#: C:\Users\messy\Local
-#: Sites\starter-english-local\app\public\wp-content\plugins\language-learner-tools\language-learner-tools.php
+#: language-learner-tools.php
 #: includes/privacy.php:2432
 msgid "Language Learner Tools"
 msgstr "Language Learner Tools"
 
 #. Plugin URI of the plugin
-#: C:\Users\messy\Local
-#: Sites\starter-english-local\app\public\wp-content\plugins\language-learner-tools\language-learner-tools.php
+#: language-learner-tools.php
 msgid "https://github.com/stronganchor/language-learner-tools"
 msgstr "https://github.com/stronganchor/language-learner-tools"
 
 #. Description of the plugin
-#: C:\Users\messy\Local
-#: Sites\starter-english-local\app\public\wp-content\plugins\language-learner-tools\language-learner-tools.php
+#: language-learner-tools.php
 msgid "WordPress tools for building language-learning vocabulary content with word management, audio/image uploads, and ready-to-use flashcard quizzes and embeddable practice pages."
 msgstr "WordPress-Tools für die Erstellung von Vokabeln zum Sprachenlernen mit Vokabel-Management, Vokabel-Audio, Vokabelbildern, Lernkarten-Quiz und einbettbaren Übungsseiten."
 
 #. Author of the plugin
-#: C:\Users\messy\Local
-#: Sites\starter-english-local\app\public\wp-content\plugins\language-learner-tools\language-learner-tools.php
+#: language-learner-tools.php
 msgid "Strong Anchor Tech"
 msgstr "Strong Anchor Tech"
 
 #. Author URI of the plugin
-#: C:\Users\messy\Local
-#: Sites\starter-english-local\app\public\wp-content\plugins\language-learner-tools\language-learner-tools.php
+#: language-learner-tools.php
 msgid "https://stronganchortech.com"
 msgstr "https://stronganchortech.com"
 
@@ -23257,22 +23252,22 @@ msgstr "Es wurde kein passender Korpustext-Beitrag gefunden."
 msgid "The matching content lesson is not a corpus text."
 msgstr "Die passende Inhaltslektion ist kein Korpustext."
 
-#: includes/lib/public-static-cache.php:2498
+#: includes/lib/public-static-cache.php:2620
 msgid "Clear LL cache"
 msgstr "LL-Cache leeren"
 
 #. translators: %d: number of deleted cache files
-#: includes/lib/public-static-cache.php:2503
+#: includes/lib/public-static-cache.php:2625
 #, php-format
 msgid "LL cache cleared (%d)"
 msgstr "LL-Cache geleert (%d)"
 
-#: includes/lib/public-static-cache.php:2522
+#: includes/lib/public-static-cache.php:2644
 msgid "You are not allowed to clear LL Tools caches."
 msgstr "Du darfst die LL Tools-Caches nicht leeren."
 
 #. translators: %d: number of deleted cache files
-#: includes/lib/public-static-cache.php:2558
+#: includes/lib/public-static-cache.php:2680
 #, php-format
 msgid "Cleared LL Tools static caches. %d cache file was removed."
 msgid_plural "Cleared LL Tools static caches. %d cache files were removed."
