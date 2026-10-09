@@ -409,20 +409,31 @@ test('hidden lesson feedback stays invisible when theme overrides hidden styling
   expect(await feedback.evaluate((node) => window.getComputedStyle(node).display)).toBe('none');
 });
 
-async function prepareControlledPagedLesson(page) {
+async function prepareControlledPagedLesson(page, options = {}) {
   await page.goto('about:blank');
   await page.setContent(buildDeferredLessonMarkup().replace('data-ll-vocab-lesson-grid-shell', 'data-ll-vocab-lesson-grid-shell data-ll-grid-paged="1"'));
   await page.addScriptTag({ content: jquerySource });
-  await page.evaluate(() => {
-    window.llToolsVocabLessonData = { ajaxUrl: '/ajax', i18n: { retry: 'Retry' } };
+  await page.evaluate((options) => {
+    window.llToolsVocabLessonData = { ajaxUrl: '/ajax', grid: {
+      preparationTimeoutMs: options.preparationTimeoutMs,
+      noProgressTimeoutMs: options.noProgressTimeoutMs,
+      i18n: { error: 'Unable to load this lesson right now.', retry: 'Retry' }
+    } };
     window.lessonRequests = [];
     jQuery.ajax = options => {
       const deferred = jQuery.Deferred();
       // Deliberately non-abortable, to verify stale-response fencing too.
       window.lessonRequests.push({ cursor: options.data.cursor, deferred });
+      if (window.autoPrepareLesson) {
+        const scanned = window.lessonRequests.length;
+        setTimeout(() => deferred.resolve({ success: true, data: {
+          paged: true, preparing: true, html: '', scanned, total: 100, retry_after_ms: 40
+        } }), 10);
+      }
       return deferred.promise();
     };
-  });
+    window.autoPrepareLesson = !!options.autoPreparing;
+  }, options);
   await page.addScriptTag({ content: vocabLessonScriptSource });
   await expect.poll(() => page.evaluate(() => window.lessonRequests.length)).toBe(1);
 }
@@ -482,6 +493,76 @@ test('invalid cursor restarts once with replacement while transport retry retain
   await settleLessonPage(page, 4, [3, 4]);
   await expect(page.locator('[data-word-id]')).toHaveCount(4);
   expect(await page.evaluate(() => window.lessonRequests.map(request => request.cursor))).toEqual(['', 'old-cursor', '', 'new-cursor', 'new-cursor']);
+});
+
+test('preparation stops without progress even while a read remains pending, and Retry fences that read', async ({ page }) => {
+  await prepareControlledPagedLesson(page, { preparationTimeoutMs: 1000, noProgressTimeoutMs: 150 });
+  await page.evaluate(() => window.lessonRequests[0].deferred.resolve({ success: true, data: {
+    paged: true, preparing: true, html: '', loaded: 0, scanned: 3, total: 100, retry_after_ms: 40
+  } }));
+  await expect.poll(() => page.evaluate(() => window.lessonRequests.length), { intervals: [20] }).toBe(2);
+  await expect(page.locator('[data-ll-vocab-lesson-grid-retry]')).toBeVisible();
+  await expect(page.locator('[data-ll-vocab-lesson-grid-shell]')).toHaveAttribute('aria-busy', 'false');
+  await expect(page.locator('[data-ll-vocab-lesson-grid-progress]')).toBeHidden();
+  await settleLessonPage(page, 1, [999]);
+  await expect(page.locator('[data-word-id="999"]')).toHaveCount(0);
+  await page.waitForTimeout(150);
+  expect(await page.evaluate(() => window.lessonRequests.length)).toBe(2);
+  await page.locator('[data-ll-vocab-lesson-grid-retry]').click();
+  await expect.poll(() => page.evaluate(() => window.lessonRequests.length)).toBe(3);
+  await settleLessonPage(page, 2, [1, 2]);
+  await expect(page.locator('[data-word-id]')).toHaveCount(2);
+  await expect(page.locator('[data-ll-vocab-lesson-grid-feedback]')).toBeHidden();
+});
+
+test('advancing preparation still stops at the overall bound without repeated automatic polling', async ({ page }) => {
+  await prepareControlledPagedLesson(page, {
+    preparationTimeoutMs: 300, noProgressTimeoutMs: 150, autoPreparing: true
+  });
+  await expect(page.locator('[data-ll-vocab-lesson-grid-retry]')).toBeVisible();
+  const requestsAtStop = await page.evaluate(() => window.lessonRequests.length);
+  expect(requestsAtStop).toBeGreaterThanOrEqual(4);
+  await page.waitForTimeout(180);
+  expect(await page.evaluate(() => window.lessonRequests.length)).toBe(requestsAtStop);
+  await expect(page.locator('[data-ll-vocab-lesson-grid-shell]')).toHaveAttribute('aria-busy', 'false');
+});
+
+test('explicit Retry after a second invalid cursor starts a fresh replacement and preserves copied focus', async ({ page }) => {
+  await prepareControlledPagedLesson(page);
+  await settleLessonPage(page, 0, [1, 2], 'old-cursor');
+  await expect.poll(() => page.evaluate(() => window.lessonRequests.length)).toBe(2);
+  await page.evaluate(() => {
+    const card = document.createElement('article');
+    card.className = 'word-item'; card.dataset.wordId = '4'; card.tabIndex = -1; card.textContent = 'Copy';
+    document.querySelector('[data-ll-word-grid]').appendChild(card);
+    card.focus();
+    document.dispatchEvent(new CustomEvent('ll-word-copy-completed', { bubbles: true, detail: {
+      new_word_id: 4, wordsetId: 1, category_ids: [99]
+    } }));
+  });
+  await expect.poll(() => page.evaluate(() => window.lessonRequests.length)).toBe(3);
+  await settleLessonPage(page, 2, [1, 2], 'copy-cursor');
+  await expect.poll(() => page.evaluate(() => window.lessonRequests.length)).toBe(4);
+  await page.evaluate(() => { window.lessonRequests[3].deferred.reject({ responseJSON: { data: { code: 'invalid_cursor' } } }); });
+  await expect.poll(() => page.evaluate(() => window.lessonRequests.length)).toBe(5);
+  await settleLessonPage(page, 4, [1, 2], 'new-cursor');
+  await expect(page.locator('[data-word-id="4"]')).toBeFocused();
+  await expect.poll(() => page.evaluate(() => window.lessonRequests.length)).toBe(6);
+  await page.evaluate(() => { window.lessonRequests[5].deferred.reject({ responseJSON: { data: { code: 'invalid_cursor' } } }); });
+  await expect(page.locator('[data-ll-vocab-lesson-grid-retry]')).toBeVisible();
+  expect(await page.evaluate(() => window.lessonRequests.length)).toBe(6);
+  await page.locator('[data-ll-vocab-lesson-grid-retry]').click();
+  await expect.poll(() => page.evaluate(() => window.lessonRequests.length)).toBe(7);
+  await page.locator('[data-word-id="4"]').focus();
+  await settleLessonPage(page, 6, [1, 2], 'replacement-cursor');
+  await expect(page.locator('[data-word-id="4"]')).toBeFocused();
+  await expect.poll(() => page.evaluate(() => window.lessonRequests.length)).toBe(8);
+  await settleLessonPage(page, 7, [3, 4]);
+  await expect(page.locator('[data-word-id]')).toHaveCount(4);
+  await expect(page.locator('[data-word-id="4"]')).toHaveCount(1);
+  await expect(page.locator('[data-word-id="4"]')).toBeFocused();
+  expect(await page.evaluate(() => window.lessonRequests.map(request => request.cursor)))
+    .toEqual(['', 'old-cursor', '', 'copy-cursor', '', 'new-cursor', '', 'replacement-cursor']);
 });
 
 test('prompt-card loading shell renders full-row skeleton cards', async ({ page }) => {

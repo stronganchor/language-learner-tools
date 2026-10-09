@@ -1,6 +1,6 @@
 # Maintenance Backlog
 
-Updated October 2, 2026 during the authorized maintenance follow-up.
+Updated October 9, 2026 during the authorized maintenance follow-up.
 The original September 18 evidence and line numbers below refer to
 `ed4405812767784e1d4e3eb688fc9ebbf632a41b` (6.7.39); current status notes identify
 the implemented follow-up without erasing that history. This maintenance pass
@@ -8,6 +8,85 @@ does not deploy the changes or authorize provider/live-site testing.
 
 This file is for worthwhile work that should be planned deliberately instead of
 being folded into a small opportunistic fix.
+
+## October 9 maintenance follow-up (6.7.46)
+
+- **Implemented — AUDIT-2026-10-09-07:** the bundled lesson template and grid
+  AJAX handler enforce WordPress password access before exposing lesson HTML,
+  nonces, or cached grids. A valid unlock cookie follows core behavior; protected
+  lessons remain excluded from shared anonymous static HTML.
+- **Implemented — AUDIT-2026-10-09-01:** the offline builder uses Capacitor
+  8.4.3 and sharp 0.35.5. Icon inputs are bounded, validated byte snapshots;
+  SVG/renamed unsupported formats are rejected before native parsing. These
+  changes address GHSA-rvm3-566m-v7fv and GHSA-wq5f-xc86-pv6w.
+- **Implemented — AUDIT-2026-10-09-02:** vocabulary shortcodes apply the same
+  canonical scope policy as the main vocabulary surfaces. Bulk checks preserve
+  mixed public/private membership semantics and fail closed on incomplete
+  relationship reads without retaining an erroneous denial across a retry.
+- **Partially implemented — AUDIT-2026-10-09-03:** static cache schema 3 uses
+  finite renderer-equivalent view keys, ignores ineffective selectors, and
+  guards cold work across keys with atomic per-IP/site budgets. Locale switch
+  URLs retain the existing clean redirect; unsupported section/custom variants
+  bypass static publication. Completed, stale, and waited cache hits remain
+  available without spending the cold-work budget. Disk quotas/reaping and a
+  finite valid book-section manifest remain follow-up below.
+- **Implemented — AUDIT-2026-10-09-04:** cold paged-grid preparation spends a
+  shared budget, completed page hits precede order scans, and failed durable
+  checkpoints cannot report progress. The browser bounds total/no-progress
+  preparation, including response-body stalls, and presents a recoverable error.
+- **Implemented — AUDIT-2026-10-09-05/06:** focused recorder reads retain their
+  deadline through JSON parsing; failed study preference saves retain the draft
+  and expose Saving/Saved/error/Retry states with revision and mutation fences.
+- **Implemented — September 30 copy workflow follow-up:** an explicit Retry
+  after repeated invalid cursors starts a fresh replacement request, preserving
+  copied-card focus and avoiding duplicate append. Unrelated retries keep their
+  cursor. **AUDIT-2026-09-18-06 extension:** native recorder failures use localized
+  fallback messages while retaining structured server messages and prompt data.
+
+### Deliberate follow-up
+
+| Priority / owner | Evidence and remaining work | Risk / strategy | Verification |
+| --- | --- | --- | --- |
+| P2 / human design review: static cache disk lifecycle | `includes/lib/public-static-cache.php` limits variants and cold builders, but has no rolling byte/file quota or resumable generation garbage collection. Old generations can accumulate between invalidations. | A request-time directory scan would add anonymous work; an eager reaper could race active publication or remove useful stale fallback. Design a durable bounded maintenance cursor/journal, byte accounting, active-generation/lease fences, and a bounded valid book-section ID manifest before enabling caching for sections. | Test visit/time/byte caps, crash/resume, concurrent publication/purge, unwritable files, stale availability, and large directories; measure cleanup outside public requests. |
+| P2 / autonomous measurement, human protocol review: AUDIT-2026-09-18-08 | The October 9 matrix reached a cold private-wordset readiness timeout; its unchanged-budget focused rerun passed. Actual authenticated recorder HTTP phase attribution and cold serial-batch completion remain unmeasured. | Keep the current protocol and timing budget. Add a bounded opt-in HTTP harness separating TTFB, body download, decode, batch scheduling, and rendering before choosing a shared-cache/protocol redesign. Existing PHP helper timings do not establish popup/page latency. | Repeat cold/warm runs with realistic large wordsets, varied access scopes and cache states; attribute database/provider/network/browser phases, confirm cancellation and fixture cleanup, then test any redesign against access and concurrency guards. |
+| P3 / human product/access review: per-word password policy | The current canonical vocabulary policy governs category/wordset privacy; it does not define whether a protected individual `words` post should hide independently embedded media. The dictionary policy is already separate. | Decide intended staff/unlock/embed semantics before extending the policy; silently excluding every protected word could alter existing teaching workflows. | Verify shortcode, lesson, quiz, direct media/embed and authorized editor behavior for the agreed policy. |
+| P3 / human release/language review | Builder tests, three Android ABIs and JVM PCM checks cover build behavior; no installed-device release or production HTTP test is implied. Native Turkish tone review and broader Audio Processor production queue/whole-page profiling remain open. | Test an installed build and hardware recording/playback before distribution. Review uncertain translations with a native speaker; keep larger/scope-varied queue profiling separate from implementation. | Device microphone/permissions, valid icons, offline lessons/playback, signed release/update path; targeted native language review and representative queue/TTFB measurements. |
+
+Operators who reduce paged scan/page sizes or raise the materialized lesson limit
+must review `ll_tools_vocab_lesson_grid_public_cache_miss_ip_limit` alongside
+those filters. The fixed shared default budget covers the built-in 5,000-word
+scan/page cycle; extreme custom settings must not automatically raise anonymous
+capacity for every request. Live deployment, provider tests, and installed APK
+distribution require their own scoped follow-through.
+
+The three planned public locales `zh_CN`, `ar`, and `bn_BD` still have no
+catalogs. Completing that rollout requires reviewed translations for 802 public
+messages per locale. The eight available public locales and full Turkish/German
+catalogs remain the verification scope for this maintenance release.
+
+### Follow-up verification
+
+- Full PHPUnit: 2,757 tests / 66,895 assertions / 10 expected skips passed in
+  15 minutes 26 seconds, with no reported warnings or failures.
+- Focused browser/source contracts: 84 unique cases passed (24 recorder, 13
+  deferred-grid, 13 study-save recovery, 34 maintenance/documentation contracts).
+  Git Bash fixture launch initially hit the Windows sandbox restriction; the
+  same documentation cases passed with the required tool permission.
+- The real Local private-wordset route/lazy-card case passed on its exact rerun
+  in 2.7 minutes, bringing focused browser coverage to 85 unique cases. Its first
+  attempt loaded the assigned manager's private cards, then hit a login 502:
+  Nginx recorded `WSARecv` at 12:43:28 and the replacement PHP worker started at
+  12:43:29. The rerun retained strict status/access assertions and the unchanged
+  loading budget. Fixture cleanup completed; this is not a full browser matrix.
+- Offline builder: 21/21 Node tests, zero reported npm advisories, successful
+  debug APK compilation for three native ABIs, and 3/3 JVM PCM tests. No installed
+  device, signed release, or APK distribution was tested.
+- Source/POT freshness passed in the full suite. Turkish and German each retain
+  complete 6,398-key catalogs with compiled MO/PHP parity; the eight available
+  public locales cover all 802 manifest keys with compiled parity. All eight
+  context manifests and changed PHP/JavaScript syntax checks passed.
+- Local services remain running. These checks do not establish deployed state,
+  production HTTP latency, provider acceptance, or native language approval.
 
 ## October 2 maintenance follow-up (6.7.45)
 

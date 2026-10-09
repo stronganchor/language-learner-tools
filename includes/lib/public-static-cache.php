@@ -38,7 +38,7 @@ if (!defined('LL_TOOLS_PUBLIC_STATIC_CACHE_GENERATION_OPTION')) {
 }
 
 if (!defined('LL_TOOLS_PUBLIC_STATIC_CACHE_SCHEMA')) {
-    define('LL_TOOLS_PUBLIC_STATIC_CACHE_SCHEMA', 2);
+    define('LL_TOOLS_PUBLIC_STATIC_CACHE_SCHEMA', 3);
 }
 
 if (!defined('LL_TOOLS_PUBLIC_STATIC_CACHE_SCHEMA_OPTION')) {
@@ -450,36 +450,99 @@ function ll_tools_public_static_cache_send_category_search_recovery_bypass_heade
  * @param array<string,mixed>|null $raw_args
  * @return array<string,mixed>
  */
-function ll_tools_public_static_cache_normalize_query_args(?array $raw_args = null): array {
+function ll_tools_public_static_cache_normalize_query_args(?array $raw_args = null, ?array $identity = null): array {
     if ($raw_args === null) {
         $raw_args = $_GET;
     }
 
-    $allowed = array_flip(ll_tools_public_static_cache_query_keys());
-    $normalized = [];
-
-    foreach ($raw_args as $key => $value) {
-        if (!is_string($key) || !isset($allowed[$key])) {
-            continue;
-        }
-        if (function_exists('ll_tools_dictionary_is_noise_query_key') && ll_tools_dictionary_is_noise_query_key($key)) {
-            continue;
-        }
-
-        $value = wp_unslash($value);
-        $normalized[$key] = function_exists('ll_tools_dictionary_static_cache_normalize_value')
-            ? ll_tools_dictionary_static_cache_normalize_value($value)
-            : trim((string) (is_scalar($value) ? $value : ''));
+    $identity = $identity ?? ll_tools_public_static_cache_request_identity();
+    // The effective locale already varies the key. Translation/book language
+    // selectors no longer affect rendering. Wordset/vocabulary routes consume
+    // none of these display args; do not create files for ignored query noise.
+    if (($identity['type'] ?? '') !== 'content_lesson') {
+        return [];
     }
 
-    foreach ($normalized as $key => $value) {
-        if ($value === '' || $value === []) {
-            unset($normalized[$key]);
+    $view = $raw_args['ll_text_view'] ?? '';
+    $view = is_scalar($view) ? sanitize_key(trim((string) wp_unslash($view))) : '';
+    $view = $view === 'linguist' ? 'interlinear' : $view;
+    return in_array($view, ['interlinear', 'sources'], true)
+        ? ['ll_text_view' => $view]
+        : [];
+}
+
+/**
+ * Only finite built-in display variants may read/publish static HTML.
+ * Book sections and extension-defined selectors keep their normal dynamic
+ * rendering without parsing an entire text document on a cache HIT.
+ */
+function ll_tools_public_static_cache_has_supported_display_args(?array $raw_args = null): bool {
+    $raw_args = $raw_args ?? $_GET;
+    $built_in = ['ll_locale', 'll_text_view', 'll_translation', 'll_book_language', 'll_book_section'];
+    foreach (ll_tools_public_static_cache_query_keys() as $key) {
+        if (!array_key_exists($key, $raw_args)) {
+            continue;
+        }
+        $value = wp_unslash($raw_args[$key]);
+        if (!is_scalar($value) || strlen((string) $value) > 128) {
+            return false;
+        }
+        if (trim((string) $value) !== '' && (!in_array($key, $built_in, true) || $key === 'll_book_section')) {
+            return false;
         }
     }
+    return true;
+}
 
-    ksort($normalized, SORT_STRING);
-    return $normalized;
+/**
+ * Admit cold anonymous work across cache keys; cached responses spend no budget.
+ * Existing atomic fixed-window counters avoid one ledger per attacker variant.
+ *
+ * @return array{allowed:bool,retry_after:int}
+ */
+function ll_tools_public_static_cache_reserve_miss(): array {
+    $defaults = ['window' => MINUTE_IN_SECONDS, 'ip_limit' => 30, 'site_limit' => 120];
+    $config = apply_filters('ll_tools_public_static_cache_miss_throttle', $defaults);
+    $config = is_array($config) ? array_merge($defaults, $config) : $defaults;
+    $window = max(1, min(HOUR_IN_SECONDS, (int) $config['window']));
+    $ip = isset($_SERVER['REMOTE_ADDR']) && is_scalar($_SERVER['REMOTE_ADDR'])
+        ? trim((string) $_SERVER['REMOTE_ADDR']) : '';
+    $ip = filter_var($ip, FILTER_VALIDATE_IP) ? $ip : 'unknown';
+    $reservations = [];
+    foreach ([['ip', $ip, (int) $config['ip_limit']], ['site', 'site', (int) $config['site_limit']]] as $target) {
+        $reservation = ll_tools_public_ajax_reserve_counter('ll_public_static_miss_' . $target[0] . '_', $target[1], max(0, $target[2]), $window);
+        if (empty($reservation['allowed'])) {
+            foreach ($reservations as $previous) {
+                ll_tools_public_ajax_refund_counter($previous);
+            }
+            return ['allowed' => false, 'retry_after' => max(1, (int) ($reservation['retry_after'] ?? $window))];
+        }
+        if (!empty($reservation['reserved'])) {
+            $reservations[] = $reservation;
+        }
+    }
+    return ['allowed' => true, 'retry_after' => 0];
+}
+
+function ll_tools_public_static_cache_admit_cold_request(string $key = '', ?array $identity = null): void {
+    $reservation = ll_tools_public_static_cache_reserve_miss();
+    if (!empty($reservation['allowed'])) {
+        return;
+    }
+    if ($key !== '') {
+        ll_tools_public_static_cache_release_rebuild_lock($key);
+        $cached = ll_tools_public_static_cache_read_prepared_file(ll_tools_public_static_cache_file_path($key), $identity);
+        if (is_string($cached)) {
+            $method = isset($_SERVER['REQUEST_METHOD']) ? strtoupper((string) $_SERVER['REQUEST_METHOD']) : 'GET';
+            ll_tools_public_static_cache_send_prepared_file_response($cached, 'STALE', 'cold-budget', false, $method);
+        }
+    }
+    if (!headers_sent()) {
+        header('Retry-After: ' . max(1, (int) $reservation['retry_after']));
+        header('Cache-Control: no-store, no-cache, must-revalidate');
+        header('X-LL-Public-Static-Cache: RATE_LIMITED');
+    }
+    wp_die(__('Too many requests. Please wait a moment and try again.', 'll-tools-text-domain'), '', ['response' => 429]);
 }
 
 function ll_tools_public_static_cache_status_code_from_headers(array $headers): int {
@@ -608,11 +671,9 @@ function ll_tools_public_static_cache_has_safe_request_shape(): bool {
         }
     }
 
-    if (
-        isset($_GET['ll_locale'])
-        && function_exists('ll_tools_verify_locale_switch_request_nonce')
-        && ll_tools_verify_locale_switch_request_nonce()
-    ) {
+    // Every locale switch, including invalid/unsigned values, must reach the
+    // priority-10 switch handler's clean redirect before any cached HTML.
+    if (array_key_exists('ll_locale', $_GET)) {
         return false;
     }
 
@@ -729,6 +790,10 @@ function ll_tools_is_cacheable_public_static_request(): bool {
         return false;
     }
 
+    if (!ll_tools_public_static_cache_has_supported_display_args()) {
+        return false;
+    }
+
     return (bool) apply_filters('ll_tools_public_static_cache_is_cacheable_request', true, $identity);
 }
 
@@ -762,7 +827,7 @@ function ll_tools_public_static_cache_key(?array $identity = null, ?array $raw_a
             'wordset_id' => max(0, (int) ($identity['wordset_id'] ?? 0)),
         ],
         'locale' => $locale,
-        'args' => ll_tools_public_static_cache_normalize_query_args($raw_args),
+        'args' => ll_tools_public_static_cache_normalize_query_args($raw_args, $identity),
     ];
 
     return md5((string) wp_json_encode($payload));
@@ -1563,6 +1628,10 @@ function ll_tools_public_static_cache_send_headers(string $cache_status, string 
  * Serve or start capturing one anonymous public read-only page request.
  */
 function ll_tools_serve_public_static_cache(): void {
+    if (array_key_exists('ll_locale', $_GET)) {
+        nocache_headers();
+        return;
+    }
     if (ll_tools_public_static_cache_has_category_search_recovery_arg()) {
         ll_tools_public_static_cache_send_category_search_recovery_bypass_headers();
         return;
@@ -1572,7 +1641,18 @@ function ll_tools_serve_public_static_cache(): void {
         return;
     }
 
+    if (ll_tools_public_static_cache_has_safe_request_shape()
+        && !ll_tools_public_static_cache_has_supported_display_args()
+        && ll_tools_public_static_cache_request_identity() !== null) {
+        ll_tools_public_static_cache_admit_cold_request();
+        ll_tools_public_static_cache_send_headers('BYPASS', 'display-variant', false);
+        return;
+    }
     if (!ll_tools_is_cacheable_public_static_request()) {
+        if (ll_tools_public_static_cache_has_safe_request_shape()
+            && ll_tools_public_static_cache_request_identity() !== null) {
+            ll_tools_public_static_cache_admit_cold_request();
+        }
         return;
     }
 
@@ -1633,6 +1713,9 @@ function ll_tools_serve_public_static_cache(): void {
         }
     }
 
+    // Completed/stale/waited responses above spend no budget. Admission also
+    // covers an uncached fallback when another worker owns this exact key.
+    ll_tools_public_static_cache_admit_cold_request($key, $identity);
     $miss_reason = ll_tools_public_static_cache_miss_reason($file, $ttl);
     ll_tools_public_static_cache_send_headers('MISS', $miss_reason, false);
     ll_tools_public_static_cache_debug_log('miss', [
@@ -1701,6 +1784,10 @@ function ll_tools_store_public_static_cache(): void {
     $release_lock = !empty($context['lock_acquired']) && !empty($context['key']);
 
     try {
+        if (array_key_exists('ll_locale', $_GET)) {
+            nocache_headers();
+            return;
+        }
         if (ll_tools_public_static_cache_has_category_search_recovery_arg()) {
             ll_tools_public_static_cache_debug_log('skip_category_search_recovery');
             ll_tools_public_static_cache_send_category_search_recovery_bypass_headers();
@@ -1709,6 +1796,10 @@ function ll_tools_store_public_static_cache(): void {
         if (ll_tools_public_static_cache_has_frontend_auth_args()) {
             ll_tools_public_static_cache_debug_log('skip_frontend_auth');
             ll_tools_public_static_cache_send_auth_bypass_headers();
+            return;
+        }
+
+        if (!ll_tools_public_static_cache_has_supported_display_args()) {
             return;
         }
 

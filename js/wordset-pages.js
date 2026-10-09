@@ -119,6 +119,9 @@
     let stateSaveQueued = false;
     let stateSaveRequestToken = 0;
     let stateSaveLatestToken = 0;
+    let stateSaveDraftRevision = 0;
+    let stateSaveDirty = false;
+    let stateSaveStatusTimer = null;
     let goalsSaveRequestToken = 0;
     const studyMutationQueue = [];
     let studyMutationRunning = false;
@@ -11793,11 +11796,56 @@
         send();
     }
 
+    function setStateSaveStatus(status) {
+        clearTimeout(stateSaveStatusTimer);
+        let $status = $root.find('[data-ll-wordset-state-save-status]').first();
+        if (!$status.length) {
+            $status = $('<div>', {
+                class: 'll-wordset-study-save-status',
+                'data-ll-wordset-state-save-status': '1',
+                role: 'status',
+                'aria-live': 'polite'
+            });
+            $('<span>', { class: 'll-wordset-study-save-status__message' }).appendTo($status);
+            $('<button>', {
+                type: 'button',
+                class: 'll-study-btn tiny ll-wordset-study-save-status__retry',
+                'data-ll-wordset-state-save-retry': '1',
+                text: i18n.saveRetry || 'Retry'
+            }).appendTo($status);
+            const $settingsCard = $root.find('[data-ll-wordset-transition]').first().closest('.ll-wordset-settings-card');
+            if ($settingsCard.length) { $settingsCard.append($status); }
+            else { $status.addClass('ll-wordset-study-save-status--page').prependTo($root.first()); }
+        }
+        const messages = {
+            saving: i18n.saveSaving || 'Saving...',
+            saved: i18n.saveSaved || 'Saved',
+            error: i18n.saveError || 'Unable to save right now.'
+        };
+        $status.attr('data-state', status).removeAttr('hidden');
+        $status.find('.ll-wordset-study-save-status__message').text(messages[status] || '');
+        $status.find('[data-ll-wordset-state-save-retry]').prop('hidden', status !== 'error');
+        if (status === 'saved') {
+            stateSaveStatusTimer = setTimeout(function () {
+                if (!stateSaveDirty) { $status.attr('hidden', 'hidden'); }
+            }, 1600);
+        }
+    }
+
     function saveStateDebounced(options) {
         const opts = (options && typeof options === 'object') ? options : {};
         if (!isLoggedIn || !ajaxUrl || !nonce) { return; }
 
+        // Fence responses as soon as the draft changes, including the debounce
+        // interval before a newer snapshot has been submitted.
+        stateSaveDraftRevision += 1;
+        stateSaveDirty = true;
+        setStateSaveStatus('saving');
+        if (stateSaveInFlightRequest) { stateSaveQueued = true; }
+
         const runStateSave = function () {
+            clearTimeout(saveStateTimer);
+            saveStateTimer = null;
             stateSaveQueued = true;
             if (stateSaveInFlightRequest) {
                 return;
@@ -11805,6 +11853,7 @@
 
             stateSaveQueued = false;
             const requestToken = ++stateSaveRequestToken;
+            const draftRevision = stateSaveDraftRevision;
             stateSaveLatestToken = requestToken;
             stateSaveInFlightRequest = postStudyMutation({
                 action: 'll_user_study_save',
@@ -11816,7 +11865,7 @@
                 fast_transitions: state.fast_transitions ? 1 : 0
             }).done(function (res) {
                 // Ignore stale responses when a newer save is queued or has already run.
-                if (stateSaveQueued || requestToken !== stateSaveLatestToken) {
+                if (stateSaveQueued || requestToken !== stateSaveLatestToken || draftRevision !== stateSaveDraftRevision) {
                     return;
                 }
                 if (res && res.success && res.data && res.data.state) {
@@ -11828,6 +11877,16 @@
                     syncGlobalPrefs();
                     renderProgressAnalytics();
                     scheduleProgressAnalyticsRefresh(180, { silent: true });
+                    stateSaveDirty = false;
+                    setStateSaveStatus('saved');
+                } else {
+                    setStateSaveStatus('error');
+                }
+            }).fail(function () {
+                // Keep the latest local choices. A lost response may already
+                // have committed; only an explicit Retry submits them again.
+                if (!stateSaveQueued && draftRevision === stateSaveDraftRevision) {
+                    setStateSaveStatus('error');
                 }
             }).always(function () {
                 stateSaveInFlightRequest = null;
@@ -11844,6 +11903,17 @@
         }
         saveStateTimer = setTimeout(runStateSave, 250);
     }
+
+    $root.on('click', '[data-ll-wordset-state-save-retry]', function (event) {
+        event.preventDefault();
+        saveStateDebounced({ immediate: true });
+    });
+    $(window).on('beforeunload.llWordsetStateSave', function (event) {
+        if (!stateSaveDirty) { return; }
+        event.preventDefault();
+        if (event.originalEvent) { event.originalEvent.returnValue = ''; }
+        return '';
+    });
 
     function isLatestGoalsSaveRequest(token) {
         const requestToken = parseInt(token, 10) || 0;

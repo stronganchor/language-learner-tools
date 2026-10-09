@@ -75,21 +75,21 @@ final class PublicStaticCacheTest extends LL_Tools_TestCase
             $first,
             ll_tools_public_static_cache_key($identity, ['ll_locale' => 'en_US'], 'en_US')
         );
-        $this->assertNotSame(
+        $this->assertSame(
             $first,
             ll_tools_public_static_cache_key($identity, [
                 'll_locale' => 'tr_TR',
                 'll_text_view' => 'interlinear',
             ], 'tr_TR')
         );
-        $this->assertNotSame(
+        $this->assertSame(
             $first,
             ll_tools_public_static_cache_key($identity, [
                 'll_locale' => 'tr_TR',
                 'll_translation' => 'de',
             ], 'tr_TR')
         );
-        $this->assertNotSame(
+        $this->assertSame(
             $first,
             ll_tools_public_static_cache_key($identity, [
                 'll_locale' => 'tr_TR',
@@ -97,13 +97,7 @@ final class PublicStaticCacheTest extends LL_Tools_TestCase
                 'll_book_section' => 'intro',
             ], 'tr_TR')
         );
-        $this->assertSame([
-            'll_book_language' => 'de',
-            'll_book_section' => 'intro',
-            'll_locale' => 'tr_TR',
-            'll_text_view' => 'sources',
-            'll_translation' => 'de',
-        ], ll_tools_public_static_cache_normalize_query_args([
+        $this->assertSame([], ll_tools_public_static_cache_normalize_query_args([
             'll_book_language' => 'de',
             'll_book_section' => 'intro',
             'll_locale' => 'tr_TR',
@@ -113,7 +107,81 @@ final class PublicStaticCacheTest extends LL_Tools_TestCase
             'll_locale_nonce' => 'ignored',
             'll_wordset_back' => home_url('/?ll_tools_auth=register'),
             'unknown' => 'ignored',
-        ]));
+        ], $identity));
+    }
+
+    public function test_random_ignored_selectors_cannot_create_wordset_or_vocab_cache_variants(): void
+    {
+        foreach (['wordset_main', 'vocab_lesson'] as $type) {
+            $identity = ['type' => $type, 'id' => 17, 'path' => '/vocabulary', 'wordset_id' => 17];
+            $base = ll_tools_public_static_cache_key($identity, [], 'tr_TR');
+            for ($index = 0; $index < 100; $index++) {
+                $this->assertSame($base, ll_tools_public_static_cache_key($identity, [
+                    'll_text_view' => 'ignored-' . $index,
+                    'll_translation' => 'unused-' . $index,
+                    'll_book_language' => 'unused-' . $index,
+                    'll_locale' => 'invalid-' . $index,
+                ], 'tr_TR'));
+            }
+        }
+        $identity['type'] = 'content_lesson';
+        $reader = ll_tools_public_static_cache_key($identity, [], 'tr_TR');
+        $this->assertSame($reader, ll_tools_public_static_cache_key($identity, ['ll_text_view' => 'reader'], 'tr_TR'));
+        $this->assertSame($reader, ll_tools_public_static_cache_key($identity, ['ll_text_view' => 'invalid'], 'tr_TR'));
+        $this->assertNotSame($reader, ll_tools_public_static_cache_key($identity, ['ll_text_view' => 'sources'], 'tr_TR'));
+        $this->assertNotSame($reader, ll_tools_public_static_cache_key($identity, ['ll_text_view' => 'interlinear'], 'tr_TR'));
+        $this->assertSame(ll_tools_public_static_cache_key($identity, ['ll_text_view' => 'sources'], 'tr_TR'), ll_tools_public_static_cache_key($identity, ['ll_text_view' => 'SOURCES!'], 'tr_TR'));
+        $this->assertSame(ll_tools_public_static_cache_key($identity, ['ll_text_view' => 'interlinear'], 'tr_TR'), ll_tools_public_static_cache_key($identity, ['ll_text_view' => 'Linguist'], 'tr_TR'));
+    }
+
+    public function test_unbounded_or_unsupported_display_variants_bypass_static_files(): void
+    {
+        foreach ([['ll_text_view' => ['sources']], ['ll_translation' => str_repeat('x', 129)], ['ll_book_section' => 'valid-section']] as $args) {
+            $this->assertFalse(ll_tools_public_static_cache_has_supported_display_args($args));
+        }
+        $this->assertTrue(ll_tools_public_static_cache_has_supported_display_args(['ll_text_view' => 'invalid-but-ignored']));
+        $extra_key = static fn(array $keys): array => array_merge($keys, ['ll_custom_display']);
+        add_filter('ll_tools_public_static_cache_query_keys', $extra_key);
+        try {
+            $this->assertFalse(ll_tools_public_static_cache_has_supported_display_args(['ll_custom_display' => 'custom-output']));
+        } finally {
+            remove_filter('ll_tools_public_static_cache_query_keys', $extra_key);
+        }
+    }
+
+    public function test_cold_work_is_shared_across_keys_and_denial_releases_exact_build_owner(): void
+    {
+        $_SERVER['REMOTE_ADDR'] = '203.0.113.207';
+        $config = static fn(): array => ['window' => 60, 'ip_limit' => 2, 'site_limit' => 1];
+        add_filter('ll_tools_public_static_cache_miss_throttle', $config);
+        ll_tools_public_ajax_reset_counter('ll_public_static_miss_ip_', '203.0.113.207');
+        ll_tools_public_ajax_reset_counter('ll_public_static_miss_site_', 'site');
+        $key = md5('budget-denied-owner');
+        $die = static fn() => static function ($message, $title, $args): void {
+            throw new RuntimeException('response-' . (int) $args['response']);
+        };
+        add_filter('wp_die_handler', $die, PHP_INT_MAX);
+        try {
+            $this->assertTrue(ll_tools_public_static_cache_reserve_miss()['allowed']);
+            $this->assertFalse(ll_tools_public_static_cache_reserve_miss()['allowed']);
+            $ip_status = ll_tools_public_ajax_counter_status('ll_public_static_miss_ip_', '203.0.113.207', 2, 60);
+            $this->assertSame(1, $ip_status['count'], 'Rejected site reservation refunds client capacity.');
+            $this->assertTrue(ll_tools_public_static_cache_acquire_rebuild_lock($key));
+            try {
+                ll_tools_public_static_cache_admit_cold_request($key, ['type' => 'vocab_lesson', 'id' => 1, 'path' => '/budget']);
+                $this->fail('Expected retryable cold admission failure.');
+            } catch (RuntimeException $error) {
+                $this->assertSame('response-429', $error->getMessage());
+            }
+            $this->assertTrue(ll_tools_public_static_cache_acquire_rebuild_lock($key), 'Rejected work releases its owner before wp_die exits.');
+        } finally {
+            ll_tools_public_static_cache_release_rebuild_lock($key);
+            ll_tools_public_ajax_reset_counter('ll_public_static_miss_ip_', '203.0.113.207');
+            ll_tools_public_ajax_reset_counter('ll_public_static_miss_site_', 'site');
+            remove_filter('wp_die_handler', $die, PHP_INT_MAX);
+            remove_filter('ll_tools_public_static_cache_miss_throttle', $config);
+            unset($_SERVER['REMOTE_ADDR']);
+        }
     }
 
     public function test_public_static_cache_frontend_auth_args_bypass_every_public_cache_key(): void
@@ -177,6 +245,9 @@ final class PublicStaticCacheTest extends LL_Tools_TestCase
             ['ll_tools_auth' => 'register'],
             ['ll_tools_auth' => 'malformed'],
             ['ll_tools_auth_feedback' => 'one-time-token'],
+            ['ll_locale' => 'tr_TR'],
+            ['ll_locale' => 'invalid-locale', 'll_locale_nonce' => 'invalid'],
+            ['ll_locale' => ['tr_TR']],
         ] as $args) {
             $_GET = $args;
             $_SERVER['REQUEST_URI'] = '/' . $wordset->slug . '/?' . http_build_query($args);

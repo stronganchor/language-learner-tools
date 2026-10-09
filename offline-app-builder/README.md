@@ -131,6 +131,27 @@ next to the input archive.
 
 ## Focused verification
 
+Keep `@capacitor/core`, `@capacitor/android`, and `@capacitor/cli` aligned at
+the pinned 8.4.3 security baseline. The maintainer's
+[proxy-origin advisory](https://github.com/ionic-team/capacitor/security/advisories/GHSA-rvm3-566m-v7fv)
+and [8.4.3 changelog](https://github.com/ionic-team/capacitor/blob/8.4.3/CHANGELOG.md)
+confirm that this same-major backport blocks internal HTTP-proxy navigation,
+including subframes. The builder uses the patched 8.4 branch because 8.5.1's
+iOS tooling introduces an affected `xcode`/`uuid` dependency chain. Review
+advisories and native compatibility before changing the synchronized pins.
+The Android runtime is packaged into each APK: rebuild and replace installed
+APKs to deliver a Capacitor security update. A dependency install or WordPress
+plugin update cannot repair an already installed app.
+
+Keep `sharp` at 0.35.5 or newer for the
+[librsvg advisory](https://github.com/lovell/sharp/security/advisories/GHSA-wq5f-xc86-pv6w).
+Launcher icons accept PNG, JPEG, or WebP filenames and byte signatures, within
+the existing 10 MiB and 67,108,864-pixel limits. The builder rejects SVG and other
+unsupported bytes before native metadata parsing, disables the SVG loader as
+defense in depth, and uses the same bounded byte snapshot for every density.
+An icon file changed after validation cannot switch a later render to another
+format. This build-time sharp update does not require replacing existing APKs.
+
 Keep `adm-zip` at 0.6.1 or newer: the upstream 0.6.1 release blocks extraction
 through pre-existing destination symlinks (CVE-2026-76845 /
 GHSA-vwc7-r8mq-g2x9). `tests/adm-zip-extraction-security.test.mjs` exercises
@@ -143,9 +164,17 @@ require a plugin version bump, WordPress deployment or APK rebuild.
 
 From this directory, run `npm test` (`npm.cmd test` in PowerShell when needed)
 for the Node archive/icon/configuration checks in
-`tests/builder-hardening.test.mjs`. Android PCM unit coverage is in
+`tests/builder-hardening.test.mjs`. The icon regressions verify disguised SVG
+and unsupported headers never reach native metadata, and valid PNG/JPEG/WebP
+inputs still produce all launcher densities after the source file changes.
+Run `npm audit` against the lockfile when updating dependencies.
+Android PCM unit coverage is in
 `android-overrides/app/src/test/java/com/lltools/offline/offline/quiz/stt/PcmAudioUtilsTest.java`;
 it needs a prepared Android project and toolchain.
+Node tests and a debug compile do not verify on-device navigation blocking,
+microphone permissions, offline STT inference, sync, release signing, or
+distribution. Check those on a controlled Android device before an APK rollout;
+keep the app ID and signing identity stable so learner data survives an update.
 
 WordPress-side coverage lives outside the builder: `OfflineAppExportTest` and
 `OfflineAppSyncTest` under `../tests/Integration/`, plus
