@@ -21812,7 +21812,9 @@ function ll_tools_wordset_page_normalize_recorder_queue_summary_manifest_payload
             'group' => is_array($entry['group'])
                 ? ll_tools_wordset_page_compact_recorder_queue_summary_manifest_group($entry['group'])
                 : null,
-            'observed_at' => max(0.0, (float) ($entry['observed_at'] ?? 0.0)),
+            // Keep timestamps out of PHP's precision-dependent float serializer.
+            // CLI/cron and web workers may use different serialize_precision.
+            'observed_at' => sprintf('%.6F', max(0.0, (float) ($entry['observed_at'] ?? 0.0))),
         ];
     }
 
@@ -21937,7 +21939,7 @@ function ll_tools_wordset_page_build_recorder_queue_summary_groups(
     $refresh_budget = max(0, min(50, $refresh_budget));
     // Fence concurrent manifest writers by when this request began observing
     // source dependencies, not by when its (potentially stale) scan finished.
-    $source_observed_at = microtime(true);
+    $source_observed_at = sprintf('%.6F', microtime(true));
     ll_tools_wordset_page_prime_recorder_queue_summary_category_meta($categories);
     $hidden_source_signatures = ll_tools_wordset_page_get_recorder_queue_summary_hidden_source_signatures($recorder_user_id);
     $global_source_signature = ll_tools_wordset_page_get_recorder_queue_summary_global_source_signature($recorder_user_id);

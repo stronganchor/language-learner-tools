@@ -19,7 +19,7 @@ const onePixelPngDataUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAA
 function buildRecorderMarkup(view = 'category') {
   const isOverview = view === 'overview';
   const categoryOverviewMarkup = isOverview ? `
-      <section data-ll-recorder-category-overview aria-busy="true">
+      <section class="ll-recorder-category-overview" data-ll-recorder-category-overview aria-busy="true">
         <div data-ll-recorder-category-grid>
           <a class="ll-wordset-card ll-wordset-card--lazy-placeholder ll-wordset-recorder-queue-category-card ll-wordset-recorder-queue-category-card--loading ll-recorder-category-card" data-recorder-queue-category="trees" data-recorder-queue-category-name="Tree varieties" data-ll-recorder-queue-summary-placeholder="true" href="/record/?ll_record_wordset=11&ll_record_category=trees" aria-label="Tree varieties" aria-busy="true"><span class="ll-wordset-card__top ll-wordset-recorder-queue-category-card__top"><span class="ll-wordset-card__title ll-wordset-recorder-queue-category__name">Tree varieties</span><span class="ll-wordset-settings-card__pill ll-wordset-recorder-queue-category-card__count-skeleton" aria-hidden="true"></span></span><span class="ll-wordset-card__lesson-link ll-wordset-recorder-queue-category-card__preview-link" aria-hidden="true"><span class="ll-wordset-card__preview ll-wordset-recorder-queue-category__preview has-images"><span class="ll-wordset-preview-item ll-wordset-preview-item--lazy-skeleton"></span><span class="ll-wordset-preview-item ll-wordset-preview-item--lazy-skeleton"></span></span></span></a>
           <a class="ll-wordset-card ll-wordset-card--lazy-placeholder ll-wordset-recorder-queue-category-card ll-wordset-recorder-queue-category-card--loading ll-recorder-category-card" data-recorder-queue-category="baby-animals" data-recorder-queue-category-name="Baby animals" data-ll-recorder-queue-summary-placeholder="true" href="/record/?ll_record_wordset=11&ll_record_category=baby-animals" aria-label="Baby animals" aria-busy="true"><span class="ll-wordset-card__top ll-wordset-recorder-queue-category-card__top"><span class="ll-wordset-card__title ll-wordset-recorder-queue-category__name">Baby animals</span><span class="ll-wordset-settings-card__pill ll-wordset-recorder-queue-category-card__count-skeleton" aria-hidden="true"></span></span><span class="ll-wordset-card__lesson-link ll-wordset-recorder-queue-category-card__preview-link" aria-hidden="true"><span class="ll-wordset-card__preview ll-wordset-recorder-queue-category__preview has-images"><span class="ll-wordset-preview-item ll-wordset-preview-item--lazy-skeleton"></span><span class="ll-wordset-preview-item ll-wordset-preview-item--lazy-skeleton"></span></span></span></a>
@@ -619,6 +619,23 @@ test('a stalled overview request times out and restores an explicit retry state'
   await expect(page.locator('[data-ll-recorder-queue-summary-loading="true"]')).toHaveCount(0);
   await page.waitForTimeout(150);
   await expect.poll(async () => page.evaluate(() => window.__categoryOverviewRequests.length)).toBe(1);
+});
+
+test('theme display rules cannot reveal the inactive overview retry button', async ({ page }) => {
+  await mountRecorder(page, {
+    categoryOverview: true,
+    categoryOverviewResponse: {
+      generation: 'theme-visibility-generation',
+      cards: [],
+      resolvedSlugs: ['trees', 'baby-animals', 'colors', 'foods', 'places'],
+      pendingSlugs: []
+    }
+  });
+  await page.addStyleTag({ content: '.ll-recording-interface button { display: inline-flex !important; }' });
+  await page.addStyleTag({ content: recorderCssSource });
+  await expect(page.locator('[data-ll-recorder-queue-summary-placeholder="true"]')).toHaveCount(0);
+  await expect(page.locator('[data-ll-recorder-category-overview]')).toHaveAttribute('aria-busy', 'false');
+  await expect(page.locator('[data-ll-recorder-category-retry]')).toBeHidden();
 });
 
 test('overview scheduling gives untouched visible categories a turn before retrying pending ones', async ({ page }) => {

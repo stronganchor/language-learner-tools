@@ -239,6 +239,11 @@
     margin: 0 0 clamp(0.65rem, 1.5vw, 1rem);
 }
 
+/* Theme button display rules must not reveal inactive recovery controls. */
+.ll-recording-interface .ll-recorder-category-overview [hidden] {
+    display: none !important;
+}
+
 .ll-recorder-category-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(min(100%, 250px), 330px));

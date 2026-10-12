@@ -1118,6 +1118,42 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_manifest_survives_precision_changes_between_worker_processes(): void
+    {
+        $generation = md5('precision-' . wp_generate_uuid4());
+        $key = ll_tools_wordset_page_get_recorder_queue_summary_manifest_cache_key($generation);
+        $original_precision = ini_get('serialize_precision');
+        try {
+            foreach ([100, -1] as $index => $precision) {
+                ini_set('serialize_precision', (string) $precision);
+                $slug = 'precision-category-' . $index;
+                $this->assertTrue(ll_tools_wordset_page_merge_recorder_queue_summary_manifest_entries(
+                    $key,
+                    $generation,
+                    [$slug => [
+                        'source_signature' => 'current-source',
+                        'complete' => true,
+                        'group' => null,
+                        'observed_at' => 1791800000.123456,
+                    ]],
+                    HOUR_IN_SECONDS
+                ));
+                // Emulate another request: discard both in-process caches and
+                // read the durable value under the other worker's precision.
+                $cache =& ll_tools_wordset_page_recorder_queue_summary_manifest_request_cache();
+                unset($cache[$key]);
+                wp_cache_delete($key, 'll_tools');
+                ini_set('serialize_precision', $precision === 100 ? '-1' : '100');
+                $manifest = ll_tools_wordset_page_get_recorder_queue_summary_manifest_payload($key, $generation);
+                $this->assertCount($index + 1, $manifest['entries']);
+                $this->assertSame('1791800000.123456', $manifest['entries'][$slug]['observed_at']);
+            }
+        } finally {
+            ini_set('serialize_precision', (string) $original_precision);
+            ll_tools_wordset_page_delete_durable_cached_payload($key);
+        }
+    }
+
     public function test_summary_batch_reuses_one_complete_catalog_manifest_scope(): void
     {
         $source = $this->getFunctionSource('ll_tools_wordset_page_build_recorder_queue_summary_batch');
