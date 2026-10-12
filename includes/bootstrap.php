@@ -11,6 +11,7 @@ require_once __DIR__ . '/lib/public-ajax-resource-guards.php';
 require_once __DIR__ . '/lib/wordset-category-search-index.php';
 require_once __DIR__ . '/lib/wordset-category-search-incremental.php';
 require_once __DIR__ . '/lib/wordset-category-search-worker.php';
+require_once __DIR__ . '/lib/public-aggregate-worker.php';
 require_once __DIR__ . '/lib/sort.php';
 require_once __DIR__ . '/lib/text-display.php';
 require_once __DIR__ . '/lib/entity-translations.php';
@@ -149,6 +150,7 @@ if (defined('WP_CLI') && WP_CLI) {
 
         $ll_tools_cli_aliases = [
             'll-tools wordset-search-worker' => 'wordset_search_worker',
+            'll-tools public-aggregate-worker' => 'public_aggregate_worker',
             'll-tools wordset-create' => 'wordset_create',
             'll-tools wordset-isolation-migrate' => 'wordset_isolation_migrate',
             'll-tools wordset-missing-meta' => 'wordset_missing_meta',

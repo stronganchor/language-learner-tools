@@ -2081,6 +2081,103 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertTrue(ll_tools_dictionary_lookup_is_ready());
     }
 
+    public function test_additive_dictionary_browse_backfill_preserves_cache_through_progress_failure_and_completion(): void
+    {
+        global $wpdb;
+
+        $this->assertTrue(ll_tools_install_dictionary_lookup_schema());
+        $entry_ids = [];
+        for ($index = 1; $index <= 30; $index++) {
+            $entry_ids[] = $this->createDictionaryLanguageEntry('Additive Browse ' . $index, 'Zazaki');
+        }
+        wp_set_current_user(0);
+        ll_tools_update_dictionary_lookup_rebuild_state([
+            'status' => 'completed', 'last_id' => max($entry_ids), 'processed' => 30,
+            'started_at' => gmdate('c'), 'completed_at' => gmdate('c'),
+            'truncate_pending' => 0, 'browse_version' => '', 'browse_only' => 0,
+        ]);
+        $batch_size = static fn(): int => 25;
+        add_filter('ll_tools_dictionary_lookup_rebuild_batch_size', $batch_size);
+        try {
+            $cache_args = ['search' => 'additive cache lifecycle'];
+            $payload = ['html' => '<p>Existing complete search</p>'];
+            ll_tools_dictionary_ajax_cache_set('live_search', $cache_args, $payload);
+            $version = ll_tools_get_dictionary_browser_cache_version();
+
+            ll_tools_dictionary_lookup_process_rebuild_batch();
+            $partial = ll_tools_get_dictionary_lookup_rebuild_state();
+            $this->assertSame('running', $partial['status']);
+            $this->assertSame(25, $partial['processed']);
+            $this->assertSame(1, $partial['browse_only']);
+            $this->assertTrue(ll_tools_dictionary_lookup_is_ready());
+            $this->assertFalse(ll_tools_dictionary_browse_lookup_is_ready());
+            $this->assertSame($version, ll_tools_get_dictionary_browser_cache_version());
+            $this->assertSame($payload, ll_tools_dictionary_ajax_cache_get('live_search', $cache_args));
+
+            // A real source edit still invalidates immediately during backfill.
+            wp_update_post(['ID' => $entry_ids[0], 'post_title' => 'Changed During Additive Backfill']);
+            $this->assertGreaterThan($version, ll_tools_get_dictionary_browser_cache_version());
+            $this->assertNull(ll_tools_dictionary_ajax_cache_get('live_search', $cache_args));
+            ll_tools_dictionary_ajax_cache_set('live_search', $cache_args, $payload);
+            $version = ll_tools_get_dictionary_browser_cache_version();
+
+            $fail_insert = static function (string $query) use ($wpdb): string {
+                return strpos($query, 'll_tools_dictionary_lookup_sync') !== false
+                    ? "INSERT INTO {$wpdb->prefix}missing_dictionary_additive_lookup (entry_id) VALUES (1)"
+                    : $query;
+            };
+            add_filter('query', $fail_insert);
+            $previous_suppress_errors = $wpdb->suppress_errors(true);
+            try {
+                ll_tools_dictionary_lookup_process_rebuild_batch();
+            } finally {
+                remove_filter('query', $fail_insert);
+                $wpdb->suppress_errors($previous_suppress_errors);
+            }
+            $failed = ll_tools_get_dictionary_lookup_rebuild_state();
+            $this->assertSame($partial['last_id'], $failed['last_id']);
+            $this->assertSame(25, $failed['processed']);
+            $this->assertSame('running', $failed['status']);
+            $this->assertSame($version, ll_tools_get_dictionary_browser_cache_version());
+            $this->assertSame($payload, ll_tools_dictionary_ajax_cache_get('live_search', $cache_args));
+            $this->assertNotFalse(wp_next_scheduled(LL_TOOLS_DICTIONARY_LOOKUP_REBUILD_HOOK));
+
+            ll_tools_dictionary_lookup_process_rebuild_batch();
+            $completed = ll_tools_get_dictionary_lookup_rebuild_state();
+            $this->assertSame('completed', $completed['status']);
+            $this->assertSame(30, $completed['processed']);
+            $this->assertSame(0, $completed['browse_only']);
+            $this->assertTrue(ll_tools_dictionary_browse_lookup_is_ready());
+            $this->assertGreaterThan($version, ll_tools_get_dictionary_browser_cache_version());
+            $this->assertNull(ll_tools_dictionary_ajax_cache_get('live_search', $cache_args));
+        } finally {
+            remove_filter('ll_tools_dictionary_lookup_rebuild_batch_size', $batch_size);
+        }
+    }
+
+    public function test_full_dictionary_lookup_rebuild_still_invalidates_after_partial_batch(): void
+    {
+        $this->assertTrue(ll_tools_install_dictionary_lookup_schema());
+        for ($index = 1; $index <= 30; $index++) {
+            $this->createDictionaryLanguageEntry('Full Lookup ' . $index, 'Zazaki');
+        }
+        $batch_size = static fn(): int => 25;
+        add_filter('ll_tools_dictionary_lookup_rebuild_batch_size', $batch_size);
+        try {
+            ll_tools_schedule_dictionary_lookup_rebuild(true);
+            $version = ll_tools_get_dictionary_browser_cache_version();
+            ll_tools_dictionary_lookup_process_rebuild_batch();
+            $state = ll_tools_get_dictionary_lookup_rebuild_state();
+            $this->assertSame('running', $state['status']);
+            $this->assertSame(25, $state['processed']);
+            $this->assertSame(0, $state['browse_only']);
+            $this->assertFalse(ll_tools_dictionary_lookup_is_ready());
+            $this->assertGreaterThan($version, ll_tools_get_dictionary_browser_cache_version());
+        } finally {
+            remove_filter('ll_tools_dictionary_lookup_rebuild_batch_size', $batch_size);
+        }
+    }
+
     public function test_dictionary_lookup_sync_accepts_collation_equivalent_candidates(): void
     {
         global $wpdb;
@@ -6419,6 +6516,119 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertStringContainsString('data-ll-dictionary-toolbar-deferred="0"', $letter_html);
         $this->assertStringContainsString('name="ll_dictionary_scope[]"', $letter_html);
         $this->assertStringContainsString('ll-dictionary__letters', $letter_html);
+    }
+
+    public function test_logged_in_unscoped_title_language_skips_full_dictionary_hydration(): void
+    {
+        global $wpdb;
+
+        for ($index = 1; $index <= 24; $index++) {
+            $entry_id = $this->createDictionaryLanguageEntry('Logged In Aggregate ' . $index, $index <= 6 ? 'English' : 'Zazaki');
+            wp_cache_delete($entry_id, 'post_meta');
+        }
+        wp_set_current_user(self::factory()->user->create(['role' => 'subscriber']));
+        ll_tools_bump_dictionary_browser_cache_version();
+
+        $queries = [];
+        $watcher = static function (string $query) use (&$queries): string {
+            $queries[] = $query;
+            return $query;
+        };
+        add_filter('query', $watcher);
+        try {
+            $language = ll_tools_dictionary_infer_title_language_code_from_entries(0);
+        } finally {
+            remove_filter('query', $watcher);
+        }
+
+        $sql = implode("\n", $queries);
+        $this->assertSame('zza', $language);
+        $this->assertSame(1, substr_count($sql, 'll_tools_dictionary_direct_language_candidates'));
+        $this->assertStringNotContainsString(
+            "SELECT ID FROM {$wpdb->posts} WHERE post_type = 'll_dictionary_entry' AND post_status = 'publish'",
+            $sql
+        );
+        $this->assertStringNotContainsString("SELECT post_id, meta_key, meta_value FROM {$wpdb->postmeta} WHERE post_id IN", $sql);
+        $this->assertNull(ll_tools_dictionary_browser_get_query_error());
+    }
+
+    public function test_logged_in_direct_language_aggregate_keeps_protected_dictionary_fallback(): void
+    {
+        $entry_id = $this->createDictionaryLanguageEntry('Protected Language', 'Zazaki');
+        wp_update_post(['ID' => $entry_id, 'post_password' => 'protected']);
+        wp_set_current_user(self::factory()->user->create(['role' => 'administrator']));
+
+        $this->assertNull(ll_tools_dictionary_get_unscoped_direct_title_language_counts());
+        $this->assertNull(ll_tools_dictionary_browser_get_query_error());
+    }
+
+    public function test_logged_in_empty_dictionary_caches_completed_unknown_language(): void
+    {
+        wp_set_current_user(self::factory()->user->create(['role' => 'subscriber']));
+        ll_tools_bump_dictionary_browser_cache_version();
+        $key = ll_tools_dictionary_browser_build_cache_key('inferred_title_language', [
+            'wordset_id' => 0,
+            'normalizer' => 2,
+            'viewer' => ll_tools_dictionary_viewer_cache_key(),
+        ]);
+
+        $this->assertSame('', ll_tools_dictionary_infer_title_language_code_from_entries(0));
+        $this->assertNull(ll_tools_dictionary_browser_get_query_error());
+        $this->assertSame('', get_transient($key));
+    }
+
+    public function test_logged_in_title_language_inference_keeps_private_scope_visibility(): void
+    {
+        $wordset = wp_insert_term('Private Language Aggregate ' . wp_generate_password(6, false), 'wordset');
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+        update_term_meta($wordset_id, LL_TOOLS_WORDSET_VISIBILITY_META_KEY, 'private');
+        $this->createDictionaryLanguageEntry('Visible English Aggregate', 'English');
+        $this->createDictionaryLanguageEntry('Private Zazaki Aggregate One', 'Zazaki', '', $wordset_id);
+        $this->createDictionaryLanguageEntry('Private Zazaki Aggregate Two', 'Zazaki', '', $wordset_id);
+        wp_set_current_user(self::factory()->user->create(['role' => 'subscriber']));
+        ll_tools_bump_dictionary_browser_cache_version();
+
+        $this->assertSame('en', ll_tools_dictionary_infer_title_language_code_from_entries(0));
+        $this->assertNull(ll_tools_dictionary_browser_get_query_error());
+    }
+
+    public function test_title_language_aggregate_fault_does_not_scan_or_cache_empty_language(): void
+    {
+        global $wpdb;
+
+        $this->createDictionaryLanguageEntry('Aggregate Source Retry', 'Zazaki');
+        wp_set_current_user(self::factory()->user->create(['role' => 'subscriber']));
+        ll_tools_bump_dictionary_browser_cache_version();
+        $key = ll_tools_dictionary_browser_build_cache_key('inferred_title_language', [
+            'wordset_id' => 0,
+            'normalizer' => 2,
+            'viewer' => ll_tools_dictionary_viewer_cache_key(),
+        ]);
+        $queries = [];
+        $fault = static function (string $query) use ($wpdb, &$queries): string {
+            $queries[] = $query;
+            return strpos($query, 'll_tools_dictionary_direct_language_candidates') !== false
+                ? "SELECT raw_language FROM {$wpdb->prefix}missing_dictionary_language_aggregate"
+                : $query;
+        };
+        add_filter('query', $fault);
+        $previous_suppress_errors = $wpdb->suppress_errors(true);
+        try {
+            $this->assertSame('', ll_tools_dictionary_infer_title_language_code_from_entries(0));
+        } finally {
+            remove_filter('query', $fault);
+            $wpdb->suppress_errors($previous_suppress_errors);
+        }
+
+        $this->assertInstanceOf(WP_Error::class, ll_tools_dictionary_browser_get_query_error());
+        $this->assertFalse(get_transient($key));
+        $this->assertStringNotContainsString(
+            "SELECT ID FROM {$wpdb->posts} WHERE post_type = 'll_dictionary_entry' AND post_status = 'publish'",
+            implode("\n", $queries)
+        );
+        ll_tools_dictionary_browser_clear_query_error();
+        $this->assertSame('zza', ll_tools_dictionary_infer_title_language_code_from_entries(0));
     }
 
     public function test_anonymous_unscoped_title_language_uses_grouped_direct_meta_majority(): void

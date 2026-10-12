@@ -5965,8 +5965,8 @@ function ll_tools_bump_quiz_content_cache_epoch($wordset_ids = [], bool $scope_c
                 : []
         );
     }
-    if (function_exists('ll_tools_purge_wordset_buttons_shortcode_cache_once')) {
-        ll_tools_purge_wordset_buttons_shortcode_cache_once();
+    if (function_exists('ll_tools_purge_wordset_buttons_shortcode_content_cache_once')) {
+        ll_tools_purge_wordset_buttons_shortcode_content_cache_once();
     }
 
     $result = [

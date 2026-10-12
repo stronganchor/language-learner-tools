@@ -662,9 +662,8 @@ function ll_tools_wordset_buttons_shortcode_publish_anonymous_html(
     );
 }
 
-function ll_tools_purge_wordset_buttons_shortcode_cache(): int {
-    ll_tools_bump_wordset_buttons_shortcode_generation_epoch();
-
+/** Discard exact rendered HTML without erasing resumable count generations. */
+function ll_tools_purge_wordset_buttons_shortcode_html_cache(): int {
     $keys = get_option('ll_tools_wordset_buttons_shortcode_cache_keys', []);
     $keys = is_array($keys) ? array_values(array_filter(array_map('sanitize_key', $keys))) : [];
 
@@ -675,6 +674,13 @@ function ll_tools_purge_wordset_buttons_shortcode_cache(): int {
         }
     }
     delete_option('ll_tools_wordset_buttons_shortcode_cache_keys');
+
+    return $deleted;
+}
+
+function ll_tools_purge_wordset_buttons_shortcode_cache(): int {
+    ll_tools_bump_wordset_buttons_shortcode_generation_epoch();
+    $deleted = ll_tools_purge_wordset_buttons_shortcode_html_cache();
 
     $state_keys = get_option('ll_tools_wordset_buttons_shortcode_state_keys', []);
     $state_keys = is_array($state_keys) ? array_values(array_filter(array_map('sanitize_key', $state_keys))) : [];
@@ -739,9 +745,27 @@ function ll_tools_purge_wordset_buttons_shortcode_cache_once(): int {
     return ll_tools_purge_wordset_buttons_shortcode_cache();
 }
 
+/**
+ * Content epochs already fence affected count generations. Keep other exact
+ * scopes warm, and let their bounded workers retain progress and lock ownership.
+ * The existing registry still caps retained states and paired locks at fifty.
+ */
+function ll_tools_purge_wordset_buttons_shortcode_content_cache_once(): int {
+    if (
+        !empty($GLOBALS['ll_tools_wordset_buttons_shortcode_cache_purged_this_request'])
+        || !empty($GLOBALS['ll_tools_wordset_buttons_shortcode_content_cache_purged_this_request'])
+    ) {
+        return 0;
+    }
+
+    $GLOBALS['ll_tools_wordset_buttons_shortcode_content_cache_purged_this_request'] = true;
+    return ll_tools_purge_wordset_buttons_shortcode_html_cache();
+}
+
 /** Reset the request guard for tests and CLI loops that simulate HTTP boundaries. */
 function ll_tools_reset_wordset_buttons_shortcode_cache_purge_once_state(): void {
     unset($GLOBALS['ll_tools_wordset_buttons_shortcode_cache_purged_this_request']);
+    unset($GLOBALS['ll_tools_wordset_buttons_shortcode_content_cache_purged_this_request']);
 }
 
 function ll_tools_wordset_buttons_shortcode_purge_on_post_change($post_id = 0): void {

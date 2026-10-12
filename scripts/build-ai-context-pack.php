@@ -422,6 +422,8 @@ function ll_tools_context_pack_definitions(): array
             ],
             'sources' => [
                 'includes/lib/wordset-category-search-*.php',
+                'includes/lib/public-aggregate-worker.php',
+                'docs/PUBLIC_AGGREGATE_MAINTENANCE.md',
                 'docs/WORDSET_SEARCH_MAINTENANCE.md',
                 'docs/WORDSET_PROGRESS_SELECTION.md',
                 'includes/pages/wordset-pages.php',
@@ -458,6 +460,7 @@ function ll_tools_context_pack_definitions(): array
             ],
             'tests' => [
                 'tests/Integration/Wordset*Test.php',
+                'tests/Integration/PublicAggregateWorkerTest.php',
                 'tests/Integration/VocabLesson*Test.php',
                 'tests/Integration/CategoryPrivacyAccessTest.php',
                 'tests/Integration/UserStudyAnalyticsTest.php',
@@ -671,6 +674,8 @@ function ll_tools_context_pack_definitions(): array
                 'includes/post-types/dictionary-entry-post-type.php',
                 'includes/lib/ai-crawler-support.php',
                 'includes/lib/dictionary-*.php',
+                'includes/lib/public-aggregate-worker.php',
+                'docs/PUBLIC_AGGREGATE_MAINTENANCE.md',
                 'includes/lib/public-static-cache.php',
                 'includes/lib/public-ajax-resource-guards.php',
                 'includes/lib/entity-translations.php',
@@ -695,6 +700,7 @@ function ll_tools_context_pack_definitions(): array
             'tests' => [
                 'tests/Integration/AiCrawlerSupportTest.php',
                 'tests/Integration/Dictionary*Test.php',
+                'tests/Integration/PublicAggregateWorkerTest.php',
                 'tests/Integration/LocalePreferenceTest.php',
                 'tests/Integration/PublicAjaxResourceGuardTest.php',
                 'tests/Integration/PublicStaticCacheTest.php',

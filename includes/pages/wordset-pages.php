@@ -22253,6 +22253,7 @@ function ll_tools_wordset_page_schedule_recorder_queue_summary_warmup(
  * candidate scan. Targeted refreshes are used after a recording is saved.
  *
  * @param string[] $category_slugs Optional category-only refresh scope.
+ * @return array{complete:bool,args:array,delay:int,error:string} Typed worker checkpoint.
  */
 function ll_tools_wordset_page_run_recorder_queue_summary_warmup(
     int $wordset_id,
@@ -22262,10 +22263,17 @@ function ll_tools_wordset_page_run_recorder_queue_summary_warmup(
     string $generation = '',
     int $offset = 0,
     array $category_slugs = []
-): void {
+): array {
+    $retry = [
+        'complete' => false,
+        'args' => [$wordset_id, $recorder_user_id, $include_types_csv, $exclude_types_csv, $generation, $offset, $category_slugs],
+        'delay' => 30,
+        'error' => '',
+    ];
     $wordset_term = $wordset_id > 0 ? get_term($wordset_id, 'wordset') : null;
     if (!($wordset_term instanceof WP_Term) || is_wp_error($wordset_term) || $recorder_user_id <= 0) {
-        return;
+        $retry['error'] = 'recorder_scope_unavailable';
+        return $retry;
     }
 
     $catalog_complete = true;
@@ -22275,9 +22283,10 @@ function ll_tools_wordset_page_run_recorder_queue_summary_warmup(
         $catalog_complete
     );
     if (!$catalog_complete) {
-        // A later page request or a new config/content event can retry. Never
-        // turn an incomplete category read into a cached empty result.
-        return;
+        // The dedicated worker retains this exact event for a later retry.
+        // Never turn an incomplete category read into a cached empty result.
+        $retry['error'] = 'recorder_catalog_read_failed';
+        return $retry;
     }
 
     $include_types_csv = implode(',', ll_tools_wordset_page_recorder_queue_type_csv_to_slugs($include_types_csv));
@@ -22290,7 +22299,8 @@ function ll_tools_wordset_page_run_recorder_queue_summary_warmup(
         $exclude_types_csv
     );
     if (empty($manifest_scope['complete'])) {
-        return;
+        $retry['error'] = 'recorder_manifest_scope_failed';
+        return $retry;
     }
 
     $current_generation = (string) ($manifest_scope['generation'] ?? '');
@@ -22329,7 +22339,7 @@ function ll_tools_wordset_page_run_recorder_queue_summary_warmup(
         );
     }
     if (empty($selected_categories)) {
-        return;
+        return ['complete' => true, 'args' => [], 'delay' => 0, 'error' => ''];
     }
 
     $status = [];
@@ -22370,8 +22380,14 @@ function ll_tools_wordset_page_run_recorder_queue_summary_warmup(
                 0,
                 $next_slugs
             );
+            return [
+                'complete' => false,
+                'args' => [$wordset_id, $recorder_user_id, $include_types_csv, $exclude_types_csv, $current_generation, 0, $next_slugs],
+                'delay' => !empty($pending_slugs) ? 30 : 1,
+                'error' => '',
+            ];
         }
-        return;
+        return ['complete' => true, 'args' => [], 'delay' => 0, 'error' => ''];
     }
 
     $next_offset = max(0, $offset) + count($selected_categories);
@@ -22386,7 +22402,14 @@ function ll_tools_wordset_page_run_recorder_queue_summary_warmup(
             $current_generation,
             $next_cursor
         );
+        return [
+            'complete' => false,
+            'args' => [$wordset_id, $recorder_user_id, $include_types_csv, $exclude_types_csv, $current_generation, $next_cursor, []],
+            'delay' => $next_is_same_batch ? 30 : 1,
+            'error' => '',
+        ];
     }
+    return ['complete' => true, 'args' => [], 'delay' => 0, 'error' => ''];
 }
 add_action(
     'll_tools_wordset_page_warm_recorder_queue_summaries',

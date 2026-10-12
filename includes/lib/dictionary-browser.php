@@ -1088,18 +1088,15 @@ function ll_tools_dictionary_get_wordset_title_language_code(int $wordset_id = 0
 }
 
 /**
- * Aggregate direct title-language metadata for the anonymous, unscoped view.
+ * Aggregate direct title-language metadata for an unscoped public dictionary.
  *
  * A null result means the aggregate is not semantically equivalent to the
  * visibility-aware entry scan and the caller must use that existing path.
  *
  * @return array<string,int>|null Normalized language counts, or null to fall back.
  */
-function ll_tools_dictionary_get_anonymous_unscoped_title_language_counts(): ?array {
-    if (
-        is_user_logged_in()
-        || !defined('LL_TOOLS_DICTIONARY_ENTRY_WORDSET_META_KEY')
-    ) {
+function ll_tools_dictionary_get_unscoped_direct_title_language_counts(): ?array {
+    if (!defined('LL_TOOLS_DICTIONARY_ENTRY_WORDSET_META_KEY')) {
         return null;
     }
 
@@ -1107,6 +1104,22 @@ function ll_tools_dictionary_get_anonymous_unscoped_title_language_counts(): ?ar
 
     $language_meta_key = LL_TOOLS_DICTIONARY_ENTRY_ENTRY_LANG_META_KEY;
     $wordset_meta_key = LL_TOOLS_DICTIONARY_ENTRY_WORDSET_META_KEY;
+    if (is_user_logged_in()) {
+        // Staff may see protected entries, so do not assume that the anonymous
+        // aggregate represents their complete visible dictionary.
+        $protected_entry_id = $wpdb->get_var(
+            "SELECT ID FROM {$wpdb->posts}
+             WHERE post_type = 'll_dictionary_entry' AND post_status = 'publish'
+               AND OCTET_LENGTH(post_password) > 0 LIMIT 1"
+        );
+        if ($wpdb->last_error !== '') {
+            ll_tools_dictionary_browser_mark_query_error('inferred_title_language_protected', (string) $wpdb->last_error);
+            return null;
+        }
+        if ($protected_entry_id !== null) {
+            return null;
+        }
+    }
     $published_entry_count = (int) $wpdb->get_var($wpdb->prepare(
         "SELECT COUNT(*)
          FROM {$wpdb->posts}
@@ -1116,6 +1129,7 @@ function ll_tools_dictionary_get_anonymous_unscoped_title_language_counts(): ?ar
         'publish'
     ));
     if ($wpdb->last_error !== '') {
+        ll_tools_dictionary_browser_mark_query_error('inferred_title_language_count', (string) $wpdb->last_error);
         return null;
     }
     if ($published_entry_count <= 0) {
@@ -1135,7 +1149,11 @@ function ll_tools_dictionary_get_anonymous_unscoped_title_language_counts(): ?ar
         'll_dictionary_entry',
         'publish'
     ));
-    if ($wpdb->last_error !== '' || $explicit_wordset_entry_id !== null) {
+    if ($wpdb->last_error !== '') {
+        ll_tools_dictionary_browser_mark_query_error('inferred_title_language_scope', (string) $wpdb->last_error);
+        return null;
+    }
+    if ($explicit_wordset_entry_id !== null) {
         return null;
     }
 
@@ -1156,6 +1174,7 @@ function ll_tools_dictionary_get_anonymous_unscoped_title_language_counts(): ?ar
         'publish'
     ), ARRAY_A);
     if (!is_array($rows) || $wpdb->last_error !== '') {
+        ll_tools_dictionary_browser_mark_query_error('inferred_title_language_languages', (string) $wpdb->last_error);
         return null;
     }
     if (empty($rows)) {
@@ -1210,6 +1229,13 @@ function ll_tools_dictionary_get_anonymous_unscoped_title_language_counts(): ?ar
 }
 
 /**
+ * Keep the existing anonymous-only helper available to internal callers.
+ */
+function ll_tools_dictionary_get_anonymous_unscoped_title_language_counts(): ?array {
+    return is_user_logged_in() ? null : ll_tools_dictionary_get_unscoped_direct_title_language_counts();
+}
+
+/**
  * Infer the dictionary title language from published entries when the shortcode
  * is not scoped to a wordset with an explicit title language.
  */
@@ -1230,9 +1256,12 @@ function ll_tools_dictionary_infer_title_language_code_from_entries(int $wordset
         return $cached;
     }
 
-    $counts = ($wordset_id === 0 && !is_user_logged_in())
-        ? ll_tools_dictionary_get_anonymous_unscoped_title_language_counts()
+    $counts = $wordset_id === 0
+        ? ll_tools_dictionary_get_unscoped_direct_title_language_counts()
         : null;
+    if (ll_tools_dictionary_browser_get_query_error() instanceof WP_Error) {
+        return '';
+    }
     if (!is_array($counts)) {
         $entry_ids = function_exists('ll_tools_dictionary_get_published_entry_ids_for_scope')
             ? ll_tools_dictionary_get_published_entry_ids_for_scope($wordset_id)

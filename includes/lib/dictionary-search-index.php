@@ -1072,7 +1072,13 @@ function ll_tools_dictionary_lookup_process_rebuild_batch(): void {
         }
 
         if (!ll_tools_dictionary_lookup_publish_rebuild_state($state)) { return; }
-        if (function_exists('ll_tools_bump_dictionary_browser_cache_version')) {
+        // Additive browse rows stay unavailable until the entire projection is
+        // complete. Preserve the existing search caches while filling them;
+        // ordinary entry mutations still invalidate their own changed data.
+        if (
+            ($state['browse_only'] !== 1 || $state['status'] === 'completed')
+            && function_exists('ll_tools_bump_dictionary_browser_cache_version')
+        ) {
             ll_tools_bump_dictionary_browser_cache_version();
         }
     } finally {

@@ -173,6 +173,7 @@ module list.
 - includes/lib/wordset-category-search-index.php
 - includes/lib/wordset-category-search-incremental.php
 - includes/lib/wordset-category-search-worker.php
+- includes/lib/public-aggregate-worker.php
 - includes/lib/sort.php
 - includes/lib/text-display.php
 - includes/lib/entity-translations.php
@@ -332,6 +333,7 @@ includes/
     wordset-category-search-index.php # Durable bounded wordset category-search materializer
     wordset-category-search-incremental.php # Exact-word updates with source and lease fencing
     wordset-category-search-worker.php # Bounded CLI worker for managed background maintenance
+    public-aggregate-worker.php # Dedicated bounded dictionary/count/recorder cache preparation
     flashcard-payload-materializer.php # Durable generation-scoped flashcard rows and signed page cursors
     sort.php                  # Shared sorting helpers
     text-display.php          # Display text normalization/helpers
