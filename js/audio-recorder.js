@@ -1548,7 +1548,7 @@
         el.categoryOverview.classList.toggle('has-error', hasError);
         el.categoryOverview.setAttribute(
             'aria-busy',
-            isLoading || (!hasError && placeholders.length > 0) ? 'true' : 'false'
+            isLoading ? 'true' : 'false'
         );
         if (el.categoryOverviewStatus) {
             if (isLoading) {
@@ -1557,7 +1557,7 @@
                 el.categoryOverviewStatus.textContent = i18n.category_overview_error || '';
             } else {
                 el.categoryOverviewStatus.textContent = placeholders.length > 0
-                    ? (i18n.category_overview_loading || '')
+                    ? ''
                     : (i18n.category_overview_loaded || '');
             }
         }
