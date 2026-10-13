@@ -221,7 +221,7 @@ msgid "Book page navigation"
 msgstr "Navigasi halaman buku"
 
 #. ll-tools-public-key: 8d3ce065131595ecd554b141efe1f29fc476036c
-#: includes/admin/audio-processor-admin.php:1415 includes/admin/audio-processor-admin.php:217 includes/admin/image-webp-optimizer-admin.php:1736 includes/admin/ipa-keyboard-admin.php:488 includes/admin/site-sync-admin.php:1128 includes/admin/teacher-classes-page.php:497 includes/admin/word-option-rules-admin.php:1968 includes/admin/word-option-rules-admin.php:2572 includes/lib/interlinear.php:1763 includes/lib/interlinear.php:1767 includes/pages/content-lesson-pages.php:1086 includes/pages/content-lesson-pages.php:1142 includes/pages/wordset-pages.php:12927 includes/pages/wordset-pages.php:13058 includes/pages/wordset-pages.php:13295 includes/pages/wordset-pages.php:17721 includes/pages/wordset-pages.php:24114 includes/pages/wordset-pages.php:24387 includes/pages/wordset-transcription-review.php:308 includes/shortcodes/audio-credit-grid-shortcode.php:407 includes/shortcodes/content-lesson-index-shortcode.php:542 includes/shortcodes/content-lesson-index-shortcode.php:708 includes/shortcodes/dictionary-shortcode.php:2944 includes/shortcodes/image-copyright-grid-shortcode.php:590 includes/taxonomies/word-category-taxonomy.php:3645
+#: includes/admin/audio-processor-admin.php:1415 includes/admin/audio-processor-admin.php:217 includes/admin/image-webp-optimizer-admin.php:1736 includes/admin/ipa-keyboard-admin.php:488 includes/admin/site-sync-admin.php:1128 includes/admin/teacher-classes-page.php:497 includes/admin/word-option-rules-admin.php:1968 includes/admin/word-option-rules-admin.php:2572 includes/lib/interlinear.php:1763 includes/lib/interlinear.php:1767 includes/pages/content-lesson-pages.php:1086 includes/pages/content-lesson-pages.php:1142 includes/pages/wordset-pages.php:12927 includes/pages/wordset-pages.php:13058 includes/pages/wordset-pages.php:13295 includes/pages/wordset-pages.php:17721 includes/pages/wordset-pages.php:24116 includes/pages/wordset-pages.php:24389 includes/pages/wordset-transcription-review.php:308 includes/shortcodes/audio-credit-grid-shortcode.php:407 includes/shortcodes/content-lesson-index-shortcode.php:542 includes/shortcodes/content-lesson-index-shortcode.php:708 includes/shortcodes/dictionary-shortcode.php:2944 includes/shortcodes/image-copyright-grid-shortcode.php:590 includes/taxonomies/word-category-taxonomy.php:3645
 msgid "Previous"
 msgstr "Sebelumnya"
 
@@ -231,7 +231,7 @@ msgid "%1$d of %2$d"
 msgstr "%1$d dari %2$d"
 
 #. ll-tools-public-key: 4055e4cb2e72f3359a7616f8365c42a9ba450976
-#: includes/admin/audio-processor-admin.php:1419 includes/admin/audio-processor-admin.php:218 includes/admin/image-webp-optimizer-admin.php:1737 includes/admin/ipa-keyboard-admin.php:489 includes/admin/site-sync-admin.php:1131 includes/admin/teacher-classes-page.php:502 includes/admin/word-option-rules-admin.php:1975 includes/admin/word-option-rules-admin.php:2582 includes/flashcard-shell.php:212 includes/lib/interlinear.php:1779 includes/lib/interlinear.php:1783 includes/pages/content-lesson-pages.php:1089 includes/pages/content-lesson-pages.php:1143 includes/pages/wordset-pages.php:12931 includes/pages/wordset-pages.php:13062 includes/pages/wordset-pages.php:13299 includes/pages/wordset-pages.php:13529 includes/pages/wordset-pages.php:13563 includes/pages/wordset-pages.php:17727 includes/pages/wordset-pages.php:24128 includes/pages/wordset-pages.php:24402 includes/pages/wordset-pages.php:29440 includes/pages/wordset-pages.php:29569 includes/pages/wordset-transcription-review.php:309 includes/shortcodes/audio-credit-grid-shortcode.php:408 includes/shortcodes/content-lesson-index-shortcode.php:722 includes/shortcodes/dictionary-shortcode.php:2967 includes/shortcodes/flashcard-widget.php:682 includes/shortcodes/image-copyright-grid-shortcode.php:591 includes/taxonomies/word-category-taxonomy.php:3646
+#: includes/admin/audio-processor-admin.php:1419 includes/admin/audio-processor-admin.php:218 includes/admin/image-webp-optimizer-admin.php:1737 includes/admin/ipa-keyboard-admin.php:489 includes/admin/site-sync-admin.php:1131 includes/admin/teacher-classes-page.php:502 includes/admin/word-option-rules-admin.php:1975 includes/admin/word-option-rules-admin.php:2582 includes/flashcard-shell.php:212 includes/lib/interlinear.php:1779 includes/lib/interlinear.php:1783 includes/pages/content-lesson-pages.php:1089 includes/pages/content-lesson-pages.php:1143 includes/pages/wordset-pages.php:12931 includes/pages/wordset-pages.php:13062 includes/pages/wordset-pages.php:13299 includes/pages/wordset-pages.php:13529 includes/pages/wordset-pages.php:13563 includes/pages/wordset-pages.php:17727 includes/pages/wordset-pages.php:24130 includes/pages/wordset-pages.php:24404 includes/pages/wordset-pages.php:29442 includes/pages/wordset-pages.php:29571 includes/pages/wordset-transcription-review.php:309 includes/shortcodes/audio-credit-grid-shortcode.php:408 includes/shortcodes/content-lesson-index-shortcode.php:722 includes/shortcodes/dictionary-shortcode.php:2967 includes/shortcodes/flashcard-widget.php:682 includes/shortcodes/image-copyright-grid-shortcode.php:591 includes/taxonomies/word-category-taxonomy.php:3646
 msgid "Next"
 msgstr "Selanjutnya"
 
@@ -643,7 +643,7 @@ msgid "Cached reference STT"
 msgstr "Transkripsi referensi tersimpan"
 
 #. ll-tools-public-key: 643ad0bb1f223ad4f36f01310668a409627def0f
-#: includes/admin/ipa-keyboard-admin.php:737 includes/admin/ipa-keyboard-admin.php:751 includes/admin/site-sync-admin.php:1055 includes/lib/wordset-language-settings.php:1316 includes/lib/wordset-language-settings.php:1317 includes/lib/wordset-language-settings.php:1331 includes/lib/wordset-language-settings.php:1336 includes/lib/wordset-language-settings.php:896 includes/lib/wordset-language-settings.php:932 includes/pages/wordset-editor.php:1261 includes/pages/wordset-games.php:5805 includes/pages/wordset-pages.php:13560 includes/pages/wordset-pages.php:26699 includes/pages/wordset-pages.php:29550 includes/pages/wordset-transcription-review.php:280 includes/shortcodes/editor-hub-shortcode.php:1039 includes/shortcodes/editor-hub-shortcode.php:1040 includes/shortcodes/editor-hub-shortcode.php:644 includes/shortcodes/editor-hub-shortcode.php:645 includes/shortcodes/interlinear-shortcode.php:304 includes/shortcodes/word-grid-shortcode.php:5882 includes/shortcodes/word-grid-shortcode.php:5893
+#: includes/admin/ipa-keyboard-admin.php:737 includes/admin/ipa-keyboard-admin.php:751 includes/admin/site-sync-admin.php:1055 includes/lib/wordset-language-settings.php:1316 includes/lib/wordset-language-settings.php:1317 includes/lib/wordset-language-settings.php:1331 includes/lib/wordset-language-settings.php:1336 includes/lib/wordset-language-settings.php:896 includes/lib/wordset-language-settings.php:932 includes/pages/wordset-editor.php:1261 includes/pages/wordset-games.php:5805 includes/pages/wordset-pages.php:13560 includes/pages/wordset-pages.php:26701 includes/pages/wordset-pages.php:29552 includes/pages/wordset-transcription-review.php:280 includes/shortcodes/editor-hub-shortcode.php:1039 includes/shortcodes/editor-hub-shortcode.php:1040 includes/shortcodes/editor-hub-shortcode.php:644 includes/shortcodes/editor-hub-shortcode.php:645 includes/shortcodes/interlinear-shortcode.php:304 includes/shortcodes/word-grid-shortcode.php:5882 includes/shortcodes/word-grid-shortcode.php:5893
 msgid "IPA"
 msgstr "IPA"
 
@@ -758,7 +758,7 @@ msgid "Unable to create the account right now."
 msgstr "Saat ini tidak dapat membuat akun."
 
 #. ll-tools-public-key: 372a2f61595d29b3357d2644597bb6356af015d4
-#: includes/admin/offline-app-export.php:2938 includes/admin/offline-app-export.php:3681 includes/login-window.php:2526 includes/login-window.php:2528 includes/login-window.php:2924 includes/pages/wordset-pages.php:29312 templates/offline-app-shell-template.php:692
+#: includes/admin/offline-app-export.php:2938 includes/admin/offline-app-export.php:3681 includes/login-window.php:2526 includes/login-window.php:2528 includes/login-window.php:2924 includes/pages/wordset-pages.php:29314 templates/offline-app-shell-template.php:692
 msgid "Sign in"
 msgstr "Masuk"
 
@@ -768,7 +768,7 @@ msgid "Sign in to continue."
 msgstr "Masuk untuk melanjutkan."
 
 #. ll-tools-public-key: 776ed6c00baa01ff769d6391c1373b6f7d8b1f0c
-#: includes/login-window.php:2533 includes/login-window.php:2535 includes/login-window.php:2609 includes/login-window.php:2727 includes/login-window.php:2917 includes/pages/wordset-pages.php:27515 includes/pages/wordset-pages.php:27541 includes/pages/wordset-pages.php:29341
+#: includes/login-window.php:2533 includes/login-window.php:2535 includes/login-window.php:2609 includes/login-window.php:2727 includes/login-window.php:2917 includes/pages/wordset-pages.php:27517 includes/pages/wordset-pages.php:27543 includes/pages/wordset-pages.php:29343
 msgid "Create account"
 msgstr "Buat akun"
 
@@ -788,7 +788,7 @@ msgid "Create a recorder account for this word set."
 msgstr "Buat akun perekam untuk kumpulan kata ini."
 
 #. ll-tools-public-key: 73c2c621be79bd904f225bb2b1cb4152d8002eb4
-#: includes/admin/offline-app-export.php:2936 includes/admin/offline-app-export.php:3679 includes/login-window.php:2746 includes/pages/wordset-pages.php:14907 includes/pages/wordset-pages.php:25015 templates/offline-app-shell-template.php:672
+#: includes/admin/offline-app-export.php:2936 includes/admin/offline-app-export.php:3679 includes/login-window.php:2746 includes/pages/wordset-pages.php:14907 includes/pages/wordset-pages.php:25017 templates/offline-app-shell-template.php:672
 msgid "Username or email"
 msgstr "Nama pengguna atau alamat email"
 
@@ -818,7 +818,7 @@ msgid "Show"
 msgstr "Tampilkan"
 
 #. ll-tools-public-key: c41cd2c553ffc81ed301cbd18471c270deaa35b0
-#: includes/login-window.php:2845 includes/login-window.php:2847 includes/login-window.php:2857 includes/pages/wordset-pages.php:23502 includes/pages/wordset-pages.php:27297
+#: includes/login-window.php:2845 includes/login-window.php:2847 includes/login-window.php:2857 includes/pages/wordset-pages.php:23504 includes/pages/wordset-pages.php:27299
 msgid "Hide"
 msgstr "Sembunyikan"
 
@@ -893,12 +893,12 @@ msgid "Texts"
 msgstr "Teks"
 
 #. ll-tools-public-key: 7da71bbb0eb2c36a7839e14695e5c6270c815b70
-#: includes/pages/content-lesson-pages.php:815 includes/pages/wordset-pages.php:28347
+#: includes/pages/content-lesson-pages.php:815 includes/pages/wordset-pages.php:28349
 msgid "Main Lessons"
 msgstr "Pelajaran Utama"
 
 #. ll-tools-public-key: a607a99fc5a9cdf68a5c25f59032fa8fe2fa597c
-#: includes/pages/content-lesson-pages.php:818 includes/pages/wordset-pages.php:27443 includes/pages/wordset-pages.php:5531 includes/shortcodes/content-lesson-index-shortcode.php:615
+#: includes/pages/content-lesson-pages.php:818 includes/pages/wordset-pages.php:27445 includes/pages/wordset-pages.php:5531 includes/shortcodes/content-lesson-index-shortcode.php:615
 msgid "Open lesson"
 msgstr "Buka pelajaran"
 
@@ -920,7 +920,7 @@ msgid "Text pages"
 msgstr "Halaman teks"
 
 #. ll-tools-public-key: f1299d10e3f0ca397ccc8ad1494bae2724f4eec0
-#: includes/admin/image-webp-optimizer-admin.php:1735 includes/pages/content-lesson-pages.php:1102 includes/pages/wordset-pages.php:17724 includes/pages/wordset-pages.php:24394
+#: includes/admin/image-webp-optimizer-admin.php:1735 includes/pages/content-lesson-pages.php:1102 includes/pages/wordset-pages.php:17724 includes/pages/wordset-pages.php:24396
 msgid "Page %1$d of %2$d"
 msgstr "Halaman %1$d dari %2$d"
 
@@ -1035,12 +1035,12 @@ msgid "Correct"
 msgstr "Benar"
 
 #. ll-tools-public-key: 13d849a90890df12808863859c136b4762890d32
-#: includes/pages/vocab-lesson-pages.php:1969 includes/pages/vocab-lesson-pages.php:2042 includes/pages/wordset-pages.php:13666 includes/pages/wordset-pages.php:27394 includes/pages/wordset-pages.php:27891 includes/pages/wordset-pages.php:27902 includes/pages/wordset-pages.php:27903
+#: includes/pages/vocab-lesson-pages.php:1969 includes/pages/vocab-lesson-pages.php:2042 includes/pages/wordset-pages.php:13666 includes/pages/wordset-pages.php:27396 includes/pages/wordset-pages.php:27893 includes/pages/wordset-pages.php:27904 includes/pages/wordset-pages.php:27905
 msgid "Wrong"
 msgstr "Salah"
 
 #. ll-tools-public-key: aeb6743c42e56deec715bceece77a85f9cc93915
-#: includes/pages/vocab-lesson-pages.php:2012 includes/pages/vocab-lesson-pages.php:2033 includes/pages/wordset-pages.php:27384 includes/shortcodes/flashcard-widget.php:650 includes/shortcodes/flashcard-widget.php:655 includes/shortcodes/ranked-word-list-shortcode.php:377 includes/shortcodes/ranked-word-list-shortcode.php:383 includes/shortcodes/word-audio-shortcode.php:211 includes/taxonomies/word-category-taxonomy.php:2900
+#: includes/pages/vocab-lesson-pages.php:2012 includes/pages/vocab-lesson-pages.php:2033 includes/pages/wordset-pages.php:27386 includes/shortcodes/flashcard-widget.php:650 includes/shortcodes/flashcard-widget.php:655 includes/shortcodes/ranked-word-list-shortcode.php:377 includes/shortcodes/ranked-word-list-shortcode.php:383 includes/shortcodes/word-audio-shortcode.php:211 includes/taxonomies/word-category-taxonomy.php:2900
 msgid "Play audio"
 msgstr "Putar audio"
 
@@ -1115,7 +1115,7 @@ msgid "Hear the word. Pop the matching bubble."
 msgstr "Dengarkan kata ini. Pecahkan gelembung yang sesuai."
 
 #. ll-tools-public-key: 07a469e4c604ea7e77d88bdec0fa8baba6b9a8fd
-#: includes/pages/wordset-games.php:276 includes/pages/wordset-pages.php:13493 includes/pages/wordset-pages.php:29211
+#: includes/pages/wordset-games.php:276 includes/pages/wordset-pages.php:13493 includes/pages/wordset-pages.php:29213
 msgid "Open speaking settings"
 msgstr "Buka pengaturan suara"
 
@@ -1155,7 +1155,7 @@ msgid "Line Up"
 msgstr "Susun kartu"
 
 #. ll-tools-public-key: 827a4436413f0ab577ed1a7db5be466331400118
-#: includes/pages/wordset-games.php:4815 includes/pages/wordset-games.php:7032 includes/pages/wordset-pages.php:13523 includes/pages/wordset-pages.php:29424
+#: includes/pages/wordset-games.php:4815 includes/pages/wordset-games.php:7032 includes/pages/wordset-pages.php:13523 includes/pages/wordset-pages.php:29426
 msgid "Put the cards in the correct order."
 msgstr "Susun kartu-kartu tersebut sesuai urutannya."
 
@@ -1350,17 +1350,17 @@ msgid "Lessons"
 msgstr "Pelajaran"
 
 #. ll-tools-public-key: 5f4fc75c09a0bad979955da42007f7c5f66b1382
-#: includes/pages/wordset-pages.php:13478 includes/pages/wordset-pages.php:29291
+#: includes/pages/wordset-pages.php:13478 includes/pages/wordset-pages.php:29293
 msgid "Checking game availability..."
 msgstr "Memeriksa ketersediaan game..."
 
 #. ll-tools-public-key: c20da53cf8ed60230f2b09ff3d16b89f734e235d
-#: includes/pages/wordset-pages.php:13479 includes/pages/wordset-pages.php:29611
+#: includes/pages/wordset-pages.php:13479 includes/pages/wordset-pages.php:29613
 msgid "Preparing game..."
 msgstr "Mempersiapkan permainan..."
 
 #. ll-tools-public-key: 84dd4f547b3c01d8e3dec09589f5988ce6ef7565
-#: includes/pages/wordset-pages.php:13480 includes/pages/wordset-pages.php:29292
+#: includes/pages/wordset-pages.php:13480 includes/pages/wordset-pages.php:29294
 msgid "Sign in to play with your in-progress words."
 msgstr "Masuk untuk melanjutkan mengerjakan kata-kata yang sedang Anda kerjakan."
 
@@ -1400,7 +1400,7 @@ msgid "Each Line-Up sequence needs at least %d cards."
 msgstr "Setiap urutan Susun kartu membutuhkan setidaknya %d kartu."
 
 #. ll-tools-public-key: 340d8608d8bb15bf718c14e7a9839458fcb5e327
-#: includes/pages/wordset-pages.php:13488 includes/pages/wordset-pages.php:29305
+#: includes/pages/wordset-pages.php:13488 includes/pages/wordset-pages.php:29307
 msgctxt "launch game action"
 msgid "Play"
 msgstr "Mainkan"
@@ -1411,7 +1411,7 @@ msgid "Locked"
 msgstr "Terkunci"
 
 #. ll-tools-public-key: efee1d98f6c7fcf88587e818a5c640f4e548b7d2
-#: includes/pages/wordset-pages.php:13490 includes/pages/wordset-pages.php:29298
+#: includes/pages/wordset-pages.php:13490 includes/pages/wordset-pages.php:29300
 msgid "Eligible words"
 msgstr "Kata-kata yang memenuhi syarat"
 
@@ -1426,17 +1426,17 @@ msgid "Speaking games are hidden because this word set speaking setup is not ava
 msgstr "Permainan berbicara disembunyikan karena pengaturan permainan berbicara untuk kumpulan kata ini saat ini tidak tersedia."
 
 #. ll-tools-public-key: dfc7535ce1611dece939e8131ad56fc4227dd30e
-#: includes/pages/wordset-pages.php:13494 includes/pages/wordset-pages.php:28221 includes/pages/wordset-pages.php:29233 templates/offline-app-shell-template.php:714 templates/vocab-lesson-template.php:1273
+#: includes/pages/wordset-pages.php:13494 includes/pages/wordset-pages.php:28223 includes/pages/wordset-pages.php:29235 templates/offline-app-shell-template.php:714 templates/vocab-lesson-template.php:1273
 msgid "Games"
 msgstr "Permainan"
 
 #. ll-tools-public-key: 3622a5d567f064a9764120a47da18c3a413cc404
-#: includes/pages/wordset-pages.php:13495 includes/pages/wordset-pages.php:29368
+#: includes/pages/wordset-pages.php:13495 includes/pages/wordset-pages.php:29370
 msgid "Replay prompt"
 msgstr "Perintah putar ulang"
 
 #. ll-tools-public-key: 7cfb5f617deccffe3db2150650fc9cd1448de2e5
-#: includes/pages/wordset-pages.php:13496 includes/pages/wordset-pages.php:29391
+#: includes/pages/wordset-pages.php:13496 includes/pages/wordset-pages.php:29393
 msgid "Pause run"
 msgstr "Jeda pemutaran"
 
@@ -1456,42 +1456,42 @@ msgid "Paused after %d rounds without input."
 msgstr "Dihentikan sementara setelah %d putaran tanpa masukan."
 
 #. ll-tools-public-key: a809133ad201cb8e2e0fd0c035ecd3fac36caf84
-#: includes/pages/wordset-pages.php:13500 includes/pages/wordset-pages.php:29353
+#: includes/pages/wordset-pages.php:13500 includes/pages/wordset-pages.php:29355
 msgid "Coins"
 msgstr "Koin"
 
 #. ll-tools-public-key: 56711360afe76082d48686e97e5e4fa6f53c9b9e
-#: includes/pages/wordset-pages.php:13501 includes/pages/wordset-pages.php:29358
+#: includes/pages/wordset-pages.php:13501 includes/pages/wordset-pages.php:29360
 msgid "Lives"
 msgstr "Kehidupan"
 
 #. ll-tools-public-key: e41a831739136ab69eb8e9a5416d84fbf1fbf121
-#: includes/pages/wordset-pages.php:13502 includes/pages/wordset-pages.php:29580
+#: includes/pages/wordset-pages.php:13502 includes/pages/wordset-pages.php:29582
 msgid "Move left"
 msgstr "Geser ke kiri"
 
 #. ll-tools-public-key: daa08190037ba76cb5ef90594d205e7e4f256d2f
-#: includes/pages/wordset-pages.php:13503 includes/pages/wordset-pages.php:29598
+#: includes/pages/wordset-pages.php:13503 includes/pages/wordset-pages.php:29600
 msgid "Move right"
 msgstr "Bergerak ke kanan"
 
 #. ll-tools-public-key: 5fbc4220b272069962ed1c1e4f222f8071fd7dd0
-#: includes/pages/wordset-pages.php:13504 includes/pages/wordset-pages.php:29588
+#: includes/pages/wordset-pages.php:13504 includes/pages/wordset-pages.php:29590
 msgid "Fire"
 msgstr "Tembak"
 
 #. ll-tools-public-key: b65ccaf747c0b067884613a7931d9af01a15ccfc
-#: includes/pages/wordset-pages.php:13505 includes/pages/wordset-pages.php:29240 includes/pages/wordset-pages.php:29241 includes/pages/wordset-pages.php:29242
+#: includes/pages/wordset-pages.php:13505 includes/pages/wordset-pages.php:29242 includes/pages/wordset-pages.php:29243 includes/pages/wordset-pages.php:29244
 msgid "Words per game"
 msgstr "Kata per permainan"
 
 #. ll-tools-public-key: 5a6aaba0ab012288b8082b15e19a1b3e2a5ae684
-#: includes/admin/bulk-translation-admin.php:153 includes/admin/bulk-translation-admin.php:163 includes/admin/bulk-translation-admin.php:322 includes/pages/wordset-editor.php:4267 includes/pages/wordset-editor.php:4309 includes/pages/wordset-editor.php:4712 includes/pages/wordset-editor.php:4722 includes/pages/wordset-editor.php:4730 includes/pages/wordset-pages.php:13506 includes/pages/wordset-pages.php:27369 includes/pages/wordset-pages.php:27376 includes/pages/wordset-pages.php:27746 includes/pages/wordset-pages.php:29249
+#: includes/admin/bulk-translation-admin.php:153 includes/admin/bulk-translation-admin.php:163 includes/admin/bulk-translation-admin.php:322 includes/pages/wordset-editor.php:4267 includes/pages/wordset-editor.php:4309 includes/pages/wordset-editor.php:4712 includes/pages/wordset-editor.php:4722 includes/pages/wordset-editor.php:4730 includes/pages/wordset-pages.php:13506 includes/pages/wordset-pages.php:27371 includes/pages/wordset-pages.php:27378 includes/pages/wordset-pages.php:27748 includes/pages/wordset-pages.php:29251
 msgid "All"
 msgstr "Semua"
 
 #. ll-tools-public-key: a2c73f76fdf164cdfcc444ae9dcc8672e1dfdfbe
-#: includes/pages/wordset-pages.php:13507 includes/pages/wordset-pages.php:29252
+#: includes/pages/wordset-pages.php:13507 includes/pages/wordset-pages.php:29254
 msgid "All available words"
 msgstr "Semua kata yang tersedia"
 
@@ -1516,7 +1516,7 @@ msgid "Completed: %1$d of %2$d · Coins: %3$d"
 msgstr "Selesai: %1$d dari %2$d · Koin: %3$d"
 
 #. ll-tools-public-key: 02817a4a27a724af6384417228801c0d6a678530
-#: includes/flashcard-shell.php:230 includes/pages/wordset-pages.php:13512 includes/pages/wordset-pages.php:29616
+#: includes/flashcard-shell.php:230 includes/pages/wordset-pages.php:13512 includes/pages/wordset-pages.php:29618
 msgid "Replay"
 msgstr "Ulangi"
 
@@ -1526,7 +1526,7 @@ msgid "New game"
 msgstr "Game baru"
 
 #. ll-tools-public-key: 2886528ac67d1b11bd8d4720c7f7bc6e3f08ada4
-#: includes/pages/wordset-pages.php:13514 includes/pages/wordset-pages.php:29617
+#: includes/pages/wordset-pages.php:13514 includes/pages/wordset-pages.php:29619
 msgid "Back to games"
 msgstr "Kembali ke permainan"
 
@@ -1536,7 +1536,7 @@ msgid "Leave this game? Your current run will be lost."
 msgstr "Ingin keluar dari permainan ini? Permainan Anda saat ini akan terhapus."
 
 #. ll-tools-public-key: 982eb9087df4c9200a47f6b83951e54416e734de
-#: includes/pages/wordset-pages.php:13516 includes/pages/wordset-pages.php:29403
+#: includes/pages/wordset-pages.php:13516 includes/pages/wordset-pages.php:29405
 msgid "Wordset game board"
 msgstr "Papan permainan Wordset"
 
@@ -1571,17 +1571,17 @@ msgid "Word Stack game board"
 msgstr "Papan permainan Tumpukan kata"
 
 #. ll-tools-public-key: 250cfc1b016f49bcff50eb4ba983bedad88b8e76
-#: includes/pages/wordset-pages.php:13524 includes/pages/wordset-pages.php:29421
+#: includes/pages/wordset-pages.php:13524 includes/pages/wordset-pages.php:29423
 msgid "Sequence %1$d of %2$d"
 msgstr "Urutan %1$d dari %2$d"
 
 #. ll-tools-public-key: c5633921373ffa85f75176fc2db0a77b3aeb058d
-#: includes/pages/wordset-pages.php:13527 includes/pages/wordset-pages.php:29437
+#: includes/pages/wordset-pages.php:13527 includes/pages/wordset-pages.php:29439
 msgid "Shuffle"
 msgstr "Acak"
 
 #. ll-tools-public-key: 0ce6a71416787abb2859baad51cacd5ee70f415b
-#: includes/pages/wordset-pages.php:13528 includes/pages/wordset-pages.php:29439
+#: includes/pages/wordset-pages.php:13528 includes/pages/wordset-pages.php:29441
 msgid "Check"
 msgstr "Periksa"
 
@@ -1621,7 +1621,7 @@ msgid "Word %1$d of %2$d"
 msgstr "Kata %1$d dari %2$d"
 
 #. ll-tools-public-key: a7ec56adfd6598294a11dd93f787ef12282979bb
-#: includes/pages/wordset-pages.php:13537 includes/pages/wordset-pages.php:29430
+#: includes/pages/wordset-pages.php:13537 includes/pages/wordset-pages.php:29432
 msgid "Clue"
 msgstr "Petunjuk"
 
@@ -1636,7 +1636,7 @@ msgid "Solved."
 msgstr "Telah diselesaikan."
 
 #. ll-tools-public-key: 29509126528c8a74c8487b5ba411e5bc054945c2
-#: includes/pages/wordset-pages.php:13540 includes/pages/wordset-pages.php:29438 includes/shortcodes/audio-recording-shortcode.php:2091 includes/shortcodes/editor-hub-shortcode.php:1073 includes/shortcodes/editor-hub-shortcode.php:1146 templates/audio-image-matcher-template.php:52
+#: includes/pages/wordset-pages.php:13540 includes/pages/wordset-pages.php:29440 includes/shortcodes/audio-recording-shortcode.php:2091 includes/shortcodes/editor-hub-shortcode.php:1073 includes/shortcodes/editor-hub-shortcode.php:1146 templates/audio-image-matcher-template.php:52
 msgid "Skip"
 msgstr "Lewati"
 
@@ -1676,7 +1676,7 @@ msgid "Say the word for this prompt."
 msgstr "Ucapkan kata untuk petunjuk ini."
 
 #. ll-tools-public-key: 68fb7a3d61b53658cac993af7408647e407302b1
-#: includes/pages/wordset-pages.php:13549 includes/pages/wordset-pages.php:29448
+#: includes/pages/wordset-pages.php:13549 includes/pages/wordset-pages.php:29450
 msgid "Get ready..."
 msgstr "Siapkan diri..."
 
@@ -1706,17 +1706,17 @@ msgid "Try again"
 msgstr "Coba lagi"
 
 #. ll-tools-public-key: 28952ae3b273489f933d067d4060e517356ee92d
-#: includes/pages/wordset-pages.php:13557 includes/pages/wordset-pages.php:29486
+#: includes/pages/wordset-pages.php:13557 includes/pages/wordset-pages.php:29488
 msgid "You said"
 msgstr "Kamu bilang"
 
 #. ll-tools-public-key: d91f121fb77fc9b223f53e3a6b9ca4fbc467ad73
-#: includes/pages/wordset-pages.php:13558 includes/pages/wordset-pages.php:29542
+#: includes/pages/wordset-pages.php:13558 includes/pages/wordset-pages.php:29544
 msgid "Target"
 msgstr "Target"
 
 #. ll-tools-public-key: f15201948e422eef35673a517a0911cc51146033
-#: includes/admin/audio-processor-admin.php:1306 includes/admin/audio-processor-admin.php:154 includes/admin/bulk-translation-admin.php:199 includes/admin/bulk-translation-admin.php:221 includes/admin/export-import.php:4636 includes/admin/ipa-keyboard-admin.php:426 includes/admin/ipa-keyboard-admin.php:468 includes/admin/missing-audio-admin-page.php:939 includes/admin/orphan-media-admin.php:854 includes/admin/user-progress-report.php:1157 includes/admin/word-option-rules-admin.php:2275 includes/pages/wordset-editor.php:4878 includes/pages/wordset-editor.php:4917 includes/pages/wordset-pages.php:13559 includes/pages/wordset-pages.php:27356 includes/pages/wordset-pages.php:27776 includes/pages/wordset-pages.php:27778 includes/pages/wordset-pages.php:29546 includes/post-types/word-audio-post-type.php:114 includes/post-types/words-post-type.php:22 includes/privacy.php:1015 includes/privacy.php:846 includes/shortcodes/editor-hub-shortcode.php:1052 includes/shortcodes/editor-hub-shortcode.php:510 includes/shortcodes/ranked-word-list-shortcode.php:635 includes/shortcodes/ranked-word-list-shortcode.php:652 includes/shortcodes/word-grid-shortcode.php:5903
+#: includes/admin/audio-processor-admin.php:1306 includes/admin/audio-processor-admin.php:154 includes/admin/bulk-translation-admin.php:199 includes/admin/bulk-translation-admin.php:221 includes/admin/export-import.php:4636 includes/admin/ipa-keyboard-admin.php:426 includes/admin/ipa-keyboard-admin.php:468 includes/admin/missing-audio-admin-page.php:939 includes/admin/orphan-media-admin.php:854 includes/admin/user-progress-report.php:1157 includes/admin/word-option-rules-admin.php:2275 includes/pages/wordset-editor.php:4878 includes/pages/wordset-editor.php:4917 includes/pages/wordset-pages.php:13559 includes/pages/wordset-pages.php:27358 includes/pages/wordset-pages.php:27778 includes/pages/wordset-pages.php:27780 includes/pages/wordset-pages.php:29548 includes/post-types/word-audio-post-type.php:114 includes/post-types/words-post-type.php:22 includes/privacy.php:1015 includes/privacy.php:846 includes/shortcodes/editor-hub-shortcode.php:1052 includes/shortcodes/editor-hub-shortcode.php:510 includes/shortcodes/ranked-word-list-shortcode.php:635 includes/shortcodes/ranked-word-list-shortcode.php:652 includes/shortcodes/word-grid-shortcode.php:5903
 msgid "Word"
 msgstr "Kata"
 
@@ -1726,7 +1726,7 @@ msgid "Similarity"
 msgstr "Kesamaan"
 
 #. ll-tools-public-key: e0074b8b19544bd789cefcb9f4cbf174f333771f
-#: includes/admin/audio-image-matcher.php:76 includes/admin/audio-processor-admin.php:1409 includes/admin/audio-processor-admin.php:213 includes/admin/ipa-keyboard-admin.php:450 includes/admin/site-sync-admin.php:1934 includes/admin/site-sync-admin.php:655 includes/admin/word-option-rules-admin.php:297 includes/lib/recording-history.php:279 includes/lib/word-copy.php:465 includes/pages/content-lesson-pages.php:1299 includes/pages/quiz-pages.php:1120 includes/pages/quiz-pages.php:2075 includes/pages/vocab-lesson-pages.php:4831 includes/pages/wordset-pages.php:13562 includes/pages/wordset-pages.php:24787 includes/pages/wordset-pages.php:24850 includes/pages/wordset-pages.php:27336 includes/pages/wordset-pages.php:27453 includes/pages/wordset-pages.php:27557 includes/pages/wordset-pages.php:27979 includes/pages/wordset-pages.php:28486 includes/pages/wordset-pages.php:29566 includes/shortcodes/audio-recording-shortcode.php:1644 includes/shortcodes/audio-recording-shortcode.php:1863 includes/shortcodes/dictionary-shortcode.php:345 includes/shortcodes/flashcard-widget.php:715 includes/shortcodes/quiz-pages-shortcodes.php:2403 includes/taxonomies/word-category-taxonomy.php:3654 templates/audio-image-matcher-template.php:57 templates/quiz-page-template.php:25 templates/vocab-lesson-template.php:429
+#: includes/admin/audio-image-matcher.php:76 includes/admin/audio-processor-admin.php:1409 includes/admin/audio-processor-admin.php:213 includes/admin/ipa-keyboard-admin.php:450 includes/admin/site-sync-admin.php:1934 includes/admin/site-sync-admin.php:655 includes/admin/word-option-rules-admin.php:297 includes/lib/recording-history.php:279 includes/lib/word-copy.php:465 includes/pages/content-lesson-pages.php:1299 includes/pages/quiz-pages.php:1120 includes/pages/quiz-pages.php:2075 includes/pages/vocab-lesson-pages.php:4831 includes/pages/wordset-pages.php:13562 includes/pages/wordset-pages.php:24789 includes/pages/wordset-pages.php:24852 includes/pages/wordset-pages.php:27338 includes/pages/wordset-pages.php:27455 includes/pages/wordset-pages.php:27559 includes/pages/wordset-pages.php:27981 includes/pages/wordset-pages.php:28488 includes/pages/wordset-pages.php:29568 includes/shortcodes/audio-recording-shortcode.php:1644 includes/shortcodes/audio-recording-shortcode.php:1863 includes/shortcodes/dictionary-shortcode.php:345 includes/shortcodes/flashcard-widget.php:715 includes/shortcodes/quiz-pages-shortcodes.php:2403 includes/taxonomies/word-category-taxonomy.php:3654 templates/audio-image-matcher-template.php:57 templates/quiz-page-template.php:25 templates/vocab-lesson-template.php:429
 msgid "Retry"
 msgstr "Coba lagi"
 
@@ -1761,12 +1761,12 @@ msgid "Right: %1$d · Close: %2$d · Wrong: %3$d"
 msgstr "Benar: %1$d · Hampir: %2$d · Salah: %3$d"
 
 #. ll-tools-public-key: df5bbdae3ed6282de8505636045b403e3d229929
-#: includes/pages/wordset-pages.php:13570 includes/pages/wordset-pages.php:29406
+#: includes/pages/wordset-pages.php:13570 includes/pages/wordset-pages.php:29408
 msgid "%1$d left"
 msgstr "%1$d kiri"
 
 #. ll-tools-public-key: 0797ca3846dea5768ddffa5844e7fc501270702a
-#: includes/pages/wordset-pages.php:13571 includes/pages/wordset-pages.php:29407
+#: includes/pages/wordset-pages.php:13571 includes/pages/wordset-pages.php:29409
 msgid "Mic ready"
 msgstr "Mikrofon siap"
 
@@ -1791,7 +1791,7 @@ msgid "No match yet."
 msgstr "Belum ada hasil yang cocok."
 
 #. ll-tools-public-key: 143eee44793b6e67b4f4cb2d564cdebb1dd1cc4d
-#: includes/pages/wordset-pages.php:13578 includes/pages/wordset-pages.php:29410
+#: includes/pages/wordset-pages.php:13578 includes/pages/wordset-pages.php:29412
 msgid "Heard"
 msgstr "Mendengar"
 
@@ -1816,27 +1816,27 @@ msgid "Cleared: %1$d of %2$d"
 msgstr "Selesai: %1$d dari %2$d"
 
 #. ll-tools-public-key: 678ebb62b38f5480d3f097b5b3d3072b32661a48
-#: includes/pages/wordset-pages.php:13641 includes/pages/wordset-pages.php:26270 includes/pages/wordset-pages.php:27362 includes/pages/wordset-pages.php:27380
+#: includes/pages/wordset-pages.php:13641 includes/pages/wordset-pages.php:26272 includes/pages/wordset-pages.php:27364 includes/pages/wordset-pages.php:27382
 msgid "Learned"
 msgstr "Telah dipelajari"
 
 #. ll-tools-public-key: 21dbed87b76ca7fbde1b07882d94a4dd3804ebb1
-#: includes/pages/wordset-pages.php:13646 includes/pages/wordset-pages.php:26276 includes/pages/wordset-pages.php:27363 includes/pages/wordset-pages.php:27381
+#: includes/pages/wordset-pages.php:13646 includes/pages/wordset-pages.php:26278 includes/pages/wordset-pages.php:27365 includes/pages/wordset-pages.php:27383
 msgid "In progress"
 msgstr "Sedang berlangsung"
 
 #. ll-tools-public-key: aa5a22b536ea954586b4e55cd729918186eb60cb
-#: includes/admin/export-import.php:4896 includes/admin/user-progress-report.php:1092 includes/pages/wordset-pages.php:13651 includes/pages/wordset-pages.php:26282 includes/pages/wordset-pages.php:27364 includes/pages/wordset-pages.php:27378 includes/pages/wordset-pages.php:27379 includes/pages/wordset-pages.php:27382
+#: includes/admin/export-import.php:4896 includes/admin/user-progress-report.php:1092 includes/pages/wordset-pages.php:13651 includes/pages/wordset-pages.php:26284 includes/pages/wordset-pages.php:27366 includes/pages/wordset-pages.php:27380 includes/pages/wordset-pages.php:27381 includes/pages/wordset-pages.php:27384
 msgid "New"
 msgstr "Baru"
 
 #. ll-tools-public-key: ab37fa92453245c0978180e4bb50295b9037c991
-#: includes/admin/teacher-classes-page.php:1036 includes/admin/user-progress-report.php:1094 includes/admin/user-progress-report.php:919 includes/pages/wordset-pages.php:13109 includes/pages/wordset-pages.php:13246 includes/pages/wordset-pages.php:13656 includes/pages/wordset-pages.php:26294 includes/pages/wordset-pages.php:27366
+#: includes/admin/teacher-classes-page.php:1036 includes/admin/user-progress-report.php:1094 includes/admin/user-progress-report.php:919 includes/pages/wordset-pages.php:13109 includes/pages/wordset-pages.php:13246 includes/pages/wordset-pages.php:13656 includes/pages/wordset-pages.php:26296 includes/pages/wordset-pages.php:27368
 msgid "Hard"
 msgstr "Sulit"
 
 #. ll-tools-public-key: 42715c82af77dc057da3b739bf0e0f9a6e367dc0
-#: includes/pages/wordset-pages.php:13661 includes/pages/wordset-pages.php:27393 includes/pages/wordset-pages.php:27865 includes/pages/wordset-pages.php:27876 includes/pages/wordset-pages.php:27877
+#: includes/pages/wordset-pages.php:13661 includes/pages/wordset-pages.php:27395 includes/pages/wordset-pages.php:27867 includes/pages/wordset-pages.php:27878 includes/pages/wordset-pages.php:27879
 msgid "Seen"
 msgstr "Telah dilihat"
 
@@ -1851,27 +1851,27 @@ msgid "Key"
 msgstr "Kunci"
 
 #. ll-tools-public-key: 0edd8dbd70edcc75faab29c50b63e80a82e6b1c5
-#: includes/pages/wordset-editor.php:995 includes/pages/wordset-pages.php:13688 includes/pages/wordset-pages.php:27359 includes/pages/wordset-pages.php:27801
+#: includes/pages/wordset-editor.php:995 includes/pages/wordset-pages.php:13688 includes/pages/wordset-pages.php:27361 includes/pages/wordset-pages.php:27803
 msgid "POS"
 msgstr "POS"
 
 #. ll-tools-public-key: 489c333a5b46f624c69ebc7b1284442e42b6a8fa
-#: includes/pages/wordset-pages.php:13726 includes/pages/wordset-pages.php:27316
+#: includes/pages/wordset-pages.php:13726 includes/pages/wordset-pages.php:27318
 msgid "New words only"
 msgstr "Hanya kata-kata baru"
 
 #. ll-tools-public-key: f95280f4531e643bcb1980c1dcbe070dd987cc2f
-#: includes/pages/wordset-pages.php:13729 includes/pages/wordset-pages.php:27317
+#: includes/pages/wordset-pages.php:13729 includes/pages/wordset-pages.php:27319
 msgid "In progress only"
 msgstr "Hanya yang sedang berlangsung"
 
 #. ll-tools-public-key: b3d0522d7e313dfef7e801b3cf115ac4f5b1bd92
-#: includes/pages/wordset-pages.php:13732 includes/pages/wordset-pages.php:27318
+#: includes/pages/wordset-pages.php:13732 includes/pages/wordset-pages.php:27320
 msgid "Learned only"
 msgstr "Hanya yang sudah dipelajari"
 
 #. ll-tools-public-key: 59e94fe76d715c072f054aa3dcec100c5fc63a35
-#: includes/pages/wordset-pages.php:13734 includes/pages/wordset-pages.php:28497
+#: includes/pages/wordset-pages.php:13734 includes/pages/wordset-pages.php:28499
 msgid "Priority words only"
 msgstr "Hanya kata prioritas"
 
@@ -1926,851 +1926,851 @@ msgid "Choose a tool for this word set."
 msgstr "Pilih alat untuk kumpulan kata ini."
 
 #. ll-tools-public-key: 12d009b4f8bbebce8020c5ab9d9a8d4aa3fa8acf
-#: includes/pages/wordset-pages.php:25393 includes/pages/wordset-pages.php:25558 includes/pages/wordset-pages.php:27327
+#: includes/pages/wordset-pages.php:25395 includes/pages/wordset-pages.php:25560 includes/pages/wordset-pages.php:27329
 msgid "New words"
 msgstr "Kata-kata baru"
 
 #. ll-tools-public-key: 0a19b5501c67753b9b0de6efbdc0fbf558c04d44
-#: includes/pages/wordset-pages.php:25394 includes/pages/wordset-pages.php:25562 includes/pages/wordset-pages.php:27328
+#: includes/pages/wordset-pages.php:25396 includes/pages/wordset-pages.php:25564 includes/pages/wordset-pages.php:27330
 msgid "In progress words"
 msgstr "Kata dalam proses"
 
 #. ll-tools-public-key: 2d6b313bc8262d4ac648dcdff696e593e29936af
-#: includes/pages/wordset-pages.php:25395 includes/pages/wordset-pages.php:25566 includes/pages/wordset-pages.php:27329
+#: includes/pages/wordset-pages.php:25397 includes/pages/wordset-pages.php:25568 includes/pages/wordset-pages.php:27331
 msgid "Learned words"
 msgstr "Kata-kata yang telah dipelajari"
 
 #. ll-tools-public-key: 5f646501d0318f71e39e5191952a779a8d3831f7
-#: includes/pages/wordset-pages.php:25396 includes/pages/wordset-pages.php:25570 includes/pages/wordset-pages.php:27305 includes/pages/wordset-pages.php:27330
+#: includes/pages/wordset-pages.php:25398 includes/pages/wordset-pages.php:25572 includes/pages/wordset-pages.php:27307 includes/pages/wordset-pages.php:27332
 msgid "Starred words"
 msgstr "Kata favorit"
 
 #. ll-tools-public-key: d5b2f2f1f131ae7989707b0adf992f55e1afcfbe
-#: includes/admin/teacher-classes-page.php:924 includes/pages/wordset-pages.php:25397 includes/pages/wordset-pages.php:25574 includes/pages/wordset-pages.php:27331 includes/pages/wordset-pages.php:27397
+#: includes/admin/teacher-classes-page.php:924 includes/pages/wordset-pages.php:25399 includes/pages/wordset-pages.php:25576 includes/pages/wordset-pages.php:27333 includes/pages/wordset-pages.php:27399
 msgid "Hard words"
 msgstr "Kata-kata sulit"
 
 #. ll-tools-public-key: fd945c2238e93bee35f5d4e292c79c6f8af0049a
-#: includes/pages/wordset-pages.php:25403
+#: includes/pages/wordset-pages.php:25405
 msgid "Upcoming activities"
 msgstr "Kegiatan yang akan datang"
 
 #. ll-tools-public-key: 30ce486d6dbba8f52ebccbf3437ebbc8df65ccbf
-#: includes/admin/ipa-keyboard-admin.php:471 includes/admin/offline-app-export.php:759 includes/admin/user-progress-report.php:1111 includes/flashcard-shell.php:107 includes/flashcard-shell.php:224 includes/pages/wordset-editor.php:4882 includes/pages/wordset-editor.php:4941 includes/pages/wordset-pages.php:14288 includes/pages/wordset-pages.php:17433 includes/pages/wordset-pages.php:25189 includes/pages/wordset-pages.php:25476 includes/pages/wordset-pages.php:27293 includes/pages/wordset-pages.php:27308 includes/pages/wordset-pages.php:27373 includes/pages/wordset-pages.php:27621 includes/post-types/word-audio-post-type.php:115 includes/post-types/word-image-post-type.php:1220 includes/post-types/words-post-type.php:2004 includes/shortcodes/flashcard-widget.php:640 includes/shortcodes/word-grid-shortcode.php:5908
+#: includes/admin/ipa-keyboard-admin.php:471 includes/admin/offline-app-export.php:759 includes/admin/user-progress-report.php:1111 includes/flashcard-shell.php:107 includes/flashcard-shell.php:224 includes/pages/wordset-editor.php:4882 includes/pages/wordset-editor.php:4941 includes/pages/wordset-pages.php:14288 includes/pages/wordset-pages.php:17433 includes/pages/wordset-pages.php:25191 includes/pages/wordset-pages.php:25478 includes/pages/wordset-pages.php:27295 includes/pages/wordset-pages.php:27310 includes/pages/wordset-pages.php:27375 includes/pages/wordset-pages.php:27623 includes/post-types/word-audio-post-type.php:115 includes/post-types/word-image-post-type.php:1220 includes/post-types/words-post-type.php:2004 includes/shortcodes/flashcard-widget.php:640 includes/shortcodes/word-grid-shortcode.php:5908
 msgid "Categories"
 msgstr "Kategori"
 
 #. ll-tools-public-key: 77216534dbdf2cebbd88847e00e116d79ec91662
-#: includes/pages/wordset-pages.php:25513 includes/pages/wordset-pages.php:27349
+#: includes/pages/wordset-pages.php:25515 includes/pages/wordset-pages.php:27351
 msgid "Remove activity"
 msgstr "Hapus aktivitas"
 
 #. ll-tools-public-key: ecdbef89f62c514e29f25f269ccc5cb0928b5b86
-#: includes/pages/wordset-pages.php:25520 includes/pages/wordset-pages.php:27348
+#: includes/pages/wordset-pages.php:25522 includes/pages/wordset-pages.php:27350
 msgid "No upcoming activities yet."
 msgstr "Belum ada kegiatan yang akan datang."
 
 #. ll-tools-public-key: 7d7bc449615de874028a93846512bb6905610430
-#: includes/pages/wordset-pages.php:25552
+#: includes/pages/wordset-pages.php:25554
 msgid "Study priorities"
 msgstr "Prioritas belajar"
 
 #. ll-tools-public-key: 3f60fbeffa1bc4aea55fc297e6a3e1ca460b08ce
-#: includes/pages/wordset-pages.php:25554
+#: includes/pages/wordset-pages.php:25556
 msgid "Select one focus (optional)"
 msgstr "Pilih satu fokus (opsional)"
 
 #. ll-tools-public-key: 9a00397e8c820d999777538f21a9ed9a23f19e7a
-#: includes/pages/wordset-pages.php:25555
+#: includes/pages/wordset-pages.php:25557
 msgid "Study priority focus"
 msgstr "Fokus prioritas penelitian"
 
 #. ll-tools-public-key: 926c1d6cc67699d2a8b99dd3f8bd79edc2d5c2d8
-#: includes/pages/wordset-pages.php:25581 includes/pages/wordset-pages.php:25582
+#: includes/pages/wordset-pages.php:25583 includes/pages/wordset-pages.php:25584
 msgid "Transition speed"
 msgstr "Kecepatan transisi"
 
 #. ll-tools-public-key: 6d529395467c13d3917591c7aa5a94e5c44a6920
-#: includes/pages/wordset-pages.php:25583
+#: includes/pages/wordset-pages.php:25585
 msgid "Standard"
 msgstr "Standar"
 
 #. ll-tools-public-key: 8b4401e73419bbe55b72e5d1248119aa7b02b43d
-#: includes/pages/wordset-pages.php:25584
+#: includes/pages/wordset-pages.php:25586
 msgid "Faster"
 msgstr "Lebih cepat"
 
 #. ll-tools-public-key: b6e4121d2abb7911011e1e2bd1dd791c0d7bc0b4
-#: includes/pages/wordset-pages.php:25589
+#: includes/pages/wordset-pages.php:25591
 msgid "Learning goals"
 msgstr "Tujuan pembelajaran"
 
 #. ll-tools-public-key: 9b10c12198a269ab7706de84f3da3fe9347a2b76
-#: includes/pages/wordset-pages.php:25590 includes/privacy.php:740
+#: includes/pages/wordset-pages.php:25592 includes/privacy.php:740
 msgid "Enabled modes"
 msgstr "Mode yang diaktifkan"
 
 #. ll-tools-public-key: d30f2cc61b6b398722fae6459a9c69d04d007d1f
-#: includes/flashcard-shell.php:65 includes/flashcard-shell.php:90 includes/pages/wordset-pages.php:25955 includes/pages/wordset-pages.php:27437 includes/pages/wordset-pages.php:6763 includes/shortcodes/flashcard-widget.php:660 includes/shortcodes/flashcard-widget.php:665 includes/shortcodes/flashcard-widget.php:670 includes/shortcodes/flashcard-widget.php:730 includes/shortcodes/flashcard-widget.php:735 includes/shortcodes/flashcard-widget.php:795 includes/shortcodes/flashcard-widget.php:796 templates/content-lesson-template.php:253 templates/offline-app-shell-template.php:820 templates/vocab-lesson-template.php:193
+#: includes/flashcard-shell.php:65 includes/flashcard-shell.php:90 includes/pages/wordset-pages.php:25957 includes/pages/wordset-pages.php:27439 includes/pages/wordset-pages.php:6763 includes/shortcodes/flashcard-widget.php:660 includes/shortcodes/flashcard-widget.php:665 includes/shortcodes/flashcard-widget.php:670 includes/shortcodes/flashcard-widget.php:730 includes/shortcodes/flashcard-widget.php:735 includes/shortcodes/flashcard-widget.php:795 includes/shortcodes/flashcard-widget.php:796 templates/content-lesson-template.php:253 templates/offline-app-shell-template.php:820 templates/vocab-lesson-template.php:193
 msgid "Practice"
 msgstr "Latihan"
 
 #. ll-tools-public-key: ccd0f6b0d11dbf7e250aa729280429c30d6ad3ec
-#: includes/flashcard-shell.php:59 includes/flashcard-shell.php:91 includes/pages/wordset-pages.php:25956 includes/pages/wordset-pages.php:27438 includes/pages/wordset-pages.php:6764 includes/shortcodes/flashcard-widget.php:661 includes/shortcodes/flashcard-widget.php:666 includes/shortcodes/flashcard-widget.php:731 includes/shortcodes/flashcard-widget.php:736 includes/shortcodes/flashcard-widget.php:801 includes/shortcodes/flashcard-widget.php:802 templates/offline-app-shell-template.php:817 templates/vocab-lesson-template.php:194
+#: includes/flashcard-shell.php:59 includes/flashcard-shell.php:91 includes/pages/wordset-pages.php:25958 includes/pages/wordset-pages.php:27440 includes/pages/wordset-pages.php:6764 includes/shortcodes/flashcard-widget.php:661 includes/shortcodes/flashcard-widget.php:666 includes/shortcodes/flashcard-widget.php:731 includes/shortcodes/flashcard-widget.php:736 includes/shortcodes/flashcard-widget.php:801 includes/shortcodes/flashcard-widget.php:802 templates/offline-app-shell-template.php:817 templates/vocab-lesson-template.php:194
 msgid "Learn"
 msgstr "Belajar"
 
 #. ll-tools-public-key: 7dfb9f0ac72d32cff7c06c9626b2ac2296f5b81b
-#: includes/flashcard-shell.php:54 includes/pages/wordset-pages.php:25957 includes/pages/wordset-pages.php:27439 includes/pages/wordset-pages.php:6765 includes/shortcodes/flashcard-widget.php:668 includes/shortcodes/flashcard-widget.php:732 includes/shortcodes/flashcard-widget.php:815 includes/shortcodes/quiz-pages-shortcodes.php:2875 templates/offline-app-shell-template.php:823 templates/offline-app-shell-template.php:854 templates/vocab-lesson-template.php:197
+#: includes/flashcard-shell.php:54 includes/pages/wordset-pages.php:25959 includes/pages/wordset-pages.php:27441 includes/pages/wordset-pages.php:6765 includes/shortcodes/flashcard-widget.php:668 includes/shortcodes/flashcard-widget.php:732 includes/shortcodes/flashcard-widget.php:815 includes/shortcodes/quiz-pages-shortcodes.php:2875 templates/offline-app-shell-template.php:823 templates/offline-app-shell-template.php:854 templates/vocab-lesson-template.php:197
 msgid "Listen"
 msgstr "Dengarkan"
 
 #. ll-tools-public-key: 35523a99c466ba995426d4c6b5797458dcbcec75
-#: includes/flashcard-shell.php:71 includes/flashcard-shell.php:92 includes/pages/wordset-pages.php:25958 includes/pages/wordset-pages.php:27441 includes/pages/wordset-pages.php:6766 includes/shortcodes/flashcard-widget.php:641 includes/shortcodes/flashcard-widget.php:662 includes/shortcodes/flashcard-widget.php:667 includes/shortcodes/flashcard-widget.php:672 includes/shortcodes/flashcard-widget.php:734 includes/shortcodes/flashcard-widget.php:808 includes/shortcodes/flashcard-widget.php:809 templates/offline-app-shell-template.php:829 templates/vocab-lesson-template.php:195
+#: includes/flashcard-shell.php:71 includes/flashcard-shell.php:92 includes/pages/wordset-pages.php:25960 includes/pages/wordset-pages.php:27443 includes/pages/wordset-pages.php:6766 includes/shortcodes/flashcard-widget.php:641 includes/shortcodes/flashcard-widget.php:662 includes/shortcodes/flashcard-widget.php:667 includes/shortcodes/flashcard-widget.php:672 includes/shortcodes/flashcard-widget.php:734 includes/shortcodes/flashcard-widget.php:808 includes/shortcodes/flashcard-widget.php:809 templates/offline-app-shell-template.php:829 templates/vocab-lesson-template.php:195
 msgid "Self check"
 msgstr "Pemeriksaan mandiri"
 
 #. ll-tools-public-key: abf10c1dc060cf4bc1353fe7f9a32f94ea089f55
-#: includes/flashcard-shell.php:77 includes/flashcard-shell.php:94 includes/pages/wordset-editor.php:1024 includes/pages/wordset-pages.php:25959 includes/pages/wordset-pages.php:27421 includes/pages/wordset-pages.php:27431 includes/pages/wordset-pages.php:27440 includes/pages/wordset-pages.php:27611 includes/pages/wordset-pages.php:6767 includes/shortcodes/editor-hub-shortcode.php:1059 includes/shortcodes/editor-hub-shortcode.php:515 includes/shortcodes/flashcard-widget.php:664 includes/shortcodes/flashcard-widget.php:669 includes/shortcodes/flashcard-widget.php:674 includes/shortcodes/flashcard-widget.php:733 includes/shortcodes/flashcard-widget.php:821 includes/shortcodes/flashcard-widget.php:822 includes/shortcodes/word-grid-shortcode.php:6644 templates/offline-app-shell-template.php:826 templates/vocab-lesson-template.php:196 templates/vocab-lesson-template.php:783 templates/vocab-lesson-template.php:808
+#: includes/flashcard-shell.php:77 includes/flashcard-shell.php:94 includes/pages/wordset-editor.php:1024 includes/pages/wordset-pages.php:25961 includes/pages/wordset-pages.php:27423 includes/pages/wordset-pages.php:27433 includes/pages/wordset-pages.php:27442 includes/pages/wordset-pages.php:27613 includes/pages/wordset-pages.php:6767 includes/shortcodes/editor-hub-shortcode.php:1059 includes/shortcodes/editor-hub-shortcode.php:515 includes/shortcodes/flashcard-widget.php:664 includes/shortcodes/flashcard-widget.php:669 includes/shortcodes/flashcard-widget.php:674 includes/shortcodes/flashcard-widget.php:733 includes/shortcodes/flashcard-widget.php:821 includes/shortcodes/flashcard-widget.php:822 includes/shortcodes/word-grid-shortcode.php:6644 templates/offline-app-shell-template.php:826 templates/vocab-lesson-template.php:196 templates/vocab-lesson-template.php:783 templates/vocab-lesson-template.php:808
 msgid "Gender"
 msgstr "Jenis kelamin"
 
 #. ll-tools-public-key: f788c2629379922c69a5e09d6290ab96b84151eb
-#: includes/pages/wordset-pages.php:26288 includes/pages/wordset-pages.php:27365 includes/pages/wordset-pages.php:27388 includes/pages/wordset-pages.php:27767
+#: includes/pages/wordset-pages.php:26290 includes/pages/wordset-pages.php:27367 includes/pages/wordset-pages.php:27390 includes/pages/wordset-pages.php:27769
 msgid "Starred"
 msgstr "Favorit"
 
 #. ll-tools-public-key: d5ea6475a0bb86180e5ab3a775b3e2e404164de1
-#: includes/pages/wordset-pages.php:26520
+#: includes/pages/wordset-pages.php:26522
 msgid "This will permanently delete your progress for all categories in this word set. This cannot be undone. Continue?"
 msgstr "Ini akan menghapus permanen progres Anda untuk semua kategori dalam kumpulan kata ini. Ini tidak dapat dibatalkan. Lanjutkan?"
 
 #. ll-tools-public-key: adf3a34a2abed40a41309a43e8ac8472bc7236c8
-#: includes/pages/wordset-pages.php:26521
+#: includes/pages/wordset-pages.php:26523
 msgid "This will permanently delete your progress for %s. This cannot be undone. Continue?"
 msgstr "Ini akan menghapus permanen progres Anda untuk %s. Ini tidak dapat dibatalkan. Lanjutkan?"
 
 #. ll-tools-public-key: 3bd50b4a0b6554e0141c03b3d0416a4b54956b75
-#: includes/pages/wordset-pages.php:26522
+#: includes/pages/wordset-pages.php:26524
 msgid "Reset progress for %s"
 msgstr "Atur ulang progres untuk %s"
 
 #. ll-tools-public-key: 1e24f5b2dbfc9710d657be9ff4ec76d8bad62d1a
-#: includes/pages/wordset-pages.php:26709
+#: includes/pages/wordset-pages.php:26711
 msgid "%d mode enabled"
 msgid_plural "%d modes enabled"
 msgstr[0] "%d mode aktif"
 msgstr[1] "%d mode aktif"
 
 #. ll-tools-public-key: 8b405f46d2e398c789e3271c96aa7b8881d08bc1
-#: includes/pages/wordset-pages.php:26716
+#: includes/pages/wordset-pages.php:26718
 msgid "%d activity queued"
 msgid_plural "%d activities queued"
 msgstr[0] "%d aktivitas dalam antrean"
 msgstr[1] "%d aktivitas dalam antrean"
 
 #. ll-tools-public-key: 34923bd12df5bb1a13c5f71adf0a104951bdba65
-#: includes/pages/wordset-pages.php:27289 includes/pages/wordset-pages.php:27290 includes/pages/wordset-pages.php:28324 includes/shortcodes/flashcard-widget.php:739 templates/offline-app-shell-template.php:733
+#: includes/pages/wordset-pages.php:27291 includes/pages/wordset-pages.php:27292 includes/pages/wordset-pages.php:28326 includes/shortcodes/flashcard-widget.php:739 templates/offline-app-shell-template.php:733
 msgid "Loading next recommendation..."
 msgstr "Memuat rekomendasi berikutnya..."
 
 #. ll-tools-public-key: 9380ac42cf692e7ae4290c6b50fc22a5948c4f74
-#: includes/pages/wordset-pages.php:27291 includes/shortcodes/flashcard-widget.php:741
+#: includes/pages/wordset-pages.php:27293 includes/shortcodes/flashcard-widget.php:741
 msgid "Recommended: %1$s in %2$s (%3$d words)."
 msgstr "Rekomendasi: \"%1$s\" dalam \"%2$s\" (%3$d kata)."
 
 #. ll-tools-public-key: 2f1c494c01ddd9540960dc3b168117892f54e201
-#: includes/pages/wordset-pages.php:27292 includes/shortcodes/flashcard-widget.php:742
+#: includes/pages/wordset-pages.php:27294 includes/shortcodes/flashcard-widget.php:742
 msgid "Recommended: %1$s in %2$s."
 msgstr "Rekomendasi: \"%1$s\" dalam \"%2$s\"."
 
 #. ll-tools-public-key: 8ed544d5ec804757ce7b43d1e5ef39155570a6eb
-#: includes/flashcard-shell.php:221 includes/pages/wordset-pages.php:27306 includes/shortcodes/flashcard-widget.php:690
+#: includes/flashcard-shell.php:221 includes/pages/wordset-pages.php:27308 includes/shortcodes/flashcard-widget.php:690
 msgid "Repeat"
 msgstr "Ulangi"
 
 #. ll-tools-public-key: 7da5d741f780ffec42b9c6594c02b236dbb05d2d
-#: includes/admin/missing-audio-admin-page.php:601 includes/admin/word-images-fixer.php:159 includes/admin/word-option-rules-admin.php:2628 includes/pages/wordset-pages.php:27307 includes/pages/wordset-pages.php:27504 includes/pages/wordset-pages.php:29337 includes/shortcodes/audio-recording-shortcode.php:1258 includes/shortcodes/editor-hub-shortcode.php:1007 includes/shortcodes/site-tools-shortcode.php:950 templates/vocab-lesson-template.php:715
+#: includes/admin/missing-audio-admin-page.php:601 includes/admin/word-images-fixer.php:159 includes/admin/word-option-rules-admin.php:2628 includes/pages/wordset-pages.php:27309 includes/pages/wordset-pages.php:27506 includes/pages/wordset-pages.php:29339 includes/shortcodes/audio-recording-shortcode.php:1258 includes/shortcodes/editor-hub-shortcode.php:1007 includes/shortcodes/site-tools-shortcode.php:950 templates/vocab-lesson-template.php:715
 msgid "Continue"
 msgstr "Lanjutkan"
 
 #. ll-tools-public-key: 31c3fa0d37aacc7389d982e68d0d32d3e3cfd33c
-#: includes/flashcard-shell.php:227 includes/lib/wordset-language-settings.php:133 includes/pages/wordset-pages.php:27309 includes/pages/wordset-pages.php:28318 includes/shortcodes/flashcard-widget.php:738 templates/offline-app-shell-template.php:727
+#: includes/flashcard-shell.php:227 includes/lib/wordset-language-settings.php:133 includes/pages/wordset-pages.php:27311 includes/pages/wordset-pages.php:28320 includes/shortcodes/flashcard-widget.php:738 templates/offline-app-shell-template.php:727
 msgid "Recommended"
 msgstr "Direkomendasikan"
 
 #. ll-tools-public-key: fa09d79fe1454965561631a96e32d3d67d2f4b81
-#: includes/pages/wordset-pages.php:27310 includes/pages/wordset-pages.php:28500 includes/shortcodes/flashcard-widget.php:724 templates/offline-app-shell-template.php:814
+#: includes/pages/wordset-pages.php:27312 includes/pages/wordset-pages.php:28502 includes/shortcodes/flashcard-widget.php:724 templates/offline-app-shell-template.php:814
 msgid "Select categories to study together"
 msgstr "Pilih kategori yang ingin dipelajari bersama"
 
 #. ll-tools-public-key: 9cc293d85c2328e1a025aa1bdbf63d8ca9c889e0
-#: includes/pages/wordset-editor.php:4641 includes/pages/wordset-pages.php:27311 includes/shortcodes/dictionary-shortcode.php:3611 includes/shortcodes/dictionary-shortcode.php:3625
+#: includes/pages/wordset-editor.php:4641 includes/pages/wordset-pages.php:27313 includes/shortcodes/dictionary-shortcode.php:3611 includes/shortcodes/dictionary-shortcode.php:3625
 msgid "%d selected"
 msgstr "%d terpilih"
 
 #. ll-tools-public-key: 9bf885c1d68e04e1fa300c8290b84ee147bc8618
-#: includes/pages/wordset-pages.php:27312
+#: includes/pages/wordset-pages.php:27314
 msgid "%1$d selected · %2$d words"
 msgstr "%1$d terpilih · %2$d kata"
 
 #. ll-tools-public-key: c6bcb0361536150220fdc0d48def6b00f31ca679
-#: includes/pages/wordset-pages.php:27313 includes/pages/wordset-pages.php:27350 includes/shortcodes/flashcard-widget.php:686 includes/shortcodes/flashcard-widget.php:729 includes/shortcodes/flashcard-widget.php:743
+#: includes/pages/wordset-pages.php:27315 includes/pages/wordset-pages.php:27352 includes/shortcodes/flashcard-widget.php:686 includes/shortcodes/flashcard-widget.php:729 includes/shortcodes/flashcard-widget.php:743
 msgid "%d words"
 msgstr "%d kata-kata"
 
 #. ll-tools-public-key: 812936a12d79ad746029cde583b7aa06b0e2f3e5
-#: includes/pages/wordset-pages.php:27314 includes/pages/wordset-pages.php:27395 includes/pages/wordset-pages.php:28506 includes/pages/wordset-pages.php:28509
+#: includes/pages/wordset-pages.php:27316 includes/pages/wordset-pages.php:27397 includes/pages/wordset-pages.php:28508 includes/pages/wordset-pages.php:28511
 msgid "Starred only"
 msgstr "Hanya favorit"
 
 #. ll-tools-public-key: c6ef301e269d208eb6e8764a30f2e91f1c58802b
-#: includes/pages/wordset-pages.php:27315 includes/pages/wordset-pages.php:28511 includes/pages/wordset-pages.php:28514
+#: includes/pages/wordset-pages.php:27317 includes/pages/wordset-pages.php:28513 includes/pages/wordset-pages.php:28516
 msgid "Hard words only"
 msgstr "Hanya kata-kata sulit"
 
 #. ll-tools-public-key: 00332d20a628608545229651595860aa6f51acfb
-#: includes/admin/ipa-keyboard-admin.php:586 includes/flashcard-shell.php:110 includes/pages/wordset-pages.php:27319 includes/pages/wordset-pages.php:27406 includes/pages/wordset-pages.php:28467 includes/shortcodes/flashcard-widget.php:727 templates/offline-app-shell-template.php:809
+#: includes/admin/ipa-keyboard-admin.php:586 includes/flashcard-shell.php:110 includes/pages/wordset-pages.php:27321 includes/pages/wordset-pages.php:27408 includes/pages/wordset-pages.php:28469 includes/shortcodes/flashcard-widget.php:727 templates/offline-app-shell-template.php:809
 msgid "Select all"
 msgstr "Pilih semua"
 
 #. ll-tools-public-key: 1bdadbfd9ce125571c30f71f6c76bb24cc4d3808
-#: includes/flashcard-shell.php:109 includes/pages/wordset-pages.php:27320 includes/pages/wordset-pages.php:27407 includes/shortcodes/flashcard-widget.php:728
+#: includes/flashcard-shell.php:109 includes/pages/wordset-pages.php:27322 includes/pages/wordset-pages.php:27409 includes/shortcodes/flashcard-widget.php:728
 msgid "Deselect all"
 msgstr "Batalkan pemilihan semua"
 
 #. ll-tools-public-key: 5ef84a097c03acd87f10bdc8a914e209bcb40913
-#: includes/pages/wordset-editor.php:4915 includes/pages/wordset-pages.php:27321 includes/pages/wordset-pages.php:7263
+#: includes/pages/wordset-editor.php:4915 includes/pages/wordset-pages.php:27323 includes/pages/wordset-pages.php:7263
 msgid "Select %s"
 msgstr "Pilih \"%s\""
 
 #. ll-tools-public-key: 9b408fd5c65f38a9d092d551d87e918096ec7a1d
-#: includes/admin/ipa-keyboard-admin.php:538 includes/pages/wordset-pages.php:27322 includes/pages/wordset-pages.php:7290 includes/pages/wordset-pages.php:7299
+#: includes/admin/ipa-keyboard-admin.php:538 includes/pages/wordset-pages.php:27324 includes/pages/wordset-pages.php:7290 includes/pages/wordset-pages.php:7299
 msgid "Hide %s"
 msgstr "Sembunyikan %s"
 
 #. ll-tools-public-key: 6ea84055061b8b3d39fc0bf34c92b349d144c805
-#: includes/pages/wordset-pages.php:27324
+#: includes/pages/wordset-pages.php:27326
 msgid "Starred words in %s"
 msgstr "Kata favorit di %s"
 
 #. ll-tools-public-key: bd6ba7f4d0921a9b1aefec7b31f40e2db5f1f8b4
-#: includes/pages/wordset-pages.php:27325 includes/pages/wordset-pages.php:7410
+#: includes/pages/wordset-pages.php:27327 includes/pages/wordset-pages.php:7410
 msgid "Quiz modes for %s"
 msgstr "Mode kuis untuk \"%s\""
 
 #. ll-tools-public-key: 15e71eed9b65de43f738d751b0483c815be78ea8
-#: includes/pages/wordset-pages.php:27326 includes/pages/wordset-pages.php:7415 includes/shortcodes/flashcard-widget.php:747
+#: includes/pages/wordset-pages.php:27328 includes/pages/wordset-pages.php:7415 includes/shortcodes/flashcard-widget.php:747
 msgid "%1$s: %2$s"
 msgstr "%1$s: %2$s"
 
 #. ll-tools-public-key: 3e83695e0870233fe584bf502d162e23c253282f
-#: includes/admin/bulk-translation-admin.php:239 includes/admin/ipa-keyboard-admin.php:410 includes/admin/ipa-keyboard-admin.php:558 includes/admin/word-option-rules-admin.php:1946 includes/pages/wordset-pages.php:17526 includes/pages/wordset-pages.php:27332 includes/post-types/prompt-card-post-type.php:1171 includes/shortcodes/image-copyright-grid-shortcode.php:239 templates/vocab-lesson-template.php:658
+#: includes/admin/bulk-translation-admin.php:239 includes/admin/ipa-keyboard-admin.php:410 includes/admin/ipa-keyboard-admin.php:558 includes/admin/word-option-rules-admin.php:1946 includes/pages/wordset-pages.php:17526 includes/pages/wordset-pages.php:27334 includes/post-types/prompt-card-post-type.php:1171 includes/shortcodes/image-copyright-grid-shortcode.php:239 templates/vocab-lesson-template.php:658
 msgid "Clear"
 msgstr "Jelas"
 
 #. ll-tools-public-key: c7198ed089d9b99d3350d8cc3d00dbbd9027afaa
-#: includes/pages/wordset-pages.php:27333 includes/pages/wordset-pages.php:27449
+#: includes/pages/wordset-pages.php:27335 includes/pages/wordset-pages.php:27451
 msgid "Unable to save right now."
 msgstr "Saat ini tidak bisa disimpan."
 
 #. ll-tools-public-key: 82a9b06aefdcee50fd229488d47e2ae9d02b11df
-#: includes/pages/wordset-pages.php:27337 includes/user-progress.php:13104
+#: includes/pages/wordset-pages.php:27339 includes/user-progress.php:13104
 msgid "Select at least one category."
 msgstr "Pilih setidaknya satu kategori."
 
 #. ll-tools-public-key: 2efc9dd7c619939b206c35a75468da4fe2afcd9e
-#: includes/pages/wordset-pages.php:27338 includes/user-progress.php:12305 includes/user-progress.php:12715 includes/user-progress.php:13119 includes/user-progress.php:13148 includes/user-progress.php:13177 includes/user-progress.php:13386 includes/user-progress.php:13467
+#: includes/pages/wordset-pages.php:27340 includes/user-progress.php:12305 includes/user-progress.php:12715 includes/user-progress.php:13119 includes/user-progress.php:13148 includes/user-progress.php:13177 includes/user-progress.php:13386 includes/user-progress.php:13467
 msgid "No quiz words are available for this selection."
 msgstr "Tidak ada kata-kata kuis yang tersedia untuk pilihan ini."
 
 #. ll-tools-public-key: 8d6b42e053f2ccab59f4e091447c09720f32b88b
-#: includes/pages/wordset-pages.php:27339
+#: includes/pages/wordset-pages.php:27341
 msgid "No starred words are available for this selection."
 msgstr "Tidak ada kata favorit untuk pilihan ini."
 
 #. ll-tools-public-key: 30499ffa415942aacfc9385c1eeb983a8f7ad05f
-#: includes/pages/wordset-pages.php:27340
+#: includes/pages/wordset-pages.php:27342
 msgid "No hard words are available for this selection."
 msgstr "Tidak ada kata sulit yang tersedia untuk pilihan ini."
 
 #. ll-tools-public-key: 866d407a04f1f366873aae1bffd180f8528ac0b3
-#: includes/pages/wordset-pages.php:27341
+#: includes/pages/wordset-pages.php:27343
 msgid "No new words are available for this selection."
 msgstr "Tidak ada kata baru yang tersedia untuk pilihan ini."
 
 #. ll-tools-public-key: ff92afee9c900b90cf194b4471cf342c8b39cd2a
-#: includes/pages/wordset-pages.php:27342
+#: includes/pages/wordset-pages.php:27344
 msgid "No in progress words are available for this selection."
 msgstr "Tidak ada kata dalam proses untuk pilihan ini."
 
 #. ll-tools-public-key: aaca4fca762f6e0e854405faa529a717454559d4
-#: includes/pages/wordset-pages.php:27343
+#: includes/pages/wordset-pages.php:27345
 msgid "No learned words are available for this selection."
 msgstr "Tidak ada kata yang sudah dipelajari untuk pilihan ini."
 
 #. ll-tools-public-key: 15fc8914eea1c8a9f8f35020cfc5973e1edc3c38
-#: includes/pages/wordset-pages.php:27344
+#: includes/pages/wordset-pages.php:27346
 msgid "No starred hard words are available for this selection."
 msgstr "Tidak ada kata sulit favorit untuk pilihan ini."
 
 #. ll-tools-public-key: 03c047e60914f1607945e52ca190f9a9f30c63a5
-#: includes/pages/wordset-pages.php:27346 includes/pages/wordset-pages.php:28040
+#: includes/pages/wordset-pages.php:27348 includes/pages/wordset-pages.php:28042
 msgid "No hidden categories in this word set."
 msgstr "Tidak ada kategori tersembunyi dalam kumpulan kata ini."
 
 #. ll-tools-public-key: 286fba678f7369f12dc971ccca51d8f1cb94e754
-#: includes/pages/wordset-pages.php:27347 includes/pages/wordset-pages.php:28030 includes/pages/wordset-pages.php:28206
+#: includes/pages/wordset-pages.php:27349 includes/pages/wordset-pages.php:28032 includes/pages/wordset-pages.php:28208
 msgid "Hidden Categories"
 msgstr "Kategori Tersembunyi"
 
 #. ll-tools-public-key: 1e32dc81b120ee696d0e8c354feb9b1dd1aa3746
-#: includes/pages/wordset-pages.php:27351 includes/pages/wordset-pages.php:27529 includes/pages/wordset-pages.php:27620 includes/pages/wordset-pages.php:27672 includes/shortcodes/editor-hub-shortcode.php:1102
+#: includes/pages/wordset-pages.php:27353 includes/pages/wordset-pages.php:27531 includes/pages/wordset-pages.php:27622 includes/pages/wordset-pages.php:27674 includes/shortcodes/editor-hub-shortcode.php:1102
 msgid "Progress"
 msgstr "Kemajuan"
 
 #. ll-tools-public-key: 50aecfcf39f3240bc8b3dfe87a0bbe29fa037368
-#: includes/pages/wordset-pages.php:27352 includes/pages/wordset-pages.php:27556
+#: includes/pages/wordset-pages.php:27354 includes/pages/wordset-pages.php:27558
 msgid "Loading progress..."
 msgstr "Sedang dimuat..."
 
 #. ll-tools-public-key: 274b05fd1109d2ec314c7320f321d25871ff6218
-#: includes/pages/wordset-pages.php:27353
+#: includes/pages/wordset-pages.php:27355
 msgid "Progress is unavailable right now."
 msgstr "Progres saat ini tidak tersedia."
 
 #. ll-tools-public-key: 3018a882d1d090b0582e5820d19c18b1cdfaa342
-#: includes/pages/wordset-pages.php:27354
+#: includes/pages/wordset-pages.php:27356
 msgid "Selected categories (%d)"
 msgstr "Kategori yang dipilih (%d)"
 
 #. ll-tools-public-key: cce0168d276f7b3bf9bcd6849a423e9bb2bb11e6
-#: includes/pages/wordset-pages.php:27355
+#: includes/pages/wordset-pages.php:27357
 msgid "All categories (%d)"
 msgstr "Semua kategori (%d)"
 
 #. ll-tools-public-key: 3ec568bb0d633ead83f0aece1228aa4f262e3889
-#: includes/admin/bulk-translation-admin.php:151 includes/admin/image-webp-optimizer-admin.php:1796 includes/admin/user-progress-report.php:1118 includes/admin/word-option-rules-admin.php:1888 includes/pages/wordset-editor.php:4705 includes/pages/wordset-pages.php:18034 includes/pages/wordset-pages.php:27357 includes/pages/wordset-pages.php:27666 includes/pages/wordset-pages.php:27782 includes/pages/wordset-pages.php:27790 includes/post-types/prompt-card-post-type.php:1352 includes/privacy.php:1019 includes/privacy.php:848 includes/privacy.php:937 includes/shortcodes/audio-recording-shortcode.php:1925 includes/shortcodes/editor-hub-shortcode.php:1077 includes/shortcodes/editor-hub-shortcode.php:1109 includes/shortcodes/image-copyright-grid-shortcode.php:222 includes/taxonomies/wordset-taxonomy.php:2991 templates/vocab-lesson-template.php:1084
+#: includes/admin/bulk-translation-admin.php:151 includes/admin/image-webp-optimizer-admin.php:1796 includes/admin/user-progress-report.php:1118 includes/admin/word-option-rules-admin.php:1888 includes/pages/wordset-editor.php:4705 includes/pages/wordset-pages.php:18034 includes/pages/wordset-pages.php:27359 includes/pages/wordset-pages.php:27668 includes/pages/wordset-pages.php:27784 includes/pages/wordset-pages.php:27792 includes/post-types/prompt-card-post-type.php:1352 includes/privacy.php:1019 includes/privacy.php:848 includes/privacy.php:937 includes/shortcodes/audio-recording-shortcode.php:1925 includes/shortcodes/editor-hub-shortcode.php:1077 includes/shortcodes/editor-hub-shortcode.php:1109 includes/shortcodes/image-copyright-grid-shortcode.php:222 includes/taxonomies/wordset-taxonomy.php:2991 templates/vocab-lesson-template.php:1084
 msgid "Category"
 msgstr "Kategori"
 
 #. ll-tools-public-key: 403ed02469c3d2e96cc3b57b873f15467f31cef8
-#: includes/pages/wordset-pages.php:27358 includes/pages/wordset-pages.php:27809 includes/post-types/dictionary-entry-post-type.php:1487 includes/shortcodes/editor-hub-shortcode.php:1058 includes/shortcodes/editor-hub-shortcode.php:514 includes/shortcodes/word-grid-shortcode.php:6624 templates/vocab-lesson-template.php:762
+#: includes/pages/wordset-pages.php:27360 includes/pages/wordset-pages.php:27811 includes/post-types/dictionary-entry-post-type.php:1487 includes/shortcodes/editor-hub-shortcode.php:1058 includes/shortcodes/editor-hub-shortcode.php:514 includes/shortcodes/word-grid-shortcode.php:6624 templates/vocab-lesson-template.php:762
 msgid "Part of speech"
 msgstr "Jenis kata"
 
 #. ll-tools-public-key: 6ef8a92f2c8d705084e7ad7f9a9c5de681e3bb18
-#: includes/pages/wordset-pages.php:27360 includes/pages/wordset-pages.php:27678
+#: includes/pages/wordset-pages.php:27362 includes/pages/wordset-pages.php:27680
 msgid "Activity"
 msgstr "Kegiatan"
 
 #. ll-tools-public-key: b9162f4bb502f407c2d35e8f10880d8436328482
-#: includes/pages/wordset-pages.php:27361 includes/pages/wordset-pages.php:27672
+#: includes/pages/wordset-pages.php:27363 includes/pages/wordset-pages.php:27674
 msgid "Word Progress"
 msgstr "Progres kata"
 
 #. ll-tools-public-key: e288a81bf48bc90639936097bd89c22714e860b7
-#: includes/pages/wordset-pages.php:27371 includes/pages/wordset-pages.php:27562
+#: includes/pages/wordset-pages.php:27373 includes/pages/wordset-pages.php:27564
 msgid "Last 14 days"
 msgstr "14 hari terakhir"
 
 #. ll-tools-public-key: 10e17f6e75688c3c04b288a40594b37c04eb1536
-#: includes/pages/wordset-pages.php:27372
+#: includes/pages/wordset-pages.php:27374
 msgid "No activity yet."
 msgstr "Belum ada aktivitas."
 
 #. ll-tools-public-key: 24c1a2ab72a89beccebe410ab92a273a599fca49
-#: includes/admin/admin-dashboard-menu.php:354 includes/admin/admin-dashboard-menu.php:812 includes/admin/admin-dashboard-menu.php:813 includes/admin/audio-processor-admin.php:2888 includes/admin/bulk-translation-admin.php:147 includes/admin/image-aspect-normalizer-admin.php:111 includes/admin/user-progress-report.php:1119 includes/pages/wordset-editor.php:4657 includes/pages/wordset-pages.php:27374 includes/pages/wordset-pages.php:27622 includes/post-types/words-post-type.php:21 includes/post-types/words-post-type.php:26 includes/wordset-isolation.php:5478
+#: includes/admin/admin-dashboard-menu.php:354 includes/admin/admin-dashboard-menu.php:812 includes/admin/admin-dashboard-menu.php:813 includes/admin/audio-processor-admin.php:2888 includes/admin/bulk-translation-admin.php:147 includes/admin/image-aspect-normalizer-admin.php:111 includes/admin/user-progress-report.php:1119 includes/pages/wordset-editor.php:4657 includes/pages/wordset-pages.php:27376 includes/pages/wordset-pages.php:27624 includes/post-types/words-post-type.php:21 includes/post-types/words-post-type.php:26 includes/wordset-isolation.php:5478
 msgid "Words"
 msgstr "Kata-kata"
 
 #. ll-tools-public-key: 45da52edb5f330dea317172ad992a5b88f014ca6
-#: includes/pages/wordset-pages.php:27375
+#: includes/pages/wordset-pages.php:27377
 msgid "No data yet."
 msgstr "Belum ada data."
 
 #. ll-tools-public-key: 019b20450116f0235233bcdfb2c4200c4e552345
-#: includes/pages/wordset-pages.php:27377
+#: includes/pages/wordset-pages.php:27379
 msgid "Hardest"
 msgstr "Yang paling sulit"
 
 #. ll-tools-public-key: eaff5e978449800bd5611ec5df78e685f791e987
-#: includes/pages/wordset-pages.php:27383
+#: includes/pages/wordset-pages.php:27385
 msgid "Play audio for %s"
 msgstr "Putar audio untuk \"%s\""
 
 #. ll-tools-public-key: 832189150fd2b0a735cde3e80c49389c04067c22
-#: includes/pages/wordset-pages.php:27385 includes/shortcodes/flashcard-widget.php:659 includes/shortcodes/word-grid-shortcode.php:4100 includes/shortcodes/word-grid-shortcode.php:6388
+#: includes/pages/wordset-pages.php:27387 includes/shortcodes/flashcard-widget.php:659 includes/shortcodes/word-grid-shortcode.php:4100 includes/shortcodes/word-grid-shortcode.php:6388
 msgid "Star word"
 msgstr "Kata kunci"
 
 #. ll-tools-public-key: c79a116c9854b71566ab47e47d385c2cd01fc27a
-#: includes/pages/wordset-pages.php:27386 includes/shortcodes/word-grid-shortcode.php:4101 includes/shortcodes/word-grid-shortcode.php:6387
+#: includes/pages/wordset-pages.php:27388 includes/shortcodes/word-grid-shortcode.php:4101 includes/shortcodes/word-grid-shortcode.php:6387
 msgid "Unstar word"
 msgstr "Hapus dari favorit"
 
 #. ll-tools-public-key: 051d7a3d4d0399f34af4cf43515cd8da91788a45
-#: includes/pages/wordset-pages.php:27387
+#: includes/pages/wordset-pages.php:27389
 msgid "Any"
 msgstr "Siapa pun"
 
 #. ll-tools-public-key: a0ee09bb02914fe2bbe2edf289da69e74fd7602e
-#: includes/admin/bulk-translation-admin.php:204 includes/admin/ipa-keyboard-admin.php:591 includes/admin/split-word-admin.php:383 includes/admin/user-progress-report.php:1159 includes/lms/assignments.php:2039 includes/pages/wordset-editor.php:4710 includes/pages/wordset-pages.php:27389 includes/pages/wordset-pages.php:27820 includes/pages/wordset-pages.php:27828 includes/privacy.php:854 includes/privacy.php:943
+#: includes/admin/bulk-translation-admin.php:204 includes/admin/ipa-keyboard-admin.php:591 includes/admin/split-word-admin.php:383 includes/admin/user-progress-report.php:1159 includes/lms/assignments.php:2039 includes/pages/wordset-editor.php:4710 includes/pages/wordset-pages.php:27391 includes/pages/wordset-pages.php:27822 includes/pages/wordset-pages.php:27830 includes/privacy.php:854 includes/privacy.php:943
 msgid "Status"
 msgstr "Status"
 
 #. ll-tools-public-key: caa2cc6c08a7ce211c004ceac758adefe8cad927
-#: includes/pages/wordset-pages.php:27390 includes/pages/wordset-pages.php:27803 includes/pages/wordset-pages.php:27815
+#: includes/pages/wordset-pages.php:27392 includes/pages/wordset-pages.php:27805 includes/pages/wordset-pages.php:27817
 msgid "Filter by part of speech"
 msgstr "Saring berdasarkan kelas kata"
 
 #. ll-tools-public-key: 33df2a6d68f29e2ded4cef2b5ec08e708b6bd949
-#: includes/pages/wordset-pages.php:13252 includes/pages/wordset-pages.php:27391 includes/pages/wordset-pages.php:27418 includes/pages/wordset-pages.php:27684 includes/pages/wordset-pages.php:27917 includes/pages/wordset-pages.php:27925
+#: includes/pages/wordset-pages.php:13252 includes/pages/wordset-pages.php:27393 includes/pages/wordset-pages.php:27420 includes/pages/wordset-pages.php:27686 includes/pages/wordset-pages.php:27919 includes/pages/wordset-pages.php:27927
 msgid "Last"
 msgstr "Terakhir"
 
 #. ll-tools-public-key: 5fc21c5db1c5461b082d40590e1e17b03fdcd801
-#: includes/pages/wordset-pages.php:27392 includes/pages/wordset-pages.php:27850
+#: includes/pages/wordset-pages.php:27394 includes/pages/wordset-pages.php:27852
 msgid "Difficulty Score"
 msgstr "Tingkat Kesulitan"
 
 #. ll-tools-public-key: 7cfb363fe188f04c5391a94f92936c2c5fa5ed35
-#: includes/pages/wordset-pages.php:27396
+#: includes/pages/wordset-pages.php:27398
 msgid "Unstarred only"
 msgstr "Hanya tanpa favorit"
 
 #. ll-tools-public-key: 4a3fb05e6af1b0a72cff68fb85af4a26ca7bb835
-#: includes/pages/wordset-pages.php:27398 includes/pages/wordset-pages.php:27752
+#: includes/pages/wordset-pages.php:27400 includes/pages/wordset-pages.php:27754
 msgid "Clear filters"
 msgstr "Hapus filter"
 
 #. ll-tools-public-key: 589e9a622906aff1412caf88f1474f75aa08e27c
-#: includes/pages/wordset-pages.php:27399
+#: includes/pages/wordset-pages.php:27401
 msgid "Last 24h"
 msgstr "24 jam terakhir"
 
 #. ll-tools-public-key: 6b6fa5d4c074ace32a6b92a9d946d24ce49855d3
-#: includes/pages/wordset-pages.php:27400
+#: includes/pages/wordset-pages.php:27402
 msgid "Last 7d"
 msgstr "7 hari terakhir"
 
 #. ll-tools-public-key: 700d24fcef9b390c6c15e5c4484a24842dd3a724
-#: includes/pages/wordset-pages.php:27401
+#: includes/pages/wordset-pages.php:27403
 msgid "Last 30d"
 msgstr "30 hari terakhir"
 
 #. ll-tools-public-key: 3048c2067f45e3bd4607d3e326e2685eb3f03116
-#: includes/lib/recording-history.php:283 includes/pages/wordset-pages.php:27402
+#: includes/lib/recording-history.php:283 includes/pages/wordset-pages.php:27404
 msgid "Older"
 msgstr "Lebih lama"
 
 #. ll-tools-public-key: 7e13ef899567eb22eb7780235a0f013cd075874a
-#: includes/pages/wordset-pages.php:27403 includes/pages/wordset-pages.php:27419
+#: includes/pages/wordset-pages.php:27405 includes/pages/wordset-pages.php:27421
 msgid "Never"
 msgstr "Tidak pernah"
 
 #. ll-tools-public-key: afa4dcee87ab6f317f7d7b4a08422d8b2b901a62
-#: includes/pages/wordset-pages.php:27404
+#: includes/pages/wordset-pages.php:27406
 msgid "Sort ascending"
 msgstr "Urut naik"
 
 #. ll-tools-public-key: 00933294dd9d3017a3ec6476ce95e22b777908a3
-#: includes/pages/wordset-pages.php:27405
+#: includes/pages/wordset-pages.php:27407
 msgid "Sort descending"
 msgstr "Urut turun"
 
 #. ll-tools-public-key: a4a7a8179b7883002dac0b5b7d762591eed147af
-#: includes/pages/wordset-pages.php:27408
+#: includes/pages/wordset-pages.php:27410
 msgid "Select all: %1$s"
 msgstr "Pilih semua: %1$s"
 
 #. ll-tools-public-key: c7f1f9b77d64192193b6765c1d51d74e4fb2efc1
-#: includes/pages/wordset-pages.php:27409
+#: includes/pages/wordset-pages.php:27411
 msgid "Deselect all: %1$s"
 msgstr "Batalkan pilihan semua: %1$s"
 
 #. ll-tools-public-key: ac93762e1f7ab50d8471886bf4fc149772e7223f
-#: includes/pages/wordset-pages.php:27410
+#: includes/pages/wordset-pages.php:27412
 msgid "Filtered words"
 msgstr "Kata terfilter"
 
 #. ll-tools-public-key: 7ebbefc9319d7483cb8dd47d8e2f11d41ca8908e
-#: includes/pages/wordset-pages.php:27411 includes/pages/wordset-pages.php:27975
+#: includes/pages/wordset-pages.php:27413 includes/pages/wordset-pages.php:27977
 msgid "%d selected words"
 msgstr "%d kata-kata terpilih"
 
 #. ll-tools-public-key: 91f5b1b1a3e0a9f2d98a1798c4acca4857841562
-#: includes/pages/wordset-pages.php:27412
+#: includes/pages/wordset-pages.php:27414
 msgid "Showing %1$d of %2$d words"
 msgstr "Menampilkan %1$d dari %2$d kata"
 
 #. ll-tools-public-key: 9885d207929069a3a76d60636adee714c9495233
-#: includes/pages/wordset-pages.php:27413
+#: includes/pages/wordset-pages.php:27415
 msgid "Showing %1$d of %2$d matching words"
 msgstr "Menampilkan %1$d dari %2$d kata yang cocok"
 
 #. ll-tools-public-key: c849c93fd06e54340cc7870cf9404eb378322271
-#: includes/pages/wordset-pages.php:27414 includes/pages/wordset-pages.php:27971
+#: includes/pages/wordset-pages.php:27416 includes/pages/wordset-pages.php:27973
 msgid "Load more words"
 msgstr "Muat lebih banyak kata"
 
 #. ll-tools-public-key: b40ebf2ae4166e3158f34249814246ae28031c46
-#: includes/pages/wordset-pages.php:27415
+#: includes/pages/wordset-pages.php:27417
 msgid "Loading words..."
 msgstr "Memuat kata..."
 
 #. ll-tools-public-key: 2a3ecb8701b5081140979425225388c4f19071eb
-#: includes/pages/wordset-pages.php:27416
+#: includes/pages/wordset-pages.php:27418
 msgid "Load more matching words"
 msgstr "Muat lebih banyak kata yang cocok"
 
 #. ll-tools-public-key: 7d0aef99c60b99ea2286cbbe71f4a397415d1a90
-#: includes/pages/wordset-pages.php:27417
+#: includes/pages/wordset-pages.php:27419
 msgid "Loading matching words..."
 msgstr "Memuat kata yang cocok..."
 
 #. ll-tools-public-key: 417cec394f78d4a4a43a29fe96e76b1f52be9f68
-#: includes/pages/wordset-pages.php:27420
+#: includes/pages/wordset-pages.php:27422
 msgid "%1$d rounds, %2$d words"
 msgstr "%1$d putaran, %2$d kata"
 
 #. ll-tools-public-key: 46957b01b5300f381d621c3c17abae31f274d450
-#: includes/pages/wordset-pages.php:27422 includes/pages/wordset-pages.php:27612
+#: includes/pages/wordset-pages.php:27424 includes/pages/wordset-pages.php:27614
 msgid "Only words with marked gender are counted."
 msgstr "Hanya kata-kata yang memiliki jenis kelamin yang dihitung."
 
 #. ll-tools-public-key: 87a57388fac29569f9f84d4bafdabcbba2349bc5
-#: includes/pages/wordset-pages.php:27423
+#: includes/pages/wordset-pages.php:27425
 msgid "%d tracked words"
 msgstr "%d kata terlacak"
 
 #. ll-tools-public-key: 493644d938c0f5cbc2ddc7b9d48db472ac4293fa
-#: includes/pages/wordset-pages.php:27424
+#: includes/pages/wordset-pages.php:27426
 msgid "Tracked"
 msgstr "Terlacak"
 
 #. ll-tools-public-key: e5d873243afb1aace7665a0d7e7cfd9353ba9940
-#: includes/pages/wordset-pages.php:27425
+#: includes/pages/wordset-pages.php:27427
 msgid "Not started"
 msgstr "Belum dimulai"
 
 #. ll-tools-public-key: e761983363e095ec2f370e90089aa7cb8210365f
-#: includes/pages/wordset-pages.php:27426 includes/shortcodes/flashcard-widget.php:687 includes/shortcodes/flashcard-widget.php:693
+#: includes/pages/wordset-pages.php:27428 includes/shortcodes/flashcard-widget.php:687 includes/shortcodes/flashcard-widget.php:693
 msgid "Level 1"
 msgstr "Tingkat 1"
 
 #. ll-tools-public-key: b649b0d9d694b2475b0f03037cf645131331f253
-#: includes/pages/wordset-pages.php:27427 includes/shortcodes/flashcard-widget.php:688 includes/shortcodes/flashcard-widget.php:691 includes/shortcodes/flashcard-widget.php:694
+#: includes/pages/wordset-pages.php:27429 includes/shortcodes/flashcard-widget.php:688 includes/shortcodes/flashcard-widget.php:691 includes/shortcodes/flashcard-widget.php:694
 msgid "Level 2"
 msgstr "Tingkat 2"
 
 #. ll-tools-public-key: 7547f303a159235414801168392697b6504d32db
-#: includes/pages/wordset-pages.php:27428 includes/shortcodes/flashcard-widget.php:689 includes/shortcodes/flashcard-widget.php:692
+#: includes/pages/wordset-pages.php:27430 includes/shortcodes/flashcard-widget.php:689 includes/shortcodes/flashcard-widget.php:692
 msgid "Level 3"
 msgstr "Tingkat 3"
 
 #. ll-tools-public-key: a83e932803addad46d1ef41c5671bc0a52567216
-#: includes/pages/wordset-pages.php:27429
+#: includes/pages/wordset-pages.php:27431
 msgid "Last practiced"
 msgstr "Terakhir berlatih"
 
 #. ll-tools-public-key: a5f343d505817fc22b15931c78950339ce594d9d
-#: includes/pages/wordset-pages.php:27430 includes/privacy.php:870 includes/shortcodes/flashcard-widget.php:684
+#: includes/pages/wordset-pages.php:27432 includes/privacy.php:870 includes/shortcodes/flashcard-widget.php:684
 msgid "Gender progress"
 msgstr "Progres gender gramatikal"
 
 #. ll-tools-public-key: b93dd89c9ca1b022ab71a1fc0404006fc3247b41
-#: includes/pages/wordset-pages.php:27432 includes/taxonomies/wordset-taxonomy.php:2992 templates/vocab-lesson-template.php:1198
+#: includes/pages/wordset-pages.php:27434 includes/taxonomies/wordset-taxonomy.php:2992 templates/vocab-lesson-template.php:1198
 msgid "Level"
 msgstr "Level"
 
 #. ll-tools-public-key: 6bd985e6a5489d3ca298eca5475d584d1f300bae
-#: includes/pages/wordset-pages.php:27433
+#: includes/pages/wordset-pages.php:27435
 msgid "Show gender progress in the tables"
 msgstr "Tampilkan progres gender gramatikal dalam tabel"
 
 #. ll-tools-public-key: e86d2a40a18a8912053dddc36aa0f0a52a6a5f6c
-#: includes/pages/wordset-pages.php:27434
+#: includes/pages/wordset-pages.php:27436
 msgid "Show general progress in the tables"
 msgstr "Tampilkan progres umum dalam tabel"
 
 #. ll-tools-public-key: b8b62aa9fbb0db360c75d549314d4ff22bc0f1b0
-#: includes/pages/wordset-pages.php:27435
+#: includes/pages/wordset-pages.php:27437
 msgid "Filter gender"
 msgstr "Filter gender gramatikal"
 
 #. ll-tools-public-key: 5689de32060ba9199abd0e3b01e4b538cd64a967
-#: includes/pages/wordset-pages.php:27436
+#: includes/pages/wordset-pages.php:27438
 msgid "Filter level"
 msgstr "Filter level"
 
 #. ll-tools-public-key: a964cbce7363886c227c518391d4dd37cd4a41a5
-#: includes/pages/wordset-pages.php:27442 includes/pages/wordset-pages.php:5548
+#: includes/pages/wordset-pages.php:27444 includes/pages/wordset-pages.php:5548
 msgid "Main lesson"
 msgstr "Pelajaran utama"
 
 #. ll-tools-public-key: dae78723568029968ec4b6c3404afa1aed50bca3
-#: includes/admin/audio-image-matcher.php:70 includes/admin/image-aspect-normalizer-admin.php:141 includes/admin/image-aspect-normalizer-admin.php:89 includes/admin/ipa-keyboard-admin.php:466 includes/flashcard-shell.php:116 includes/pages/wordset-pages.php:24128 includes/pages/wordset-pages.php:27444 includes/post-types/content-lesson-post-type.php:1820 includes/shortcodes/flashcard-widget.php:716 templates/audio-image-matcher-template.php:72
+#: includes/admin/audio-image-matcher.php:70 includes/admin/image-aspect-normalizer-admin.php:141 includes/admin/image-aspect-normalizer-admin.php:89 includes/admin/ipa-keyboard-admin.php:466 includes/flashcard-shell.php:116 includes/pages/wordset-pages.php:24130 includes/pages/wordset-pages.php:27446 includes/post-types/content-lesson-post-type.php:1820 includes/shortcodes/flashcard-widget.php:716 templates/audio-image-matcher-template.php:72
 msgid "Load more"
 msgstr "Muat lagi"
 
 #. ll-tools-public-key: 7f85c47dc549719b87d18d96935a3659a8416d8f
-#: includes/pages/wordset-pages.php:27445
+#: includes/pages/wordset-pages.php:27447
 msgid "Loading more cards..."
 msgstr "Memuat kartu lainnya..."
 
 #. ll-tools-public-key: 520743d791588be910a4d405712d40f72c6f0a92
-#: includes/pages/wordset-pages.php:27446 includes/pages/wordset-pages.php:28737 includes/pages/wordset-pages.php:28751 includes/pages/wordset-pages.php:28758 includes/pages/wordset-pages.php:28765 includes/pages/wordset-pages.php:28801 includes/pages/wordset-pages.php:5959 includes/pages/wordset-pages.php:5965 includes/pages/wordset-pages.php:5969 includes/pages/wordset-pages.php:5976 includes/pages/wordset-pages.php:5979
+#: includes/pages/wordset-pages.php:27448 includes/pages/wordset-pages.php:28739 includes/pages/wordset-pages.php:28753 includes/pages/wordset-pages.php:28760 includes/pages/wordset-pages.php:28767 includes/pages/wordset-pages.php:28803 includes/pages/wordset-pages.php:5959 includes/pages/wordset-pages.php:5965 includes/pages/wordset-pages.php:5969 includes/pages/wordset-pages.php:5976 includes/pages/wordset-pages.php:5979
 msgid "Could not load more cards right now."
 msgstr "Tidak dapat memuat kartu lainnya sekarang."
 
 #. ll-tools-public-key: 0a4ef0365f7b0d320eaff723c8d2d00a1cdbdeda
-#: includes/pages/wordset-pages.php:27503
+#: includes/pages/wordset-pages.php:27505
 msgid "Use an account to save your progress and keep learning from this page."
 msgstr "Gunakan akun untuk menyimpan kemajuan Anda dan terus belajar dari halaman ini."
 
 #. ll-tools-public-key: b1fe59b5ea7239456b27617ed790ac1ef4a334d9
-#: includes/pages/wordset-pages.php:12878 includes/pages/wordset-pages.php:27521 includes/pages/wordset-pages.php:28022 includes/pages/wordset-pages.php:28062 includes/pages/wordset-pages.php:29225 templates/content-lesson-template.php:122 templates/content-lesson-template.php:131 templates/vocab-lesson-template.php:580
+#: includes/pages/wordset-pages.php:12878 includes/pages/wordset-pages.php:27523 includes/pages/wordset-pages.php:28024 includes/pages/wordset-pages.php:28064 includes/pages/wordset-pages.php:29227 templates/content-lesson-template.php:122 templates/content-lesson-template.php:131 templates/vocab-lesson-template.php:580
 msgid "Back to %s"
 msgstr "Kembali ke %s"
 
 #. ll-tools-public-key: 74ef851b8938f7207d9e8f3c2aeeadea004aa5c0
-#: includes/pages/wordset-pages.php:27535
+#: includes/pages/wordset-pages.php:27537
 msgid "Sign in to view progress"
 msgstr "Masuk untuk melihat kemajuan"
 
 #. ll-tools-public-key: e9e845f39a348532c26051071866ffa0bc220a0c
-#: includes/pages/wordset-pages.php:27536
+#: includes/pages/wordset-pages.php:27538
 msgid "Use your account to view wordset progress and keep your learning history."
 msgstr "Gunakan akun Anda untuk melihat progres kumpulan kata ini dan menyimpan riwayat belajar Anda."
 
 #. ll-tools-public-key: d6bd56e8598cd8ffd89030d6f94a637fecdd0272
-#: includes/pages/wordset-pages.php:27537 includes/pages/wordset-pages.php:28261
+#: includes/pages/wordset-pages.php:27539 includes/pages/wordset-pages.php:28263
 msgid "Open progress"
 msgstr "Lihat progres"
 
 #. ll-tools-public-key: 0991499040d03b8ea5873c60375630f261ef72fa
-#: includes/pages/wordset-pages.php:27509 includes/pages/wordset-pages.php:27540 includes/pages/wordset-pages.php:29340
+#: includes/pages/wordset-pages.php:27511 includes/pages/wordset-pages.php:27542 includes/pages/wordset-pages.php:29342
 msgid "Create learner account"
 msgstr "Buat akun peserta didik"
 
 #. ll-tools-public-key: abd27dc4e57b5b57c54e7a26dcaa8d6de438983a
-#: includes/pages/wordset-pages.php:27642
+#: includes/pages/wordset-pages.php:27644
 msgid "Reset all categories"
 msgstr "Atur ulang semua kategori"
 
 #. ll-tools-public-key: 526fa0931116208a605c00e854273b8d39a7a7eb
-#: includes/pages/wordset-pages.php:17514 includes/pages/wordset-pages.php:27648 includes/pages/wordset-pages.php:27654 includes/shortcodes/word-grid-shortcode.php:5909
+#: includes/pages/wordset-pages.php:17514 includes/pages/wordset-pages.php:27650 includes/pages/wordset-pages.php:27656 includes/shortcodes/word-grid-shortcode.php:5909
 msgid "Search categories"
 msgstr "Kategori pencarian"
 
 #. ll-tools-public-key: 00f29fc224393ebcdacf87ebc47d66da82e6dd6b
-#: includes/admin/word-option-rules-admin.php:1941 includes/admin/word-option-rules-admin.php:2381 includes/admin/word-option-rules-admin.php:2397 includes/pages/wordset-pages.php:27733 includes/shortcodes/word-grid-shortcode.php:5951 includes/taxonomies/word-category-taxonomy.php:3642
+#: includes/admin/word-option-rules-admin.php:1941 includes/admin/word-option-rules-admin.php:2381 includes/admin/word-option-rules-admin.php:2397 includes/pages/wordset-pages.php:27735 includes/shortcodes/word-grid-shortcode.php:5951 includes/taxonomies/word-category-taxonomy.php:3642
 msgid "Search words"
 msgstr "Kata kunci"
 
 #. ll-tools-public-key: 1b0a73ad3b8c6b950741b42616f1bcd50831afe6
-#: includes/pages/wordset-pages.php:27739 includes/pages/wordset-pages.php:28391 includes/pages/wordset-pages.php:28397 templates/offline-app-shell-template.php:744 templates/offline-app-shell-template.php:750
+#: includes/pages/wordset-pages.php:27741 includes/pages/wordset-pages.php:28393 includes/pages/wordset-pages.php:28399 templates/offline-app-shell-template.php:744 templates/offline-app-shell-template.php:750
 msgid "Search words or translations"
 msgstr "Cari kata atau terjemahan"
 
 #. ll-tools-public-key: 6e50d0b0e63836bc0ee31a5ea6d79c9d3f5ad403
-#: includes/pages/wordset-pages.php:27762 includes/pages/wordset-pages.php:27771
+#: includes/pages/wordset-pages.php:27764 includes/pages/wordset-pages.php:27773
 msgid "Filter star status"
 msgstr "Saring berdasarkan favorit"
 
 #. ll-tools-public-key: 4cd0c8ef3d2a054d9031bca27294e85ef3ec0fbc
-#: includes/pages/wordset-pages.php:27784 includes/pages/wordset-pages.php:27796
+#: includes/pages/wordset-pages.php:27786 includes/pages/wordset-pages.php:27798
 msgid "Filter category"
 msgstr "Saring berdasarkan kategori"
 
 #. ll-tools-public-key: 93fa8d76d0db7b8e0e7bdf520528b1215e67e371
-#: includes/pages/wordset-pages.php:27822 includes/pages/wordset-pages.php:27834
+#: includes/pages/wordset-pages.php:27824 includes/pages/wordset-pages.php:27836
 msgid "Filter status"
 msgstr "Saring berdasarkan status"
 
 #. ll-tools-public-key: 3d9051a310d75c6099717ff7b4c42fef0e99e643
-#: includes/admin/user-progress-report.php:1160 includes/pages/wordset-pages.php:27839 includes/pages/wordset-pages.php:27851
+#: includes/admin/user-progress-report.php:1160 includes/pages/wordset-pages.php:27841 includes/pages/wordset-pages.php:27853
 msgid "Difficulty"
 msgstr "Tingkat kesulitan"
 
 #. ll-tools-public-key: e3b405c41c7c5bc732ab425f525a5a4659041b52
-#: includes/pages/wordset-pages.php:27844 includes/pages/wordset-pages.php:27860
+#: includes/pages/wordset-pages.php:27846 includes/pages/wordset-pages.php:27862
 msgid "Filter difficulty score"
 msgstr "Saring berdasarkan tingkat kesulitan"
 
 #. ll-tools-public-key: 10b2bd1ab23371d23204afefa54edeb6e47e2dd5
-#: includes/pages/wordset-pages.php:27870 includes/pages/wordset-pages.php:27886
+#: includes/pages/wordset-pages.php:27872 includes/pages/wordset-pages.php:27888
 msgid "Filter seen count"
 msgstr "Saring berdasarkan jumlah dilihat"
 
 #. ll-tools-public-key: ae13ff7f2997bfac9baf664d770eeb60f1ec547f
-#: includes/pages/wordset-pages.php:27896 includes/pages/wordset-pages.php:27912
+#: includes/pages/wordset-pages.php:27898 includes/pages/wordset-pages.php:27914
 msgid "Filter wrong count"
 msgstr "Saring berdasarkan jumlah salah"
 
 #. ll-tools-public-key: 1cefc3abde5750c24b258e2d4db8a70266c56778
-#: includes/pages/wordset-pages.php:27919 includes/pages/wordset-pages.php:27931
+#: includes/pages/wordset-pages.php:27921 includes/pages/wordset-pages.php:27933
 msgid "Filter last seen"
 msgstr "Saring berdasarkan terakhir dilihat"
 
 #. ll-tools-public-key: f64476c49f4bbba7cce7845b6de6eb969e1293aa
-#: includes/admin/ipa-keyboard-admin.php:587 includes/pages/wordset-pages.php:27993 includes/pages/wordset-pages.php:28527 includes/shortcodes/flashcard-widget.php:726 templates/offline-app-shell-template.php:832
+#: includes/admin/ipa-keyboard-admin.php:587 includes/pages/wordset-pages.php:27995 includes/pages/wordset-pages.php:28529 includes/shortcodes/flashcard-widget.php:726 templates/offline-app-shell-template.php:832
 msgid "Clear selection"
 msgstr "Hapus pilihan"
 
 #. ll-tools-public-key: f6b5450993d7a3cb4b0f24728fda728a4cd29c0b
-#: includes/pages/wordset-pages.php:28034
+#: includes/pages/wordset-pages.php:28036
 msgid "Sign in to manage hidden categories."
 msgstr "Masuk untuk mengelola kategori tersembunyi."
 
 #. ll-tools-public-key: d540247432d3471b42007c32b5dfbdcd27877fac
-#: includes/pages/wordset-pages.php:28047
+#: includes/pages/wordset-pages.php:28049
 msgid "Unhide %s"
 msgstr "Tampilkan %s"
 
 #. ll-tools-public-key: 831a3715d687ffe892b2ba0ade7ef2dc4bbfabd6
-#: includes/pages/wordset-pages.php:28112
+#: includes/pages/wordset-pages.php:28114
 msgid "Sign in to open word set tools."
 msgstr "Masuk untuk membuka alat kumpulan kata."
 
 #. ll-tools-public-key: 21dc5a7bf7a498507254ca668c3b8496bc78b682
-#: includes/pages/wordset-pages.php:28217
+#: includes/pages/wordset-pages.php:28219
 msgid "Open games"
 msgstr "Buka game"
 
 #. ll-tools-public-key: 0e75aa1ac0a3540968dc220bb931851b39df3f4c
-#: includes/pages/wordset-pages.php:28306 templates/vocab-lesson-template.php:1495
+#: includes/pages/wordset-pages.php:28308 templates/vocab-lesson-template.php:1495
 msgid "Quiz modes"
 msgstr "Mode kuis"
 
 #. ll-tools-public-key: a6a457b38999c5bc7e425fe8568acb8a9272ebd4
-#: includes/pages/wordset-pages.php:28329
+#: includes/pages/wordset-pages.php:28331
 msgid "Remove recommendation"
 msgstr "Hapus rekomendasi"
 
 #. ll-tools-public-key: 39db8f48148f39deb8cba5ed9225a3547bd8100d
-#: includes/pages/wordset-pages.php:28382
+#: includes/pages/wordset-pages.php:28384
 msgid "No lesson categories yet."
 msgstr "Belum ada kategori pelajaran."
 
 #. ll-tools-public-key: 516cde36e3764fa14dca7a5d6f662f02f4eb4d5d
-#: includes/pages/wordset-pages.php:28404 includes/taxonomies/word-category-taxonomy.php:3644 templates/vocab-lesson-template.php:1225
+#: includes/pages/wordset-pages.php:28406 includes/taxonomies/word-category-taxonomy.php:3644 templates/vocab-lesson-template.php:1225
 msgid "Clear search"
 msgstr "Hapus pencarian"
 
 #. ll-tools-public-key: 10cb1d0010e5466c84801be639f3ea46a761d113
-#: includes/pages/wordset-pages.php:28420 includes/pages/wordset-pages.php:28421 includes/shortcodes/word-grid-shortcode.php:5910 templates/offline-app-shell-template.php:762 templates/offline-app-shell-template.php:763
+#: includes/pages/wordset-pages.php:28422 includes/pages/wordset-pages.php:28423 includes/shortcodes/word-grid-shortcode.php:5910 templates/offline-app-shell-template.php:762 templates/offline-app-shell-template.php:763
 msgid "Sort categories"
 msgstr "Urutkan kategori"
 
 #. ll-tools-public-key: 3dfacc623e225afd2ac186e4ab20bef9c3ed071f
-#: includes/pages/wordset-pages.php:28431 templates/offline-app-shell-template.php:778
+#: includes/pages/wordset-pages.php:28433 templates/offline-app-shell-template.php:778
 msgid "Default"
 msgstr "Standar"
 
 #. ll-tools-public-key: 44ce059c39b8eac2e7f49f57b35530c6914c4c51
-#: includes/pages/wordset-pages.php:28435 includes/shortcodes/word-grid-shortcode.php:5912 templates/offline-app-shell-template.php:782
+#: includes/pages/wordset-pages.php:28437 includes/shortcodes/word-grid-shortcode.php:5912 templates/offline-app-shell-template.php:782
 msgid "A-Z"
 msgstr "A-Z"
 
 #. ll-tools-public-key: b376e633b6147d4ba161863e2653ce657940f3aa
-#: includes/pages/wordset-pages.php:28439 templates/offline-app-shell-template.php:786
+#: includes/pages/wordset-pages.php:28441 templates/offline-app-shell-template.php:786
 msgid "Z-A"
 msgstr "Z-A"
 
 #. ll-tools-public-key: 677d23d75a825472d52095cf764d54f0b43f6841
-#: includes/pages/wordset-pages.php:28443 templates/offline-app-shell-template.php:790
+#: includes/pages/wordset-pages.php:28445 templates/offline-app-shell-template.php:790
 msgid "More learned"
 msgstr "Lebih banyak dipelajari"
 
 #. ll-tools-public-key: 81800debe68743238775a23c2adcc99e4f74ec19
-#: includes/pages/wordset-pages.php:28447 templates/offline-app-shell-template.php:794
+#: includes/pages/wordset-pages.php:28449 templates/offline-app-shell-template.php:794
 msgid "Less learned"
 msgstr "Lebih sedikit dipelajari"
 
 #. ll-tools-public-key: d45ea60b92b51844a353f5f53f7a2d2f92ae7712
-#: includes/pages/wordset-pages.php:28451 templates/offline-app-shell-template.php:798
+#: includes/pages/wordset-pages.php:28453 templates/offline-app-shell-template.php:798
 msgid "Recently studied"
 msgstr "Baru dipelajari"
 
 #. ll-tools-public-key: 8bd854edcb11f2ab9b50785e594e64055d9fc93c
-#: includes/pages/wordset-pages.php:28455 templates/offline-app-shell-template.php:802
+#: includes/pages/wordset-pages.php:28457 templates/offline-app-shell-template.php:802
 msgid "Not recently studied"
 msgstr "Belum lama dipelajari"
 
 #. ll-tools-public-key: ff1f7abe1c22f822df09817e69c5d7198a68eff7
-#: includes/pages/wordset-pages.php:17544 includes/pages/wordset-pages.php:28480 includes/shortcodes/flashcard-widget.php:744
+#: includes/pages/wordset-pages.php:17544 includes/pages/wordset-pages.php:28482 includes/shortcodes/flashcard-widget.php:744
 msgid "No categories match this search."
 msgstr "Tidak ada kategori yang sesuai dengan pencarian ini."
 
 #. ll-tools-public-key: 9e28e6f2cbe4746a6861ad3a328bea92f6205a3e
-#: includes/pages/wordset-pages.php:28484 includes/pages/wordset-pages.php:28566 includes/pages/wordset-pages.php:28573 includes/pages/wordset-pages.php:28580 includes/pages/wordset-pages.php:28601
+#: includes/pages/wordset-pages.php:28486 includes/pages/wordset-pages.php:28568 includes/pages/wordset-pages.php:28575 includes/pages/wordset-pages.php:28582 includes/pages/wordset-pages.php:28603
 msgid "Could not search this word set right now."
 msgstr "Tidak dapat mencari di set kata ini saat ini."
 
 #. ll-tools-public-key: c6dfbe12711f5340713432191b03b219c4241d01
-#: includes/pages/wordset-pages.php:28630 includes/shortcodes/dictionary-shortcode.php:3472
+#: includes/pages/wordset-pages.php:28632 includes/shortcodes/dictionary-shortcode.php:3472
 msgid "Search results are still being prepared. Please try again in a moment."
 msgstr "Hasil pencarian masih dalam proses penyiapan. Silakan coba lagi sebentar lagi."
 
 #. ll-tools-public-key: e7b99708ce2251ebdce8845fbafb28155883073b
-#: includes/pages/wordset-pages.php:28641
+#: includes/pages/wordset-pages.php:28643
 msgid "Too many search requests. Please wait a few minutes and try again."
 msgstr "Terlalu banyak permintaan pencarian. Tunggu beberapa menit lalu coba lagi."
 
 #. ll-tools-public-key: ea7b614965be8423e5c777f1f63ce9a026c0eaca
-#: includes/pages/wordset-pages.php:28698
+#: includes/pages/wordset-pages.php:28700
 msgid "Search is still preparing. Please try again."
 msgstr "Pencarian masih dalam proses. Silakan coba lagi."
 
 #. ll-tools-public-key: e912e100ddf8c5fa130a02c1083dced28be796f9
-#: includes/pages/wordset-pages.php:28858
+#: includes/pages/wordset-pages.php:28860
 msgid "Too many card loading requests. Please wait a few minutes and try again."
 msgstr "Terlalu banyak permintaan pemuatan kartu. Tunggu beberapa menit lalu coba lagi."
 
 #. ll-tools-public-key: c813f07c08c21ff96d0976c1ca6890673c1810b5
-#: includes/pages/wordset-pages.php:28810 includes/pages/wordset-pages.php:28876
+#: includes/pages/wordset-pages.php:28812 includes/pages/wordset-pages.php:28878
 msgid "Card previews are still being prepared. Please try again in a moment."
 msgstr "Pratinjau kartu masih disiapkan. Coba lagi sebentar lagi."
 
 #. ll-tools-public-key: 14a1dc72cf86a272aa66fbc98f5e0d99fbeb3000
-#: includes/pages/wordset-pages.php:29255
+#: includes/pages/wordset-pages.php:29257
 msgid "%s words per game"
 msgstr "%s kata per permainan"
 
 #. ll-tools-public-key: d1a094d7882d61104a5ac815c39d5a8d27d7550d
-#: includes/pages/wordset-pages.php:29335
+#: includes/pages/wordset-pages.php:29337
 msgid "Sign in to play games"
 msgstr "Masuk untuk bermain game"
 
 #. ll-tools-public-key: 09c7dbac42286b6a7bac009fd273bd44066ffa23
-#: includes/pages/wordset-pages.php:29336
+#: includes/pages/wordset-pages.php:29338
 msgid "Games use your in-progress words and save results to your practice history."
 msgstr "Permainan ini menggunakan kata-kata yang sedang Anda kerjakan dan menyimpan hasilnya ke riwayat latihan Anda."
 
 #. ll-tools-public-key: 6393b2ccc5d296c9f913090591fd6974bbaa6a6f
-#: includes/pages/wordset-pages.php:29348
+#: includes/pages/wordset-pages.php:29350
 msgid "Wordset game"
 msgstr "Permainan kata"
 
 #. ll-tools-public-key: 365a374ca7b56d0fb47801754cb5c94aeaffeb4b
-#: includes/pages/wordset-pages.php:29474 includes/pages/wordset-pages.php:29478
+#: includes/pages/wordset-pages.php:29476 includes/pages/wordset-pages.php:29480
 msgid "Start recording"
 msgstr "Mulai merekam"
 
 #. ll-tools-public-key: ab0f089c71908bea6055a278b459d568bd7ac16a
-#: includes/pages/wordset-pages.php:29491
+#: includes/pages/wordset-pages.php:29493
 msgid "Play your recording"
 msgstr "Putar rekaman Anda"
 
 #. ll-tools-public-key: c41e9b3d08bcec9fb0893bdf7ad0aff96016ea5e
-#: includes/pages/wordset-pages.php:29516
+#: includes/pages/wordset-pages.php:29518
 msgid "Correct audio"
 msgstr "Audio yang benar"
 
 #. ll-tools-public-key: c03351ae68b118dfb752f11524d50572a54e7ecd
-#: includes/pages/wordset-pages.php:29521
+#: includes/pages/wordset-pages.php:29523
 msgid "Play correct audio"
 msgstr "Putar audio yang benar"
 
@@ -2887,7 +2887,7 @@ msgid "The lesson index could not be read completely."
 msgstr "Daftar isi pelajaran tidak dapat dibaca secara lengkap."
 
 #. ll-tools-public-key: c5e95a6a323633b27083c69d123e3be87cefae0d
-#: includes/admin/audio-processor-admin.php:138 includes/admin/audio-processor-admin.php:160 includes/admin/ipa-keyboard-admin.php:395 includes/pages/content-lesson-pages.php:1295 includes/pages/wordset-pages.php:27334 includes/pages/wordset-pages.php:27447 includes/shortcodes/content-lesson-index-shortcode.php:388 includes/shortcodes/dictionary-shortcode.php:342 includes/shortcodes/word-grid-shortcode.php:4106 templates/vocab-lesson-template.php:443
+#: includes/admin/audio-processor-admin.php:138 includes/admin/audio-processor-admin.php:160 includes/admin/ipa-keyboard-admin.php:395 includes/pages/content-lesson-pages.php:1295 includes/pages/wordset-pages.php:27336 includes/pages/wordset-pages.php:27449 includes/shortcodes/content-lesson-index-shortcode.php:388 includes/shortcodes/dictionary-shortcode.php:342 includes/shortcodes/word-grid-shortcode.php:4106 templates/vocab-lesson-template.php:443
 msgid "Saving..."
 msgstr "Menyimpan..."
 
@@ -2907,7 +2907,7 @@ msgid "Lesson pages"
 msgstr "Halaman pelajaran"
 
 #. ll-tools-public-key: 114b068d9d25d7598aa0f82fedd6acddb21c6030
-#: includes/admin/audio-processor-admin.php:220 includes/pages/wordset-pages.php:12929 includes/pages/wordset-pages.php:13060 includes/pages/wordset-pages.php:13297 includes/pages/wordset-pages.php:24121 includes/shortcodes/content-lesson-index-shortcode.php:546 includes/shortcodes/content-lesson-index-shortcode.php:715
+#: includes/admin/audio-processor-admin.php:220 includes/pages/wordset-pages.php:12929 includes/pages/wordset-pages.php:13060 includes/pages/wordset-pages.php:13297 includes/pages/wordset-pages.php:24123 includes/shortcodes/content-lesson-index-shortcode.php:546 includes/shortcodes/content-lesson-index-shortcode.php:715
 msgid "Page %d"
 msgstr "Halaman %d"
 
@@ -3177,7 +3177,7 @@ msgid "Loading dictionary filters..."
 msgstr "Memuat filter kamus..."
 
 #. ll-tools-public-key: 051692938a541fd2e0f0151e61e9e0f082913821
-#: includes/pages/wordset-pages.php:24784 includes/shortcodes/flashcard-widget.php:1556
+#: includes/pages/wordset-pages.php:24786 includes/shortcodes/flashcard-widget.php:1556
 msgid "The category catalog is temporarily unavailable. Please try again."
 msgstr "Katalog kategori sedang tidak tersedia untuk sementara waktu. Silakan coba lagi."
 
@@ -3617,7 +3617,7 @@ msgid "Invalid request."
 msgstr "Permintaan tidak sah."
 
 #. ll-tools-public-key: e3b9b9e78329edcd2cae87adeb360db28ad0c68c
-#: includes/admin/ipa-keyboard-admin.php:397 includes/offline-app-sync.php:1420 includes/pages/wordset-pages.php:27345 includes/shortcodes/flashcard-widget.php:714 includes/shortcodes/quiz-pages-shortcodes.php:1871 includes/user-progress.php:11563 includes/user-progress.php:11719 includes/user-progress.php:11769 includes/user-progress.php:13135 includes/user-progress.php:13161 includes/user-progress.php:13234 includes/user-progress.php:13310 includes/user-progress.php:13375 includes/user-progress.php:13399 includes/user-progress.php:13516 includes/user-progress.php:13688 includes/user-study.php:1489
+#: includes/admin/ipa-keyboard-admin.php:397 includes/offline-app-sync.php:1420 includes/pages/wordset-pages.php:27347 includes/shortcodes/flashcard-widget.php:714 includes/shortcodes/quiz-pages-shortcodes.php:1871 includes/user-progress.php:11563 includes/user-progress.php:11719 includes/user-progress.php:11769 includes/user-progress.php:13135 includes/user-progress.php:13161 includes/user-progress.php:13234 includes/user-progress.php:13310 includes/user-progress.php:13375 includes/user-progress.php:13399 includes/user-progress.php:13516 includes/user-progress.php:13688 includes/user-study.php:1489
 msgid "Something went wrong. Please try again."
 msgstr "Terjadi kesalahan. Silakan coba lagi."
 
@@ -3946,27 +3946,27 @@ msgid "Transcription"
 msgstr "Transkripsi"
 
 #. ll-tools-public-key: ba8f54097a986552c9d2b09b0179dc9a29e0fbf1
-#: includes/pages/wordset-pages.php:27294 includes/pages/wordset-pages.php:7237
+#: includes/pages/wordset-pages.php:27296 includes/pages/wordset-pages.php:7237
 msgid "Not public"
 msgstr "Tidak untuk umum"
 
 #. ll-tools-public-key: ae8e964fbcf8f603a8ba6e5e1828ec0ddc98eb3e
-#: includes/pages/wordset-pages.php:27295 includes/pages/wordset-pages.php:3216 includes/pages/wordset-pages.php:3315 includes/pages/wordset-pages.php:5444 includes/pages/wordset-pages.php:7233
+#: includes/pages/wordset-pages.php:27297 includes/pages/wordset-pages.php:3216 includes/pages/wordset-pages.php:3315 includes/pages/wordset-pages.php:5444 includes/pages/wordset-pages.php:7233
 msgid "Not public yet."
 msgstr "Belum dipublikasikan."
 
 #. ll-tools-public-key: fc4e53d24d659a57151e2425441a7a8d97efd995
-#: includes/pages/wordset-pages.php:27323 includes/pages/wordset-pages.php:7309
+#: includes/pages/wordset-pages.php:27325 includes/pages/wordset-pages.php:7309
 msgid "Delete %s"
 msgstr "Hapus %s"
 
 #. ll-tools-public-key: 33adb391abf29321e2aa53eba8c77b7bf81e64c1
-#: includes/pages/wordset-pages.php:27500
+#: includes/pages/wordset-pages.php:27502
 msgid "Sign in or create an account"
 msgstr "Masuk atau buat akun"
 
 #. ll-tools-public-key: 579587a31a6db4735840b05575ee570e746e79c0
-#: includes/pages/wordset-pages.php:28361
+#: includes/pages/wordset-pages.php:28363
 msgid "Lesson pages are not enabled for this word set yet."
 msgstr "Halaman pelajaran belum diaktifkan untuk kumpulan kata ini."
 
@@ -4161,12 +4161,12 @@ msgid "Editor Hub"
 msgstr "Pusat Editor"
 
 #. ll-tools-public-key: 4e035f5cbf72e9cad4c4ec3f30f03ae2814a92d1
-#: includes/pages/wordset-pages.php:14076 includes/pages/wordset-pages.php:14303 includes/pages/wordset-pages.php:25872 includes/shortcodes/site-tools-shortcode.php:914
+#: includes/pages/wordset-pages.php:14076 includes/pages/wordset-pages.php:14303 includes/pages/wordset-pages.php:25874 includes/shortcodes/site-tools-shortcode.php:914
 msgid "Recorder"
 msgstr "Perekam"
 
 #. ll-tools-public-key: 972b97d4bb4862c9faefa4e85c375b0828409203
-#: includes/admin/admin-dashboard-menu.php:183 includes/admin/admin-dashboard-menu.php:385 includes/admin/teacher-classes-page.php:36 includes/admin/teacher-classes-page.php:37 includes/admin/teacher-classes-page.php:674 includes/pages/wordset-pages.php:12886 includes/pages/wordset-pages.php:12991 includes/pages/wordset-pages.php:14087 includes/pages/wordset-pages.php:28232 includes/teacher-classes.php:26
+#: includes/admin/admin-dashboard-menu.php:183 includes/admin/admin-dashboard-menu.php:385 includes/admin/teacher-classes-page.php:36 includes/admin/teacher-classes-page.php:37 includes/admin/teacher-classes-page.php:674 includes/pages/wordset-pages.php:12886 includes/pages/wordset-pages.php:12991 includes/pages/wordset-pages.php:14087 includes/pages/wordset-pages.php:28234 includes/teacher-classes.php:26
 msgid "Classes"
 msgstr "Kelas"
 
@@ -4176,162 +4176,162 @@ msgid "Site Tools"
 msgstr "Alat Situs"
 
 #. ll-tools-public-key: 69acdb2e9c5b85a27f7e9cb5f5f7c619746adcd3
-#: includes/pages/wordset-pages.php:25218
+#: includes/pages/wordset-pages.php:25220
 msgid "Bundle details"
 msgstr "Detail paket"
 
 #. ll-tools-public-key: 2c74dcbbeb4ee761fb19b3532104a979e4398c6d
-#: includes/pages/wordset-pages.php:25222
+#: includes/pages/wordset-pages.php:25224
 msgid "App name"
 msgstr "Nama aplikasi"
 
 #. ll-tools-public-key: 98e19e4700ba484cea5892087094e78f78362ddb
-#: includes/admin/offline-app-export.php:788 includes/pages/wordset-pages.php:25232
+#: includes/admin/offline-app-export.php:788 includes/pages/wordset-pages.php:25234
 msgid "Used in the offline app shell and Android build metadata."
 msgstr "Digunakan di shell aplikasi offline dan metadata build Android."
 
 #. ll-tools-public-key: 2c438641fc8aa46ed983512c82a915f09ac1646b
-#: includes/pages/wordset-pages.php:25237
+#: includes/pages/wordset-pages.php:25239
 msgid "Android app ID suffix"
 msgstr "Sufiks ID aplikasi Android"
 
 #. ll-tools-public-key: cbbde343bd3e84a9d7e10e39fb3619fb85e141ab
-#: includes/pages/wordset-pages.php:25246
+#: includes/pages/wordset-pages.php:25248
 msgid "Letters, numbers, underscores, and dots are allowed. The exporter sanitizes this automatically."
 msgstr "Huruf, angka, garis bawah, dan titik diperbolehkan. Eksportir membersihkannya secara otomatis."
 
 #. ll-tools-public-key: 3d83cf8654396b5398b030aba64a9106d80825ce
-#: includes/pages/wordset-pages.php:25251
+#: includes/pages/wordset-pages.php:25253
 msgid "Version name"
 msgstr "Nama versi"
 
 #. ll-tools-public-key: 464f2b8dc586d4d9fcd01b29520e9b4f6961ef48
-#: includes/pages/wordset-pages.php:25265
+#: includes/pages/wordset-pages.php:25267
 msgid "Version code"
 msgstr "Kode versi"
 
 #. ll-tools-public-key: 3a0ec75428f70342fac3218a7a0d93b162fca5fe
-#: includes/pages/wordset-pages.php:25277
+#: includes/pages/wordset-pages.php:25279
 msgid "Increase this integer when distributing an updated Android build."
 msgstr "Naikkan bilangan bulat ini saat mendistribusikan build Android yang diperbarui."
 
 #. ll-tools-public-key: a1b790a7758198e4a59e78d697ad08f8b2f5d6ce
-#: includes/pages/wordset-pages.php:25283
+#: includes/pages/wordset-pages.php:25285
 msgid "Export notes"
 msgstr "Catatan ekspor"
 
 #. ll-tools-public-key: 818e4bc0b4ac78ea73af5a8242f46322e7122f9d
-#: includes/pages/wordset-pages.php:25285
+#: includes/pages/wordset-pages.php:25287
 msgid "No site icon set"
 msgstr "Ikon situs belum diatur"
 
 #. ll-tools-public-key: e2de3811709ecb1384ad750984483511e0f325f3
-#: includes/pages/wordset-pages.php:25285
+#: includes/pages/wordset-pages.php:25287
 msgid "Uses current site icon"
 msgstr "Menggunakan ikon situs saat ini"
 
 #. ll-tools-public-key: 2ff2f9b08ad6d1fd335c1f0dc5ad0aa55b73780f
-#: includes/pages/wordset-pages.php:25286
+#: includes/pages/wordset-pages.php:25288
 msgid "Offline speaking disabled in exports"
 msgstr "Latihan pengucapan offline dinonaktifkan dalam ekspor"
 
 #. ll-tools-public-key: 9f61bdc348c9870915626c8dedc7228df695fc4d
-#: includes/pages/wordset-pages.php:25292
+#: includes/pages/wordset-pages.php:25294
 msgid "This export uses the current site icon automatically. Advanced one-off icon overrides can stay in the dashboard exporter until we migrate that piece too."
 msgstr "Ekspor ini otomatis menggunakan ikon situs saat ini. Penggantian ikon lanjutan satu kali dapat tetap berada di eksportir dasbor sampai bagian itu juga dimigrasikan."
 
 #. ll-tools-public-key: c6d80373930c99c8591babf3c6906da97552a98a
-#: includes/pages/wordset-pages.php:25293
+#: includes/pages/wordset-pages.php:25295
 msgid "No site icon is set for this site, so the Android builder keeps its default launcher icon unless you add one later."
 msgstr "Tidak ada ikon situs yang diatur untuk situs ini, jadi pembuat Android tetap memakai ikon peluncur bawaan kecuali kamu menambahkannya nanti."
 
 #. ll-tools-public-key: 6d7929ab809e24fa8f1034f6122094fb440032b5
-#: includes/pages/wordset-pages.php:25297
+#: includes/pages/wordset-pages.php:25299
 msgid "The offline bundle includes the standalone shell plus bundled media for supported quiz modes. Learners can keep using the app locally, then link a site account later to sync study state and progress."
 msgstr "Paket offline mencakup shell mandiri dan media yang dibundel untuk mode kuis yang didukung. Pelajar dapat tetap menggunakan aplikasi secara lokal, lalu menautkan akun situs nanti untuk menyinkronkan status belajar dan progres."
 
 #. ll-tools-public-key: 485f0855e6715d80ca276342efb08fdb3591b234
-#: includes/pages/wordset-pages.php:25299
+#: includes/pages/wordset-pages.php:25301
 msgid "Export Offline App"
 msgstr "Ekspor Aplikasi Offline"
 
 #. ll-tools-public-key: bba20261a8e43bdf1d3f643de19108ea13ae8896
-#: includes/admin/audio-processor-admin.php:199 includes/admin/missing-audio-admin-page.php:657 includes/admin/orphan-media-admin.php:1875 includes/admin/recording-types-admin.php:163 includes/admin/teacher-classes-page.php:843 includes/admin/teacher-classes-page.php:878 includes/pages/wordset-pages.php:13046 includes/pages/wordset-pages.php:27298 includes/shortcodes/site-tools-shortcode.php:1289
+#: includes/admin/audio-processor-admin.php:199 includes/admin/missing-audio-admin-page.php:657 includes/admin/orphan-media-admin.php:1875 includes/admin/recording-types-admin.php:163 includes/admin/teacher-classes-page.php:843 includes/admin/teacher-classes-page.php:878 includes/pages/wordset-pages.php:13046 includes/pages/wordset-pages.php:27300 includes/shortcodes/site-tools-shortcode.php:1289
 msgid "Delete"
 msgstr "Hapus"
 
 #. ll-tools-public-key: 6c9ec82137a08ae8ca15498a2b28ab66716252d9
-#: includes/pages/wordset-pages.php:27299 includes/pages/wordset-pages.php:7314
+#: includes/pages/wordset-pages.php:27301 includes/pages/wordset-pages.php:7314
 msgid "Delete this category and any linked vocab lesson? This cannot be undone."
 msgstr "Hapus kategori ini dan pelajaran kosakata tertaut? Tindakan ini tidak dapat dibatalkan."
 
 #. ll-tools-public-key: 5beaac066641d171f36b221f48ffe879e6af96b8
-#: includes/pages/wordset-pages.php:27304 includes/pages/wordset-pages.php:7294
+#: includes/pages/wordset-pages.php:27306 includes/pages/wordset-pages.php:7294
 msgid "Category management for %s"
 msgstr "Pengelolaan kategori untuk %s"
 
 #. ll-tools-public-key: f5a83117446c0c03f9a93ba8f9784cd0e1cda477
-#: includes/pages/wordset-pages.php:27448
+#: includes/pages/wordset-pages.php:27450
 msgid "Saved!"
 msgstr "Tersimpan!"
 
 #. ll-tools-public-key: 6718dc34c21554ebfb8550d8d8429b3f9831f800
-#: includes/pages/wordset-pages.php:27502
+#: includes/pages/wordset-pages.php:27504
 msgid "Use the invited email address to manage this word set."
 msgstr "Gunakan alamat email yang diundang untuk mengelola kumpulan kata ini."
 
 #. ll-tools-public-key: 6bdcc5d9893ec6896ad266e167606f9dc7796a90
-#: includes/pages/wordset-pages.php:27508 includes/pages/wordset-pages.php:27514
+#: includes/pages/wordset-pages.php:27510 includes/pages/wordset-pages.php:27516
 msgid "Create manager account"
 msgstr "Buat akun pengelola"
 
 #. ll-tools-public-key: 378e446652d17f8e0fc15f7e9de895ccc81fd5fa
-#: includes/pages/wordset-pages.php:27511
+#: includes/pages/wordset-pages.php:27513
 msgid "This invite can create or connect a Word Set Manager account for this word set."
 msgstr "Undangan ini dapat membuat atau menghubungkan akun Pengelola Kumpulan Kata untuk kumpulan kata ini."
 
 #. ll-tools-public-key: 6ea44e419ca80d23bd47cd91a68603b920e994e2
-#: includes/pages/wordset-pages.php:14369 includes/pages/wordset-pages.php:28178
+#: includes/pages/wordset-pages.php:14369 includes/pages/wordset-pages.php:28180
 msgid "Image Upload"
 msgstr "Unggah Gambar"
 
 #. ll-tools-public-key: ad0c920f5506014d6746731e5d6eb070928cf10d
-#: includes/pages/wordset-pages.php:28178
+#: includes/pages/wordset-pages.php:28180
 msgid "Upload images and optionally auto-create draft words in this word set when the category supports image-to-text quizzes."
 msgstr "Unggah gambar dan secara opsional buat draf kata otomatis dalam kumpulan kata ini saat kategorinya mendukung kuis gambar-ke-teks."
 
 #. ll-tools-public-key: 01a5a6ff2d6f2168d7e42f35c7d7f60d83cbd304
-#: includes/pages/wordset-pages.php:14372 includes/pages/wordset-pages.php:28180
+#: includes/pages/wordset-pages.php:14372 includes/pages/wordset-pages.php:28182
 msgid "Audio Upload"
 msgstr "Unggah Audio"
 
 #. ll-tools-public-key: 29f5e5d66256a35f02c618df1dddd966e467aa9a
-#: includes/pages/wordset-pages.php:28180
+#: includes/pages/wordset-pages.php:28182
 msgid "Bulk upload audio files and create or match draft words in this word set."
 msgstr "Unggah file audio secara massal dan buat atau cocokkan draf kata dalam kumpulan kata ini."
 
 #. ll-tools-public-key: a6505f249cf2032d7d3bd97499deee29306473cd
-#: includes/pages/wordset-pages.php:28185
+#: includes/pages/wordset-pages.php:28187
 msgid "No settings tools are available for this word set right now."
 msgstr "Tidak ada alat pengaturan yang tersedia untuk kumpulan kata ini saat ini."
 
 #. ll-tools-public-key: 3f237413b868b8571b30d7bdf3cffd3af904f704
-#: includes/pages/wordset-pages.php:12895 includes/pages/wordset-pages.php:28228
+#: includes/pages/wordset-pages.php:12895 includes/pages/wordset-pages.php:28230
 msgid "Open classes"
 msgstr "Buka kelas"
 
 #. ll-tools-public-key: 22bd77d115beb237e368721890f6293004594bdf
-#: includes/pages/wordset-pages.php:28239
+#: includes/pages/wordset-pages.php:28241
 msgid "Update Language Learner Tools to version %s"
 msgstr "Perbarui Language Learner Tools ke versi %s"
 
 #. ll-tools-public-key: ae5af4695aa6a8f0f5aae087ccbeaae87b281afa
-#: includes/pages/wordset-pages.php:28242 language-learner-tools.php:905
+#: includes/pages/wordset-pages.php:28244 language-learner-tools.php:905
 msgid "Update to %s"
 msgstr "Perbarui ke %s"
 
 #. ll-tools-public-key: 556e309c62f15a6542735e15d5b65ae623931d58
-#: includes/pages/wordset-pages.php:28247
+#: includes/pages/wordset-pages.php:28249
 msgid "Word set tools"
 msgstr "Alat kumpulan kata"
 
@@ -4356,22 +4356,22 @@ msgid "Category settings were saved. This category no longer has a vocab lesson 
 msgstr "Pengaturan kategori disimpan. Kategori ini tidak lagi memiliki halaman pelajaran kosakata untuk pengaturan saat ini."
 
 #. ll-tools-public-key: 6df2eadc36a465f73e7e591fc2da209a9df86612
-#: includes/admin/google-classroom-integration.php:267 includes/admin/teacher-classes-page.php:927 includes/pages/wordset-pages.php:26949 includes/pages/wordset-pages.php:26960 includes/shortcodes/content-lesson-index-shortcode.php:627
+#: includes/admin/google-classroom-integration.php:267 includes/admin/teacher-classes-page.php:927 includes/pages/wordset-pages.php:26951 includes/pages/wordset-pages.php:26962 includes/shortcodes/content-lesson-index-shortcode.php:627
 msgid "Ready"
 msgstr "Siap"
 
 #. ll-tools-public-key: a1ee46b2b9cd7b0b549972c08c855596e7ed56ed
-#: includes/pages/wordset-pages.php:26950 includes/pages/wordset-pages.php:26961
+#: includes/pages/wordset-pages.php:26952 includes/pages/wordset-pages.php:26963
 msgid "Upload permission required"
 msgstr "Izin unggah diperlukan"
 
 #. ll-tools-public-key: 05860685d26d8d0f45af748c2ba0822fd502c6a8
-#: includes/pages/wordset-pages.php:26976
+#: includes/pages/wordset-pages.php:26978
 msgid "Generate lesson pages"
 msgstr "Buat halaman pelajaran"
 
 #. ll-tools-public-key: 022e5d066b1cf9cbbf0f9db9a286792fd6d3f33b
-#: includes/pages/wordset-pages.php:26968
+#: includes/pages/wordset-pages.php:26970
 msgid "Enable lesson pages"
 msgstr "Aktifkan halaman pelajaran"
 
@@ -4646,39 +4646,39 @@ msgid "Transcription validation job belongs to a different word set."
 msgstr "Tugas validasi transkripsi milik set kata yang berbeda."
 
 #. ll-tools-public-key: c7d689ae146ccf489ef492f3c3213b5c7488306b
-#: includes/pages/wordset-pages.php:24595
+#: includes/pages/wordset-pages.php:24597
 msgid "Recorder text"
 msgstr "Teks perekam"
 
 #. ll-tools-public-key: 2ed2d6c1c0c2d05829c80219fb99a7ea207884a3
-#: includes/pages/wordset-pages.php:24217 includes/taxonomies/wordset-taxonomy.php:3894
+#: includes/pages/wordset-pages.php:24219 includes/taxonomies/wordset-taxonomy.php:3894
 msgid "Recorder text visibility"
 msgstr "Visibilitas teks perekam"
 
 #. ll-tools-public-key: ef75e7914d7453df3efb6c89399aaac1a4ef1ea8
-#: includes/admin/google-classroom-integration.php:267 includes/pages/wordset-pages.php:26903 includes/pages/wordset-pages.php:26904
+#: includes/admin/google-classroom-integration.php:267 includes/pages/wordset-pages.php:26905 includes/pages/wordset-pages.php:26906
 msgid "Not ready"
 msgstr "Belum siap"
 
 #. ll-tools-public-key: 3c446568e9ffff13c1a058035683c700558397cb
-#: includes/pages/wordset-pages.php:26921
+#: includes/pages/wordset-pages.php:26923
 msgid "Zip unavailable"
 msgstr "ZIP tidak tersedia"
 
 #. ll-tools-public-key: b2e305e4ef33e9390b5063f40826ebb01de7c257
-#: includes/pages/wordset-pages.php:26925
+#: includes/pages/wordset-pages.php:26927
 msgid "%d category ready"
 msgid_plural "%d categories ready"
 msgstr[0] "%d kategori siap"
 msgstr[1] "%d kategori siap"
 
 #. ll-tools-public-key: 00eb82f2ef70829d6350549fc73da90b3c77224b
-#: includes/pages/wordset-pages.php:26928
+#: includes/pages/wordset-pages.php:26930
 msgid "No exportable categories"
 msgstr "Tidak ada kategori yang dapat diekspor"
 
 #. ll-tools-public-key: 6e9bd323c455ca1d04844307328567c14dedae60
-#: includes/pages/wordset-pages.php:26931
+#: includes/pages/wordset-pages.php:26933
 msgid "Admin permission required"
 msgstr "Izin admin diperlukan"
 
@@ -4848,12 +4848,12 @@ msgid "Delete Category"
 msgstr "Hapus Kategori"
 
 #. ll-tools-public-key: 2867c52e085927c4988ba53aec5c54df609ba9a9
-#: includes/pages/wordset-pages.php:24228
+#: includes/pages/wordset-pages.php:24230
 msgid "Current effective recorder state: %s. Applies to every recorder assigned to this word set."
 msgstr "Status perekam efektif saat ini: %s. Berlaku untuk setiap perekam yang ditetapkan ke kumpulan kata ini."
 
 #. ll-tools-public-key: 6280f1361be372741fd948a1ce23532f33153658
-#: includes/pages/wordset-pages.php:24235
+#: includes/pages/wordset-pages.php:24237
 msgid "Save recorder text setting"
 msgstr "Simpan pengaturan teks perekam"
 
@@ -4878,47 +4878,47 @@ msgid "Create class"
 msgstr "Buat kelas"
 
 #. ll-tools-public-key: 9b69b2ff3f39c66177b3f7d9a72cb3fd63f4709d
-#: includes/pages/wordset-pages.php:24919
+#: includes/pages/wordset-pages.php:24921
 msgid "No audio recorder users are currently assigned to this word set."
 msgstr "Belum ada pengguna perekam audio yang ditetapkan ke kumpulan kata ini."
 
 #. ll-tools-public-key: a4a4e99356b1eddc4690566c40504b1dee20120b
-#: includes/pages/wordset-pages.php:25613
+#: includes/pages/wordset-pages.php:25615
 msgid "Quiz display"
 msgstr "Tampilan kuis"
 
 #. ll-tools-public-key: 18dab2b8e1ca6de37c9d85c97d55df4ff65e0db1
-#: includes/pages/wordset-pages.php:25623
+#: includes/pages/wordset-pages.php:25625
 msgid "Sign language"
 msgstr "Bahasa isyarat"
 
 #. ll-tools-public-key: 71ca27ba5ae3673a474775669bf460c212c5fce5
-#: includes/pages/wordset-pages.php:25632
+#: includes/pages/wordset-pages.php:25634
 msgid "Use sign language quiz defaults and disable audio requirements for this word set."
 msgstr "Gunakan default kuis bahasa isyarat dan nonaktifkan persyaratan audio untuk kumpulan kata ini."
 
 #. ll-tools-public-key: b1f32933c4667155f36da53f94cb4aed75a4d964
-#: includes/pages/wordset-pages.php:25635
+#: includes/pages/wordset-pages.php:25637
 msgid "Categories default to image prompts with image answer options. Category quiz settings can still use image prompts with text answers."
 msgstr "Kategori secara default memakai prompt gambar dengan pilihan jawaban gambar. Pengaturan kuis kategori tetap dapat memakai prompt gambar dengan jawaban teks."
 
 #. ll-tools-public-key: 86dc2b205fdce5ce7b294716a895e355d3180c74
-#: includes/pages/wordset-pages.php:26826
+#: includes/pages/wordset-pages.php:26828
 msgid "Defaults"
 msgstr "Default"
 
 #. ll-tools-public-key: ffd3a6ddf2510c20293568c9726b69a4ccea8658
-#: includes/pages/wordset-pages.php:26862
+#: includes/pages/wordset-pages.php:26864
 msgid "No template content yet"
 msgstr "Belum ada konten templat"
 
 #. ll-tools-public-key: 8468f858a3e16c66204ea51e05df2ef8680b1640
-#: includes/pages/wordset-pages.php:14375 includes/pages/wordset-pages.php:25880 includes/pages/wordset-pages.php:28059
+#: includes/pages/wordset-pages.php:14375 includes/pages/wordset-pages.php:25882 includes/pages/wordset-pages.php:28061
 msgid "Word Set Tools"
 msgstr "Alat kumpulan kata"
 
 #. ll-tools-public-key: 0b1ae8ef7a8aaf3f43139a2cd8035839d84f8d89
-#: includes/pages/wordset-pages.php:28061
+#: includes/pages/wordset-pages.php:28063
 msgid "Back to word set tools"
 msgstr "Kembali ke alat kumpulan kata"
 
@@ -4943,83 +4943,83 @@ msgid "Verb mood"
 msgstr "Modus verba"
 
 #. ll-tools-public-key: b9d99c2dcf1f992f8cc5833f8483759d0c52c5c3
-#: includes/admin/uploads/audio-upload-form.php:571 includes/admin/uploads/image-upload-form.php:640 includes/pages/wordset-pages.php:25640 includes/taxonomies/word-category-taxonomy.php:2915 includes/taxonomies/word-category-taxonomy.php:4480 includes/taxonomies/word-category-taxonomy.php:4594
+#: includes/admin/uploads/audio-upload-form.php:571 includes/admin/uploads/image-upload-form.php:640 includes/pages/wordset-pages.php:25642 includes/taxonomies/word-category-taxonomy.php:2915 includes/taxonomies/word-category-taxonomy.php:4480 includes/taxonomies/word-category-taxonomy.php:4594
 msgid "Text + audio pairs"
 msgstr "Pasangan teks + audio"
 
 #. ll-tools-public-key: 38c18b2774f29a89d525b5ac5eaa7a67751c2b75
-#: includes/pages/wordset-pages.php:25649 includes/taxonomies/wordset-taxonomy.php:3917
+#: includes/pages/wordset-pages.php:25651 includes/taxonomies/wordset-taxonomy.php:3917
 msgid "Automatically play the audio for text + audio answer options during quizzes."
 msgstr "Putar audio secara otomatis untuk opsi jawaban teks + audio selama kuis."
 
 #. ll-tools-public-key: 8d58bf3d39c63086b9130b59df833134ac1a6759
-#: includes/pages/wordset-pages.php:25652 includes/taxonomies/wordset-taxonomy.php:3919
+#: includes/pages/wordset-pages.php:25654 includes/taxonomies/wordset-taxonomy.php:3919
 msgid "When this is off, learners can play text + audio answer options manually. Audio-only answer options still auto-play."
 msgstr "Jika ini dinonaktifkan, pelajar dapat memutar opsi jawaban teks + audio secara manual. Opsi jawaban khusus audio tetap diputar otomatis."
 
 #. ll-tools-public-key: 1a9d9f0329f12256fbd9fedfd644cb219c20530d
-#: includes/pages/wordset-pages.php:25657
+#: includes/pages/wordset-pages.php:25659
 msgid "Lesson and word-grid text"
 msgstr "Teks pelajaran dan kisi kata"
 
 #. ll-tools-public-key: 74cab7744d508b97d795d3e4af9ac27c8c42c279
-#: includes/pages/wordset-pages.php:25666
+#: includes/pages/wordset-pages.php:25668
 msgid "Hide word text on lesson pages and word grids when the category quiz uses only images or audio."
 msgstr "Sembunyikan teks kata di halaman pelajaran dan kisi kata saat kuis kategori hanya menggunakan gambar atau audio."
 
 #. ll-tools-public-key: bc80d553aab8d97f379adcd62bc1a130ddbe7f1a
-#: includes/pages/wordset-pages.php:25669 includes/taxonomies/wordset-taxonomy.php:3888
+#: includes/pages/wordset-pages.php:25671 includes/taxonomies/wordset-taxonomy.php:3888
 msgid "Categories can override this in their quiz settings."
 msgstr "Kategori dapat mengganti ini di pengaturan kuisnya."
 
 #. ll-tools-public-key: 8b1c88119d9eaa89ad4683ec01ce9b71c40f4847
-#: includes/pages/wordset-pages.php:25692
+#: includes/pages/wordset-pages.php:25694
 msgid "Save Study Settings"
 msgstr "Simpan Pengaturan Belajar"
 
 #. ll-tools-public-key: 166f90af5421d93da889b29787e61bc4c816e27a
-#: includes/pages/wordset-pages.php:23730 includes/pages/wordset-pages.php:24158
+#: includes/pages/wordset-pages.php:23732 includes/pages/wordset-pages.php:24160
 msgid "%d word"
 msgid_plural "%d words"
 msgstr[0] "%d kata"
 msgstr[1] "%d kata"
 
 #. ll-tools-public-key: 36a22fa6bb6c7fa7086507115ccd0164fcf1bf9f
-#: includes/pages/wordset-pages.php:15138 includes/pages/wordset-pages.php:26804
+#: includes/pages/wordset-pages.php:15138 includes/pages/wordset-pages.php:26806
 msgid "%d grammar feature"
 msgid_plural "%d grammar features"
 msgstr[0] "%d fitur tata bahasa"
 msgstr[1] "%d fitur tata bahasa"
 
 #. ll-tools-public-key: 1a6d6f0ed8fe365a3bea9df2c04b3b03a617cbf4
-#: includes/pages/wordset-pages.php:26809
+#: includes/pages/wordset-pages.php:26811
 msgid "Profile image"
 msgstr "Gambar profil"
 
 #. ll-tools-public-key: d7a1de9597306c29be5b388708f5ee5b00ff156b
-#: includes/pages/wordset-pages.php:15207 includes/pages/wordset-pages.php:26812
+#: includes/pages/wordset-pages.php:15207 includes/pages/wordset-pages.php:26814
 msgid "Intro blurb"
 msgstr "Teks pengantar"
 
 #. ll-tools-public-key: 7db216606fa0b0d656719e92187cf519b411b146
-#: includes/pages/wordset-pages.php:26815
+#: includes/pages/wordset-pages.php:26817
 msgid "Large images"
 msgstr "Gambar besar"
 
 #. ll-tools-public-key: 5b95bfb0a3f520db53312a0cdcc209cf05f3af4a
-#: includes/pages/wordset-pages.php:15145 includes/pages/wordset-pages.php:26818
+#: includes/pages/wordset-pages.php:15145 includes/pages/wordset-pages.php:26820
 msgid "Original audio kept"
 msgstr "Audio asli disimpan"
 
 #. ll-tools-public-key: f744e8b629f3e6303f97bbea1db0187ba5fbf131
-#: includes/pages/wordset-editor.php:4273 includes/pages/wordset-pages.php:15130 includes/pages/wordset-pages.php:17438 includes/pages/wordset-pages.php:24524 includes/pages/wordset-pages.php:24707 includes/pages/wordset-pages.php:26844
+#: includes/pages/wordset-editor.php:4273 includes/pages/wordset-pages.php:15130 includes/pages/wordset-pages.php:17438 includes/pages/wordset-pages.php:24526 includes/pages/wordset-pages.php:24709 includes/pages/wordset-pages.php:26846
 msgid "%d category"
 msgid_plural "%d categories"
 msgstr[0] "%d kategori"
 msgstr[1] "%d kategori"
 
 #. ll-tools-public-key: bd89de7a53ace7b12d12a205808bc36cfdb9798e
-#: includes/pages/wordset-pages.php:26850
+#: includes/pages/wordset-pages.php:26852
 msgid "%d image"
 msgid_plural "%d images"
 msgstr[0] "%d gambar"
@@ -5036,29 +5036,29 @@ msgid "Languages"
 msgstr "Bahasa"
 
 #. ll-tools-public-key: 5a9b8a529c88e930a0e37b6a8080546a0db51d63
-#: includes/pages/wordset-pages.php:26733
+#: includes/pages/wordset-pages.php:26735
 msgid "Add target language"
 msgstr "Tambahkan bahasa target"
 
 #. ll-tools-public-key: 26be578a8b2bc29b75ce09b7c97f96539761c796
-#: includes/pages/wordset-pages.php:26738
+#: includes/pages/wordset-pages.php:26740
 msgid "Category translations"
 msgstr "Terjemahan kategori"
 
 #. ll-tools-public-key: f6a1dc9382aa09c300c15bff14f4c7d98af39721
-#: includes/pages/wordset-pages.php:26767
+#: includes/pages/wordset-pages.php:26769
 msgid "%d hidden"
 msgid_plural "%d hidden"
 msgstr[0] "%d disembunyikan"
 msgstr[1] "%d disembunyikan"
 
 #. ll-tools-public-key: b3e8a9933c442dc107182fd506f5aa4e5adf73a0
-#: includes/pages/wordset-pages.php:15113 includes/pages/wordset-pages.php:26792 includes/taxonomies/wordset-taxonomy.php:2926
+#: includes/pages/wordset-pages.php:15113 includes/pages/wordset-pages.php:26794 includes/taxonomies/wordset-taxonomy.php:2926
 msgid "Manual order"
 msgstr "Urutan manual"
 
 #. ll-tools-public-key: ddf8cbedc0a12a287bc38cc5353c4962f7a5f03a
-#: includes/pages/wordset-pages.php:15114 includes/pages/wordset-pages.php:26794 includes/taxonomies/wordset-taxonomy.php:2993 templates/vocab-lesson-template.php:1188
+#: includes/pages/wordset-pages.php:15114 includes/pages/wordset-pages.php:26796 includes/taxonomies/wordset-taxonomy.php:2993 templates/vocab-lesson-template.php:1188
 msgid "Prerequisites"
 msgstr "Prasyarat"
 
@@ -5090,22 +5090,22 @@ msgid "Dictionary definition not found."
 msgstr "Definisi kamus tidak ditemukan."
 
 #. ll-tools-public-key: 9f2d7d1cede89aa621287a6231e906a4cf4d0f29
-#: includes/lib/wordset-language-settings.php:1238 includes/pages/wordset-pages.php:17808 includes/pages/wordset-pages.php:17926 includes/pages/wordset-pages.php:26689
+#: includes/lib/wordset-language-settings.php:1238 includes/pages/wordset-pages.php:17808 includes/pages/wordset-pages.php:17926 includes/pages/wordset-pages.php:26691
 msgid "Disabled"
 msgstr "Dinonaktifkan"
 
 #. ll-tools-public-key: 73df9b4032a80156f0990cf45a7396096fbd6859
-#: includes/admin/export-import.php:14326 includes/admin/export-import.php:14358 includes/admin/export-import.php:3364 includes/lib/wordset-language-settings.php:1261 includes/pages/wordset-pages.php:17823 includes/pages/wordset-pages.php:26692 includes/pages/wordset-transcription-review.php:289 includes/shortcodes/word-grid-shortcode.php:4126
+#: includes/admin/export-import.php:14326 includes/admin/export-import.php:14358 includes/admin/export-import.php:3364 includes/lib/wordset-language-settings.php:1261 includes/pages/wordset-pages.php:17823 includes/pages/wordset-pages.php:26694 includes/pages/wordset-transcription-review.php:289 includes/shortcodes/word-grid-shortcode.php:4126
 msgid "Recording text"
 msgstr "Teks rekaman"
 
 #. ll-tools-public-key: d3367c646e56edaa6704f7bc64bad2acdc2f0d0f
-#: includes/lib/recording-history.php:163 includes/pages/wordset-editor.php:4133 includes/pages/wordset-editor.php:4716 includes/pages/wordset-pages.php:14829 includes/pages/wordset-pages.php:26753 includes/taxonomies/word-category-taxonomy.php:2561 includes/taxonomies/word-category-taxonomy.php:2602 includes/taxonomies/wordset-taxonomy.php:3876 templates/vocab-lesson-template.php:1122
+#: includes/lib/recording-history.php:163 includes/pages/wordset-editor.php:4133 includes/pages/wordset-editor.php:4716 includes/pages/wordset-pages.php:14829 includes/pages/wordset-pages.php:26755 includes/taxonomies/word-category-taxonomy.php:2561 includes/taxonomies/word-category-taxonomy.php:2602 includes/taxonomies/wordset-taxonomy.php:3876 templates/vocab-lesson-template.php:1122
 msgid "Private"
 msgstr "Privat"
 
 #. ll-tools-public-key: 2d4748184f86c6be58e19132ed4d500fc9295cb4
-#: includes/pages/wordset-pages.php:14828 includes/pages/wordset-pages.php:26753 includes/taxonomies/word-category-taxonomy.php:2560 includes/taxonomies/word-category-taxonomy.php:2601 includes/taxonomies/wordset-taxonomy.php:3875 templates/vocab-lesson-template.php:1121
+#: includes/pages/wordset-pages.php:14828 includes/pages/wordset-pages.php:26755 includes/taxonomies/word-category-taxonomy.php:2560 includes/taxonomies/word-category-taxonomy.php:2601 includes/taxonomies/wordset-taxonomy.php:3875 templates/vocab-lesson-template.php:1121
 msgid "Public"
 msgstr "Publik"
 
@@ -5215,7 +5215,7 @@ msgid "Settings"
 msgstr "Pengaturan"
 
 #. ll-tools-public-key: 29a6d3b2f58380d9888b4219d3bc8ce48d9819c2
-#: includes/admin/dictionary-import-admin.php:3010 includes/admin/duplicate-category-words-admin.php:849 includes/admin/offline-app-export.php:743 includes/admin/teacher-classes-page.php:837 includes/admin/teacher-classes-page.php:908 includes/admin/uploads/upload-scope.php:71 includes/pages/wordset-pages.php:14285 includes/pages/wordset-pages.php:14815 includes/pages/wordset-pages.php:25886 includes/post-types/dictionary-entry-post-type.php:1961 includes/post-types/words-post-type.php:2006 includes/taxonomies/wordset-taxonomy.php:1455 includes/user-roles/audio-recorder-role.php:134 includes/user-roles/audio-recorder-role.php:268
+#: includes/admin/dictionary-import-admin.php:3010 includes/admin/duplicate-category-words-admin.php:849 includes/admin/offline-app-export.php:743 includes/admin/teacher-classes-page.php:837 includes/admin/teacher-classes-page.php:908 includes/admin/uploads/upload-scope.php:71 includes/pages/wordset-pages.php:14285 includes/pages/wordset-pages.php:14815 includes/pages/wordset-pages.php:25888 includes/post-types/dictionary-entry-post-type.php:1961 includes/post-types/words-post-type.php:2006 includes/taxonomies/wordset-taxonomy.php:1455 includes/user-roles/audio-recorder-role.php:134 includes/user-roles/audio-recorder-role.php:268
 msgid "Word Set"
 msgstr "Set kata"
 
@@ -5262,42 +5262,42 @@ msgid "Utility and configuration pages used less frequently."
 msgstr "Halaman utilitas dan konfigurasi yang lebih jarang digunakan."
 
 #. ll-tools-public-key: 9df7799fc8f5484fbe6be6ce1c17b755830dc977
-#: includes/pages/wordset-pages.php:24859
+#: includes/pages/wordset-pages.php:24861
 msgid "Hidden by Category"
 msgstr "Disembunyikan menurut kategori"
 
 #. ll-tools-public-key: 79b7ab57424e7f093a923ece4f82eb65da5427a1
-#: includes/pages/wordset-pages.php:24861
+#: includes/pages/wordset-pages.php:24863
 msgid "No hidden words for this recorder."
 msgstr "Tidak ada kata tersembunyi untuk petugas rekaman ini."
 
 #. ll-tools-public-key: 7d883c13c72882ab303702bcab11d7e5e63ef123
-#: includes/pages/wordset-pages.php:25028
+#: includes/pages/wordset-pages.php:25030
 msgid "Enable Recorder Access"
 msgstr "Aktifkan akses petugas rekaman"
 
 #. ll-tools-public-key: 570016a6dd4bf6e76ff0e5279f4298d35b8488b1
-#: includes/pages/wordset-pages.php:25034
+#: includes/pages/wordset-pages.php:25036
 msgid "Invite Recorder By Email"
 msgstr "Undang petugas rekaman lewat email"
 
 #. ll-tools-public-key: 9cbffaddfbe077b1282c142ceeb10b6670ee4015
-#: includes/pages/wordset-pages.php:25045
+#: includes/pages/wordset-pages.php:25047
 msgid "Recorder email"
 msgstr "Email petugas rekaman"
 
 #. ll-tools-public-key: 97f540db500bb827fd42c4cd066ac15bc0c4a09e
-#: includes/pages/wordset-pages.php:25055
+#: includes/pages/wordset-pages.php:25057
 msgid "This sends a special signup link that creates or connects a recorder account and assigns that person to this word set."
 msgstr "Ini mengirim tautan pendaftaran khusus yang membuat atau menghubungkan akun petugas rekaman dan menetapkan orang tersebut ke set kata ini."
 
 #. ll-tools-public-key: 3e7bc8a76c5e12b6994cb38b2a3c7445fa80f31d
-#: includes/pages/wordset-pages.php:25058
+#: includes/pages/wordset-pages.php:25060
 msgid "Send Recorder Invite"
 msgstr "Kirim undangan petugas rekaman"
 
 #. ll-tools-public-key: 5ac0da8ad9e5ec568c68be8e2fa89d298e9c99c3
-#: includes/pages/wordset-pages.php:25083
+#: includes/pages/wordset-pages.php:25085
 msgid "This upload tool is unavailable right now."
 msgstr "Alat unggah ini sedang tidak tersedia."
 
@@ -5362,7 +5362,7 @@ msgid "Maintain reusable source labels, attribution text, source-page URLs, and 
 msgstr "Kelola label sumber yang dapat digunakan kembali, teks atribusi, URL halaman sumber, dan dialek default yang digunakan oleh entri kamus."
 
 #. ll-tools-public-key: 701e12699d0ce92843f4a6b3cd7b81de93783bbb
-#: includes/pages/wordset-pages.php:25025
+#: includes/pages/wordset-pages.php:25027
 msgid "Find an existing user by username or email, add the Audio Recorder role, and assign them to this word set in one step."
 msgstr "Cari pengguna yang sudah ada berdasarkan nama pengguna atau email, tambahkan peran Perekam Audio, lalu tetapkan ke kumpulan kata ini dalam satu langkah."
 
@@ -5566,19 +5566,19 @@ msgstr "Penyegaran gambar jarak jauh ditunda sementara."
 msgid "Dictionary data is temporarily unavailable. Please try again in a moment."
 msgstr "Data kamus untuk sementara tidak tersedia. Silakan coba lagi sebentar lagi."
 
-#: includes/pages/wordset-pages.php:27368 includes/pages/wordset-pages.php:27745
+#: includes/pages/wordset-pages.php:27370 includes/pages/wordset-pages.php:27747
 msgid "Select"
 msgstr "Pilih"
 
-#: includes/pages/wordset-pages.php:27370
+#: includes/pages/wordset-pages.php:27372
 msgid "Filtered"
 msgstr "Hasil filter"
 
-#: includes/pages/wordset-pages.php:27744
+#: includes/pages/wordset-pages.php:27746
 msgid "Select words"
 msgstr "Pilih kata"
 
-#: includes/pages/wordset-pages.php:26300 includes/pages/wordset-pages.php:27367
+#: includes/pages/wordset-pages.php:26302 includes/pages/wordset-pages.php:27369
 msgid "Older than 30 days"
 msgstr "Lebih dari 30 hari lalu"
 
@@ -5591,6 +5591,6 @@ msgstr "Hasil kamus tidak dapat dimuat."
 msgid "Too many requests. Please wait a moment and try again."
 msgstr "Permintaan terlalu banyak. Tunggu sebentar dan coba lagi."
 
-#: includes/pages/wordset-pages.php:27335 includes/pages/wordset-transcription-review.php:284
+#: includes/pages/wordset-pages.php:27337 includes/pages/wordset-transcription-review.php:284
 msgid "Saved"
 msgstr "Tersimpan"
