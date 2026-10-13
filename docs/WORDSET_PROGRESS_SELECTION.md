@@ -26,6 +26,15 @@ It stays available at portrait phone widths even when the Last column is hidden.
 - `includes/user-progress.php` supplies `summary.older_words` in summary-only,
   paged, and selection-ID payloads. Count during existing aggregate passes; do
   not add another whole-wordset hydration or a per-pill request.
+- Word age is recalculated from UTC last-seen timestamps on every analytics
+  request; the membership cache does not freeze progress timestamps or counts.
+  An open Progress page refreshes hourly while visible and when returning to a
+  tab whose last successful analytics request is at least a minute old. Hidden
+  tabs skip automatic requests; open activities defer the refresh until close.
+- Exact selection snapshots for Older or Last filters expire after a minute,
+  measured from the request start. Launch must resolve fresh matching IDs after
+  expiry so words crossing an age boundary can enter the selection without a
+  new study event. Other filters retain their existing snapshot reuse.
 - A requested group immediately creates a filter-bound selection descriptor,
   without taking IDs from the previous table. Pure summary groups reuse the
   displayed summary count; combined filters show a loading count until their
@@ -51,10 +60,12 @@ It stays available at portrait phone widths even when the Last column is hidden.
 ## Focused verification
 
 `UserStudyAnalyticsTest` verifies older counts and equivalent Last/summary
-filters without hydrating selection rows. `wordset-page-progress-loading.spec.js`
+filters without hydrating selection rows, including fresh counts with a warm
+membership cache. `wordset-page-progress-loading.spec.js`
 verifies complete selection scopes, both older-word study modes, empty/failing
 filters, retry recovery, immediate actions before table responses, mobile refresh concurrency,
-pending selection, and bounded launches. `wordset-progress-mobile-layout.spec.js`
+pending selection, bounded launches, and age-based analytics/selection freshness.
+`wordset-progress-mobile-layout.spec.js`
 checks the native control and table layout across phone widths and themes.
 Both browser harnesses supply their own page and API responses and can run with
 the installed Playwright CLI while Local HTTP is stopped. PHP integration tests

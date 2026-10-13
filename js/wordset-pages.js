@@ -55,6 +55,8 @@
         250,
         Math.min(120000, parseInt(cfg.progressAnalyticsRequestTimeoutMs, 10) || 30000)
     );
+    const PROGRESS_ANALYTICS_IDLE_REFRESH_MS = 60 * 60 * 1000;
+    const PROGRESS_ANALYTICS_RETURN_REFRESH_MS = 60 * 1000;
     const LARGE_PROGRESS_SELECTION_WORD_COUNT = 1000;
     const PROGRESS_WORD_AUTOLOAD_VIEWPORT_OFFSET_PX = 360;
     const RESULTS_FOLLOWUP_PREFETCH_PROGRESS_RATIO = 0.8;
@@ -131,6 +133,9 @@
     let analyticsInFlightRequest = null;
     let analyticsInFlightOptions = null;
     let queuedAnalyticsRefreshOptions = null;
+    let progressAnalyticsFreshnessTimer = null;
+    let progressAnalyticsLastSuccessfulRequestAt = null;
+    let progressAnalyticsLastFreshnessAttemptAt = null;
     let analyticsTab = 'categories';
     const progressTabStorageKey = 'llToolsWordsetProgressTab:' + String(wordsetId || 0);
     let analyticsWordSearchQuery = '';
@@ -180,6 +185,7 @@
     let progressWordPendingFilterKey = null;
     let progressWordIdsSnapshotSignature = '';
     let progressWordIdsSnapshotGeneration = 0;
+    let progressWordIdsSnapshotRequestedAt = null;
     let progressWordAutoLoadTimer = 0;
     let analyticsCategoryRenderTimer = null;
     let analyticsCategoryLoadingTimer = null;
@@ -3664,6 +3670,22 @@
         );
     }
 
+    function progressWordFilterDependsOnTime(filterPayload) {
+        const filter = (filterPayload && typeof filterPayload === 'object') ? filterPayload : {};
+        if (normalizeSummaryFilter(filter.summary) === 'older') { return true; }
+        const lastFilters = filter.column_filters && filter.column_filters.last;
+        return normalizeFilterSelectionList(lastFilters || []).some(function (value) {
+            return ['24h', '7d', '30d', 'older'].indexOf(value) !== -1;
+        });
+    }
+
+    function progressWordIdsSnapshotIsFresh(filterPayload) {
+        if (!progressWordFilterDependsOnTime(filterPayload)) { return true; }
+        if (progressWordIdsSnapshotRequestedAt === null) { return false; }
+        const age = Date.now() - progressWordIdsSnapshotRequestedAt;
+        return age >= 0 && age < PROGRESS_ANALYTICS_RETURN_REFRESH_MS;
+    }
+
     function progressSelectionLaunchSpecIsCurrent(spec) {
         if (!spec || typeof spec !== 'object' || !progressAllFilteredSelectionIsActive()) {
             return false;
@@ -3749,6 +3771,7 @@
     function invalidateProgressWordIdsSnapshot() {
         progressWordIdsSnapshotSignature = '';
         progressWordIdsSnapshotGeneration += 1;
+        progressWordIdsSnapshotRequestedAt = null;
     }
 
     function cancelProgressSelectionLaunch(options) {
@@ -6687,6 +6710,7 @@
         if (
             progressWordIdsSnapshotSignature !== ''
             && progressWordIdsSnapshotSignature === progressSelectionWordIdsSnapshotSignatureForSpec(launchSpec)
+            && progressWordIdsSnapshotIsFresh(launchSpec.filterPayload)
             && cachedWordIds.length > 0
             && cachedWordIds.length === cachedTotal
         ) {
@@ -7572,6 +7596,34 @@
         return merged;
     }
 
+    function refreshProgressAnalyticsIfStale(maxAge) {
+        if (document.visibilityState === 'hidden' || analyticsInFlightRequest || analyticsTimer
+            || progressSelectionLaunchBusy || pendingProgressAnalyticsRefreshAfterClose) { return; }
+        const now = Date.now();
+        if (progressAnalyticsLastSuccessfulRequestAt !== null
+            && now >= progressAnalyticsLastSuccessfulRequestAt
+            && now - progressAnalyticsLastSuccessfulRequestAt < maxAge) { return; }
+        // Returning focus/visibility events can arrive together. Keep failures
+        // bounded too, while ordinary manual and study refreshes remain immediate.
+        if (progressAnalyticsLastFreshnessAttemptAt !== null
+            && now >= progressAnalyticsLastFreshnessAttemptAt
+            && now - progressAnalyticsLastFreshnessAttemptAt < PROGRESS_ANALYTICS_RETURN_REFRESH_MS) { return; }
+        progressAnalyticsLastFreshnessAttemptAt = now;
+        scheduleProgressAnalyticsRefresh(80, { silent: true });
+    }
+
+    function scheduleProgressAnalyticsFreshnessCheck(delay) {
+        if (!$progressRoot.length || !isLoggedIn) { return; }
+        clearTimeout(progressAnalyticsFreshnessTimer);
+        const delayMs = Number.isFinite(Number(delay)) ? Number(delay) : PROGRESS_ANALYTICS_IDLE_REFRESH_MS;
+        progressAnalyticsFreshnessTimer = setTimeout(function () {
+            progressAnalyticsFreshnessTimer = null;
+            // The hourly retry also bounds a failed or hidden-page refresh.
+            scheduleProgressAnalyticsFreshnessCheck(PROGRESS_ANALYTICS_IDLE_REFRESH_MS);
+            refreshProgressAnalyticsIfStale(PROGRESS_ANALYTICS_IDLE_REFRESH_MS);
+        }, Math.max(80, delayMs));
+    }
+
     function refreshProgressAnalyticsNow(options) {
         const requestedOptions = (options && typeof options === 'object') ? options : {};
         const opts = mergeProgressAnalyticsRefreshOptions(analyticsTimerOptions, requestedOptions);
@@ -7601,6 +7653,7 @@
             return analyticsInFlightRequest;
         }
         const token = ++analyticsRequestToken;
+        const requestStartedAt = Date.now();
         progressWordPageRequestToken += 1;
         setProgressWordPageLoading(false);
         pendingProgressAnalyticsRefreshAfterClose = false;
@@ -7673,6 +7726,11 @@
             }
             if (res && res.success && res.data && res.data.analytics) {
                 analytics = normalizeAnalytics(res.data.analytics);
+                // Freshness belongs to request start, so a stalled response
+                // cannot extend the lifetime of a time-dependent selection.
+                progressAnalyticsLastSuccessfulRequestAt = requestStartedAt;
+                scheduleProgressAnalyticsFreshnessCheck(PROGRESS_ANALYTICS_IDLE_REFRESH_MS
+                    - Math.max(0, Date.now() - requestStartedAt));
                 progressAnalyticsLoading = false;
                 progressAnalyticsFailed = false;
                 progressWordPagination = analytics.wordsPagination || null;
@@ -7693,6 +7751,7 @@
                         analyticsRequestCategoryIds
                     )
                     : '';
+                progressWordIdsSnapshotRequestedAt = progressWordIdsSnapshotSignature ? requestStartedAt : null;
                 progressAnalyticsLoaded = true;
                 setSummaryMetricsLoadingState(false);
                 renderProgressAnalytics();
@@ -20300,6 +20359,16 @@
                 allowWhileFlashcardOpen: true
             });
         });
+
+        $(window).on('focus.llWordsetProgressFreshness pageshow.llWordsetProgressFreshness', function () {
+            refreshProgressAnalyticsIfStale(PROGRESS_ANALYTICS_RETURN_REFRESH_MS);
+        });
+        $(document).on('visibilitychange.llWordsetProgressFreshness', function () {
+            if (document.visibilityState === 'visible') {
+                refreshProgressAnalyticsIfStale(PROGRESS_ANALYTICS_RETURN_REFRESH_MS);
+            }
+        });
+        scheduleProgressAnalyticsFreshnessCheck(PROGRESS_ANALYTICS_IDLE_REFRESH_MS);
 
         const hasBootstrapAnalytics = (Array.isArray(analytics.words) && analytics.words.length > 0)
             || (Array.isArray(analytics.categories) && analytics.categories.length > 0);
