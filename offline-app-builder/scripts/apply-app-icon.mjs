@@ -25,6 +25,12 @@ const MAX_ICON_BYTES = 10 * 1024 * 1024;
 const MAX_ICON_PIXELS = 64 * 1024 * 1024;
 const ALLOWED_ICON_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp']);
 const ALLOWED_ICON_FORMATS = new Set(['jpeg', 'png', 'webp']);
+const ICON_INPUT_OPTIONS = { limitInputPixels: MAX_ICON_PIXELS, failOn: 'error' };
+const PNG_SIGNATURE = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+
+// Icons never need SVG decoding. Keep its native loader disabled as defense in
+// depth, including for metadata reads (GHSA-wq5f-xc86-pv6w).
+sharp.block({ operation: ['VipsForeignLoadSvg'] });
 
 function isPathInside(rootPath, candidatePath) {
   const relative = path.relative(rootPath, candidatePath);
@@ -71,9 +77,42 @@ export function resolvePreparedIcon(state) {
   return realIconPath;
 }
 
-async function renderSquareIcon(sourcePath, size, destinationPath) {
+function readRasterIconInput(iconPath) {
+  const descriptor = fs.openSync(iconPath, 'r');
+  try {
+    const stats = fs.fstatSync(descriptor);
+    if (!stats.isFile() || stats.size > MAX_ICON_BYTES) {
+      throw new Error(`The app icon must be a file within the ${MAX_ICON_BYTES}-byte limit.`);
+    }
+
+    // Read one bounded snapshot for validation and every render. A concurrent
+    // file replacement must not swap validated raster bytes for another format.
+    const input = Buffer.alloc(stats.size + 1);
+    let length = 0;
+    while (length < input.length) {
+      const count = fs.readSync(descriptor, input, length, input.length - length, null);
+      if (count === 0) break;
+      length += count;
+    }
+    if (length !== stats.size) {
+      throw new Error('The app icon changed while it was being read. Retry the build.');
+    }
+    const bytes = input.subarray(0, length);
+    const png = bytes.length >= 8 && bytes.subarray(0, 8).equals(PNG_SIGNATURE);
+    const jpeg = bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+    const webp = bytes.length >= 12 && bytes.subarray(0, 4).equals(Buffer.from('RIFF')) && bytes.subarray(8, 12).equals(Buffer.from('WEBP'));
+    if (!png && !jpeg && !webp) {
+      throw new Error('The app icon contents must be PNG, JPEG, or WebP.');
+    }
+    return bytes;
+  } finally {
+    fs.closeSync(descriptor);
+  }
+}
+
+async function renderSquareIcon(sourceInput, size, destinationPath) {
   await fs.ensureDir(path.dirname(destinationPath));
-  await sharp(sourcePath)
+  await sharp(sourceInput, ICON_INPUT_OPTIONS)
     .resize(size, size, {
       fit: 'cover',
       position: 'centre'
@@ -82,9 +121,9 @@ async function renderSquareIcon(sourcePath, size, destinationPath) {
     .toFile(destinationPath);
 }
 
-async function renderAdaptiveForegroundIcon(sourcePath, size, destinationPath) {
+async function renderAdaptiveForegroundIcon(sourceInput, size, destinationPath) {
   const innerSize = Math.max(1, Math.round(size * ADAPTIVE_FOREGROUND_SCALE));
-  const foregroundBuffer = await sharp(sourcePath)
+  const foregroundBuffer = await sharp(sourceInput, ICON_INPUT_OPTIONS)
     .resize(innerSize, innerSize, {
       fit: 'cover',
       position: 'centre'
@@ -106,30 +145,32 @@ async function renderAdaptiveForegroundIcon(sourcePath, size, destinationPath) {
     .toFile(destinationPath);
 }
 
-export async function applyBundledAppIcon(state) {
+export async function applyBundledAppIcon(state, options = {}) {
   const iconPath = resolvePreparedIcon(state);
   if (!iconPath) {
     return { applied: false, reason: 'no-icon' };
   }
 
-  if (!fs.existsSync(ANDROID_RES_DIR)) {
+  const androidResDir = options.androidResDir || ANDROID_RES_DIR;
+  if (!fs.existsSync(androidResDir)) {
     return { applied: false, reason: 'android-missing', iconPath };
   }
 
-  const metadata = await sharp(iconPath, { limitInputPixels: MAX_ICON_PIXELS, failOn: 'error' }).metadata();
+  const iconInput = readRasterIconInput(iconPath);
+  const metadata = await sharp(iconInput, ICON_INPUT_OPTIONS).metadata();
   if (!ALLOWED_ICON_FORMATS.has(String(metadata.format || ''))) {
     throw new Error('The app icon contents must be PNG, JPEG, or WebP.');
   }
 
   for (const [density, size] of Object.entries(LEGACY_ICON_SIZES)) {
-    const dir = path.join(ANDROID_RES_DIR, `mipmap-${density}`);
-    await renderSquareIcon(iconPath, size, path.join(dir, 'ic_launcher.png'));
-    await renderSquareIcon(iconPath, size, path.join(dir, 'ic_launcher_round.png'));
+    const dir = path.join(androidResDir, `mipmap-${density}`);
+    await renderSquareIcon(iconInput, size, path.join(dir, 'ic_launcher.png'));
+    await renderSquareIcon(iconInput, size, path.join(dir, 'ic_launcher_round.png'));
   }
 
   for (const [density, size] of Object.entries(ADAPTIVE_FOREGROUND_SIZES)) {
-    const dir = path.join(ANDROID_RES_DIR, `mipmap-${density}`);
-    await renderAdaptiveForegroundIcon(iconPath, size, path.join(dir, 'ic_launcher_foreground.png'));
+    const dir = path.join(androidResDir, `mipmap-${density}`);
+    await renderAdaptiveForegroundIcon(iconInput, size, path.join(dir, 'ic_launcher_foreground.png'));
   }
 
   return { applied: true, iconPath };

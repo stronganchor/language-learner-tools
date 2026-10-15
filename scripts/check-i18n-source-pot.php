@@ -6,7 +6,8 @@ declare(strict_types=1);
  *
  * This guard deliberately never writes to languages/. The source extraction is
  * generated in the system temporary directory and compared by canonical
- * gettext identity: context, singular msgid, and plural msgid.
+ * gettext identity and source references. Reference freshness is essential:
+ * public UI selection joins these locations to current function boundaries.
  */
 
 require_once __DIR__ . '/check-public-i18n.php';
@@ -126,7 +127,15 @@ function ll_tools_i18n_source_pot_catalog_entries_by_key(array $entries): array
         if (($entry['msgid'] ?? '') === '') {
             continue;
         }
-        $by_key[ll_tools_public_i18n_entry_key($entry)] = $entry;
+        $key = ll_tools_public_i18n_entry_key($entry);
+        if (isset($by_key[$key])) {
+            $entry['references'] = array_values(array_unique(array_merge(
+                $by_key[$key]['references'] ?? [],
+                $entry['references'] ?? []
+            )));
+            sort($entry['references'], SORT_STRING);
+        }
+        $by_key[$key] = $entry;
     }
 
     ksort($by_key, SORT_STRING);
@@ -134,7 +143,36 @@ function ll_tools_i18n_source_pot_catalog_entries_by_key(array $entries): array
 }
 
 /**
- * @return array{ok:bool,generated_count:int,checked_count:int,missing:array<int,array<string,mixed>>,stale:array<int,array<string,mixed>>}
+ * Compare identities and reference sets independently of extraction ordering.
+ */
+function ll_tools_i18n_source_pot_compare_entries(array $generated, array $checked): array
+{
+    $generated = ll_tools_i18n_source_pot_catalog_entries_by_key($generated);
+    $checked = ll_tools_i18n_source_pot_catalog_entries_by_key($checked);
+    $missing = array_values(array_diff_key($generated, $checked));
+    $stale = array_values(array_diff_key($checked, $generated));
+    $reference_drift = [];
+    foreach (array_intersect_key($generated, $checked) as $key => $entry) {
+        $actual = array_values(array_unique($entry['references'] ?? []));
+        $recorded = array_values(array_unique($checked[$key]['references'] ?? []));
+        sort($actual, SORT_STRING);
+        sort($recorded, SORT_STRING);
+        if ($actual !== $recorded) {
+            $reference_drift[] = array_merge($entry, ['checked_references' => $recorded]);
+        }
+    }
+    return [
+        'ok' => $missing === [] && $stale === [] && $reference_drift === [],
+        'generated_count' => count($generated),
+        'checked_count' => count($checked),
+        'missing' => $missing,
+        'stale' => $stale,
+        'reference_drift' => $reference_drift,
+    ];
+}
+
+/**
+ * @return array<string,mixed>
  */
 function ll_tools_i18n_compare_source_to_checked_pot(string $root_dir): array
 {
@@ -161,7 +199,7 @@ function ll_tools_i18n_compare_source_to_checked_pot(string $root_dir): array
                 $temporary_pot,
                 '--slug=language-learner-tools',
                 '--domain=ll-tools-text-domain',
-                '--exclude=offline-app-builder,tests,_codex_temp',
+                '--exclude=offline-app-builder,tests,test-results,_codex_temp',
                 '--skip-audit',
             ]
         );
@@ -176,22 +214,10 @@ function ll_tools_i18n_compare_source_to_checked_pot(string $root_dir): array
             );
         }
 
-        $generated = ll_tools_i18n_source_pot_catalog_entries_by_key(
-            ll_tools_public_i18n_parse_po_file($temporary_pot)
+        return ll_tools_i18n_source_pot_compare_entries(
+            ll_tools_public_i18n_parse_po_file($temporary_pot, $root_dir),
+            ll_tools_public_i18n_parse_po_file($checked_pot, $root_dir)
         );
-        $checked = ll_tools_i18n_source_pot_catalog_entries_by_key(
-            ll_tools_public_i18n_parse_po_file($checked_pot)
-        );
-        $missing = array_values(array_diff_key($generated, $checked));
-        $stale = array_values(array_diff_key($checked, $generated));
-
-        return [
-            'ok' => $missing === [] && $stale === [],
-            'generated_count' => count($generated),
-            'checked_count' => count($checked),
-            'missing' => $missing,
-            'stale' => $stale,
-        ];
     } finally {
         if (is_file($temporary_pot)) {
             @unlink($temporary_pot);
@@ -213,13 +239,20 @@ function ll_tools_i18n_source_pot_entry_label(array $entry): string
     return implode(' ', $parts);
 }
 
+function ll_tools_i18n_source_pot_reference_drift_label(array $entry): string
+{
+    return ll_tools_i18n_source_pot_entry_label($entry)
+        . ' checked=[' . implode(', ', (array) ($entry['checked_references'] ?? [])) . ']'
+        . ' source=[' . implode(', ', (array) ($entry['references'] ?? [])) . ']';
+}
+
 if (PHP_SAPI === 'cli' && realpath((string) ($_SERVER['SCRIPT_FILENAME'] ?? '')) === __FILE__) {
     try {
         $comparison = ll_tools_i18n_compare_source_to_checked_pot(dirname(__DIR__));
         if ($comparison['ok']) {
             fwrite(
                 STDOUT,
-                sprintf("Source POT is fresh (%d canonical gettext keys).\n", $comparison['checked_count'])
+                sprintf("Source POT is fresh (%d canonical gettext keys and source references).\n", $comparison['checked_count'])
             );
             exit(0);
         }
@@ -227,9 +260,10 @@ if (PHP_SAPI === 'cli' && realpath((string) ($_SERVER['SCRIPT_FILENAME'] ?? ''))
         fwrite(
             STDERR,
             sprintf(
-                "Source POT drift: %d missing source keys; %d stale checked-in keys.\n",
+                "Source POT drift: %d missing source keys; %d stale checked-in keys; %d stale reference sets.\n",
                 count($comparison['missing']),
-                count($comparison['stale'])
+                count($comparison['stale']),
+                count($comparison['reference_drift'])
             )
         );
         foreach (array_slice($comparison['missing'], 0, 10) as $entry) {
@@ -237,6 +271,9 @@ if (PHP_SAPI === 'cli' && realpath((string) ($_SERVER['SCRIPT_FILENAME'] ?? ''))
         }
         foreach (array_slice($comparison['stale'], 0, 10) as $entry) {
             fwrite(STDERR, '- ' . ll_tools_i18n_source_pot_entry_label($entry) . "\n");
+        }
+        foreach (array_slice($comparison['reference_drift'], 0, 10) as $entry) {
+            fwrite(STDERR, '~ ' . ll_tools_i18n_source_pot_reference_drift_label($entry) . "\n");
         }
         exit(1);
     } catch (Throwable $error) {

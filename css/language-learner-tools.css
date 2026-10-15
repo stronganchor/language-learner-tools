@@ -1437,6 +1437,7 @@ body.ll-word-edit-modal-open .word-grid.ll-word-grid .word-item {
 .word-grid.ll-word-grid .ll-word-edit-category-list {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+    grid-auto-rows: max-content;
     gap: 6px;
     max-height: 112px;
     overflow-y: auto;

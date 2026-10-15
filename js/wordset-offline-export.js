@@ -91,12 +91,18 @@
         jobPhase.textContent = String(strings.paused || '');
         jobStatus.textContent = '';
         jobError.hidden = false;
-        jobError.textContent = error && error.message
-            ? String(error.message)
+        jobError.textContent = error && error.llToolsUserMessage
+            ? String(error.llToolsUserMessage)
             : String(strings.requestFailed || '');
         resumeButton.hidden = activeToken === '';
         downloadLink.hidden = true;
         setSubmitState();
+    }
+
+    function userFacingError(message) {
+        var error = new Error('request_failed');
+        error.llToolsUserMessage = String(message || strings.requestFailed || '');
+        return error;
     }
 
     function parseResponse(response) {
@@ -105,7 +111,7 @@
                 var message = payload && payload.data && payload.data.message
                     ? String(payload.data.message)
                     : String(strings.requestFailed || '');
-                throw new Error(message);
+                throw userFacingError(message);
             }
             return payload.data;
         });
@@ -152,7 +158,7 @@
                 if (controller) {
                     controller.abort();
                 }
-                renderRequestError(new Error(String(strings.requestTimedOut || strings.requestFailed || '')));
+                renderRequestError(userFacingError(String(strings.requestTimedOut || strings.requestFailed || '')));
             });
         }, stepRequestTimeoutMs);
 

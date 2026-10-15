@@ -1871,6 +1871,175 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_password_protected_dictionary_entry_is_excluded_from_shared_output_but_staff_can_edit(): void
+    {
+        $password = 'dictionary-shared-cache-secret';
+        $entry_id = self::factory()->post->create([
+            'post_type' => 'll_dictionary_entry',
+            'post_status' => 'publish',
+            'post_title' => 'Protected Dictionary Headword',
+            'post_content' => 'Protected dictionary definition',
+            'post_password' => $password,
+        ]);
+        update_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_SENSES_META_KEY, [[
+            'definition' => 'Protected dictionary definition',
+            'entry_type' => 'noun',
+        ]]);
+        ll_tools_dictionary_refresh_entry_search_meta($entry_id);
+        ll_tools_bump_dictionary_browser_cache_version();
+
+        $cookie_name = 'wp-postpass_' . COOKIEHASH;
+        $original_cookie = $_COOKIE[$cookie_name] ?? null;
+        require_once ABSPATH . WPINC . '/class-phpass.php';
+        $hasher = new PasswordHash(8, true);
+        $_COOKIE[$cookie_name] = $hasher->HashPassword($password);
+        wp_set_current_user(0);
+
+        try {
+            $this->assertFalse(post_password_required(get_post($entry_id)));
+            $this->assertFalse(ll_tools_dictionary_current_user_can_view_entry($entry_id));
+            $this->assertSame(0, ll_tools_dictionary_resolve_entry_id((string) $entry_id));
+            $this->assertSame([], ll_tools_dictionary_get_entry_data($entry_id));
+            $this->assertNotContains($entry_id, ll_tools_dictionary_get_published_entry_ids_for_scope(0));
+
+            $query = ll_tools_dictionary_query_entries([
+                'search' => 'Protected Dictionary Headword',
+                'per_page' => 20,
+            ]);
+            $this->assertNotContains($entry_id, array_column((array) ($query['items'] ?? []), 'id'));
+
+            $admin_id = self::factory()->user->create(['role' => 'administrator']);
+            wp_set_current_user($admin_id);
+
+            $this->assertTrue(ll_tools_dictionary_current_user_can_view_entry($entry_id));
+            $this->assertTrue(ll_tools_dictionary_user_can_inline_edit_entry($entry_id));
+            $this->assertSame($entry_id, ll_tools_dictionary_resolve_entry_id((string) $entry_id));
+            $this->assertSame($entry_id, (int) (ll_tools_dictionary_get_entry_data($entry_id)['id'] ?? 0));
+        } finally {
+            if ($original_cookie === null) {
+                unset($_COOKIE[$cookie_name]);
+            } else {
+                $_COOKIE[$cookie_name] = $original_cookie;
+            }
+        }
+    }
+
+    public function test_anonymous_dictionary_indexes_exclude_password_protected_entries_before_limits(): void
+    {
+        $this->ensurePartOfSpeechTerm('noun', 'Noun');
+        $this->ensurePartOfSpeechTerm('secret-pos', 'Secret protected type');
+
+        $public_id = $this->createDictionaryLanguageEntry('Azz Public Entry', 'English');
+        update_post_meta($public_id, LL_TOOLS_DICTIONARY_ENTRY_POS_META_KEY, 'noun');
+        ll_tools_dictionary_refresh_entry_search_meta($public_id);
+
+        $protected_ids = [
+            $this->createDictionaryLanguageEntry('Aaa Protected Entry', 'Turkish'),
+            $this->createDictionaryLanguageEntry('Qqq Protected Entry', 'Turkish'),
+        ];
+        wp_update_post([
+            'ID' => $protected_ids[0],
+            'post_password' => 'dictionary-index-secret',
+        ]);
+        wp_update_post([
+            'ID' => $protected_ids[1],
+            'post_password' => '   ',
+        ]);
+        foreach ($protected_ids as $protected_id) {
+            update_post_meta($protected_id, LL_TOOLS_DICTIONARY_ENTRY_POS_META_KEY, 'secret-pos');
+            ll_tools_dictionary_refresh_entry_search_meta($protected_id);
+        }
+
+        wp_set_current_user(0);
+        ll_tools_bump_dictionary_browser_cache_version();
+
+        $this->assertSame('en', ll_tools_dictionary_infer_title_language_code_from_entries(0));
+        $this->assertContains('A', ll_tools_dictionary_get_available_letters(0));
+        $this->assertNotContains('Q', ll_tools_dictionary_get_available_letters(0));
+        $this->assertNotContains(
+            'secret-pos',
+            array_column(ll_tools_dictionary_get_pos_filter_options(0), 'slug')
+        );
+        $this->assertSame(
+            [$public_id],
+            ll_tools_dictionary_query_entry_ids_by_browse_constraints(
+                ['publish'],
+                0,
+                'A',
+                '',
+                '',
+                '',
+                1,
+                'en'
+            )
+        );
+        $this->assertSame([], ll_tools_dictionary_get_entry_data($protected_ids[1]));
+        $this->assertFalse(ll_tools_dictionary_static_cache_entry_is_public($protected_ids[1]));
+    }
+
+    public function test_anonymous_scoped_dictionary_excludes_protected_entries_without_post_hydration(): void
+    {
+        global $wpdb;
+
+        $wordset = wp_insert_term('Protected scoped index ' . wp_generate_password(6, false), 'wordset');
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+        $public_id = self::factory()->post->create([
+            'post_type' => 'll_dictionary_entry',
+            'post_status' => 'publish',
+            'post_title' => 'Scoped public entry',
+        ]);
+        $protected_id = self::factory()->post->create([
+            'post_type' => 'll_dictionary_entry',
+            'post_status' => 'publish',
+            'post_title' => 'Scoped protected entry',
+            'post_password' => 'scoped-dictionary-secret',
+        ]);
+        foreach ([$public_id, $protected_id] as $entry_id) {
+            update_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_WORDSET_META_KEY, $wordset_id);
+            ll_tools_refresh_dictionary_entry_wordset_scope_meta($entry_id);
+            clean_post_cache($entry_id);
+        }
+
+        wp_set_current_user(0);
+        ll_tools_bump_dictionary_browser_cache_version();
+        $post_hydration_queries = [];
+        $published_query = '';
+        $observe_queries = static function (string $query) use (
+            $wpdb,
+            $public_id,
+            $protected_id,
+            &$post_hydration_queries,
+            &$published_query
+        ): string {
+            if (
+                stripos($query, "SELECT ID FROM {$wpdb->posts} WHERE post_type = 'll_dictionary_entry'") !== false
+            ) {
+                $published_query = $query;
+            }
+            if (
+                stripos($query, "FROM {$wpdb->posts}") !== false
+                && preg_match('/\\bID\\s*=\\s*(' . $public_id . '|' . $protected_id . ')\\b/i', $query) === 1
+            ) {
+                $post_hydration_queries[] = $query;
+            }
+
+            return $query;
+        };
+
+        add_filter('query', $observe_queries);
+        try {
+            $ids = ll_tools_dictionary_get_published_entry_ids_for_scope($wordset_id);
+        } finally {
+            remove_filter('query', $observe_queries);
+        }
+
+        $this->assertContains($public_id, $ids);
+        $this->assertNotContains($protected_id, $ids);
+        $this->assertStringContainsString('OCTET_LENGTH(post_password) = 0', $published_query);
+        $this->assertSame([], $post_hydration_queries);
+    }
+
     public function test_import_groups_duplicate_headwords_and_shortcode_paginates_results(): void
     {
         $admin_id = self::factory()->user->create(['role' => 'administrator']);

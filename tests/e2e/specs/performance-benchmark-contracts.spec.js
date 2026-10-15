@@ -47,6 +47,13 @@ const categorySearchPreparerPath = path.join(
 );
 const benchmarkRunnerPath = path.join(pluginRoot, 'tests', 'bin', 'run-performance-benchmark.sh');
 const benchmarkSpecPath = path.join(pluginRoot, 'tests', 'e2e', 'specs', 'performance-benchmark.spec.js');
+const performanceReadmePath = path.join(pluginRoot, 'tests', 'performance', 'README.md');
+const recorderSummaryProfilerPath = path.join(
+  pluginRoot,
+  'tests',
+  'performance',
+  'profile-recorder-summary.php'
+);
 const e2eRunnerPath = path.join(pluginRoot, 'tests', 'bin', 'run-e2e.sh');
 const wordsetPagesPath = path.join(pluginRoot, 'includes', 'pages', 'wordset-pages.php');
 const wordsetPagesScriptPath = path.join(pluginRoot, 'js', 'wordset-pages.js');
@@ -295,8 +302,16 @@ test('Genç profile matches production-scale dimensions and includes settings an
   expect(manifest.media).toMatchObject({
     imagePerWord: true,
     audioPerWord: true,
-    audioPerWordCount: 3
+    audioPerWordCount: 3,
+    attachmentPreview: {
+      enabled: true,
+      sizeName: 'medium',
+      maxWidth: 300,
+      maxHeight: 300,
+      maxSourceImages: 24
+    }
   });
+  expect(manifest.fixtureVersion).toBe('2026-09-25-genc.2');
   expect(target.categoryCount * target.wordsPerCategory * manifest.media.audioPerWordCount).toBe(8151);
   expect(manifest.recorderQueue).toMatchObject({
     enabled: true,
@@ -453,6 +468,82 @@ test('recorder completion benchmark follows the viewport-driven serial loading c
   expect(benchmarkSpec).toContain("classList.contains('has-load-error')");
   expect(benchmarkSpec).toContain("page.on('requestfinished', recorderQueueRequestSettledListener)");
   expect(benchmarkSpec).toContain('getRecorderQueueMaxConcurrentBatchRequestCount');
+  expect(benchmarkSpec).toContain('getRecorderQueueBatchRequestTimings');
+  expect(benchmarkSpec).toContain('summaryRequestResponseStart');
+  expect(benchmarkSpec).toContain('mediaTransferBytes');
+  expect(benchmarkSpec).toContain('interactionSummaryRequestDuration');
+  expect(benchmarkSpec).toContain('interactionMediaTransferBytes');
+  expect(benchmarkSpec).toContain("readEnvFlag('LL_E2E_PERF_RECORDER_BLOCK_MEDIA', false)");
+  expect(benchmarkSpec).toContain("readEnvFlag('LL_E2E_PERF_RECORDER_ONLY', false)");
+  expect(benchmarkSpec).toContain('diagnosticProfile: RECORDER_DIAGNOSTIC_PROFILE');
+  expect(benchmarkSpec).toContain('Isolated recorder diagnostic is excluded from comparison and history.');
+  expect(benchmarkSpec).toContain('performance-benchmark-recorder-failure-diagnostic');
+  expect(benchmarkSpec).toContain('error.recorderQueueDiagnostic');
+  expect(benchmarkSpec).toContain("await page.route('**/*', recorderMediaRoute)");
+  expect(benchmarkSpec).toContain("await page.unroute('**/*', recorderMediaRoute)");
+});
+
+test('Genç fixture preview metadata is truthful, pooled, bounded, and fail-closed', () => {
+  const source = fs.readFileSync(fixtureSeederPath, 'utf8');
+  const previewContract = phpFunctionBlock(source, 'll_tools_perf_seed_attachment_preview_contract');
+  const mediaContext = phpFunctionBlock(source, 'll_tools_perf_seed_media_context');
+  const previewPreflight = phpFunctionBlock(source, 'll_tools_perf_seed_preflight_attachment_preview');
+  const materializeMedia = phpFunctionBlock(source, 'll_tools_perf_seed_materialized_media_file');
+  const previewMetadata = phpFunctionBlock(source, 'll_tools_perf_seed_attachment_preview_metadata');
+  const attachment = phpFunctionBlock(source, 'll_tools_perf_seed_attachment');
+  const seedRun = phpFunctionBlock(source, 'll_tools_perf_seed_run');
+
+  expect(previewContract).toContain("$size_name !== 'medium'");
+  expect(previewContract).toContain('$max_source_images > 24');
+  expect(mediaContext).toContain("$image_limit = min($image_limit, (int) $attachment_preview['max_source_images']);");
+  expect(previewPreflight).toContain('ll_tools_perf_seed_fixture_upload_dir()');
+  expect(previewPreflight).toContain('failed preview preflight write/readback');
+  expect(previewPreflight).toContain("str_starts_with($normalized_temporary_file, $preflight_root)");
+  expect(previewPreflight).toContain("wp_normalize_path($saved_path) !== wp_normalize_path($temporary_output)");
+  expect(previewPreflight).toContain('Enable GD or Imagick for the seeder PHP process before retrying.');
+  expect(seedRun.indexOf('ll_tools_perf_seed_preflight_attachment_preview($media_context);'))
+    .toBeLessThan(seedRun.indexOf('ll_tools_perf_seed_reset_fixture($manifest)'));
+  expect(previewMetadata).toContain("hash_file('sha256', $file)");
+  expect(previewMetadata).toContain('ll_tools_perf_seed_attachment_preview_metadata_cache()');
+  expect(previewMetadata.indexOf('isset($metadata_cache[$metadata_cache_key])'))
+    .toBeLessThan(previewMetadata.indexOf('wp_getimagesize($file)'));
+  expect(previewMetadata).toContain("(int) $full_info[0] <= (int) $contract['max_width']");
+  expect(previewMetadata).toContain('wp_get_image_editor($file)');
+  expect(previewMetadata).toContain("$editor->resize(");
+  expect(previewMetadata).toContain("$editor->save($preview_file)");
+  expect(previewMetadata).toContain("count($registry) >= (int) $contract['max_source_images']");
+  expect(previewMetadata).toContain('failed bounded readback verification');
+  expect(attachment).toContain("$attachment_metadata['width'] = (int) $preview_metadata['full_width'];");
+  expect(attachment).toContain("$attachment_metadata['sizes'][(string) $preview_contract['size_name']]");
+  expect(materializeMedia).toContain('Unable to materialize performance fixture');
+  expect(materializeMedia).toContain('fallback is missing or empty');
+  expect(source).not.toContain('wp_generate_attachment_metadata(');
+});
+
+test('recorder summary server profiler stays fixed, bounded, and exact-key-only', () => {
+  const profiler = fs.readFileSync(recorderSummaryProfilerPath, 'utf8');
+  const readme = fs.readFileSync(performanceReadmePath, 'utf8');
+
+  expect(profiler).toContain('$repository_root = dirname(__DIR__, 2);');
+  expect(profiler).toContain("$wordset_slug !== 'll-perf-genc'");
+  expect(profiler).toContain("$recorder_login !== 'll-perf-genc-recorder'");
+  expect(profiler).toContain('$expected_category_count !== 209');
+  expect(profiler).toContain('$words_per_category !== 13');
+  expect(profiler).toContain('$batch_size !== 6');
+  expect(profiler).toContain('$max_batches > 120');
+  expect(profiler).toContain('$max_seconds > 300');
+  expect(profiler).toContain('$max_attempts_per_slug = 8;');
+  expect(profiler).toContain('ll_tools_wordset_page_delete_durable_cached_payload');
+  expect(profiler).toContain("in_array($phase, ['cold', 'reset'], true)");
+  expect(profiler).toContain('$browser_selected_recorder_user_id !== $recorder_user_id');
+  expect(profiler).toContain('$expected_cache_key_count = $expected_category_count + 2;');
+  expect(profiler).toContain("$profile_locale = sanitize_key((string) get_locale());");
+  expect(profiler).toContain("'per_category_schema' => $per_category_cache_schema");
+  expect(profiler).toContain("'rebuild_started' => false");
+  expect(profiler).not.toMatch(/\n\s*wp_cache_flush\s*\(/);
+  expect(readme).toContain('wp eval-file tests/performance/profile-recorder-summary.php cold 80 180');
+  expect(readme).toContain('wp eval-file tests/performance/profile-recorder-summary.php warm 80 180');
+  expect(readme).toContain('wp eval-file tests/performance/profile-recorder-summary.php reset');
 });
 
 test('performance runner prepares durable category search before timing it', async () => {

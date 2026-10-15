@@ -98,7 +98,11 @@ async function mountAudioProcessor(page, options = {}) {
       const requestedPage = parseInt(params.get('page'), 10);
       window.__queueFetchCalls.push(`${tab}:${requestedPage}`);
       window.__queueCursorCalls.push(`${tab}:${requestedPage}:${params.get('cursor') || ''}`);
-      await new Promise(resolve => setTimeout(resolve, 80));
+      if (fixtureOptions.holdInitialQueue && tab === 'queue' && requestedPage === 1) {
+        await new Promise(resolve => { window.__releaseInitialQueue = resolve; });
+      } else {
+        await new Promise(resolve => setTimeout(resolve, 80));
+      }
 
       if (tab === 'queue' && requestedPage === 1) {
         if (fixtureOptions.autoFallback) {
@@ -150,17 +154,19 @@ async function mountAudioProcessor(page, options = {}) {
 
       return responseFor({}, false);
     };
-  }, { autoFallback: !!options.autoFallback });
+  }, { autoFallback: !!options.autoFallback, holdInitialQueue: !!options.holdInitialQueue });
 
   await page.addScriptTag({ path: audioProcessorJsPath });
   await page.evaluate(() => document.dispatchEvent(new Event('DOMContentLoaded', { bubbles: true })));
 }
 
 test('audio processor lazily pages queues and keeps page-local selection behavior', async ({ page }) => {
-  await mountAudioProcessor(page);
+  await mountAudioProcessor(page, { holdInitialQueue: true });
 
   const queue = page.locator('.ll-recordings-list[data-tab="queue"]');
+  await expect.poll(() => page.evaluate(() => typeof window.__releaseInitialQueue)).toBe('function');
   await expect(queue.locator('.ll-queue-status-text')).toHaveText('Loading recordings...');
+  await page.evaluate(() => window.__releaseInitialQueue());
   await expect(queue.locator('.ll-recording-item')).toHaveCount(2);
   expect(await page.evaluate(() => window.__queueFetchCalls)).toEqual(['queue:1']);
   await expect(page.locator('[data-tab-count="queue"]')).toHaveText('1,234');

@@ -9,6 +9,14 @@
         5000,
         Math.min(60000, parseInt(gridCfg.requestTimeoutMs, 10) || 20000)
     );
+    const gridPreparationTimeoutMs = Math.max(
+        100,
+        Math.min(600000, parseInt(gridCfg.preparationTimeoutMs, 10) || 120000)
+    );
+    const gridNoProgressTimeoutMs = Math.max(
+        100,
+        Math.min(gridPreparationTimeoutMs, parseInt(gridCfg.noProgressTimeoutMs, 10) || 30000)
+    );
     const gridI18n = (gridCfg.i18n && typeof gridCfg.i18n === 'object')
         ? gridCfg.i18n
         : ((cfg.i18n && typeof cfg.i18n === 'object') ? cfg.i18n : {});
@@ -248,9 +256,25 @@
         const wrapper = document.createElement('div');
         wrapper.innerHTML = (html || '').toString();
         const sourceGrid = wrapper.querySelector('[data-ll-word-grid]');
+        const preserved = $shell.data('llGridPreservedCopies') || [];
+        const focusedCard = document.activeElement && document.activeElement.closest('.word-item[data-word-id]');
+        const focusedWordId = focusedCard && targetGrid.contains(focusedCard) ? focusedCard.getAttribute('data-word-id') : '';
+        const cardsById = new Map();
+        if (append) {
+            $(targetGrid).children('.word-item[data-word-id]').each(function () {
+                cardsById.set(this.getAttribute('data-word-id'), this);
+            });
+        }
 
         if (sourceGrid && append) {
             while (sourceGrid.firstChild) {
+                const child = sourceGrid.firstChild;
+                if (child.nodeType === 1 && child.matches('.word-item[data-word-id]')) {
+                    const wordId = child.getAttribute('data-word-id');
+                    const duplicate = cardsById.get(wordId);
+                    if (duplicate) { duplicate.remove(); }
+                    cardsById.set(wordId, child);
+                }
                 targetGrid.appendChild(sourceGrid.firstChild);
             }
         } else if (sourceGrid) {
@@ -262,12 +286,116 @@
             targetGrid.innerHTML = (html || '').toString();
         }
 
+        if (!append) {
+            $(targetGrid).children('.word-item[data-word-id]').each(function () {
+                cardsById.set(this.getAttribute('data-word-id'), this);
+            });
+        }
+
+        preserved.forEach(function (card) {
+            const wordId = card.getAttribute('data-word-id');
+            if (!cardsById.has(wordId)) {
+                targetGrid.appendChild(card);
+                cardsById.set(wordId, card);
+            }
+        });
+        if (focusedWordId) {
+            const replacement = cardsById.get(focusedWordId);
+            if (replacement && document.activeElement !== replacement && !replacement.contains(document.activeElement)) {
+                replacement.setAttribute('tabindex', '-1');
+                replacement.focus({ preventScroll: true });
+            }
+        }
+
         try {
             $(document).trigger('lltools:word-grid-rendered', [{ scope: $(targetGrid) }]);
         } catch (error) {
             console.error('LL Tools: lesson grid rendered event failed.', error);
         }
         return true;
+    }
+
+    function stopGridPreparation($shell) {
+        const preparation = $shell.data('llGridPreparation');
+        if (preparation) {
+            window.clearTimeout(preparation.overallTimer);
+            window.clearTimeout(preparation.noProgressTimer);
+        }
+        $shell.removeData('llGridPreparation');
+    }
+
+    function expireGridPreparation($shell, preparation) {
+        if ($shell.data('llGridPreparation') !== preparation
+            || preparation.generation !== ($shell.data('llGridGeneration') || 0)) { return; }
+        stopGridPreparation($shell);
+        // Fence a read that may resolve after abort, and stop scheduling polls.
+        $shell.data('llGridGeneration', preparation.generation + 1);
+        window.clearTimeout($shell.data('llGridTimer'));
+        const request = $shell.data('llGridRequest');
+        if (request && typeof request.abort === 'function') { request.abort(); }
+        $shell.removeData('llGridRequest');
+        $shell.data('llGridFailureCode', 'preparation_timeout');
+        setLoading($shell, false);
+        setGridProgress($shell, 0, 0, 0, true, false);
+        const message = getGridMessage('error', 'Unable to load this lesson right now.');
+        setStatus($shell, message);
+        showFeedback($shell, message, true);
+    }
+
+    function trackGridPreparation($shell, scanned) {
+        let preparation = $shell.data('llGridPreparation');
+        const safeScanned = Math.max(0, parseInt(scanned, 10) || 0);
+        if (!preparation) {
+            preparation = { generation: $shell.data('llGridGeneration') || 0, scanned: safeScanned };
+            $shell.data('llGridPreparation', preparation);
+            preparation.overallTimer = window.setTimeout(function () {
+                expireGridPreparation($shell, preparation);
+            }, gridPreparationTimeoutMs);
+        } else if (safeScanned <= preparation.scanned) {
+            return;
+        }
+        preparation.scanned = safeScanned;
+        window.clearTimeout(preparation.noProgressTimer);
+        preparation.noProgressTimer = window.setTimeout(function () {
+            expireGridPreparation($shell, preparation);
+        }, gridNoProgressTimeoutMs);
+    }
+
+    function showGridReadFailure($shell, response, cursor) {
+        stopGridPreparation($shell);
+        const invalidCursor = !!(response && response.data && response.data.code === 'invalid_cursor');
+        if (cursor && invalidCursor && !$shell.data('llGridCursorRestarted')) {
+            $shell.data('llGridCursorRestarted', true);
+            restartLessonGrid($shell);
+            return;
+        }
+        $shell.data('llGridFailureCode', invalidCursor ? 'invalid_cursor' : 'read_failure');
+        setGridProgress($shell, 0, 0, 0, true, false);
+        const message = readAjaxMessage(response, getGridMessage('error', 'Unable to load this lesson right now.'));
+        setStatus($shell, message);
+        showFeedback($shell, message, true);
+    }
+
+    function restartLessonGrid($shell) {
+        stopGridPreparation($shell);
+        $shell.data('llGridGeneration', ($shell.data('llGridGeneration') || 0) + 1);
+        window.clearTimeout($shell.data('llGridTimer'));
+        const request = $shell.data('llGridRequest');
+        if (request && typeof request.abort === 'function') { request.abort(); }
+        $shell.removeData('llGridRequest');
+        $shell.data('llGridCursor', '');
+        $shell.data('llGridHasRendered', false);
+        $shell.removeData('llGridFailureCode');
+        setLoading($shell, false);
+        loadLessonGrid($shell);
+    }
+
+    function queueLessonGridLoad($shell, delay) {
+        const generation = $shell.data('llGridGeneration') || 0;
+        window.clearTimeout($shell.data('llGridTimer'));
+        $shell.data('llGridTimer', window.setTimeout(function () {
+            if (generation === ($shell.data('llGridGeneration') || 0)) { loadLessonGrid($shell); }
+        }, delay));
     }
 
     function loadLessonGrid($shell) {
@@ -288,7 +416,8 @@
         setStatus($shell, getGridMessage('loading', 'Loading lesson words...'));
 
         const cursor = ($shell.data('llGridCursor') || '').toString();
-        $.ajax({
+        const generation = $shell.data('llGridGeneration') || 0;
+        const request = $.ajax({
             url: ajaxUrl,
             type: 'POST',
             timeout: gridRequestTimeoutMs,
@@ -299,17 +428,15 @@
                 cursor: cursor
             }
         }).done(function (response) {
+            if (generation !== ($shell.data('llGridGeneration') || 0)) { return; }
             if (!response || response.success !== true || !response.data || typeof response.data.html !== 'string') {
-                showFeedback(
-                    $shell,
-                    readAjaxMessage(response, getGridMessage('error', 'Unable to load this lesson right now.')),
-                    true
-                );
+                showGridReadFailure($shell, response, cursor);
                 return;
             }
 
             const paged = response.data.paged === true;
             if (paged && response.data.preparing === true) {
+                trackGridPreparation($shell, response.data.scanned);
                 setGridProgress(
                     $shell,
                     response.data.loaded,
@@ -322,12 +449,12 @@
                     40,
                     Math.min(1000, parseInt(response.data.retry_after_ms, 10) || 120)
                 );
-                window.setTimeout(function () {
-                    loadLessonGrid($shell);
-                }, preparingDelay);
+                queueLessonGridLoad($shell, preparingDelay);
                 return;
             }
 
+            stopGridPreparation($shell);
+            $shell.removeData('llGridFailureCode');
             const append = paged && $shell.data('llGridHasRendered') === true;
             renderGridMarkup($shell, response.data.html, append);
             if (paged) {
@@ -348,22 +475,23 @@
             hideFeedback($shell);
             if (paged && response.data.has_more === true) {
                 setStatus($shell, getGridMessage('loading', 'Loading lesson words...'));
-                window.setTimeout(function () {
-                    loadLessonGrid($shell);
-                }, 40);
+                queueLessonGridLoad($shell, 40);
             } else {
+                $shell.removeData('llGridPreservedCopies');
                 setStatus($shell, getGridMessage('loaded', 'Lesson words loaded.'));
             }
         }).fail(function (jqXHR) {
+            if (generation !== ($shell.data('llGridGeneration') || 0)) { return; }
             const response = jqXHR && jqXHR.responseJSON ? jqXHR.responseJSON : null;
-            showFeedback(
-                $shell,
-                readAjaxMessage(response, getGridMessage('error', 'Unable to load this lesson right now.')),
-                true
-            );
+            showGridReadFailure($shell, response, cursor);
         }).always(function () {
+            if (generation !== ($shell.data('llGridGeneration') || 0)) { return; }
+            $shell.removeData('llGridRequest');
             setLoading($shell, false);
         });
+        if (generation === ($shell.data('llGridGeneration') || 0) && $shell.data('llGridLoading')) {
+            $shell.data('llGridRequest', request);
+        }
     }
 
     function setPrintSettingsOpen($wrap, shouldOpen) {
@@ -983,7 +1111,37 @@
                 event.preventDefault();
                 const $shell = $(this).closest('[data-ll-vocab-lesson-grid-shell]');
                 if (!$shell.length) { return; }
-                loadLessonGrid($shell);
+                if ($shell.data('llGridFailureCode') === 'invalid_cursor') {
+                    $shell.removeData('llGridCursorRestarted');
+                    restartLessonGrid($shell);
+                } else {
+                    loadLessonGrid($shell);
+                }
+            });
+
+            $(document).on('ll-word-copy-completed.llVocabLesson', function (event) {
+                const data = event.originalEvent?.detail || {};
+                const wordId = parseInt(data.new_word_id, 10) || 0;
+                const wordsetId = parseInt(data.wordsetId, 10) || 0;
+                if (!wordId || !wordsetId) { return; }
+                $shells.each(function () {
+                    const $shell = $(this);
+                    const $grid = $shell.find('[data-ll-word-grid]').first();
+                    const categoryId = parseInt($grid.attr('data-ll-category-id'), 10) || 0;
+                    if ($shell.attr('data-ll-grid-paged') !== '1'
+                        || parseInt($grid.attr('data-ll-wordset-id'), 10) !== wordsetId
+                        || (categoryId && (!Array.isArray(data.category_ids) || !data.category_ids.some(function (id) { return parseInt(id, 10) === categoryId; })))) { return; }
+                    // Let the copy handler insert/reveal the card first, then
+                    // retain that card while a fresh bounded order is prepared.
+                    window.setTimeout(function () {
+                        const card = $grid.children('.word-item[data-word-id="' + wordId + '"]').get(0);
+                        const preserved = $shell.data('llGridPreservedCopies') || [];
+                        if (card && preserved.indexOf(card) < 0) { preserved.push(card); }
+                        $shell.data('llGridPreservedCopies', preserved);
+                        $shell.removeData('llGridCursorRestarted');
+                        restartLessonGrid($shell);
+                    }, 0);
+                });
             });
         }
 

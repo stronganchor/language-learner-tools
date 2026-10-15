@@ -940,7 +940,7 @@ function ll_tools_ai_crawler_query_public_dictionary_raw_letters(int $limit = 20
               AND explicit_wordset.meta_value IN ({$wordset_placeholders})
         WHERE p.post_type = 'll_dictionary_entry'
           AND p.post_status = 'publish'
-          AND p.post_password = ''
+          AND OCTET_LENGTH(p.post_password) = 0
           AND TRIM(p.post_title) <> ''
         GROUP BY BINARY {$first_letter_sql}
         ORDER BY raw_letter ASC

@@ -1368,6 +1368,8 @@ function ll_tools_dictionary_query_entry_ids_from_lookup_table(string $search, a
         $wordset_id,
         $limit
     );
+    $include_password_protected = function_exists('ll_tools_dictionary_current_user_can_query_protected_entries')
+        && ll_tools_dictionary_current_user_can_query_protected_entries();
     $cache_args = [
         'search' => $lookup,
         'search_scope' => $search_scope,
@@ -1380,6 +1382,8 @@ function ll_tools_dictionary_query_entry_ids_from_lookup_table(string $search, a
         'close_config' => function_exists('ll_tools_dictionary_get_close_match_config_hash')
             ? ll_tools_dictionary_get_close_match_config_hash($wordset_id)
             : '',
+        'viewer' => function_exists('ll_tools_dictionary_viewer_cache_key') ? ll_tools_dictionary_viewer_cache_key() : 'anon',
+        'include_password_protected' => $include_password_protected ? 1 : 0,
     ];
     $cached = function_exists('ll_tools_dictionary_browser_get_cached_payload')
         ? ll_tools_dictionary_browser_get_cached_payload('lookup_entry_ids', $cache_args, $request_cache)
@@ -1413,7 +1417,8 @@ function ll_tools_dictionary_query_entry_ids_from_lookup_table(string $search, a
         $statuses,
         $lookup,
         $normal_kinds,
-        $limit
+        $limit,
+        $include_password_protected
     ): ?array {
         $target_limit = $limit > 0 ? $limit : ll_tools_dictionary_short_lookup_uncapped_limit();
         $target_limit = max(1, $target_limit);
@@ -1428,6 +1433,7 @@ function ll_tools_dictionary_query_entry_ids_from_lookup_table(string $search, a
             $status_placeholders,
             $statuses,
             $target_limit,
+            $include_password_protected,
             &$seen,
             &$ids,
             &$query_failed
@@ -1451,6 +1457,7 @@ function ll_tools_dictionary_query_entry_ids_from_lookup_table(string $search, a
                         ON p.ID = l.entry_id
                 WHERE p.post_type = 'll_dictionary_entry'
                   AND p.post_status IN ({$status_placeholders})
+                  " . ($include_password_protected ? '' : 'AND OCTET_LENGTH(p.post_password) = 0') . "
                   AND l.lookup_kind = %s
                   AND l.lookup_value {$operator} %s
                 ORDER BY
@@ -1524,7 +1531,8 @@ function ll_tools_dictionary_query_entry_ids_from_lookup_table(string $search, a
         $close_variants,
         $apostrophe_variants,
         $normal_kinds,
-        $limit
+        $limit,
+        $include_password_protected
     ): ?array {
         $search_clauses = [];
         $where_params = [];
@@ -1609,6 +1617,7 @@ function ll_tools_dictionary_query_entry_ids_from_lookup_table(string $search, a
                     ON p.ID = l.entry_id
             WHERE p.post_type = 'll_dictionary_entry'
               AND p.post_status IN ({$status_placeholders})
+              " . ($include_password_protected ? '' : 'AND OCTET_LENGTH(p.post_password) = 0') . "
               AND {$where_sql}
             GROUP BY l.entry_id, p.post_title
             ORDER BY

@@ -51,11 +51,21 @@
         var debounceTimer = 0;
         var resetTimer = 0;
         var inFlight = false;
-        var queued = false;
         var queuedScopes = {};
+        var failedScopes = {};
+        var retryButton = null;
 
         if (!form || !ajaxUrl || typeof window.fetch !== 'function' || typeof window.FormData !== 'function') {
             return null;
+        }
+
+        if (status) {
+            retryButton = document.createElement('button');
+            retryButton.type = 'button';
+            retryButton.className = 'button button-secondary ll-tools-word-options-save-retry';
+            retryButton.textContent = t('autosaveRetry', 'Retry');
+            retryButton.hidden = true;
+            status.appendChild(retryButton);
         }
 
         function clearDebounceTimer() {
@@ -95,6 +105,10 @@
                 status.removeAttribute('hidden');
             }
 
+            if (retryButton) {
+                retryButton.hidden = state !== 'error';
+            }
+
             if (!statusMessage) {
                 return;
             }
@@ -117,7 +131,15 @@
             }, delayMs);
         }
 
-        function handleSaveFailure(message) {
+        function hasScopes(scopes) {
+            return Object.keys(scopes).length > 0;
+        }
+
+        function hasUnsavedWork() {
+            return inFlight || hasScopes(queuedScopes) || hasScopes(failedScopes);
+        }
+
+        function showSaveFailure(message) {
             inFlight = false;
             setStatus('error', message || t('autosaveError', 'Unable to save word options.'));
         }
@@ -127,12 +149,13 @@
             var scopes;
 
             if (inFlight) {
-                queued = true;
                 return;
             }
 
-            queued = false;
             scopes = Object.keys(queuedScopes);
+            if (!scopes.length) {
+                return;
+            }
             queuedScopes = {};
             inFlight = true;
             clearResetTimer();
@@ -169,28 +192,53 @@
                 inFlight = false;
 
                 if (!result.ok || !payload.success) {
-                    handleSaveFailure((typeof data.message === 'string' && data.message !== '')
+                    scopes.forEach(function (scope) {
+                        failedScopes[scope] = true;
+                        delete queuedScopes[scope];
+                    });
+                    showSaveFailure((typeof data.message === 'string' && data.message !== '')
                         ? data.message
                         : t('autosaveError', 'Unable to save word options.'));
+                    if (hasScopes(queuedScopes)) {
+                        performSave();
+                    }
+                    return;
+                }
+
+                scopes.forEach(function (scope) {
+                    delete failedScopes[scope];
+                });
+
+                if (hasScopes(queuedScopes)) {
+                    performSave();
+                    return;
+                }
+
+                if (hasScopes(failedScopes)) {
+                    showSaveFailure(t('autosaveError', 'Unable to save word options.'));
                     return;
                 }
 
                 setStatus('saved', message);
                 scheduleStatusReset(1600);
-
-                if (queued) {
+            }).catch(function () {
+                scopes.forEach(function (scope) {
+                    failedScopes[scope] = true;
+                    delete queuedScopes[scope];
+                });
+                showSaveFailure(t('autosaveError', 'Unable to save word options.'));
+                if (hasScopes(queuedScopes)) {
                     performSave();
                 }
-            }).catch(function () {
-                handleSaveFailure(t('autosaveError', 'Unable to save word options.'));
             });
         }
 
         function scheduleSave(delayMs, scope) {
             clearDebounceTimer();
-            queued = true;
             if (scope === 'groups' || scope === 'pairs') {
-                queuedScopes[scope] = true;
+                if (!failedScopes[scope]) {
+                    queuedScopes[scope] = true;
+                }
             }
             debounceTimer = window.setTimeout(function () {
                 debounceTimer = 0;
@@ -200,10 +248,19 @@
 
         function saveNow(scope) {
             clearDebounceTimer();
-            queued = true;
             if (scope === 'groups' || scope === 'pairs') {
                 queuedScopes[scope] = true;
+            } else {
+                queuedScopes.all = true;
             }
+            performSave();
+        }
+
+        function retryFailedSave() {
+            Object.keys(failedScopes).forEach(function (scope) {
+                queuedScopes[scope] = true;
+            });
+            failedScopes = {};
             performSave();
         }
 
@@ -257,6 +314,19 @@
 
             event.preventDefault();
             saveNow();
+        });
+
+        if (retryButton) {
+            retryButton.addEventListener('click', retryFailedSave);
+        }
+
+        window.addEventListener('beforeunload', function (event) {
+            if (!hasUnsavedWork()) {
+                return;
+            }
+
+            event.preventDefault();
+            event.returnValue = '';
         });
 
         return {

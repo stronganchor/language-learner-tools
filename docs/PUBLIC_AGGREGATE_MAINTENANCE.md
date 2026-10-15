@@ -39,10 +39,15 @@ return the exact next offset/targeted slug scope; the worker uses the recorder's
 stored public locale and bundled translations, then restores the CLI locale.
 This matters because translated category labels participate in recorder catalog
 generation. Proven deleted recorder scopes are retired; uncertain reads retry.
+Recorder continuations also retain their no-progress attempt count and progress
+witness. Both ordinary cron and the dedicated worker use the same retry delay;
+the worker accepts the original seven-field event and its nine-field backoff
+continuation, and checkpoints the latter without dropping its retry state.
 
 `tests/Integration/PublicAggregateWorkerTest.php` is the focused guard for
 allowlisting, budgets, family fairness, held dictionary leases, callback
-interruption, failed reads/checkpoints, locale restoration and racing cron writes.
+interruption, failed reads/checkpoints, recorder backoff continuations, locale
+restoration and racing cron writes.
 Keep source-specific completeness tests in `DictionaryBrowseLookupTest`,
 `WordsetButtonsShortcodeTest`, and `WordsetRecorderQueueOverviewResourceTest`.
 

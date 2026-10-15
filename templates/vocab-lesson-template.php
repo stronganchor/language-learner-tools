@@ -21,6 +21,22 @@ if (is_singular('ll_vocab_lesson') && function_exists('ll_tools_user_can_view_wo
     }
 }
 
+$ll_vocab_lesson_password_post = is_singular('ll_vocab_lesson')
+    ? get_post((int) get_queried_object_id())
+    : null;
+if (!$ll_vocab_lesson_access_denied && $ll_vocab_lesson_password_post instanceof WP_Post
+    && post_password_required($ll_vocab_lesson_password_post)) {
+    // Custom grids and print views bypass the_content(), so enforce the core
+    // password boundary before generating their data, scripts or guest nonce.
+    nocache_headers();
+    get_header();
+    echo '<main class="ll-vocab-lesson-page">';
+    echo get_the_password_form($ll_vocab_lesson_password_post); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+    echo '</main>';
+    get_footer();
+    return;
+}
+
 $ll_vocab_lesson_print_requested = function_exists('ll_tools_is_vocab_lesson_print_request')
     && ll_tools_is_vocab_lesson_print_request();
 if ($ll_vocab_lesson_print_requested) {
@@ -388,6 +404,20 @@ if (have_posts()) {
                 'requestTimeoutMs' => max(5000, min(60000, (int) apply_filters(
                     'll_tools_vocab_lesson_grid_request_timeout_ms',
                     20000,
+                    $post_id,
+                    $wordset_id,
+                    $category_id
+                ))),
+                'preparationTimeoutMs' => max(5000, min(600000, (int) apply_filters(
+                    'll_tools_vocab_lesson_grid_preparation_timeout_ms',
+                    120000,
+                    $post_id,
+                    $wordset_id,
+                    $category_id
+                ))),
+                'noProgressTimeoutMs' => max(1000, min(120000, (int) apply_filters(
+                    'll_tools_vocab_lesson_grid_no_progress_timeout_ms',
+                    30000,
                     $post_id,
                     $wordset_id,
                     $category_id

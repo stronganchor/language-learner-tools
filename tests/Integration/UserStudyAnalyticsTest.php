@@ -52,6 +52,102 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_older_backlog_grows_across_cutoff_with_warm_membership_and_only_studied_target_leaves(): void
+    {
+        global $wpdb;
+
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        wp_set_current_user($user_id);
+        $fixture = $this->createAnalyticsFixture();
+        [$studied_target, $unchanged_older, $newly_older] = $fixture['word_ids'];
+        $now = time();
+        $last_seen_by_word = [];
+        foreach ([$studied_target => -35, $unchanged_older => -32, $newly_older => -29] as $word_id => $days) {
+            $last_seen_by_word[$word_id] = gmdate('Y-m-d H:i:s', $now + $days * DAY_IN_SECONDS);
+            $this->seedWordProgressRow($user_id, $word_id, $fixture['category_ids'][0], $fixture['wordset_id'], [
+                'total_coverage' => 2,
+                'last_seen_at' => $last_seen_by_word[$word_id],
+            ]);
+        }
+
+        $build = static function (array $options) use ($user_id, $fixture): array {
+            return ll_tools_build_user_study_analytics_payload($user_id, $fixture['wordset_id'], $fixture['category_ids'], 14, false, $options);
+        };
+        $selection_options = ['include_words' => false, 'include_word_ids' => true, 'selection_ids_only' => true];
+        $payload_options = [
+            ['summary_only' => true],
+            ['include_words' => true, 'word_limit' => 1],
+            $selection_options,
+            array_merge($selection_options, ['word_filter' => ['summary' => 'older']]),
+            array_merge($selection_options, ['word_filter' => ['column_filters' => ['last' => ['older']]]]),
+        ];
+        foreach ($payload_options as $options) {
+            $before = $build($options);
+            $this->assertSame(2, $before['summary']['older_words']);
+            if (isset($options['word_filter'])) {
+                $this->assertEqualsCanonicalizing([$studied_target, $unchanged_older], $before['word_ids']);
+                $this->assertSame(2, $before['words_pagination']['total']);
+            }
+        }
+
+        // Move only the timestamp across the cutoff, equivalent to an aging
+        // word on a later request. Do not send a study event or invalidate the
+        // already-warm content membership cache to make it enter the backlog.
+        $last_seen_by_word[$newly_older] = gmdate('Y-m-d H:i:s', $now - 31 * DAY_IN_SECONDS);
+        $updated = $wpdb->update(
+            ll_tools_user_progress_table_names()['words'],
+            ['last_seen_at' => $last_seen_by_word[$newly_older]],
+            ['user_id' => $user_id, 'word_id' => $newly_older],
+            ['%s'],
+            ['%d', '%d']
+        );
+        $this->assertSame(1, $updated);
+
+        $cache_events = [];
+        $capture_cache_event = static function ($status) use (&$cache_events): void {
+            $cache_events[] = (string) $status;
+        };
+        add_action('ll_tools_user_progress_analytics_word_ids_cache_status', $capture_cache_event, 10, 1);
+        try {
+            foreach ($payload_options as $options) {
+                $after_aging = $build($options);
+                $this->assertSame(3, $after_aging['summary']['older_words']);
+                if (isset($options['word_filter'])) {
+                    $this->assertEqualsCanonicalizing([$studied_target, $unchanged_older, $newly_older], $after_aging['word_ids']);
+                    $this->assertSame(3, $after_aging['words_pagination']['total']);
+                }
+            }
+        } finally {
+            remove_action('ll_tools_user_progress_analytics_word_ids_cache_status', $capture_cache_event, 10);
+        }
+        $this->assertContains('request_hit', $cache_events);
+        $this->assertNotContains('miss', $cache_events);
+        $this->assertNotContains('store', $cache_events);
+
+        $stats = ll_tools_process_progress_events_batch($user_id, [[
+            'event_uuid' => wp_generate_uuid4(),
+            'event_type' => 'word_exposure',
+            'mode' => 'practice',
+            'word_id' => $studied_target,
+            'category_id' => $fixture['category_ids'][0],
+            'wordset_id' => $fixture['wordset_id'],
+            'payload' => [],
+        ]]);
+        $this->assertSame(1, (int) ($stats['processed'] ?? 0));
+        foreach ($payload_options as $options) {
+            $after_study = $build($options);
+            $this->assertSame(2, $after_study['summary']['older_words']);
+            if (isset($options['word_filter'])) {
+                $this->assertEqualsCanonicalizing([$unchanged_older, $newly_older], $after_study['word_ids']);
+                $this->assertSame(2, $after_study['words_pagination']['total']);
+            }
+        }
+        $progress = ll_tools_get_user_word_progress_summary_rows($user_id, [$studied_target, $unchanged_older, $newly_older]);
+        $this->assertSame($last_seen_by_word[$unchanged_older], $progress[$unchanged_older]['last_seen_at']);
+        $this->assertSame($last_seen_by_word[$newly_older], $progress[$newly_older]['last_seen_at']);
+        $this->assertFalse(ll_tools_user_progress_last_seen_matches_analytics_filter($progress[$studied_target]['last_seen_at'], 'older'));
+    }
+
     public function test_build_analytics_payload_includes_summary_categories_and_words(): void
     {
         $user_id = self::factory()->user->create(['role' => 'subscriber']);

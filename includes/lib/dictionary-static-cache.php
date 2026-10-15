@@ -25,6 +25,14 @@ if (!defined('LL_TOOLS_DICTIONARY_STATIC_CACHE_REBUILD_LOCK_OPTION_PREFIX')) {
     define('LL_TOOLS_DICTIONARY_STATIC_CACHE_REBUILD_LOCK_OPTION_PREFIX', '_ll_tools_dictionary_static_cache_lock_');
 }
 
+if (!defined('LL_TOOLS_DICTIONARY_STATIC_CACHE_SCHEMA')) {
+    define('LL_TOOLS_DICTIONARY_STATIC_CACHE_SCHEMA', 3);
+}
+
+if (!defined('LL_TOOLS_DICTIONARY_STATIC_CACHE_SCHEMA_OPTION')) {
+    define('LL_TOOLS_DICTIONARY_STATIC_CACHE_SCHEMA_OPTION', 'll_tools_dictionary_static_cache_schema');
+}
+
 /**
  * Return the anonymous dictionary static-cache storage TTL.
  */
@@ -405,7 +413,7 @@ function ll_tools_dictionary_static_cache_request_identity(): ?array {
     if (!($post instanceof WP_Post) || $post->post_type !== 'page') {
         return null;
     }
-    if (post_password_required($post)) {
+    if ((string) $post->post_password !== '') {
         return null;
     }
 
@@ -497,7 +505,7 @@ function ll_tools_dictionary_static_cache_entry_is_public(int $entry_id): bool {
     return $post instanceof WP_Post
         && $post->post_type === 'll_dictionary_entry'
         && $post->post_status === 'publish'
-        && !post_password_required($post);
+        && (string) $post->post_password === '';
 }
 
 /**
@@ -757,6 +765,9 @@ add_action('template_redirect', 'll_tools_dictionary_static_cache_maybe_redirect
  * Determine whether the current request can use the anonymous dictionary static cache.
  */
 function ll_tools_is_cacheable_dictionary_request(): bool {
+    if ((int) get_option(LL_TOOLS_DICTIONARY_STATIC_CACHE_SCHEMA_OPTION, 0) < LL_TOOLS_DICTIONARY_STATIC_CACHE_SCHEMA) {
+        return false;
+    }
     if (!ll_tools_dictionary_static_cache_has_safe_request_shape()) {
         return false;
     }
@@ -800,7 +811,7 @@ function ll_tools_dictionary_static_cache_key(?array $identity = null, ?array $r
     }
 
     $payload = [
-        'schema' => 2,
+        'schema' => LL_TOOLS_DICTIONARY_STATIC_CACHE_SCHEMA,
         'plugin_version' => defined('LL_TOOLS_VERSION') ? (string) LL_TOOLS_VERSION : '',
         'site' => home_url('/'),
         'identity' => [
@@ -1152,6 +1163,9 @@ function ll_tools_store_dictionary_static_cache(): void {
     $release_lock = !empty($context['lock_acquired']) && !empty($context['key']);
 
     try {
+        if ((int) get_option(LL_TOOLS_DICTIONARY_STATIC_CACHE_SCHEMA_OPTION, 0) < LL_TOOLS_DICTIONARY_STATIC_CACHE_SCHEMA) {
+            return;
+        }
         $status = ll_tools_dictionary_static_cache_current_status_code();
         if ($status < 200 || $status >= 300) {
             ll_tools_dictionary_static_cache_debug_log('skip_status', [
@@ -1261,7 +1275,7 @@ function ll_tools_purge_dictionary_static_cache(): int {
         ];
 
         foreach ($patterns as $pattern) {
-            foreach (glob($pattern) ?: [] as $file) {
+            foreach (ll_tools_static_cache_generated_files($pattern) ?: [] as $file) {
                 if (is_file($file) && @unlink($file)) {
                     $deleted++;
                 }
@@ -1280,6 +1294,32 @@ function ll_tools_purge_dictionary_static_cache(): int {
 
     return $deleted;
 }
+
+/**
+ * Remove only generated dictionary-cache files from older security schemas.
+ */
+function ll_tools_dictionary_static_cache_maybe_purge_legacy_schema(): void {
+    ll_tools_maybe_run_static_cache_maintenance('dictionary_static_cache', static function (): bool {
+        return (int) get_option(LL_TOOLS_DICTIONARY_STATIC_CACHE_SCHEMA_OPTION, 0) >= LL_TOOLS_DICTIONARY_STATIC_CACHE_SCHEMA;
+    }, static function (): bool {
+        ll_tools_purge_dictionary_static_cache();
+        $dir = ll_tools_dictionary_static_cache_dir();
+        if ($dir === '') {
+            return false;
+        }
+        if (is_dir($dir)) {
+            foreach (['dictionary-*.html', 'dictionary-*.html.tmp-*'] as $pattern) {
+                $remaining = ll_tools_static_cache_generated_files(trailingslashit($dir) . $pattern);
+                if ($remaining === false || !empty($remaining)) {
+                    return false;
+                }
+            }
+        }
+        update_option(LL_TOOLS_DICTIONARY_STATIC_CACHE_SCHEMA_OPTION, LL_TOOLS_DICTIONARY_STATIC_CACHE_SCHEMA, false);
+        return (int) get_option(LL_TOOLS_DICTIONARY_STATIC_CACHE_SCHEMA_OPTION, 0) >= LL_TOOLS_DICTIONARY_STATIC_CACHE_SCHEMA;
+    });
+}
+add_action('init', 'll_tools_dictionary_static_cache_maybe_purge_legacy_schema', 2);
 
 /**
  * Delete static dictionary HTML cache files at most once in one request.

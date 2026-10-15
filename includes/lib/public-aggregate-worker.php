@@ -222,7 +222,9 @@ function ll_tools_public_aggregate_worker_process_event_in_locale(string $hook, 
         }
     }
     if ($hook === 'll_tools_wordset_page_warm_recorder_queue_summaries'
-        && count($args) >= 2 && count($args) <= 7
+        && count($args) >= 2 && count($args) <= 9 && count($args) !== 8
+        && (!isset($args[7]) || (is_int($args[7]) && $args[7] >= 0 && $args[7] <= 10))
+        && (!isset($args[8]) || (is_string($args[8]) && ($args[8] === '' || preg_match('/^[a-f0-9]{64}$/', $args[8]) === 1)))
         && is_numeric($args[0]) && is_numeric($args[1])
         && (!isset($args[2]) || is_string($args[2]))
         && (!isset($args[3]) || is_string($args[3]))
@@ -244,7 +246,7 @@ function ll_tools_public_aggregate_worker_process_event_in_locale(string $hook, 
             return ['complete' => true, 'args' => $args, 'delay' => 0, 'error' => ''];
         }
         $result = ll_tools_wordset_page_run_recorder_queue_summary_warmup(...$args);
-        if (!empty($result['error'])) { $result['args'] = $args; }
+        if (($result['error'] ?? '') === 'recorder_scope_unavailable') { $result['args'] = $args; }
         return $result;
     }
     return $retry;

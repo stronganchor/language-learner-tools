@@ -6,6 +6,185 @@ final class VocabLessonDeferredGridTest extends LL_Tools_TestCase
     private const ONE_PIXEL_PNG_BASE64 =
         'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO8Bf6kAAAAASUVORK5CYII=';
 
+    public function test_visibility_read_failure_cannot_publish_an_empty_small_or_paged_grid(): void
+    {
+        $original_status = http_response_code();
+        wp_set_current_user(0);
+        foreach ([false, true] as $paged) {
+            $fixture = $this->createDeferredGridFixture('Visibility Failure ' . ($paged ? 'Paged' : 'Small'));
+            $force_pages = static fn(): bool => $paged;
+            add_filter('ll_tools_vocab_lesson_grid_should_use_paged_loading', $force_pages);
+            $order_key = ll_tools_vocab_lesson_grid_order_cache_key($fixture['lesson_id'], $fixture['wordset_id'], $fixture['category_id']);
+            if ($paged) {
+                $state = ll_tools_vocab_lesson_grid_advance_order_state($order_key, $fixture['lesson_id'], get_term($fixture['wordset_id'], 'wordset'), get_term($fixture['category_id'], 'word-category'));
+                $this->assertIsArray($state);
+                $this->assertTrue($state['complete']);
+            }
+            $fault = static function ($terms, array $object_ids, array $taxonomies, array $args) use ($fixture) {
+                return in_array($fixture['word_id'], array_map('intval', $object_ids), true)
+                    && in_array('wordset', $taxonomies, true)
+                    && !empty($args['suppress_filter']) && ($args['fields'] ?? '') === 'all_with_object_id'
+                    ? new WP_Error('test-visibility-unavailable') : $terms;
+            };
+            add_filter('get_object_terms', $fault, 10, 4);
+            try {
+                $failed = $this->postVocabLessonGridAjax($fixture['lesson_id']);
+                $this->assertFalse($failed['success']);
+                $this->assertSame('visibility_unavailable', $failed['data']['code']);
+                $this->assertSame(5, $failed['data']['retry_after']);
+                $this->assertNull(ll_tools_vocab_lesson_grid_public_cache_get($fixture['lesson_id'], $fixture['wordset_id'], $fixture['category_id']));
+                $page_key = ll_tools_vocab_lesson_grid_page_cache_key($order_key, 0, ll_tools_vocab_lesson_grid_page_size($fixture['lesson_id'], $fixture['wordset_id'], $fixture['category_id']));
+                $this->assertNull(ll_tools_vocab_lesson_grid_page_cache_get($page_key));
+            } finally {
+                remove_filter('get_object_terms', $fault);
+            }
+            try {
+                $retry = $this->postVocabLessonGridAjax($fixture['lesson_id']);
+                $this->assertTrue($retry['success']);
+                $this->assertStringContainsString((string) $fixture['word_id'], $retry['data']['html']);
+            } finally {
+                remove_filter('ll_tools_vocab_lesson_grid_should_use_paged_loading', $force_pages);
+                if (!headers_sent()) {
+                    http_response_code($original_status ?: 200);
+                }
+            }
+        }
+    }
+
+    public function test_paged_cold_misses_share_client_budget_while_completed_page_hits_bypass_it(): void
+    {
+        wp_set_current_user(0);
+        $_SERVER['REMOTE_ADDR'] = '203.0.113.208';
+        $first = $this->createDeferredGridFixture('Paged Admission First');
+        $second = $this->createDeferredGridFixture('Paged Admission Second');
+        $force_pages = static fn(): bool => true;
+        $ip_limit = static fn(): int => 1;
+        add_filter('ll_tools_vocab_lesson_grid_should_use_paged_loading', $force_pages);
+        add_filter('ll_tools_vocab_lesson_grid_public_cache_miss_ip_limit', $ip_limit);
+        try {
+            $response = $this->postVocabLessonGridAjax($first['lesson_id']);
+            $this->assertTrue($response['success']);
+            $this->assertTrue($response['data']['paged']);
+            $this->assertFalse($response['data']['preparing']);
+            $order_key = ll_tools_vocab_lesson_grid_order_cache_key($first['lesson_id'], $first['wordset_id'], $first['category_id']);
+            wp_cache_delete($order_key, 'll_tools_vocab_lesson');
+            delete_transient($order_key);
+            $hit = $this->postVocabLessonGridAjax($first['lesson_id']);
+            $this->assertTrue($hit['success']);
+            $this->assertSame($response['data'], $hit['data']);
+            $this->assertNull(ll_tools_vocab_lesson_grid_order_state_get($order_key), 'A cached page does not restart the expired order scan.');
+
+            $denied = $this->postVocabLessonGridAjax($second['lesson_id']);
+            $this->assertFalse($denied['success']);
+            $this->assertSame('rate_limited', $denied['data']['code']);
+            $this->assertGreaterThan(0, $denied['data']['retry_after']);
+            $second_key = ll_tools_vocab_lesson_grid_order_cache_key($second['lesson_id'], $second['wordset_id'], $second['category_id']);
+            $this->assertNull(ll_tools_vocab_lesson_grid_order_state_get($second_key), 'Denied work never starts the second lesson scan.');
+        } finally {
+            remove_filter('ll_tools_vocab_lesson_grid_should_use_paged_loading', $force_pages);
+            remove_filter('ll_tools_vocab_lesson_grid_public_cache_miss_ip_limit', $ip_limit);
+            ll_tools_public_ajax_reset_counter(ll_tools_vocab_lesson_grid_public_cache_miss_counter_prefix('ip'), '203.0.113.208');
+            unset($_SERVER['REMOTE_ADDR']);
+        }
+    }
+
+    public function test_failed_order_checkpoint_never_claims_progress_and_can_retry_cleanly(): void
+    {
+        global $wpdb;
+        $fixture = $this->createDeferredGridFixture('Checkpoint Failure');
+        $wordset = get_term($fixture['wordset_id'], 'wordset');
+        $category = get_term($fixture['category_id'], 'word-category');
+        $key = ll_tools_vocab_lesson_grid_order_cache_key($fixture['lesson_id'], $fixture['wordset_id'], $fixture['category_id']);
+        $reject_checkpoint = static function (string $sql) use ($wpdb, $key): string {
+            if ((stripos($sql, 'INSERT') === 0 || stripos($sql, 'UPDATE') === 0)
+                && strpos($sql, $wpdb->options) !== false && strpos($sql, '_transient_' . $key) !== false) {
+                return 'SELECT * FROM ll_tools_intentionally_missing_checkpoint_table';
+            }
+            return $sql;
+        };
+        $old_suppression = $wpdb->suppress_errors(true);
+        add_filter('query', $reject_checkpoint);
+        try {
+            $failed = ll_tools_vocab_lesson_grid_advance_order_state($key, $fixture['lesson_id'], $wordset, $category);
+        } finally {
+            remove_filter('query', $reject_checkpoint);
+            $wpdb->suppress_errors($old_suppression);
+            $wpdb->last_error = '';
+        }
+        $this->assertWPError($failed);
+        $this->assertSame('checkpoint_failed', $failed->get_error_code());
+        $this->assertNull(ll_tools_vocab_lesson_grid_order_state_get($key));
+        $this->assertFalse(wp_cache_get($key, 'll_tools_vocab_lesson'));
+        $retry = ll_tools_vocab_lesson_grid_advance_order_state($key, $fixture['lesson_id'], $wordset, $category);
+        $this->assertIsArray($retry);
+        $this->assertTrue($retry['complete']);
+        $this->assertSame([$fixture['word_id']], $retry['ordered_ids']);
+        $this->assertSame($retry, get_transient($key));
+        $this->assertTrue(ll_tools_vocab_lesson_grid_order_state_set($key, $retry), 'An unchanged durable checkpoint is still a successful save.');
+    }
+
+    public function test_failed_order_checkpoint_update_preserves_prior_frontier_without_duplicate_rows(): void
+    {
+        global $wpdb;
+        $fixture = $this->createDeferredGridFixture('Checkpoint Prior State');
+        $secondWordId = (int) self::factory()->post->create([
+            'post_type' => 'words', 'post_status' => 'publish', 'post_title' => 'Checkpoint Second Word',
+        ]);
+        wp_set_post_terms($secondWordId, [$fixture['wordset_id']], 'wordset', false);
+        wp_set_post_terms($secondWordId, [$fixture['category_id']], 'word-category', false);
+        update_post_meta($secondWordId, 'word_translation', 'Checkpoint Second Translation');
+        $this->createAudioRecording($secondWordId, 'isolation', 'checkpoint-second.mp3');
+        $this->completeLlToolsSimulatedRequest();
+        $wordset = get_term($fixture['wordset_id'], 'wordset');
+        $category = get_term($fixture['category_id'], 'word-category');
+        $key = ll_tools_vocab_lesson_grid_order_cache_key($fixture['lesson_id'], $fixture['wordset_id'], $fixture['category_id']);
+        $firstWord = get_post($fixture['word_id']);
+        $prior = [
+            'schema' => 2, 'cursor_id' => $fixture['word_id'], 'scanned' => 1,
+            'rows' => [[
+                'id' => $fixture['word_id'], 't' => $firstWord->post_title, 'd' => $firstWord->post_date,
+                'w' => $firstWord->post_title, 'x' => 'Checkpoint Prior State Translation',
+                's' => true, 'i' => 0, 'h' => '',
+            ]],
+            'ordered_ids' => [], 'complete' => false, 'started_at' => time(),
+        ];
+        $this->assertTrue(ll_tools_vocab_lesson_grid_order_state_set($key, $prior));
+        $failedUpdate = false;
+        $rejectUpdate = static function (string $sql) use ($wpdb, $key, &$failedUpdate): string {
+            if (stripos($sql, 'UPDATE') === 0 && strpos($sql, $wpdb->options) !== false
+                && strpos($sql, '_transient_' . $key) !== false) {
+                $failedUpdate = true;
+                return 'SELECT * FROM ll_tools_intentionally_missing_checkpoint_update_table';
+            }
+            return $sql;
+        };
+        $oldSuppression = $wpdb->suppress_errors(true);
+        add_filter('query', $rejectUpdate);
+        try {
+            $failed = ll_tools_vocab_lesson_grid_advance_order_state($key, $fixture['lesson_id'], $wordset, $category);
+        } finally {
+            remove_filter('query', $rejectUpdate);
+            $wpdb->suppress_errors($oldSuppression);
+            $wpdb->last_error = '';
+        }
+        $this->assertTrue($failedUpdate);
+        $this->assertWPError($failed);
+        $this->assertSame('checkpoint_failed', $failed->get_error_code());
+        $this->assertFalse(wp_cache_get($key, 'll_tools_vocab_lesson'));
+        $this->assertSame($prior, get_transient($key), 'Failed progress must preserve the last durable scan frontier.');
+        $retry = ll_tools_vocab_lesson_grid_advance_order_state($key, $fixture['lesson_id'], $wordset, $category);
+        $this->assertIsArray($retry);
+        $this->assertTrue($retry['complete']);
+        $this->assertSame(2, $retry['scanned']);
+        $expectedIds = [$fixture['word_id'], $secondWordId];
+        $actualIds = $retry['ordered_ids'];
+        sort($expectedIds, SORT_NUMERIC);
+        sort($actualIds, SORT_NUMERIC);
+        $this->assertSame($expectedIds, $actualIds);
+        $this->assertCount(2, $retry['ordered_ids']);
+        $this->assertSame($retry, get_transient($key));
+    }
+
     public function test_lesson_grid_ajax_returns_rendered_word_grid_markup(): void
     {
         $wordset = wp_insert_term('Deferred Grid Wordset', 'wordset', ['slug' => 'deferred-grid-wordset']);

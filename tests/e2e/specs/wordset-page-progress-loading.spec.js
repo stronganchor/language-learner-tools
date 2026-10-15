@@ -286,6 +286,7 @@ function buildProgressPageMarkup() {
           <select class="ll-wordset-progress-select" data-ll-wordset-progress-select-all aria-label="Select words"><option value="">Select</option></select>
           <div data-ll-wordset-progress-column-filter-options="star"></div>
           <div data-ll-wordset-progress-column-filter-options="status"></div>
+          <div data-ll-wordset-progress-column-filter-options="last"></div>
           <div data-ll-wordset-progress-column-filter-options="difficulty"></div>
           <div data-ll-wordset-progress-column-filter-options="seen"></div>
           <div data-ll-wordset-progress-column-filter-options="wrong"></div>
@@ -1011,6 +1012,7 @@ async function prepareExplicitProgressSelection(page, options = {}) {
 }
 
 async function prepareAllFilteredProgressSelection(page, options = {}) {
+  const filterKey = options.filterKey || 'starred';
   const allMatchingIds = Array.isArray(options.allMatchingIds)
     ? options.allMatchingIds.slice()
     : Array.from({ length: 24 }, (_unused, index) => 101 + index);
@@ -1020,7 +1022,8 @@ async function prepareAllFilteredProgressSelection(page, options = {}) {
     studiedWords: allMatchingIds.length,
     newWords: Math.max(0, 40 - allMatchingIds.length),
     hardWords: 0,
-    starredWords: allMatchingIds.length
+    starredWords: allMatchingIds.length,
+    olderWords: filterKey === 'older' || filterKey === 'last' ? allMatchingIds.length : 0
   };
 
   await mountProgressPage(page, {
@@ -1055,12 +1058,19 @@ async function prepareAllFilteredProgressSelection(page, options = {}) {
   }));
 
   await page.getByRole('tab', { name: 'Words' }).click();
-  await page.locator('[data-ll-wordset-progress-kpi-filter="starred"]').click();
+  if (filterKey === 'last') {
+    await page.locator('[data-ll-wordset-progress-column-filter-check="last"][data-ll-wordset-progress-filter-value="older"]').check();
+  } else {
+    await page.locator(`[data-ll-wordset-progress-kpi-filter="${filterKey}"]`).click();
+  }
   await expect.poll(async () => page.evaluate(() => window.__llAnalyticsRequests.length)).toBe(2);
 
   const filteredPayload = buildAnalytics({
     ...summary,
-    words: allMatchingIds.slice(0, 30).map((id) => buildProgressWords(id, 1, { starredIds: allMatchingIds })[0]),
+    words: allMatchingIds.slice(0, 30).map((id) => ({
+      ...buildProgressWords(id, 1, { starredIds: allMatchingIds })[0],
+      last_seen_at: filterKey === 'older' || filterKey === 'last' ? '2000-01-01 00:00:00' : ''
+    })),
     wordIds: options.primeSnapshot ? allMatchingIds : [],
     wordsPagination: {
       enabled: allMatchingIds.length > 30,
@@ -1074,6 +1084,9 @@ async function prepareAllFilteredProgressSelection(page, options = {}) {
       has_more: allMatchingIds.length > 30
     }
   });
+  if (options.responseTime) {
+    await page.clock.setFixedTime(options.responseTime);
+  }
   await page.evaluate((payload) => {
     window.__resolveAnalyticsRequest(1, payload);
   }, filteredPayload);
@@ -1167,6 +1180,144 @@ async function expectFlashcardLaunchUiClosed(page) {
     loadingStatusHidden: true
   });
 }
+
+test('idle visible Progress refreshes older counts as words pass 30 days without study', async ({ page }) => {
+  const startedAt = new Date('2026-10-13T10:00:00Z');
+  await page.clock.install({ time: startedAt });
+  await mountProgressPage(page);
+  await expect.poll(() => page.evaluate(() => window.__llAnalyticsRequests.length)).toBe(1);
+  const words = buildProgressWords(1, 6).map((row, index) => ({
+    ...row,
+    last_seen_at: index === 5 ? '2026-09-13 10:30:00' : '2000-01-01 00:00:00'
+  }));
+  await page.evaluate(payload => window.__resolveAnalyticsRequest(0, payload), buildAnalytics({
+    totalWords: 6, studiedWords: 6, newWords: 0, olderWords: 5, words
+  }));
+  const olderCount = page.locator('[data-ll-wordset-progress-kpi-filter="older"] .ll-wordset-progress-kpi-value');
+  await expect(olderCount).toHaveText('5');
+  await page.clock.pauseAt(new Date(startedAt.getTime() + 1000));
+  await page.clock.runFor(59 * 60 * 1000);
+  expect(await page.evaluate(() => window.__llAnalyticsRequests.length)).toBe(1);
+  await page.clock.runFor(60 * 1000 + 100);
+  expect(await page.evaluate(() => window.__llAnalyticsRequests.length)).toBe(2);
+  await page.evaluate(payload => window.__resolveAnalyticsRequest(1, payload), buildAnalytics({
+    totalWords: 6, studiedWords: 6, newWords: 0, olderWords: 6, words
+  }));
+  await expect(olderCount).toHaveText('6');
+  await page.clock.runFor(59 * 60 * 1000);
+  expect(await page.evaluate(() => window.__llAnalyticsRequests.length)).toBe(2);
+});
+
+test('returning to Progress refreshes stale analytics once while fresh and hidden pages stay quiet', async ({ page }) => {
+  const startedAt = new Date('2026-10-13T10:00:00Z');
+  await page.clock.setFixedTime(startedAt);
+  await mountProgressPage(page);
+  await expect.poll(() => page.evaluate(() => window.__llAnalyticsRequests.length)).toBe(1);
+  await page.evaluate(payload => window.__resolveAnalyticsRequest(0, payload), buildAnalytics({ olderWords: 5 }));
+  await page.clock.setFixedTime(new Date(startedAt.getTime() + 59000));
+  await page.evaluate(() => {
+    window.dispatchEvent(new Event('focus'));
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await page.waitForTimeout(120);
+  expect(await page.evaluate(() => window.__llAnalyticsRequests.length)).toBe(1);
+
+  await page.clock.setFixedTime(new Date(startedAt.getTime() + 61000));
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' });
+    window.dispatchEvent(new Event('focus'));
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await page.waitForTimeout(120);
+  expect(await page.evaluate(() => window.__llAnalyticsRequests.length)).toBe(1);
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
+    document.dispatchEvent(new Event('visibilitychange'));
+    window.dispatchEvent(new Event('focus'));
+    window.dispatchEvent(new Event('pageshow'));
+  });
+  await expect.poll(() => page.evaluate(() => window.__llAnalyticsRequests.length)).toBe(2);
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await page.waitForTimeout(120);
+  expect(await page.evaluate(() => window.__llAnalyticsRequests.length)).toBe(2);
+  await page.evaluate(payload => window.__resolveAnalyticsRequest(1, payload), buildAnalytics({ olderWords: 6 }));
+  await expect(page.locator('[data-ll-wordset-progress-kpi-filter="older"] .ll-wordset-progress-kpi-value')).toHaveText('6');
+  await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+  await page.waitForTimeout(120);
+  expect(await page.evaluate(() => window.__llAnalyticsRequests.length)).toBe(2);
+});
+
+test('returning to Progress defers stale analytics until the activity closes', async ({ page }) => {
+  const startedAt = new Date('2026-10-13T10:00:00Z');
+  await page.clock.setFixedTime(startedAt);
+  await mountProgressPage(page);
+  await expect.poll(() => page.evaluate(() => window.__llAnalyticsRequests.length)).toBe(1);
+  await page.evaluate(payload => window.__resolveAnalyticsRequest(0, payload), buildAnalytics({ olderWords: 5 }));
+  await page.clock.setFixedTime(new Date(startedAt.getTime() + 61000));
+  await page.evaluate(() => {
+    window.jQuery(document).trigger('lltools:flashcard-opened');
+    window.dispatchEvent(new Event('focus'));
+  });
+  await page.waitForTimeout(150);
+  expect(await page.evaluate(() => window.__llAnalyticsRequests.length)).toBe(1);
+  await page.evaluate(() => window.jQuery(document).trigger('lltools:flashcard-closed'));
+  await expect.poll(() => page.evaluate(() => window.__llAnalyticsRequests.length)).toBe(2);
+  await page.evaluate(payload => window.__resolveAnalyticsRequest(1, payload), buildAnalytics({ olderWords: 6 }));
+  await expect(page.locator('[data-ll-wordset-progress-kpi-filter="older"] .ll-wordset-progress-kpi-value')).toHaveText('6');
+});
+
+for (const filterKey of ['older', 'last']) {
+  test(`Progress ${filterKey} selection expires cached IDs after 60 seconds and includes newly old words`, async ({ page }) => {
+    const startedAt = new Date('2026-10-13T10:00:00Z');
+    await page.clock.setFixedTime(startedAt);
+    const { allMatchingIds } = await prepareAllFilteredProgressSelection(page, { primeSnapshot: true, filterKey });
+    await page.evaluate(() => { window.__llHoldSelectionPlanRequests = true; });
+    await page.locator('[data-ll-wordset-progress-selection-mode][data-mode="practice"]').click();
+    await expect.poll(() => page.evaluate(() => window.__llSelectionPlanRequests.length)).toBe(1);
+    expect(await getAllFilteredLaunchRequestIndexes(page)).toEqual([]);
+    await page.locator('#ll-tools-close-flashcard').click();
+    await expectFlashcardLaunchUiClosed(page);
+
+    await page.clock.setFixedTime(new Date(startedAt.getTime() + 60000));
+    await page.evaluate(() => { window.__llHoldSelectionPlanRequests = false; });
+    await page.locator('[data-ll-wordset-progress-selection-mode][data-mode="practice"]').click();
+    const [requestIndex] = await waitForAllFilteredLaunchRequestCount(page, 1);
+    const expectedFilter = filterKey === 'older' ? { summary: 'older' } : { column_filters: { last: ['older'] } };
+    expect(await page.evaluate(index => JSON.parse(window.__llAnalyticsRequests[index].request.word_filter), requestIndex))
+      .toMatchObject(expectedFilter);
+    const refreshedIds = [...allMatchingIds, 999];
+    await page.evaluate(({ index, payload }) => window.__resolveAnalyticsRequest(index, payload), {
+      index: requestIndex, payload: buildAllFilteredWordIdAnalytics(refreshedIds)
+    });
+    await expect.poll(() => page.evaluate(() => window.__llFlashcardLaunches.length)).toBe(1);
+    expect(await page.evaluate(() => window.__llFlashcardLaunches[0].logicalSessionWordIds)).toEqual(refreshedIds);
+  });
+}
+
+test('a delayed Progress response does not extend the temporal selection ID lifetime', async ({ page }) => {
+  const startedAt = new Date('2026-10-13T10:00:00Z');
+  await page.clock.setFixedTime(startedAt);
+  await prepareAllFilteredProgressSelection(page, {
+    primeSnapshot: true, filterKey: 'older', responseTime: new Date(startedAt.getTime() + 61000)
+  });
+  await page.locator('[data-ll-wordset-progress-selection-mode][data-mode="practice"]').click();
+  const [requestIndex] = await waitForAllFilteredLaunchRequestCount(page, 1);
+  expect(await page.evaluate(index => window.__llAnalyticsRequests[index].deferred.state(), requestIndex)).toBe('pending');
+  expect(await page.evaluate(() => window.__llSelectionPlanRequests.length)).toBe(0);
+  await page.locator('#ll-tools-close-flashcard').click();
+});
+
+test('non-temporal Progress selection still reuses cached IDs after 60 seconds', async ({ page }) => {
+  const startedAt = new Date('2026-10-13T10:00:00Z');
+  await page.clock.setFixedTime(startedAt);
+  await prepareAllFilteredProgressSelection(page, { primeSnapshot: true });
+  await page.clock.setFixedTime(new Date(startedAt.getTime() + 61000));
+  await page.evaluate(() => { window.__llHoldSelectionPlanRequests = true; });
+  await page.locator('[data-ll-wordset-progress-selection-mode][data-mode="practice"]').click();
+  await expect.poll(() => page.evaluate(() => window.__llSelectionPlanRequests.length)).toBe(1);
+  expect(await getAllFilteredLaunchRequestIndexes(page)).toEqual([]);
+  await page.locator('#ll-tools-close-flashcard').click();
+});
 
 test('Select presets and All select complete scopes while Older supports both study modes on mobile', async ({ page }) => {
   await mountProgressPage(page);

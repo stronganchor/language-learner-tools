@@ -400,9 +400,12 @@
         const formData = new FormData();
         appendRecordingCategoryRequest(formData, category, page, cursorToken);
 
-        const response = await fetchWithDeadline(ajaxUrl, { method: 'POST', body: formData });
+        const { response, payload } = await fetchJsonWithDeadline(ajaxUrl, { method: 'POST', body: formData });
         if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            const error = new Error(`HTTP ${response.status}: ${response.statusText}`);
+            const message = getRecorderServerMessage(payload);
+            if (message) error.llToolsUserMessage = message;
+            throw error;
         }
 
         const contentType = response.headers.get('content-type');
@@ -410,7 +413,18 @@
             throw new Error(i18n.invalid_response || 'Server returned invalid response format');
         }
 
-        return response.json();
+        return payload;
+    }
+
+    function getRecorderServerMessage(payload) {
+        if (typeof payload?.data === 'string' && payload.data.trim()) return payload.data.trim();
+        if (typeof payload?.data?.message === 'string' && payload.data.message.trim()) return payload.data.message.trim();
+        if (typeof payload?.message === 'string' && payload.message.trim()) return payload.message.trim();
+        return '';
+    }
+
+    function getRecorderReadErrorMessage(error) {
+        return error?.llToolsUserMessage || i18n.category_read_failed || i18n.switch_failed_message || i18n.request_failed || '';
     }
 
     function applyRecordingCategoryPagePayload(payload, category, replace) {
@@ -498,8 +512,9 @@
                     return staleCategoryQueueLoadResult();
                 }
                 if (!data?.success) {
-                    const errorMsg = data?.data || data?.message || (i18n.switch_failed_message || 'Switch failed');
-                    throw new Error(String(errorMsg));
+                    const error = new Error('recorder_category_read_failed');
+                    error.llToolsUserMessage = getRecorderServerMessage(data);
+                    throw error;
                 }
 
                 const appliedPage = applyRecordingCategoryPagePayload(data.data || {}, category, false);
@@ -520,7 +535,7 @@
                 return staleCategoryQueueLoadResult();
             }
             console.error('Category page load error:', err);
-            showStatus((i18n.switch_failed || 'Switch failed:') + ' ' + (err?.message || ''), 'error');
+            showStatus(getRecorderReadErrorMessage(err), 'error');
             return null;
         } finally {
             if (pendingCategoryQueuePageRequest === requestState) {
@@ -4884,6 +4899,10 @@
                 }
                 if (loaded === false) {
                     showComplete();
+                } else if (loaded === null && images[currentImageIndex]) {
+                    // The loading shell cleared the display, but a failed
+                    // continuation must keep the buffered prompt and draft.
+                    renderCurrentImageDisplay(images[currentImageIndex]);
                 }
             });
             return;
@@ -6567,7 +6586,7 @@
 
                 showStatus(i18n.category_switched || 'Category switched. Ready to record.', 'success');
             } else {
-                const errorMsg = data.data || data.message || (i18n.switch_failed_message || 'Switch failed');
+                const errorMsg = getRecorderServerMessage(data) || getRecorderReadErrorMessage(null);
                 if (previousCategory) {
                     el.categorySelect.value = previousCategory;
                     syncCategorySelectorUi();
@@ -6577,7 +6596,7 @@
                 } else {
                     endDisplayLoading();
                 }
-                showStatus((i18n.switch_failed || 'Switch failed:') + ' ' + errorMsg, 'error');
+                showStatus(errorMsg, 'error');
             }
         } catch (err) {
             if (!isCategoryQueueRequestCurrent(newCategory, requestGeneration)) {
@@ -6593,7 +6612,7 @@
             } else {
                 endDisplayLoading();
             }
-            showStatus((i18n.switch_failed || 'Switch failed:') + ' ' + err.message, 'error');
+            showStatus(getRecorderReadErrorMessage(err), 'error');
         } finally {
             if (isCategoryQueueRequestGenerationCurrent(requestGeneration)) {
                 el.categorySelect.disabled = false;

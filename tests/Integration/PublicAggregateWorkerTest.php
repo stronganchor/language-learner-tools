@@ -146,6 +146,57 @@ final class PublicAggregateWorkerTest extends LL_Tools_TestCase
         $this->assertFalse(wp_next_scheduled('ll_tools_wordset_page_warm_recorder_queue_summaries', $args));
     }
 
+    public function test_recorder_worker_checkpoints_catalog_failure_and_continues_its_backoff(): void {
+        $set = wp_insert_term('Retry worker ' . wp_generate_uuid4(), 'wordset');
+        $this->assertIsArray($set);
+        $recorder = self::factory()->user->create(['role' => 'subscriber']);
+        $hook = 'll_tools_wordset_page_warm_recorder_queue_summaries';
+        $args = [(int) $set['term_id'], $recorder];
+        update_option('cron', []);
+        wp_schedule_single_event(time() - 10, $hook, $args);
+        $fail = static function ($terms, array $taxonomies) {
+            return in_array('word-category', $taxonomies, true)
+                ? new WP_Error('ll_worker_catalog_failure') : $terms;
+        };
+        add_filter('get_terms', $fail, 10, 2);
+        try {
+            foreach ([0, 1] as $expected_attempts) {
+                $result = ll_tools_run_public_aggregate_worker(8, 1);
+                $this->assertSame(1, $result['batches']);
+                $this->assertSame('recorder_catalog_read_failed', $result['errors'][0]['code']);
+                $this->assertFalse(wp_next_scheduled($hook, $args));
+                $events = [];
+                foreach (_get_cron_array() as $timestamp => $hooks) {
+                    foreach (($hooks[$hook] ?? []) as $event) {
+                        $events[] = ['timestamp' => $timestamp, 'args' => $event['args']];
+                    }
+                }
+                $this->assertCount(1, $events);
+                $next = $events[0]['args'];
+                $this->assertCount(9, $next);
+                $this->assertSame($expected_attempts, $next[7]);
+                $this->assertMatchesRegularExpression('/^[a-f0-9]{64}$/', $next[8]);
+                $this->assertGreaterThanOrEqual(time() + ($expected_attempts === 0 ? 3 : 13), $events[0]['timestamp']);
+                if ($expected_attempts === 0) {
+                    wp_clear_scheduled_hook($hook, $next);
+                    wp_schedule_single_event(time() - 10, $hook, $next);
+                    $args = $next;
+                }
+            }
+        } finally {
+            remove_filter('get_terms', $fail, 10);
+        }
+    }
+
+    public function test_recorder_worker_accepts_scheduler_retry_count_without_a_progress_witness(): void {
+        $args = [987654321, 987654321, '', '', '', 0, [], 1, ''];
+        $this->assertTrue(ll_tools_wordset_page_schedule_recorder_queue_summary_warmup(...array_merge($args, [1])));
+        $result = ll_tools_run_public_aggregate_worker(8, 1);
+        $this->assertSame([], $result['errors']);
+        $this->assertSame(1, $result['batches']);
+        $this->assertFalse(wp_next_scheduled('ll_tools_wordset_page_warm_recorder_queue_summaries', $args));
+    }
+
     public function test_failed_user_scope_read_does_not_retire_count_job(): void {
         global $wpdb;
         $user = self::factory()->user->create(['role' => 'subscriber']);

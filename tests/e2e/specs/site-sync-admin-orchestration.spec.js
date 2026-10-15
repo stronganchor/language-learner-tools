@@ -122,7 +122,7 @@ test('Site Sync retries its overview and completes sequential apply batches', as
   });
 
   await expect(page.locator('.ll-site-sync-retry-overview')).toBeVisible();
-  await expect(page.locator('[data-ll-site-sync-overview-state]')).toHaveText('Overview temporarily unavailable');
+  await expect(page.locator('[data-ll-site-sync-overview-state]')).toHaveText('Overview failed');
   await page.locator('.ll-site-sync-retry-overview').click();
   await expect(page.locator('#overview-loaded')).toHaveText('Overview ready');
 
