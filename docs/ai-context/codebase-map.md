@@ -96,3 +96,9 @@ When a review requests local/private findings, use the gitignored
 `docs/CODEBASE_REVIEW_FOLLOWUPS.local.md` and update existing issue IDs on later
 passes. See [the review workflow](AGENT_WORKFLOW.md#whole-repository-reviews).
 Do not promote its contents into tracked docs unless the task authorizes that.
+
+The Genç-Palu IPA converter preserves the reflexive final high vowel only when
+the wordset explicitly sets `word_overrides[xwı]` to `xwı`. The exact IPA-word
+helper in `ipa-keyboard-admin.php` keeps real e/ɛ and longer words distinct;
+other wordset conventions stay unchanged. `IpaOrthographyConversionTest` guards
+this opt-in boundary and the current plain-u profile convention.
