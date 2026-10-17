@@ -674,32 +674,32 @@ msgstr "Vorlage nicht gefunden: %s"
 #: includes/admin/audio-image-matcher.php:590
 #: includes/admin/audio-image-matcher.php:598
 #: includes/admin/audio-image-matcher.php:601
-#: includes/admin/ipa-keyboard-admin.php:9805
-#: includes/admin/ipa-keyboard-admin.php:9842
-#: includes/admin/ipa-keyboard-admin.php:9873
-#: includes/admin/ipa-keyboard-admin.php:9904
-#: includes/admin/ipa-keyboard-admin.php:9944
-#: includes/admin/ipa-keyboard-admin.php:9960
-#: includes/admin/ipa-keyboard-admin.php:9981
-#: includes/admin/ipa-keyboard-admin.php:10002
-#: includes/admin/ipa-keyboard-admin.php:10057
-#: includes/admin/ipa-keyboard-admin.php:10106
-#: includes/admin/ipa-keyboard-admin.php:10160
-#: includes/admin/ipa-keyboard-admin.php:10185
-#: includes/admin/ipa-keyboard-admin.php:10218
-#: includes/admin/ipa-keyboard-admin.php:10271
-#: includes/admin/ipa-keyboard-admin.php:10304
-#: includes/admin/ipa-keyboard-admin.php:10373
-#: includes/admin/ipa-keyboard-admin.php:10468
-#: includes/admin/ipa-keyboard-admin.php:10497
-#: includes/admin/ipa-keyboard-admin.php:10534
-#: includes/admin/ipa-keyboard-admin.php:10569
-#: includes/admin/ipa-keyboard-admin.php:10647
-#: includes/admin/ipa-keyboard-admin.php:10690
-#: includes/admin/ipa-keyboard-admin.php:10766
-#: includes/admin/ipa-keyboard-admin.php:10805
-#: includes/admin/ipa-keyboard-admin.php:10884
-#: includes/admin/ipa-keyboard-admin.php:10943
+#: includes/admin/ipa-keyboard-admin.php:9820
+#: includes/admin/ipa-keyboard-admin.php:9857
+#: includes/admin/ipa-keyboard-admin.php:9888
+#: includes/admin/ipa-keyboard-admin.php:9919
+#: includes/admin/ipa-keyboard-admin.php:9959
+#: includes/admin/ipa-keyboard-admin.php:9975
+#: includes/admin/ipa-keyboard-admin.php:9996
+#: includes/admin/ipa-keyboard-admin.php:10017
+#: includes/admin/ipa-keyboard-admin.php:10072
+#: includes/admin/ipa-keyboard-admin.php:10121
+#: includes/admin/ipa-keyboard-admin.php:10175
+#: includes/admin/ipa-keyboard-admin.php:10200
+#: includes/admin/ipa-keyboard-admin.php:10233
+#: includes/admin/ipa-keyboard-admin.php:10286
+#: includes/admin/ipa-keyboard-admin.php:10319
+#: includes/admin/ipa-keyboard-admin.php:10388
+#: includes/admin/ipa-keyboard-admin.php:10483
+#: includes/admin/ipa-keyboard-admin.php:10512
+#: includes/admin/ipa-keyboard-admin.php:10549
+#: includes/admin/ipa-keyboard-admin.php:10584
+#: includes/admin/ipa-keyboard-admin.php:10662
+#: includes/admin/ipa-keyboard-admin.php:10705
+#: includes/admin/ipa-keyboard-admin.php:10781
+#: includes/admin/ipa-keyboard-admin.php:10820
+#: includes/admin/ipa-keyboard-admin.php:10899
+#: includes/admin/ipa-keyboard-admin.php:10958
 #: includes/lib/word-grid-bulk-operations.php:1125
 #: includes/pages/wordset-transcription-review.php:268
 #: includes/shortcodes/editor-hub-shortcode.php:975
@@ -728,7 +728,7 @@ msgid "Missing parameters"
 msgstr "Fehlende Parameter"
 
 #: includes/admin/audio-image-matcher.php:584
-#: includes/admin/ipa-keyboard-admin.php:10172
+#: includes/admin/ipa-keyboard-admin.php:10187
 msgid "Invalid word"
 msgstr "Ungültige Vokabel"
 
@@ -6993,164 +6993,164 @@ msgstr "Erlaube %1$s nicht vor %2$s."
 msgid "Do not allow %s anywhere in this word set."
 msgstr "Erlaube %s nirgendwo in diesem Vokabelset."
 
-#: includes/admin/ipa-keyboard-admin.php:7410
+#: includes/admin/ipa-keyboard-admin.php:7425
 msgid "Invalid word for this word set."
 msgstr "Ungültige Vokabel für dieses Vokabelset."
 
-#: includes/admin/ipa-keyboard-admin.php:7415
+#: includes/admin/ipa-keyboard-admin.php:7430
 msgid "This word already has written text."
 msgstr "Diese Vokabel hat bereits geschriebenen Text."
 
-#: includes/admin/ipa-keyboard-admin.php:7420
+#: includes/admin/ipa-keyboard-admin.php:7435
 msgid "No IPA recording is available for this word."
 msgstr "Für diese Vokabel ist keine IPA-Aufnahme verfügbar."
 
-#: includes/admin/ipa-keyboard-admin.php:7427
+#: includes/admin/ipa-keyboard-admin.php:7442
 msgid "This source recording already has text."
 msgstr "Diese Quellenaufnahme enthält bereits Text."
 
-#: includes/admin/ipa-keyboard-admin.php:7436
+#: includes/admin/ipa-keyboard-admin.php:7451
 msgid "Current rules cannot fully convert this IPA transcription yet."
 msgstr "Die aktuellen Regeln können diese IPA Transkription noch nicht vollständig umsetzen."
 
-#: includes/admin/ipa-keyboard-admin.php:7446
+#: includes/admin/ipa-keyboard-admin.php:7461
 msgid "Failed to save the converted recording text."
 msgstr "Konnte den konvertierten Aufnahmetext nicht speichern."
 
-#: includes/admin/ipa-keyboard-admin.php:8103
+#: includes/admin/ipa-keyboard-admin.php:8118
 msgid "A modifier or diacritic appears without a main sound."
 msgstr "Ein Modifikator oder Diakritikum erscheint ohne Hauptlaut."
 
-#: includes/admin/ipa-keyboard-admin.php:8123
+#: includes/admin/ipa-keyboard-admin.php:8138
 msgid "A tie bar appears without two joined sounds."
 msgstr "Ein Verbindungsbalken erscheint ohne zwei verbundene Töne."
 
-#: includes/admin/ipa-keyboard-admin.php:8161
+#: includes/admin/ipa-keyboard-admin.php:8176
 msgid "The same IPA modifier is repeated on one sound."
 msgstr "Derselbe IPA Modifikator wird auf einem Ton wiederholt."
 
-#: includes/admin/ipa-keyboard-admin.php:8188
+#: includes/admin/ipa-keyboard-admin.php:8203
 msgid "Stress markers should appear before a sound, not at the end or doubled together."
 msgstr "Betonungszeichen sollten vor einem Laut stehen, nicht am Ende oder doppelt zusammen."
 
-#: includes/admin/ipa-keyboard-admin.php:8208
+#: includes/admin/ipa-keyboard-admin.php:8223
 msgid "Aspiration ʰ should usually appear only after a voiceless stop or affricate."
 msgstr "Die Aspiration ʰ sollte normalerweise nur nach einem stimmlosen Stopp oder Affrikat auftreten."
 
-#: includes/admin/ipa-keyboard-admin.php:8227
+#: includes/admin/ipa-keyboard-admin.php:8242
 msgid "The dental diacritic should be attached to t or d in this IPA inventory."
 msgstr "Das dentale Diakritikum sollte in diesem IPA Inventar an t oder d angehängt werden."
 
-#: includes/admin/ipa-keyboard-admin.php:8355
+#: includes/admin/ipa-keyboard-admin.php:8370
 msgid "This IPA token contains a symbol outside the approved inventory."
 msgstr "Dieses IPA-Token enthält ein Symbol außerhalb des genehmigten Inventars."
 
-#: includes/admin/ipa-keyboard-admin.php:9810
-#: includes/admin/ipa-keyboard-admin.php:9815
-#: includes/admin/ipa-keyboard-admin.php:9847
-#: includes/admin/ipa-keyboard-admin.php:9852
-#: includes/admin/ipa-keyboard-admin.php:9878
-#: includes/admin/ipa-keyboard-admin.php:9883
-#: includes/admin/ipa-keyboard-admin.php:9909
-#: includes/admin/ipa-keyboard-admin.php:9912
-#: includes/admin/ipa-keyboard-admin.php:9949
-#: includes/admin/ipa-keyboard-admin.php:9952
-#: includes/admin/ipa-keyboard-admin.php:9986
-#: includes/admin/ipa-keyboard-admin.php:9990
-#: includes/admin/ipa-keyboard-admin.php:10007
-#: includes/admin/ipa-keyboard-admin.php:10011
-#: includes/admin/ipa-keyboard-admin.php:10062
-#: includes/admin/ipa-keyboard-admin.php:10066
-#: includes/admin/ipa-keyboard-admin.php:10111
-#: includes/admin/ipa-keyboard-admin.php:10115
-#: includes/admin/ipa-keyboard-admin.php:10195
-#: includes/admin/ipa-keyboard-admin.php:10223
-#: includes/admin/ipa-keyboard-admin.php:10227
-#: includes/admin/ipa-keyboard-admin.php:10282
-#: includes/admin/ipa-keyboard-admin.php:10309
-#: includes/admin/ipa-keyboard-admin.php:10314
-#: includes/admin/ipa-keyboard-admin.php:10378
-#: includes/admin/ipa-keyboard-admin.php:10383
-#: includes/admin/ipa-keyboard-admin.php:10502
-#: includes/admin/ipa-keyboard-admin.php:10652
-#: includes/admin/ipa-keyboard-admin.php:10771
-#: includes/admin/ipa-keyboard-admin.php:10775
-#: includes/admin/ipa-keyboard-admin.php:10810
-#: includes/admin/ipa-keyboard-admin.php:10815
-#: includes/admin/ipa-keyboard-admin.php:10889
-#: includes/admin/ipa-keyboard-admin.php:10894
-#: includes/admin/ipa-keyboard-admin.php:10948
-#: includes/admin/ipa-keyboard-admin.php:10953
+#: includes/admin/ipa-keyboard-admin.php:9825
+#: includes/admin/ipa-keyboard-admin.php:9830
+#: includes/admin/ipa-keyboard-admin.php:9862
+#: includes/admin/ipa-keyboard-admin.php:9867
+#: includes/admin/ipa-keyboard-admin.php:9893
+#: includes/admin/ipa-keyboard-admin.php:9898
+#: includes/admin/ipa-keyboard-admin.php:9924
+#: includes/admin/ipa-keyboard-admin.php:9927
+#: includes/admin/ipa-keyboard-admin.php:9964
+#: includes/admin/ipa-keyboard-admin.php:9967
+#: includes/admin/ipa-keyboard-admin.php:10001
+#: includes/admin/ipa-keyboard-admin.php:10005
+#: includes/admin/ipa-keyboard-admin.php:10022
+#: includes/admin/ipa-keyboard-admin.php:10026
+#: includes/admin/ipa-keyboard-admin.php:10077
+#: includes/admin/ipa-keyboard-admin.php:10081
+#: includes/admin/ipa-keyboard-admin.php:10126
+#: includes/admin/ipa-keyboard-admin.php:10130
+#: includes/admin/ipa-keyboard-admin.php:10210
+#: includes/admin/ipa-keyboard-admin.php:10238
+#: includes/admin/ipa-keyboard-admin.php:10242
+#: includes/admin/ipa-keyboard-admin.php:10297
+#: includes/admin/ipa-keyboard-admin.php:10324
+#: includes/admin/ipa-keyboard-admin.php:10329
+#: includes/admin/ipa-keyboard-admin.php:10393
+#: includes/admin/ipa-keyboard-admin.php:10398
+#: includes/admin/ipa-keyboard-admin.php:10517
+#: includes/admin/ipa-keyboard-admin.php:10667
+#: includes/admin/ipa-keyboard-admin.php:10786
+#: includes/admin/ipa-keyboard-admin.php:10790
+#: includes/admin/ipa-keyboard-admin.php:10825
+#: includes/admin/ipa-keyboard-admin.php:10830
+#: includes/admin/ipa-keyboard-admin.php:10904
+#: includes/admin/ipa-keyboard-admin.php:10909
+#: includes/admin/ipa-keyboard-admin.php:10963
+#: includes/admin/ipa-keyboard-admin.php:10968
 msgid "Invalid word set"
 msgstr "Ungültiges Vokabelset"
 
-#: includes/admin/ipa-keyboard-admin.php:10017
+#: includes/admin/ipa-keyboard-admin.php:10032
 msgid "Invalid segment"
 msgstr "Ungültiges Segment"
 
-#: includes/admin/ipa-keyboard-admin.php:10076
-#: includes/admin/ipa-keyboard-admin.php:10125
+#: includes/admin/ipa-keyboard-admin.php:10091
+#: includes/admin/ipa-keyboard-admin.php:10140
 msgid "Invalid rule"
 msgstr "Ungültige Regel"
 
-#: includes/admin/ipa-keyboard-admin.php:10167
-#: includes/admin/ipa-keyboard-admin.php:10191
-#: includes/admin/ipa-keyboard-admin.php:10277
-#: includes/admin/ipa-keyboard-admin.php:10474
-#: includes/admin/ipa-keyboard-admin.php:10542
-#: includes/admin/ipa-keyboard-admin.php:10582
-#: includes/admin/ipa-keyboard-admin.php:10703
+#: includes/admin/ipa-keyboard-admin.php:10182
+#: includes/admin/ipa-keyboard-admin.php:10206
+#: includes/admin/ipa-keyboard-admin.php:10292
+#: includes/admin/ipa-keyboard-admin.php:10489
+#: includes/admin/ipa-keyboard-admin.php:10557
+#: includes/admin/ipa-keyboard-admin.php:10597
+#: includes/admin/ipa-keyboard-admin.php:10718
 #: includes/shortcodes/audio-recording-shortcode.php:9702
 #: includes/shortcodes/word-grid-shortcode.php:11311
 msgid "Missing data"
 msgstr "Fehlende Daten"
 
-#: includes/admin/ipa-keyboard-admin.php:10238
+#: includes/admin/ipa-keyboard-admin.php:10253
 msgid "No words selected"
 msgstr "Keine Vokabeln ausgewählt"
 
-#: includes/admin/ipa-keyboard-admin.php:10292
-#: includes/admin/ipa-keyboard-admin.php:10485
-#: includes/admin/ipa-keyboard-admin.php:10550
-#: includes/admin/ipa-keyboard-admin.php:10592
-#: includes/admin/ipa-keyboard-admin.php:10597
-#: includes/admin/ipa-keyboard-admin.php:10602
-#: includes/admin/ipa-keyboard-admin.php:10711
-#: includes/admin/ipa-keyboard-admin.php:10716
-#: includes/admin/ipa-keyboard-admin.php:10721
+#: includes/admin/ipa-keyboard-admin.php:10307
+#: includes/admin/ipa-keyboard-admin.php:10500
+#: includes/admin/ipa-keyboard-admin.php:10565
+#: includes/admin/ipa-keyboard-admin.php:10607
+#: includes/admin/ipa-keyboard-admin.php:10612
+#: includes/admin/ipa-keyboard-admin.php:10617
+#: includes/admin/ipa-keyboard-admin.php:10726
+#: includes/admin/ipa-keyboard-admin.php:10731
+#: includes/admin/ipa-keyboard-admin.php:10736
 #: includes/shortcodes/word-grid-shortcode.php:11336
 msgid "Invalid recording"
 msgstr "Ungültige Aufnahme"
 
-#: includes/admin/ipa-keyboard-admin.php:10507
-#: includes/admin/ipa-keyboard-admin.php:10587
-#: includes/admin/ipa-keyboard-admin.php:10658
+#: includes/admin/ipa-keyboard-admin.php:10522
+#: includes/admin/ipa-keyboard-admin.php:10602
+#: includes/admin/ipa-keyboard-admin.php:10673
 msgid "Rules unavailable"
 msgstr "Regeln nicht verfügbar"
 
-#: includes/admin/ipa-keyboard-admin.php:10615
+#: includes/admin/ipa-keyboard-admin.php:10630
 msgid "Could not infer an orthography mapping for this symbol."
 msgstr "Es konnte keine orthografische Zuordnung für dieses Symbol abgeleitet werden."
 
-#: includes/admin/ipa-keyboard-admin.php:10620
+#: includes/admin/ipa-keyboard-admin.php:10635
 msgid "Could not approve this symbol mapping."
 msgstr "Diese Symbolzuordnung konnte nicht genehmigt werden."
 
-#: includes/admin/ipa-keyboard-admin.php:10706
+#: includes/admin/ipa-keyboard-admin.php:10721
 msgid "Invalid review field"
 msgstr "Ungültiges Prüffeld"
 
-#: includes/admin/ipa-keyboard-admin.php:10781
+#: includes/admin/ipa-keyboard-admin.php:10796
 msgid "No symbols found"
 msgstr "Keine Symbole gefunden"
 
-#: includes/admin/ipa-keyboard-admin.php:10825
+#: includes/admin/ipa-keyboard-admin.php:10840
 msgid "Invalid letter"
 msgstr "Ungültiger Buchstabe"
 
-#: includes/admin/ipa-keyboard-admin.php:9919
-#: includes/admin/ipa-keyboard-admin.php:10907
-#: includes/admin/ipa-keyboard-admin.php:10966
+#: includes/admin/ipa-keyboard-admin.php:9934
+#: includes/admin/ipa-keyboard-admin.php:10922
+#: includes/admin/ipa-keyboard-admin.php:10981
 msgid "Invalid mapping"
 msgstr "Ungültiges Mapping"
 
@@ -21548,7 +21548,7 @@ msgstr "Du musst eingeloggt sein"
 msgid "Missing required audio data."
 msgstr "Fehlende erforderliche Audiodaten."
 
-#: includes/admin/ipa-keyboard-admin.php:7471
+#: includes/admin/ipa-keyboard-admin.php:7486
 #: includes/shortcodes/word-grid-shortcode.php:8180
 #: includes/shortcodes/word-grid-shortcode.php:9205
 #: includes/shortcodes/word-grid-shortcode.php:9286
@@ -23404,12 +23404,12 @@ msgid "Flags symbols that have been marked illegal for this word set."
 msgstr "Kennzeichnet Symbole, die für dieses Vokabelset als unzulässig markiert wurden."
 
 #. translators: %s is an IPA symbol.
-#: includes/admin/ipa-keyboard-admin.php:8252
+#: includes/admin/ipa-keyboard-admin.php:8267
 #, php-format
 msgid "This transcription contains %s, which is marked illegal for this word set."
 msgstr "Diese Transkription enthält %s, das für dieses Vokabelset als unzulässig markiert ist."
 
-#: includes/admin/ipa-keyboard-admin.php:10666
+#: includes/admin/ipa-keyboard-admin.php:10681
 msgid "Invalid symbol"
 msgstr "Ungültiges Symbol"
 
@@ -24187,25 +24187,25 @@ msgstr "Genç-Palu"
 msgid "Uses the Genç-Palu IPA-to-orthography conversion profile, including lexical and phrase exceptions."
 msgstr "Verwendet das Genç-Palu-IPA-zu-Orthografie-Konvertierungsprofil einschließlich lexikalischer und Phrasenausnahmen."
 
-#: includes/admin/ipa-keyboard-admin.php:7211
-#: includes/admin/ipa-keyboard-admin.php:7290
-#: includes/admin/ipa-keyboard-admin.php:7397
+#: includes/admin/ipa-keyboard-admin.php:7226
+#: includes/admin/ipa-keyboard-admin.php:7305
+#: includes/admin/ipa-keyboard-admin.php:7412
 msgid "Current rules"
 msgstr "Aktuelle Regeln"
 
-#: includes/admin/ipa-keyboard-admin.php:7476
+#: includes/admin/ipa-keyboard-admin.php:7491
 msgid "Recording does not belong to this word set."
 msgstr "Die Aufnahme gehört nicht zu diesem Vokabelset."
 
-#: includes/admin/ipa-keyboard-admin.php:7481
+#: includes/admin/ipa-keyboard-admin.php:7496
 msgid "No IPA transcription is available for this recording."
 msgstr "Für diese Aufnahme ist keine IPA-Transkription verfügbar."
 
-#: includes/admin/ipa-keyboard-admin.php:7489
+#: includes/admin/ipa-keyboard-admin.php:7504
 msgid "Current rules cannot suggest a written transcription for this recording yet."
 msgstr "Die aktuellen Regeln können für diese Aufnahme noch keine schriftliche Transkription vorschlagen."
 
-#: includes/admin/ipa-keyboard-admin.php:7518
+#: includes/admin/ipa-keyboard-admin.php:7533
 msgid "Failed to save the suggested recording text."
 msgstr "Der vorgeschlagene Aufnahmetext konnte nicht gespeichert werden."
 
@@ -24319,7 +24319,7 @@ msgstr "Transkriptionszeilen aktualisiert."
 msgid "Show %s"
 msgstr "%s anzeigen"
 
-#: includes/admin/ipa-keyboard-admin.php:8327
+#: includes/admin/ipa-keyboard-admin.php:8342
 msgid "Saved text does not match the current orthography rules."
 msgstr "Gespeicherter Text entspricht nicht den aktuellen Orthografieregeln."
 
@@ -25021,7 +25021,7 @@ msgstr "Unerwartetes Tie-Bar-Paar"
 msgid "Flags tie bars joining sounds outside the approved affricate and cluster inventory."
 msgstr "Markiert Tie-Bars, die Laute außerhalb des freigegebenen Affrikaten- und Clusterbestands verbinden."
 
-#: includes/admin/ipa-keyboard-admin.php:8143
+#: includes/admin/ipa-keyboard-admin.php:8158
 msgid "A tie bar joins a sound pair outside the approved inventory."
 msgstr "Ein Tie-Bar verbindet ein Lautpaar außerhalb des freigegebenen Bestands."
 
@@ -25927,7 +25927,7 @@ msgstr "%1$d passende Aufnahmen geladen"
 msgid "Preserved the Genç-Palu orthography profile on %1$d existing Zazaki wordsets. Review each regional profile under <a href=\"%2$s\">Wordsets</a>; new Zazaki wordsets do not select a regional profile automatically."
 msgstr "Das Orthografieprofil Genç-Palu wurde bei %1$d vorhandenen Zazaki-Vokabelsets beibehalten. Überprüfe jedes regionale Profil unter <a href=\"%2$s\">Vokabelsets</a>; bei neuen Zazaki-Vokabelsets wird nicht automatisch ein regionales Profil ausgewählt."
 
-#: includes/admin/ipa-keyboard-admin.php:9957
+#: includes/admin/ipa-keyboard-admin.php:9972
 msgid "Invalid action"
 msgstr "Ungültige Aktion"
 
