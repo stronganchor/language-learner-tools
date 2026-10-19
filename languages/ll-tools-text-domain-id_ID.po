@@ -5594,3 +5594,72 @@ msgstr "Permintaan terlalu banyak. Tunggu sebentar dan coba lagi."
 #: includes/pages/wordset-pages.php:27361 includes/pages/wordset-transcription-review.php:284
 msgid "Saved"
 msgstr "Tersimpan"
+
+msgid "Fill every blank first."
+msgstr "Isi semua bagian yang kosong terlebih dahulu."
+
+msgid "Try the marked blanks again."
+msgstr "Coba lagi bagian kosong yang ditandai."
+
+msgid "All correct!"
+msgstr "Semua benar!"
+
+msgid "Your answers are correct, but progress could not be saved. Check again to retry."
+msgstr "Jawaban Anda benar, tetapi progres tidak dapat disimpan. Periksa lagi untuk mencoba menyimpannya kembali."
+
+msgid "Answers could not be checked. Please try again."
+msgstr "Jawaban tidak dapat diperiksa. Silakan coba lagi."
+
+msgid "This lesson changed. Reload the page to try the latest version."
+msgstr "Pelajaran ini telah berubah. Muat ulang halaman untuk mencoba versi terbaru."
+
+msgid "This activity is not ready yet."
+msgstr "Aktivitas ini belum siap."
+
+msgid "Enable JavaScript to use this activity."
+msgstr "Aktifkan JavaScript untuk menggunakan aktivitas ini."
+
+msgid "This activity is unavailable."
+msgstr "Aktivitas ini tidak tersedia."
+
+msgid "The activity request could not be verified."
+msgstr "Permintaan aktivitas tidak dapat diverifikasi."
+
+msgid "Use each word from the bank once."
+msgstr "Gunakan setiap kata dalam daftar satu kali."
+
+msgid "The activity request is too large."
+msgstr "Permintaan aktivitas terlalu besar."
+
+msgid "Drag a word into each blank, or select a word and then a blank."
+msgstr "Seret kata ke setiap bagian yang kosong, atau pilih kata lalu bagian yang kosong."
+
+msgid "Word bank"
+msgstr "Daftar kata"
+
+msgid "Blank %d"
+msgstr "Bagian kosong %d"
+
+msgid "Blank %1$d: %2$s. Select to return this word."
+msgstr "Bagian kosong %1$d: %2$s. Pilih untuk mengembalikan kata ini ke daftar."
+
+msgid "Word selected. Choose a blank."
+msgstr "Kata dipilih. Pilih bagian yang kosong."
+
+msgid "Word placed."
+msgstr "Kata ditempatkan."
+
+msgid "Word returned to the bank."
+msgstr "Kata dikembalikan ke daftar."
+
+msgid "Checking..."
+msgstr "Memeriksa..."
+
+msgid "Start again"
+msgstr "Mulai lagi"
+
+msgid "Complete the fill-in-the-blank activity to save progress."
+msgstr "Selesaikan aktivitas mengisi bagian yang kosong untuk menyimpan progres."
+
+msgid "Fill in the blanks"
+msgstr "Isi bagian yang kosong"

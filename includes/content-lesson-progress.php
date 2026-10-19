@@ -446,7 +446,8 @@ function ll_tools_verify_content_lesson_completion_nonce(string $nonce): bool {
 function ll_tools_update_content_lesson_completion_request(
     int $user_id,
     int $lesson_id,
-    bool $completed
+    bool $completed,
+    bool $verified_cloze = false
 ) {
     if ($user_id <= 0 || !get_userdata($user_id)) {
         return new WP_Error(
@@ -478,6 +479,10 @@ function ll_tools_update_content_lesson_completion_request(
             'content_lesson_completion_forbidden',
             __('You cannot update progress for this lesson.', 'll-tools-text-domain')
         );
+    }
+
+    if ($completed && ll_tools_get_content_lesson_kind($lesson_id) === 'cloze' && !$verified_cloze) {
+        return new WP_Error('content_lesson_completion_forbidden', __('Complete the fill-in-the-blank activity to save progress.', 'll-tools-text-domain'));
     }
 
     if (!function_exists('ll_tools_offline_app_run_user_data_write_locked')) {

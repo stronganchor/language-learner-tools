@@ -1763,6 +1763,7 @@
                 self_check_supported: cat && Object.prototype.hasOwnProperty.call(cat, 'self_check_supported')
                     ? normalizeBooleanFlag(cat.self_check_supported)
                     : true,
+                listening_supported: normalizeBooleanFlag(cat && cat.listening_supported),
                 sign_language_mode: normalizeBooleanFlag(cat && cat.sign_language_mode),
                 gender_supported: normalizeBooleanFlag(cat && cat.gender_supported),
                 is_public: cat && Object.prototype.hasOwnProperty.call(cat, 'is_public')
@@ -6640,6 +6641,10 @@
             $progressSelectionModeButtons.each(function () {
                 const $button = $(this);
                 const mode = normalizeMode($button.attr('data-mode') || '');
+                if (mode === 'listening') {
+                    const hasAudio = selectedCategoryIds.some(function (id) { return categorySupportsMode('listening', id); });
+                    $button.prop('hidden', !hasAudio).toggle(hasAudio);
+                }
                 const launchPlan = (mode && !allFilteredSelected)
                     ? buildProgressSelectionLaunchPlan(mode, selectedWordIds)
                     : null;
@@ -9429,7 +9434,7 @@
     }
 
     function getDefaultWordsetCategoryCardModes() {
-        const modes = ['learning', 'practice', 'listening'];
+        const modes = ['learning', 'practice'];
         if (!!genderCfg.enabled) {
             modes.push('gender');
         }
@@ -9446,7 +9451,10 @@
         if (cat.learning_supported !== false) {
             cardModes.push('learning');
         }
-        cardModes.push('practice', 'listening');
+        cardModes.push('practice');
+        if (cat.listening_supported === true) {
+            cardModes.push('listening');
+        }
         if (!!genderCfg.enabled && !!cat.gender_supported) {
             cardModes.push('gender');
         }
@@ -14514,6 +14522,8 @@
         $root.find('[data-ll-wordset-selection-mode]').each(function () {
             const $btn = $(this);
             const mode = normalizeMode($btn.attr('data-mode') || '');
+            const hasAudio = ids.some(function (id) { return categorySupportsMode('listening', id); });
+            if (mode === 'listening') $btn.prop('hidden', !hasAudio).toggle(!hasSelection || hasAudio);
             const disabled = !hasSelection ||
                 !hasEnoughWords ||
                 (mode === 'learning' && !hasEnoughLearningWords) ||
@@ -15412,6 +15422,9 @@
         }
         if (key === 'self-check') {
             return cat.self_check_supported !== false;
+        }
+        if (key === 'listening') {
+            return cat.listening_supported === true;
         }
         return true;
     }

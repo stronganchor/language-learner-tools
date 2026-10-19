@@ -210,6 +210,9 @@ add_filter(
 );
 
 function ll_tools_content_lesson_media_label(string $media_type, string $lesson_kind = 'standard'): string {
+    if ($lesson_kind === 'cloze') {
+        return __('Fill in the blanks', 'll-tools-text-domain');
+    }
     if ($lesson_kind === 'article') {
         return __('Article lesson', 'll-tools-text-domain');
     }
@@ -322,7 +325,7 @@ function ll_tools_get_content_lesson_card_data(WP_Post $lesson): array {
     $lesson_kind = function_exists('ll_tools_get_content_lesson_kind')
         ? ll_tools_get_content_lesson_kind((int) $lesson->ID)
         : 'standard';
-    $display_media_type = $lesson_kind === 'corpus_text' ? 'text' : $media_type;
+    $display_media_type = in_array($lesson_kind, ['corpus_text', 'cloze'], true) ? 'text' : $media_type;
     $fallback_title = (string) get_the_title($lesson);
     $fallback_excerpt = ll_tools_get_content_lesson_excerpt($lesson);
     $localized_title = function_exists('ll_tools_get_lesson_display_title')
@@ -1276,6 +1279,12 @@ function ll_tools_content_lesson_enqueue_assets(): void {
     }
 
     $lesson_id = (int) get_queried_object_id();
+    if (ll_tools_get_content_lesson_kind($lesson_id) === 'cloze') {
+        if (ll_tools_cloze_can_view($lesson_id)) {
+            ll_tools_cloze_enqueue_assets();
+        }
+        return;
+    }
     $is_corpus_text = $lesson_id > 0
         && function_exists('ll_tools_content_lesson_is_corpus_text')
         && ll_tools_content_lesson_is_corpus_text($lesson_id);

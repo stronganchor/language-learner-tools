@@ -3886,3 +3886,26 @@ body.ll-vocab-lesson-category-settings-open {
         padding-right: 0;
     }
 }
+
+
+/* An activity-first lesson reserves no space for the vocabulary answer grid. */
+.ll-vocab-lesson-page [data-ll-lesson-study-content][hidden],
+.ll-vocab-lesson-page [data-ll-lesson-activity-host][hidden],
+.ll-vocab-lesson-page .ll-vocab-lesson-modes[hidden] { display: none !important; }
+.ll-vocab-lesson-page .ll-vocab-lesson-embedded { width: 100%; min-width: 0; }
+.ll-vocab-lesson-page .ll-vocab-lesson-activity-frame {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: min(760px, 78svh);
+    min-height: 480px;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 12px;
+    background: transparent !important;
+}
+.ll-vocab-lesson-page .ll-vocab-lesson-mode-button[aria-pressed="true"] {
+    outline: 2px solid currentColor;
+    outline-offset: 2px;
+}

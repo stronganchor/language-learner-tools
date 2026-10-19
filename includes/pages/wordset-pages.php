@@ -5266,7 +5266,7 @@ function ll_tools_get_wordset_page_categories(
             ? ll_tools_get_quiz_content_cache_epoch([$wordset_id])
             : (string) $category_epoch;
         $category_cache_args = [
-            'schema' => 9,
+            'schema' => 10,
             'wordset_id' => $wordset_id,
             'preview_limit' => max(1, (int) $preview_limit),
             'preview_mode' => $defer_previews ? 'deferred' : 'eager',
@@ -5377,6 +5377,9 @@ function ll_tools_get_wordset_page_categories(
         $option_type = (string) ($quiz_config['option_type'] ?? 'image');
         $learning_supported = !array_key_exists('learning_supported', $quiz_config) || !empty($quiz_config['learning_supported']);
         $self_check_supported = !array_key_exists('self_check_supported', $quiz_config) || !empty($quiz_config['self_check_supported']);
+        $audio_complete = true;
+        $listening_supported = ll_tools_category_has_playable_audio((int) $category->term_id, [$wordset_id], $audio_complete);
+        $sources_complete = $sources_complete && $audio_complete;
         $aspect_bucket = function_exists('ll_tools_get_category_aspect_bucket_key')
             ? (string) ll_tools_get_category_aspect_bucket_key((int) $category->term_id)
             : '';
@@ -5426,6 +5429,7 @@ function ll_tools_get_wordset_page_categories(
             'learning_option_type' => (string) ($quiz_config['learning_option_type'] ?? ''),
             'learning_supported' => $learning_supported,
             'self_check_supported' => $self_check_supported,
+            'listening_supported' => $listening_supported,
             'question_limit' => (int) ($quiz_config['question_limit'] ?? 0),
             'sign_language_mode' => !empty($quiz_config['sign_language_mode']),
             'gender_supported' => $gender_supported,
@@ -6891,6 +6895,7 @@ function ll_tools_wordset_page_build_lazy_cards_fallback_payload(int $wordset_id
         } else {
             $enhanced['learning_supported'] = true;
         }
+        $enhanced['listening_supported'] = !empty($cat['listening_supported']);
         if (array_key_exists('self_check_supported', $study_cat)) {
             $enhanced['self_check_supported'] = !empty($study_cat['self_check_supported']);
         } elseif (array_key_exists('self_check_supported', $cat)) {
@@ -7411,6 +7416,9 @@ function ll_tools_wordset_page_render_category_card(array $cat, array $context =
             <div class="ll-wordset-card__quiz-actions" role="group" aria-label="<?php echo esc_attr(sprintf(__('Quiz modes for %s', 'll-tools-text-domain'), $cat_name)); ?>">
                 <?php
                 $card_modes = ll_tools_get_study_launch_mode_order($gender_enabled && !empty($cat['gender_supported']));
+                $card_modes = array_values(array_filter($card_modes, static function (string $mode) use ($cat): bool {
+                    return $mode !== 'listening' || !empty($cat['listening_supported']);
+                }));
                 foreach ($card_modes as $mode) :
                 ?>
                     <button type="button" class="ll-wordset-card__quiz-btn" data-ll-wordset-category-mode data-mode="<?php echo esc_attr($mode); ?>" data-cat-id="<?php echo esc_attr($cat_id); ?>" aria-label="<?php echo esc_attr(sprintf(__('%1$s: %2$s', 'll-tools-text-domain'), $mode_labels[$mode] ?? ucfirst($mode), $cat_name)); ?>">
@@ -7559,6 +7567,7 @@ function ll_tools_wordset_page_compact_runtime_category_payload(array $category,
     foreach ([
         'sign_language_mode',
         'gender_supported',
+        'listening_supported',
         'can_manage_inactive',
         'can_hide',
         'can_preview',
@@ -26134,6 +26143,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
         } else {
             $enhanced['learning_supported'] = true;
         }
+        $enhanced['listening_supported'] = !empty($cat['listening_supported']);
         if (array_key_exists('self_check_supported', $study_cat)) {
             $enhanced['self_check_supported'] = !empty($study_cat['self_check_supported']);
         } elseif (array_key_exists('self_check_supported', $cat)) {
@@ -26223,6 +26233,9 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
         }
     }
     $gender_mode_available = $gender_enabled && $has_visible_gender_supported_category;
+    $listening_mode_available = (bool) array_filter($visible_categories, static function ($row): bool {
+        return !empty($row['listening_supported']);
+    });
     $render_progress_gender_section = (
         $view === 'progress'
         && $is_study_user
@@ -27156,6 +27169,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             'learning_option_type' => (string) ($cat['learning_option_type'] ?? ''),
             'learning_supported' => !empty($cat['learning_supported']),
             'self_check_supported' => !array_key_exists('self_check_supported', $cat) || !empty($cat['self_check_supported']),
+            'listening_supported' => !empty($cat['listening_supported']),
             'question_limit' => (int) ($cat['question_limit'] ?? 0),
             'sign_language_mode' => !empty($cat['sign_language_mode']),
             'gender_supported' => !empty($cat['gender_supported']),
@@ -28011,6 +28025,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                                 <?php
                                 $progress_selection_modes = ll_tools_get_study_launch_mode_order($gender_enabled);
                                 foreach ($progress_selection_modes as $mode) :
+                                    if ($mode === 'listening' && !$listening_mode_available) { continue; }
                                 ?>
                                     <button type="button" class="ll-study-btn ll-vocab-lesson-mode-button ll-wordset-mode-button ll-wordset-mode-button--tiny" data-ll-wordset-progress-selection-mode data-mode="<?php echo esc_attr($mode); ?>">
                                         <?php echo ll_tools_wordset_page_render_mode_icon($mode, $mode_ui, $mode_fallback_icons[$mode] ?? '❓'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
@@ -28335,6 +28350,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                     <?php
                     $top_modes = ll_tools_get_study_launch_mode_order($gender_mode_available);
                     foreach ($top_modes as $mode) :
+                        if ($mode === 'listening' && !$listening_mode_available) { continue; }
                     ?>
                         <button type="button" class="ll-study-btn ll-vocab-lesson-mode-button ll-wordset-mode-button" data-ll-wordset-start-mode data-mode="<?php echo esc_attr($mode); ?>">
                             <?php echo ll_tools_wordset_page_render_mode_icon($mode, $mode_ui, $mode_fallback_icons[$mode] ?? '❓'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
@@ -28545,6 +28561,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                     <?php
                     $selection_modes = ll_tools_get_study_launch_mode_order($gender_mode_available);
                     foreach ($selection_modes as $mode) :
+                        if ($mode === 'listening' && !$listening_mode_available) { continue; }
                     ?>
                         <button type="button" class="ll-study-btn ll-vocab-lesson-mode-button ll-wordset-mode-button ll-wordset-mode-button--tiny" data-ll-wordset-selection-mode data-mode="<?php echo esc_attr($mode); ?>">
                             <?php echo ll_tools_wordset_page_render_mode_icon($mode, $mode_ui, $mode_fallback_icons[$mode] ?? '❓'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>

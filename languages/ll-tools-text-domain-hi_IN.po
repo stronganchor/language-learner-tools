@@ -5596,3 +5596,72 @@ msgstr ""
 #: includes/pages/wordset-pages.php:27361 includes/pages/wordset-transcription-review.php:284
 msgid "Saved"
 msgstr "सहेजा गया"
+
+msgid "Fill every blank first."
+msgstr "पहले सभी खाली स्थान भरें।"
+
+msgid "Try the marked blanks again."
+msgstr "चिह्नित खाली स्थानों को फिर से भरने की कोशिश करें।"
+
+msgid "All correct!"
+msgstr "सभी उत्तर सही हैं!"
+
+msgid "Your answers are correct, but progress could not be saved. Check again to retry."
+msgstr "आपके उत्तर सही हैं, लेकिन प्रगति सहेजी नहीं जा सकी। फिर से जाँच करें।"
+
+msgid "Answers could not be checked. Please try again."
+msgstr "उत्तरों की जाँच नहीं हो सकी। कृपया फिर से कोशिश करें।"
+
+msgid "This lesson changed. Reload the page to try the latest version."
+msgstr "इस पाठ में बदलाव हुआ है। नवीनतम संस्करण के लिए पेज फिर से लोड करें।"
+
+msgid "This activity is not ready yet."
+msgstr "यह गतिविधि अभी तैयार नहीं है।"
+
+msgid "Enable JavaScript to use this activity."
+msgstr "इस गतिविधि के लिए JavaScript चालू करें।"
+
+msgid "This activity is unavailable."
+msgstr "यह गतिविधि उपलब्ध नहीं है।"
+
+msgid "The activity request could not be verified."
+msgstr "गतिविधि के अनुरोध की पुष्टि नहीं हो सकी।"
+
+msgid "Use each word from the bank once."
+msgstr "शब्द-सूची के हर शब्द का एक बार उपयोग करें।"
+
+msgid "The activity request is too large."
+msgstr "गतिविधि का अनुरोध बहुत बड़ा है।"
+
+msgid "Drag a word into each blank, or select a word and then a blank."
+msgstr "हर खाली स्थान में एक शब्द खींचकर छोड़ें, या पहले शब्द चुनें और फिर खाली स्थान।"
+
+msgid "Word bank"
+msgstr "शब्द-सूची"
+
+msgid "Blank %d"
+msgstr "खाली स्थान %d"
+
+msgid "Blank %1$d: %2$s. Select to return this word."
+msgstr "खाली स्थान %1$d: %2$s। इस शब्द को सूची में वापस रखने के लिए चुनें।"
+
+msgid "Word selected. Choose a blank."
+msgstr "शब्द चुन लिया गया है। कोई खाली स्थान चुनें।"
+
+msgid "Word placed."
+msgstr "शब्द रख दिया गया है।"
+
+msgid "Word returned to the bank."
+msgstr "शब्द सूची में वापस रख दिया गया है।"
+
+msgid "Checking..."
+msgstr "जाँच हो रही है..."
+
+msgid "Start again"
+msgstr "फिर से शुरू करें"
+
+msgid "Complete the fill-in-the-blank activity to save progress."
+msgstr "प्रगति सहेजने के लिए खाली स्थान भरने की गतिविधि पूरी करें।"
+
+msgid "Fill in the blanks"
+msgstr "खाली स्थान भरें"

@@ -215,6 +215,10 @@ return [
         ['path' => 'includes/lib/word-option-rules.php'],
         ['path' => 'includes/content-lesson-progress.php'],
         [
+            'path' => 'includes/content-lesson-cloze.php',
+            'symbols' => ['ll_tools_cloze_strings', 'll_tools_render_cloze_activity', 'll_tools_cloze_check_request', 'll_tools_cloze_check_ajax'],
+        ],
+        [
             'path' => 'includes/lib/wordset-language-settings.php',
             'symbols' => [
                 'll_tools_get_wordset_speaking_game_target_label',

@@ -5594,3 +5594,130 @@ msgstr "Muitas solicitações. Aguarde um momento e tente novamente."
 #: includes/pages/wordset-pages.php:27361 includes/pages/wordset-transcription-review.php:284
 msgid "Saved"
 msgstr "Salvo"
+
+
+#. ll-tools-public-key: adee136dff8d8dc5540c5fcb347c2f4f5f0b9304
+#: includes/content-lesson-cloze.php:100 includes/content-lesson-cloze.php:155
+msgid "Fill every blank first."
+msgstr "Preencha todas as lacunas primeiro."
+
+#. ll-tools-public-key: 345abad155224715f2c51f8d9f4cb5333bbc2091
+#: includes/content-lesson-cloze.php:101
+msgid "Try the marked blanks again."
+msgstr "Tente novamente nas lacunas marcadas."
+
+#. ll-tools-public-key: 299252ef79d526093230139aa3dba45cecda06c2
+#: includes/content-lesson-cloze.php:102
+msgid "All correct!"
+msgstr "Tudo certo!"
+
+#. ll-tools-public-key: 1a281facccf394ed96612a22fbe971dd81c2176d
+#: includes/content-lesson-cloze.php:104
+msgid ""
+"Your answers are correct, but progress could not be saved. Check again to "
+"retry."
+msgstr ""
+"Suas respostas estão corretas, mas não foi possível salvar o progresso. "
+"Verifique as respostas novamente para tentar salvar."
+
+#. ll-tools-public-key: cbb5a599405288f1fc0aaff2dbd463b63fce3288
+#: includes/content-lesson-cloze.php:105
+msgid "Answers could not be checked. Please try again."
+msgstr "Não foi possível verificar as respostas. Tente novamente."
+
+#. ll-tools-public-key: 67b13355cfcea52d5a1007ed1a15102eea63271c
+#: includes/content-lesson-cloze.php:106
+msgid "This lesson changed. Reload the page to try the latest version."
+msgstr ""
+"Esta lição foi alterada. Recarregue a página para tentar a versão mais "
+"recente."
+
+#. ll-tools-public-key: 9b477512b07dca68e57cddbd25acd40b77c3598a
+#: includes/content-lesson-cloze.php:127 includes/content-lesson-cloze.php:141
+msgid "This activity is not ready yet."
+msgstr "Esta atividade ainda não está pronta."
+
+#. ll-tools-public-key: 0de7d24012302ddd2e57b33f02e6f27d7fdfce80
+#: includes/content-lesson-cloze.php:131
+msgid "Enable JavaScript to use this activity."
+msgstr "Ative o JavaScript para usar esta atividade."
+
+#. ll-tools-public-key: 19d3b475158f49d43deaa83685f6902dfb20c1cf
+#: includes/content-lesson-cloze.php:137
+msgid "This activity is unavailable."
+msgstr "Esta atividade não está disponível."
+
+#. ll-tools-public-key: 4622bf9a40e8477e9cd57dc35ec9b9b3c2c8e065
+#: includes/content-lesson-cloze.php:148 includes/content-lesson-cloze.php:190
+msgid "The activity request could not be verified."
+msgstr "Não foi possível verificar a solicitação da atividade."
+
+#. ll-tools-public-key: f9e543fe095e397e9d8595035489d0fcb271586d
+#: includes/content-lesson-cloze.php:165
+msgid "Use each word from the bank once."
+msgstr "Use cada palavra do banco uma única vez."
+
+#. ll-tools-public-key: 04c089c6966dc9109223930730aa280a83212f64
+#: includes/content-lesson-cloze.php:186
+msgid "The activity request is too large."
+msgstr "A solicitação da atividade é muito grande."
+
+#. ll-tools-public-key: 37a229ae6f6947f5930548ac78d8641a171cdfaf
+#: includes/content-lesson-cloze.php:90
+msgid "Drag a word into each blank, or select a word and then a blank."
+msgstr ""
+"Arraste uma palavra para cada lacuna ou selecione uma palavra e depois uma "
+"lacuna."
+
+#. ll-tools-public-key: fcd7d5f3367c3353adcc05df3731394c8b435de3
+#: includes/content-lesson-cloze.php:91
+msgid "Word bank"
+msgstr "Banco de palavras"
+
+#. ll-tools-public-key: 17ed52e81843bf01e626e8a5366f86fdcf247ad5
+#: includes/content-lesson-cloze.php:92
+#, php-format
+msgid "Blank %d"
+msgstr "Lacuna %d"
+
+#. ll-tools-public-key: f9fec7df58553a77b5bdf204445da2096cbb7871
+#: includes/content-lesson-cloze.php:93
+#, php-format
+msgid "Blank %1$d: %2$s. Select to return this word."
+msgstr "Lacuna %1$d: %2$s. Selecione para devolver esta palavra."
+
+#. ll-tools-public-key: 67d09b8706efc0d9622b8721edadc7d845636751
+#: includes/content-lesson-cloze.php:94
+msgid "Word selected. Choose a blank."
+msgstr "Palavra selecionada. Escolha uma lacuna."
+
+#. ll-tools-public-key: 82d610cb8cc9507308b1ffc5b1e7745d0da58525
+#: includes/content-lesson-cloze.php:95
+msgid "Word placed."
+msgstr "Palavra posicionada."
+
+#. ll-tools-public-key: 89c5af7b8a4405045548d35320bbfcf21c934914
+#: includes/content-lesson-cloze.php:96
+msgid "Word returned to the bank."
+msgstr "Palavra devolvida ao banco."
+
+#. ll-tools-public-key: 490c6539539575780553708d915d9ffa20f011c1
+#: includes/content-lesson-cloze.php:98
+msgid "Checking..."
+msgstr "Verificando..."
+
+#. ll-tools-public-key: a7f740c01583c009ac35f84ceacf7bc9e31099a5
+#: includes/content-lesson-cloze.php:99
+msgid "Start again"
+msgstr "Recomeçar"
+
+#. ll-tools-public-key: 0963082b7a78fee97253028a51cfe781b1a40874
+#: includes/content-lesson-progress.php:485
+msgid "Complete the fill-in-the-blank activity to save progress."
+msgstr "Complete a atividade de preencher lacunas para salvar o progresso."
+
+#. ll-tools-public-key: e4b5456553819c1ed4ba2489accd9274ee7d9c74
+#: includes/pages/content-lesson-pages.php:214
+#: includes/post-types/content-lesson-post-type.php:127
+msgid "Fill in the blanks"
+msgstr "Preencher as lacunas"

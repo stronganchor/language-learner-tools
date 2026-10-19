@@ -2527,7 +2527,38 @@
     function updateModeSwitcherButton() { updateModeSwitcherButtons(); }
     function updateModeSwitcherPanel() { updateModeSwitcherButtons(); }
 
+    function isModeAllowed(mode) {
+        const allowed = (root.llToolsFlashcardsData || {}).availableModes;
+        return !Array.isArray(allowed) || allowed.indexOf(mode) !== -1;
+    }
+
+    function isListeningSupportedForCategories(categoryNames) {
+        if (!isModeAllowed('listening')) return false;
+        if (Selection && typeof Selection.isListeningSupportedForCategories === 'function') {
+            return Selection.isListeningSupportedForCategories(categoryNames);
+        }
+        return (Array.isArray(categoryNames) ? categoryNames : []).some(function (name) {
+            const cfg = findCategoryConfigByName(name);
+            return !!(cfg && cfg.listening_supported);
+        });
+    }
+
+    function resolveAllowedMode(mode, categoryNames, preserveGenderPlan) {
+        const requested = isSelfCheckMode(mode) ? 'self-check' : mode;
+        const supported = function (candidate) {
+            if (!isModeAllowed(candidate)) return false;
+            if (candidate === 'learning') return isLearningSupportedForCategories(categoryNames);
+            if (candidate === 'self-check') return isSelfCheckSupportedForCategories(categoryNames);
+            if (candidate === 'gender') return !!preserveGenderPlan || isGenderSupportedForSelection(categoryNames);
+            if (candidate === 'listening') return isListeningSupportedForCategories(categoryNames);
+            return candidate === 'practice';
+        };
+        if (supported(requested)) return requested;
+        return ['practice', 'learning', 'self-check', 'gender', 'listening'].find(supported) || '';
+    }
+
     function isLearningSupportedForCategories(categoryNames) {
+        if (!isModeAllowed('learning')) return false;
         const names = Array.isArray(categoryNames) ? categoryNames : [];
         try {
             if (Selection && typeof Selection.isLearningSupportedForCategories === 'function') {
@@ -2549,6 +2580,7 @@
     }
 
     function isSelfCheckSupportedForCategories(categoryNames) {
+        if (!isModeAllowed('self-check')) return false;
         const names = Array.isArray(categoryNames) ? categoryNames : [];
         try {
             if (Selection && typeof Selection.isSelfCheckSupportedForCategories === 'function') {
@@ -2570,6 +2602,7 @@
     }
 
     function isGenderSupportedForSelection(categoryNames) {
+        if (!isModeAllowed('gender')) return false;
         try {
             if (Selection && typeof Selection.isGenderSupportedForCategories === 'function') {
                 return Selection.isGenderSupportedForCategories(categoryNames);
@@ -3461,6 +3494,7 @@
         const learningAllowed = isLearningSupportedForCurrentSelection();
         const selfCheckAllowed = isSelfCheckSupportedForCurrentSelection();
         const genderAllowed = isGenderSupportedForCurrentSelection();
+        const listeningAllowed = isListeningSupportedForCategories(State.categoryNames);
 
         // Ensure wrapper is visible when widget active
         $wrap.css('display', 'block');
@@ -3484,7 +3518,8 @@
                     $icon.removeAttr('data-emoji');
                 }
             }
-            const shouldHide = (mode === 'gender' && !genderAllowed);
+            const shouldHide = !isModeAllowed(mode) || (mode === 'gender' && !genderAllowed)
+                || (mode === 'listening' && !listeningAllowed);
             $btn.toggleClass('hidden', shouldHide);
             if (shouldHide) {
                 $btn.attr('aria-hidden', 'true');
@@ -3550,6 +3585,8 @@
     function switchMode(newMode, options) {
         const opts = (options && typeof options === 'object') ? options : {};
         const preserveGenderPlan = !!opts.preserveGenderPlan;
+        newMode = resolveAllowedMode(newMode, State.categoryNames, preserveGenderPlan);
+        if (!newMode) return;
         if (!State.canSwitchMode()) {
             console.warn('Cannot switch mode in state:', State.getState());
             return;
@@ -3559,14 +3596,6 @@
         // unlock the analyser AudioContext for listen-mode visualizer updates.
         warmupVisualizerContext();
 
-        if (newMode === 'learning' && !isLearningSupportedForCurrentSelection()) {
-            console.warn('Learning mode is disabled for the selected categories. Falling back to practice.');
-            newMode = 'practice';
-        }
-        if (isSelfCheckMode(newMode) && !isSelfCheckSupportedForCurrentSelection()) {
-            console.warn('Self-check mode is disabled for the selected categories. Falling back to practice.');
-            newMode = 'practice';
-        }
         if (!preserveGenderPlan) {
             const flashData = root.llToolsFlashcardsData || {};
             try { delete flashData.boundedSessionContinuation; } catch (_) { /* no-op */ }
@@ -3591,10 +3620,6 @@
                 return;
             }
             newMode = 'self-check';
-        }
-        if (newMode === 'gender' && !preserveGenderPlan && !isGenderSupportedForCurrentSelection()) {
-            console.warn('Gender mode is disabled for the selected categories. Falling back to practice.');
-            newMode = 'practice';
         }
         try {
             const tracker = getProgressTracker();
@@ -5703,14 +5728,6 @@
                     : filterCategoryNamesByAspectBucket(requestedCategoriesRaw, {
                         preferCategoryName: requestedCategoriesRaw[0] || ''
                     });
-                if (requestedMode === 'learning' && !isLearningSupportedForCategories(requestedCategories)) {
-                    console.warn('Learning mode is disabled for the selected categories. Using practice mode instead.');
-                    requestedMode = 'practice';
-                }
-                if (isSelfCheckMode(requestedMode) && !isSelfCheckSupportedForCategories(requestedCategories)) {
-                    console.warn('Self-check mode is disabled for the selected categories. Using practice mode instead.');
-                    requestedMode = 'practice';
-                }
                 const launchFlashData = root.llToolsFlashcardsData || {};
                 const launchGenderPlan = launchFlashData.genderSessionPlan;
                 const hasArmedGenderPlan = !!(
@@ -5726,13 +5743,10 @@
                     && Array.isArray(launchGenderPlan.word_ids)
                     && launchGenderPlan.word_ids.length > 0
                 );
-                if (
-                    requestedMode === 'gender'
-                    && !hasExplicitGenderPlan
-                    && !isGenderSupportedForSelection(requestedCategories)
-                ) {
-                    console.warn('Gender mode is disabled for the selected categories. Using practice mode instead.');
-                    requestedMode = 'practice';
+                requestedMode = resolveAllowedMode(requestedMode, requestedCategories, hasExplicitGenderPlan);
+                if (!requestedMode) {
+                    closeFlashcard();
+                    return;
                 }
                 if (requestedMode === 'gender') {
                     const flashData = root.llToolsFlashcardsData || {};

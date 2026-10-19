@@ -1,6 +1,7 @@
 <?php
 // /includes/pages/vocab-lesson-pages.php
 if (!defined('WPINC')) { die; }
+require_once LL_TOOLS_BASE_PATH . '/includes/lib/vocab-lesson-activities.php';
 
 /**
  * Auto-generated vocab lesson pages:
@@ -120,6 +121,7 @@ function ll_tools_maybe_invalidate_wordset_page_lesson_cache_for_meta(
         LL_TOOLS_VOCAB_LESSON_WORDSET_META,
         LL_TOOLS_VOCAB_LESSON_CATEGORY_META,
         LL_TOOLS_VOCAB_LESSON_PREVIEW_ONLY_META,
+        LL_TOOLS_VOCAB_LESSON_ACTIVITIES_META,
     ], true)) {
         return;
     }
@@ -4936,7 +4938,11 @@ function ll_tools_vocab_lesson_bootstrap_flashcards() {
         return;
     }
 
-    [$categories, $preselected] = ll_flashcards_build_categories('', $use_translations, $wordset_ids);
+    $lesson_category_id = (int) get_post_meta($post->ID, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, true);
+    $lesson_category = get_term($lesson_category_id, 'word-category');
+    if (!$lesson_category instanceof WP_Term || is_wp_error($lesson_category)
+        || !ll_tools_vocab_lesson_activity_context_is_accessible((int) $post->ID, $lesson_category_id, $wordset_id)) { return; }
+    [$categories, $preselected] = ll_flashcards_build_categories((string) $lesson_category->slug, $use_translations, $wordset_ids);
     [$selected_category_data, $firstCategoryName, $words_data] = ll_flashcards_pick_initial_batch(
         $categories,
         $wordset_ids,
@@ -4948,6 +4954,7 @@ function ll_tools_vocab_lesson_bootstrap_flashcards() {
         'wordset'              => $wordset_spec,
         'wordset_fallback'     => false,
         'quiz_mode'            => 'practice',
+        'lesson_id'            => (int) $post->ID,
         'wordset_ids_for_popup' => $wordset_ids,
     ];
 
@@ -4960,6 +4967,8 @@ function ll_tools_vocab_lesson_bootstrap_flashcards() {
 function ll_tools_vocab_lesson_should_preload_flashcards(): bool {
     // Lesson pages ship quiz launch buttons in the header, so the shared
     // flashcard launcher must be ready before users click them.
+    $lesson_id = (int) get_queried_object_id();
+    if ($lesson_id > 0 && ll_tools_get_vocab_lesson_embedded_mode($lesson_id) !== '') { return false; }
     return (bool) apply_filters('ll_tools_vocab_lesson_preload_flashcards', true);
 }
 
@@ -6215,6 +6224,8 @@ function ll_tools_vocab_lesson_category_settings_bounded_string_list(
 /** @return array<string,mixed>|WP_Error */
 function ll_tools_validate_vocab_lesson_category_settings_request_shape(array $request) {
     $valid = true;
+    $activity_settings = ll_tools_vocab_lesson_activity_settings_from_request($request);
+    if (is_wp_error($activity_settings)) { return $activity_settings; }
     $question_limit = ll_tools_quiz_question_limit_from_request($request, 'll_vocab_lesson_');
     if (is_wp_error($question_limit)) { return $question_limit; }
     $category_visibility_present = array_key_exists('ll_vocab_lesson_category_visibility', $request);
@@ -6363,6 +6374,7 @@ function ll_tools_validate_vocab_lesson_category_settings_request_shape(array $r
         'category_visibility' => $category_visibility,
         'prompt_present' => $prompt_present,
         'question_limit' => $question_limit,
+        'activity_settings' => $activity_settings,
         'prompt_type' => $prompt_type,
         'option_present' => $option_present,
         'option_type' => $option_type,
@@ -6884,6 +6896,10 @@ function ll_tools_save_vocab_lesson_category_settings_from_request(array $reques
             );
         }
 
+        if (is_array($validated_settings_request['activity_settings']) && !ll_tools_vocab_lesson_activity_settings_storage_is_transactional()) {
+            return ll_tools_vocab_lesson_category_settings_error('transaction_storage', __('Lesson activities cannot be saved until the post metadata table supports transactions.', 'll-tools-text-domain'), 503, ['retryable' => false]);
+        }
+
         $settings_transaction = function_exists('ll_tools_strict_term_insert_begin_transaction')
             ? ll_tools_strict_term_insert_begin_transaction()
             : null;
@@ -6929,6 +6945,10 @@ function ll_tools_save_vocab_lesson_category_settings_from_request(array $reques
             $settings_write_failed = !ll_tools_write_verified_vocab_lesson_category_setting_meta(
                 $category_id, 'll_quiz_question_limit', (string) $validated_settings_request['question_limit']
             );
+        }
+
+        if (!$settings_write_failed && is_array($validated_settings_request['activity_settings'])) {
+            $settings_write_failed = !ll_tools_write_verified_vocab_lesson_activity_settings($lesson_id, $validated_settings_request['activity_settings']);
         }
 
         if (!$settings_write_failed && is_array($privacy_update)) {
@@ -6991,6 +7011,7 @@ function ll_tools_save_vocab_lesson_category_settings_from_request(array $reques
         $settings_transaction_active = false;
         try {
             wp_cache_delete($category_id, 'term_meta');
+            wp_cache_delete($lesson_id, 'post_meta');
         } catch (Throwable $throwable) {
             // The transaction is already committed; cache work is best effort.
         }
@@ -7026,6 +7047,10 @@ function ll_tools_save_vocab_lesson_category_settings_from_request(array $reques
         'category_id' => $category_id,
         'revision' => $next_revision,
         'question_limit' => ll_tools_get_quiz_question_limit($category_id),
+        'activity_settings' => ll_tools_get_vocab_lesson_activity_settings($lesson_id),
+        'available_modes' => ll_tools_get_vocab_lesson_available_modes($lesson_id),
+        'embedded_mode' => ll_tools_get_vocab_lesson_embedded_mode($lesson_id),
+        'embedded_url' => ll_tools_get_vocab_lesson_activity_embed_url($lesson_id, ll_tools_get_vocab_lesson_embedded_mode($lesson_id)),
         'message' => __('Changes saved.', 'll-tools-text-domain'),
     ];
     } finally {
@@ -7041,6 +7066,7 @@ function ll_tools_save_vocab_lesson_category_settings_from_request(array $reques
             }
             try {
                 wp_cache_delete($category_id, 'term_meta');
+                wp_cache_delete($lesson_id, 'post_meta');
             } catch (Throwable $throwable) {
                 // SQL rollback is independent of cache eviction.
             }

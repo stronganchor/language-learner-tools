@@ -5614,3 +5614,72 @@ msgstr "Слишком много запросов. Подождите немн�
 #: includes/pages/wordset-pages.php:27361 includes/pages/wordset-transcription-review.php:284
 msgid "Saved"
 msgstr "Сохранено"
+
+msgid "Fill every blank first."
+msgstr "Сначала заполните все пропуски."
+
+msgid "Try the marked blanks again."
+msgstr "Попробуйте ещё раз заполнить отмеченные пропуски."
+
+msgid "All correct!"
+msgstr "Всё правильно!"
+
+msgid "Your answers are correct, but progress could not be saved. Check again to retry."
+msgstr "Ваши ответы правильные, но прогресс не удалось сохранить. Нажмите «Проверить» ещё раз."
+
+msgid "Answers could not be checked. Please try again."
+msgstr "Не удалось проверить ответы. Попробуйте ещё раз."
+
+msgid "This lesson changed. Reload the page to try the latest version."
+msgstr "Урок изменился. Перезагрузите страницу, чтобы открыть последнюю версию."
+
+msgid "This activity is not ready yet."
+msgstr "Это задание ещё не готово."
+
+msgid "Enable JavaScript to use this activity."
+msgstr "Включите JavaScript, чтобы выполнить это задание."
+
+msgid "This activity is unavailable."
+msgstr "Это задание недоступно."
+
+msgid "The activity request could not be verified."
+msgstr "Не удалось подтвердить запрос задания."
+
+msgid "Use each word from the bank once."
+msgstr "Используйте каждое слово из списка один раз."
+
+msgid "The activity request is too large."
+msgstr "Запрос задания слишком большой."
+
+msgid "Drag a word into each blank, or select a word and then a blank."
+msgstr "Перетащите слово в каждый пропуск или выберите слово, а затем пропуск."
+
+msgid "Word bank"
+msgstr "Список слов"
+
+msgid "Blank %d"
+msgstr "Пропуск %d"
+
+msgid "Blank %1$d: %2$s. Select to return this word."
+msgstr "Пропуск %1$d: %2$s. Выберите, чтобы вернуть это слово в список."
+
+msgid "Word selected. Choose a blank."
+msgstr "Слово выбрано. Выберите пропуск."
+
+msgid "Word placed."
+msgstr "Слово вставлено."
+
+msgid "Word returned to the bank."
+msgstr "Слово возвращено в список."
+
+msgid "Checking..."
+msgstr "Проверка..."
+
+msgid "Start again"
+msgstr "Начать заново"
+
+msgid "Complete the fill-in-the-blank activity to save progress."
+msgstr "Выполните задание на заполнение пропусков, чтобы сохранить прогресс."
+
+msgid "Fill in the blanks"
+msgstr "Заполните пропуски"

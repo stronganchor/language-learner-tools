@@ -30577,3 +30577,147 @@ msgstr "Her alıştırma denemesinde yeni bir rastgele soru grubu seçilir. Yanl
 
 msgid "Practice length"
 msgstr "Alıştırma uzunluğu"
+
+msgid "Use valid text of no more than 20,000 bytes."
+msgstr "En fazla 20.000 baytlık geçerli metin kullan."
+
+msgid "Use plain text without HTML."
+msgstr "HTML içermeyen düz metin kullan."
+
+msgid "Put each missing word inside matching [[ and ]] markers."
+msgstr "Her eksik kelimeyi eşleşen [[ ve ]] işaretlerinin arasına koy."
+
+msgid "Each blank needs a word or short phrase, without surrounding spaces or nested markers."
+msgstr "Her boşluğa, başında ve sonunda boşluk ya da iç içe işaretler olmayan bir kelime veya kısa ifade gir."
+
+msgid "Use no more than 60 blanks in one lesson."
+msgstr "Bir derste en fazla 60 boşluk kullan."
+
+msgid "Drag a word into each blank, or select a word and then a blank."
+msgstr "Her boşluğa bir kelime sürükle veya önce bir kelimeyi, sonra bir boşluğu seç."
+
+msgid "Word bank"
+msgstr "Kelime havuzu"
+
+msgid "Blank %d"
+msgstr "Boşluk %d"
+
+msgid "Blank %1$d: %2$s. Select to return this word."
+msgstr "Boşluk %1$d: %2$s. Bu kelimeyi geri koymak için seç."
+
+msgid "Word selected. Choose a blank."
+msgstr "Kelime seçildi. Bir boşluk seç."
+
+msgid "Word placed."
+msgstr "Kelime yerleştirildi."
+
+msgid "Word returned to the bank."
+msgstr "Kelime havuza geri kondu."
+
+msgid "Checking..."
+msgstr "Kontrol ediliyor..."
+
+msgid "Start again"
+msgstr "Baştan başla"
+
+msgid "Fill every blank first."
+msgstr "Önce tüm boşlukları doldur."
+
+msgid "Try the marked blanks again."
+msgstr "İşaretli boşlukları tekrar dene."
+
+msgid "All correct!"
+msgstr "Hepsi doğru!"
+
+msgid "Your answers are correct, but progress could not be saved. Check again to retry."
+msgstr "Cevapların doğru ama ilerleme kaydedilemedi. Tekrar denemek için yeniden kontrol et."
+
+msgid "Answers could not be checked. Please try again."
+msgstr "Cevaplar kontrol edilemedi. Lütfen tekrar dene."
+
+msgid "This lesson changed. Reload the page to try the latest version."
+msgstr "Bu ders değişti. Son sürümü denemek için sayfayı yeniden yükle."
+
+msgid "This activity is not ready yet."
+msgstr "Bu etkinlik henüz hazır değil."
+
+msgid "Enable JavaScript to use this activity."
+msgstr "Bu etkinliği kullanmak için JavaScript'i etkinleştir."
+
+msgid "This activity is unavailable."
+msgstr "Bu etkinlik kullanılamıyor."
+
+msgid "The activity request could not be verified."
+msgstr "Etkinlik isteği doğrulanamadı."
+
+msgid "Use each word from the bank once."
+msgstr "Havuzdaki her kelimeyi bir kez kullan."
+
+msgid "The activity request is too large."
+msgstr "Etkinlik isteği çok büyük."
+
+msgid "This passage changed in another editor. Reload before editing again."
+msgstr "Bu metin başka bir editörde değişti. Yeniden düzenlemeden önce sayfayı yeniden yükle."
+
+msgid "You are not allowed to edit this activity."
+msgstr "Bu etkinliği düzenleme iznin yok."
+
+msgid "The passage could not be saved. Please retry."
+msgstr "Metin kaydedilemedi. Lütfen tekrar dene."
+
+msgid "Passage with blanks"
+msgstr "Boşluklu metin"
+
+msgid "Paste plain text and put each missing word inside [[double brackets]]. Example: The [[cat]] sat. Use 1-60 blanks. The activity opens directly on the lesson page; no answer key or vocabulary grid is shown."
+msgstr "Düz metin yapıştır ve her eksik kelimeyi çift köşeli parantez ([[double brackets]]) içine koy. Örnek: The [[cat]] sat. 1-60 boşluk kullan. Etkinlik doğrudan ders sayfasında açılır; cevap anahtarı veya kelime tablosu gösterilmez."
+
+msgid "Passage edits autosave once this lesson is saved as a fill-in-the-blank lesson with a word set. Save other lesson settings with Update."
+msgstr "Ders bir kelime setine bağlı boşluk doldurma dersi olarak kaydedildikten sonra metin değişiklikleri otomatik kaydedilir. Diğer ders ayarlarını Güncelle ile kaydet."
+
+msgid "Save the lesson settings first to enable passage autosave."
+msgstr "Metnin otomatik kaydedilmesini etkinleştirmek için önce ders ayarlarını kaydet."
+
+msgid "%d blanks ready."
+msgstr "%d boşluk hazır."
+
+msgid "Use 1-60 matching [[word]] markers without empty, nested, or multiline answers."
+msgstr "Boş, iç içe veya birden fazla satırlı cevaplar olmadan 1-60 eşleşen [[word]] işareti kullan."
+
+msgid "Complete the fill-in-the-blank activity to save progress."
+msgstr "İlerlemeyi kaydetmek için boşluk doldurma etkinliğini tamamla."
+
+msgid "Choose valid lesson activities."
+msgstr "Geçerli ders etkinlikleri seç."
+
+msgid "Choose at least one activity and enable the activity that opens on this lesson."
+msgstr "En az bir etkinlik seç ve bu derste açılacak etkinliği etkinleştir."
+
+msgid "Fill in the blanks"
+msgstr "Boşlukları doldur"
+
+msgid "Lesson activities cannot be saved until the post metadata table supports transactions."
+msgstr "Yazı meta veri tablosu işlemleri destekleyene kadar ders etkinlikleri kaydedilemez."
+
+msgid "Lesson activity"
+msgstr "Ders etkinliği"
+
+msgid "Lesson activities"
+msgstr "Ders etkinlikleri"
+
+msgid "Activities without suitable content are hidden automatically. Listen requires playable audio."
+msgstr "Uygun içeriği olmayan etkinlikler otomatik gizlenir. Dinle için çalınabilir ses kaydı gerekir."
+
+msgid "Open on the lesson page"
+msgstr "Ders sayfasında aç"
+
+msgid "Vocabulary overview"
+msgstr "Kelime özeti"
+
+msgid "This passage is being saved. Please retry."
+msgstr "Bu metin kaydediliyor. Lütfen tekrar dene."
+
+msgid "The passage could not be read safely. Please retry."
+msgstr "Metin güvenli biçimde okunamadı. Lütfen tekrar dene."
+
+msgid "This activity is currently unavailable."
+msgstr "Bu etkinlik şu anda kullanılamıyor."

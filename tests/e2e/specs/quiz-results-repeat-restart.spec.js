@@ -1939,3 +1939,36 @@ test('prompt-audio retry remounts the foreground element without another preload
   expect(result.targetLoaderRetryCalls).toBe(0);
   expect(result.remainingWordIds).toEqual([702]);
 });
+
+
+for (const mode of ['learning', 'self-check', 'gender']) {
+  test(`unsupported ${mode}-only lesson never falls back to disabled Practice`, async ({ page }) => {
+    await mountRestartHarness(page);
+    const result = await page.evaluate(async (requestedMode) => {
+      window.llToolsFlashcardsData.availableModes = [requestedMode];
+      window.LLFlashcards.Selection.isLearningSupportedForCategories = () => false;
+      window.LLFlashcards.Selection.isSelfCheckSupportedForCategories = () => false;
+      window.LLFlashcards.Selection.isGenderSupportedForCategories = () => false;
+      window.__lessonModeAttempts = [];
+      window.FlashcardLoader.beginQuizAttempt = (mode) => window.__lessonModeAttempts.push(mode);
+      window.LLFlashcards.Main.switchMode(requestedMode);
+      const switchState = window.LLFlashcards.State.getState();
+      await window.LLFlashcards.Main.initFlashcardWidget(['Kitchen'], requestedMode);
+      return { attempts: window.__lessonModeAttempts, switchState };
+    }, mode);
+    expect(result.attempts).toEqual([]);
+    expect(result.switchState).toBe('showing_results');
+  });
+}
+
+test('unsupported requested lesson mode falls back to another enabled supported mode', async ({ page }) => {
+  await mountRestartHarness(page);
+  await page.evaluate(() => {
+    window.llToolsFlashcardsData.availableModes = ['learning', 'practice'];
+    window.LLFlashcards.Selection.isLearningSupportedForCategories = () => false;
+    window.__lessonModeAttempts = [];
+    window.FlashcardLoader.beginQuizAttempt = (mode) => window.__lessonModeAttempts.push(mode);
+    window.LLFlashcards.Main.switchMode('learning');
+  });
+  await expect.poll(() => page.evaluate(() => window.__lessonModeAttempts)).toEqual(['practice']);
+});

@@ -745,6 +745,10 @@ function ll_tools_public_static_cache_request_identity(): ?array {
 
     if (is_singular('ll_content_lesson')) {
         $post_id = (int) get_queried_object_id();
+        // Each cloze attempt owns a shuffled bank and a current check nonce.
+        if (function_exists('ll_tools_get_content_lesson_kind') && ll_tools_get_content_lesson_kind($post_id) === 'cloze') {
+            return null;
+        }
         $post = $post_id > 0 ? get_post($post_id) : null;
         if (
             !($post instanceof WP_Post)

@@ -490,6 +490,8 @@ async function mountWordsetPage(page, options = {}) {
   if (options.configPatch && typeof options.configPatch === 'object') {
     config = Object.assign({}, config, options.configPatch);
   }
+  // These launch fixtures model audio-bearing production category metadata.
+  config.categories = (config.categories || []).map((category) => Object.assign({ listening_supported: true }, category));
   const wordsByCategoryName = {};
   (Array.isArray(config.categories) ? config.categories : []).forEach((cat) => {
     const cid = Number(cat && cat.id) || 0;
@@ -4939,4 +4941,17 @@ test('large single-category Learn card follows every bounded server chunk exactl
     candidateIds
   })));
   expect(state.alerts).toEqual([]);
+});
+
+
+test('a silent selected category hides Listen while keeping Practice available', async ({ page }) => {
+  await mountWordsetPage(page, { isLoggedIn: false, configPatch: { categories: [{
+    id: 11, name: 'Cat A', slug: 'cat-a', count: 30,
+    prompt_type: 'text_title', option_type: 'text_translation', learning_supported: true,
+    self_check_supported: true, listening_supported: false, is_public: true
+  }] } });
+  await page.locator('[data-ll-wordset-select][value="11"]').check();
+  await expect(page.locator('[data-ll-wordset-selection-mode][data-mode="listening"]')).toBeHidden();
+  await expect(page.locator('[data-ll-wordset-selection-mode][data-mode="practice"]')).toBeVisible();
+  await expect(page.locator('[data-ll-wordset-selection-mode][data-mode="practice"]')).toBeEnabled();
 });

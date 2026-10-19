@@ -87,7 +87,23 @@
         return display;
     }
 
+    function isResultModeAllowed(mode) {
+        const data = root.llToolsFlashcardsData || {};
+        if (Array.isArray(data.availableModes) && data.availableModes.indexOf(mode) === -1) return false;
+        if (mode === 'listening') {
+            const selection = root.LLFlashcards && root.LLFlashcards.Selection;
+            if (selection && typeof selection.isListeningSupportedForCategories === 'function') {
+                return selection.isListeningSupportedForCategories(State.categoryNames);
+            }
+            return (data.categories || []).some(function (cat) {
+                return !!cat.listening_supported && (State.categoryNames || []).indexOf(cat.name) !== -1;
+            });
+        }
+        return true;
+    }
+
     function isLearningSupportedForResults() {
+        if (!isResultModeAllowed('learning')) return false;
         try {
             const Selection = root.LLFlashcards && root.LLFlashcards.Selection;
             const categories = State && State.categoryNames;
@@ -106,6 +122,7 @@
     }
 
     function isSelfCheckSupportedForResults() {
+        if (!isResultModeAllowed('self-check')) return false;
         try {
             const Selection = root.LLFlashcards && root.LLFlashcards.Selection;
             const categories = State && State.categoryNames;
@@ -124,6 +141,7 @@
     }
 
     function isGenderSupportedForResults() {
+        if (!isResultModeAllowed('gender')) return false;
         try {
             const Selection = root.LLFlashcards && root.LLFlashcards.Selection;
             const categories = State && State.categoryNames;
@@ -516,12 +534,22 @@
 
     function getNextModeInLessonSequence(currentMode, genderAllowed, selfCheckAllowed) {
         const key = normalizeProgressMode(currentMode) || 'practice';
-        if (key === 'learning') { return 'practice'; }
-        if (key === 'practice') { return genderAllowed ? 'gender' : 'listening'; }
-        if (key === 'gender') { return 'listening'; }
-        if (key === 'listening') { return selfCheckAllowed ? 'self-check' : 'practice'; }
-        if (key === 'self-check') { return 'practice'; }
-        return 'practice';
+        const nextModes = {
+            learning: ['practice', 'gender', 'listening', 'self-check'],
+            practice: ['gender', 'listening', 'self-check', 'learning'],
+            gender: ['listening', 'self-check', 'practice', 'learning'],
+            listening: ['self-check', 'practice', 'learning', 'gender'],
+            'self-check': ['practice', 'learning', 'gender', 'listening']
+        };
+        const sequence = nextModes[key] || nextModes.practice;
+        for (let step = 0; step < sequence.length; step += 1) {
+            const mode = sequence[step];
+            if (mode === 'gender' && !genderAllowed) continue;
+            if (mode === 'self-check' && !selfCheckAllowed) continue;
+            if (mode === 'learning' && !isLearningSupportedForResults()) continue;
+            if (isResultModeAllowed(mode)) return mode;
+        }
+        return '';
     }
 
     function triggerModeRestart(mode) {
@@ -574,7 +602,10 @@
             });
         }
 
-        if ($different.length) {
+        if ($different.length && !nextMode) {
+            $different.hide().off('click.llLessonResults');
+        }
+        if ($different.length && nextMode) {
             setModeActionButtonContent(
                 $different,
                 nextMode,
@@ -603,6 +634,9 @@
     }
 
     function emitResultsShown(extra) {
+        ['practice', 'learning', 'self-check', 'gender', 'listening'].forEach(function (mode) {
+            if (!isResultModeAllowed(mode)) $('#restart-' + mode + '-mode').hide();
+        });
         try {
             const payload = Object.assign(
                 { mode: getCurrentResultsMode() },

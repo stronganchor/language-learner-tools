@@ -1,0 +1,23 @@
+.ll-cloze { --ll-cloze-accent: #176c72; padding: clamp(16px, 3vw, 30px); background: #fff; border: 1px solid #dbe3e7; border-radius: 18px; color: #182c37; box-shadow: 0 5px 18px rgba(22, 49, 63, .05); }
+.ll-cloze .ll-cloze__instructions { margin: 0 0 20px; font-size: .95rem; color: #4b606c; }
+.ll-cloze .ll-cloze__passage { white-space: pre-wrap; font-size: clamp(24px, 2.8vw, 34px); line-height: 2.4; overflow-wrap: anywhere; margin: 0 0 22px; }
+.ll-cloze button.ll-cloze__slot, .ll-cloze button.ll-cloze__word, .ll-cloze button.ll-cloze__action { appearance: none; background: #fff; border: 2px solid #a9bec6; border-radius: 9px; color: #183e48; font: inherit; font-weight: 500; letter-spacing: normal; text-transform: none; box-shadow: none; cursor: pointer; transition: background .12s, border-color .12s; }
+.ll-cloze button.ll-cloze__slot { display: inline-flex; align-items: center; justify-content: center; vertical-align: baseline; position: relative; margin: 0 .12em; padding: .06em .35em; min-width: 3.6em; min-height: 1.5em; line-height: 1.4; border-style: dashed; background: #f4f9fa; touch-action: none; }
+.ll-cloze button.ll-cloze__slot.is-filled { border-style: solid; background: #eaf4f5; min-width: 2em; }
+.ll-cloze .ll-cloze__bank { display: flex; flex-wrap: wrap; gap: 12px; padding: 18px; min-height: 84px; background: #f2f6f7; border-radius: 12px; margin-bottom: 20px; }
+.ll-cloze button.ll-cloze__word { font-size: 1.6rem; line-height: 1.55; padding: 5px 15px; min-height: 48px; cursor: grab; touch-action: none; }
+.ll-cloze button.ll-cloze__word[hidden] { display: none !important; }
+.ll-cloze button.is-selected, .ll-cloze button.is-drop-target { background: #d4eeed; border-color: var(--ll-cloze-accent); outline: 3px solid #abd8d5; }
+.ll-cloze button:focus-visible { outline: 3px solid #0a7fa6; outline-offset: 3px; }
+.ll-cloze button.ll-cloze__slot.is-correct { border-color: #268451; background: #eef9f0; }
+.ll-cloze button.ll-cloze__slot.is-incorrect { border-color: #ba4436; background: #fff4ed; }
+.ll-cloze .ll-cloze__mark { font-size: .65em; margin-inline-start: .25em; }
+.ll-cloze .ll-cloze__controls { display: flex; flex-wrap: wrap; gap: 12px; }
+.ll-cloze button.ll-cloze__action { font-size: 1rem; line-height: 1.4; padding: 10px 20px; min-height: 44px; }
+.ll-cloze button.ll-cloze__action--primary { background: var(--ll-cloze-accent); border-color: var(--ll-cloze-accent); color: #fff; }
+.ll-cloze button:disabled { opacity: .65; cursor: default; }
+.ll-cloze .ll-cloze__status { min-height: 1.5em; margin: 16px 0 0; font-size: 1rem; font-weight: 600; }
+@media (max-width: 480px) { .ll-cloze { padding: 14px; } .ll-cloze .ll-cloze__bank { padding: 12px; gap: 9px; } }
+.ll-cloze button.ll-cloze__slot, .ll-cloze button.ll-cloze__word { max-width: 100%; overflow-wrap: anywhere; white-space: normal; }
+.ll-cloze button.ll-cloze__slot { min-width: min(3.6em, 100%); }
+.ll-cloze button.ll-cloze__word { min-width: 0; }

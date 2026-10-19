@@ -13,6 +13,7 @@ css/wordset-transcription-review.css
 css/recording-history.css
 css/vocab-lesson-pages.css
 css/content-lesson-pages.css
+css/content-lesson-cloze.css
 css/quiz-pages.css
 css/self-check-shared.css
 css/flashcard/base.css
@@ -31,6 +32,8 @@ js/word-copy-dialog.js
 js/wordset-transcription-review.js
 js/recording-history.js
 js/vocab-lesson-page.js
+js/content-lesson-cloze.js
+js/content-lesson-cloze-admin.js
 js/word-grid.js
 js/quiz-pages.js
 js/self-check-shared.js

@@ -163,7 +163,10 @@
         var currentLessonId = String(data.currentLessonId || '0');
 
         function updateLessonKindSettings() {
-            var isArticle = String($lessonKind.val() || 'standard') === 'article';
+            var kind = String($lessonKind.val() || 'standard');
+            var isArticle = kind === 'article' || kind === 'cloze';
+            $('[data-ll-cloze-setting]').prop('hidden', kind !== 'cloze');
+            $('#ll-content-lesson-categories').closest('tr').prop('hidden', kind === 'cloze');
             $mediaSettings
                 .toggle(!isArticle)
                 .attr('aria-hidden', isArticle ? 'true' : 'false')

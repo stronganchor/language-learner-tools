@@ -349,6 +349,12 @@ async function mountOfflineLauncher(page, options = {}) {
         }
       }
     };
+    if (mountOptions.availableModes) {
+      window.llToolsOfflineData.flashcards.availableModes = mountOptions.availableModes;
+    }
+    Object.entries(mountOptions.audioByCategory || {}).forEach(([name, audioFields]) => {
+      Object.assign(window.llToolsOfflineData.flashcards.offlineCategoryData[name][0], audioFields);
+    });
   }, options);
   await page.addScriptTag({ content: offlineAppSource });
   const cardCount = await page.locator('#ll-offline-category-grid .ll-wordset-card').count();
@@ -645,3 +651,35 @@ test('offline app applies remote sync snapshots to launcher state and next recom
   expect(launch.userStudyState.star_mode).toBe('starred');
   expect(launch.userStudyState.fast_transitions).toBe(true);
 });
+
+
+test('silent legacy offline packs hide Listen and keep Practice available', async ({ page }) => {
+  await mountOfflineLauncher(page, {
+    availableModes: ['practice', 'listening'],
+    audioByCategory: { Animals: { audio: '  ', prompt_audio: '\t', audio_files: [{ url: ' ' }] } }
+  });
+  await expect(page.locator('[data-ll-offline-category-mode][data-mode="listening"]')).toHaveCount(0);
+  await expect(page.locator('[data-ll-offline-category-mode][data-mode="practice"]')).toHaveCount(2);
+  await page.locator('#ll-offline-select-all').click();
+  await expect(page.locator('#ll-offline-launch-listening-selected')).toBeHidden();
+  await expect(page.locator('#ll-offline-launch-practice-selected')).toBeEnabled();
+});
+
+for (const audioFields of [{ audio: './audio/word.mp3' }, { prompt_audio: './audio/prompt.mp3' }, { audio_files: [{ url: './audio/recording.mp3' }] }]) {
+  test(`offline Listen uses bundled ${Object.keys(audioFields)[0]} and permits mixed selections`, async ({ page }) => {
+    await mountOfflineLauncher(page, {
+      availableModes: ['practice', 'listening'],
+      audioByCategory: { Market: audioFields }
+    });
+    await expect(page.locator('[data-ll-offline-category-mode][data-mode="listening"]')).toHaveCount(1);
+    await expect(page.locator('[data-ll-offline-category-mode][data-mode="listening"]')).toHaveAttribute('data-cat-id', '22');
+    await page.locator('[data-ll-offline-category-select][data-cat-id="11"]').check();
+    await expect(page.locator('#ll-offline-launch-listening-selected')).toBeHidden();
+    await page.locator('[data-ll-offline-category-select][data-cat-id="22"]').check();
+    await expect(page.locator('#ll-offline-launch-listening-selected')).toBeVisible();
+    await expect(page.locator('#ll-offline-launch-listening-selected')).toBeEnabled();
+    await page.locator('#ll-offline-launch-listening-selected').click();
+    expect(await page.evaluate(() => window.__offlineLaunches[0])).toMatchObject({ mode: 'listening', catNames: ['Animals', 'Market'] });
+    expect(await page.evaluate(() => window.llToolsFlashcardsData.categories.map((category) => category.listening_supported))).toEqual([false, true]);
+  });
+}

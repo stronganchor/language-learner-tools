@@ -12,6 +12,76 @@ if (!defined('WPINC')) { die; }
  *  ---------------------------
  */
 
+/**
+ * A bounded existence check for actual published recordings in this exact scope.
+ * No word/audio objects are hydrated, and failures never become cached absence.
+ */
+function ll_tools_category_has_playable_audio(int $category_id, array $wordset_ids = [], ?bool &$complete = null): bool {
+    global $wpdb;
+    $complete = true;
+    $wordset_ids = array_values(array_unique(array_filter(array_map('intval', $wordset_ids), static function (int $id): bool { return $id > 0; })));
+    if ($wordset_ids && function_exists('ll_tools_filter_viewable_wordset_ids')) {
+        $wordset_ids = ll_tools_filter_viewable_wordset_ids($wordset_ids, get_current_user_id(), $complete);
+        if (!$complete || !$wordset_ids) {
+            return false;
+        }
+    }
+    $wpdb->last_error = '';
+    // The caller owns the effective category identity. A read must never create
+    // an isolated category copy or change membership merely to render Listen.
+    $category = get_term($category_id, 'word-category');
+    if ($wpdb->last_error !== '') {
+        $complete = false;
+        return false;
+    }
+    if (!($category instanceof WP_Term) || $category->taxonomy !== 'word-category') {
+        return false;
+    }
+    if (function_exists('ll_tools_user_can_view_category') && !ll_tools_user_can_view_category($category, 0, $complete)) {
+        return false;
+    }
+    if (!$complete) {
+        return false;
+    }
+    $params = [(int) $category->term_id];
+    $wordset_where = '';
+    if ($wordset_ids) {
+        $placeholders = implode(',', array_fill(0, count($wordset_ids), '%d'));
+        $wordset_where = " AND EXISTS (SELECT 1 FROM {$wpdb->term_relationships} wr
+            INNER JOIN {$wpdb->term_taxonomy} wt ON wt.term_taxonomy_id = wr.term_taxonomy_id
+            WHERE wr.object_id = w.ID AND wt.taxonomy = 'wordset' AND wt.term_id IN ({$placeholders}))";
+        $params = array_merge($params, $wordset_ids);
+    } else {
+        // Without an authorized scope, only legacy unassigned content is safe.
+        $wordset_where = " AND NOT EXISTS (SELECT 1 FROM {$wpdb->term_relationships} wr
+            INNER JOIN {$wpdb->term_taxonomy} wt ON wt.term_taxonomy_id = wr.term_taxonomy_id
+            WHERE wr.object_id = w.ID AND wt.taxonomy = 'wordset')";
+    }
+    $sql = $wpdb->prepare("SELECT 1 FROM {$wpdb->term_relationships} cr
+        INNER JOIN {$wpdb->term_taxonomy} ct ON ct.term_taxonomy_id = cr.term_taxonomy_id
+        INNER JOIN {$wpdb->posts} w ON w.ID = cr.object_id
+        WHERE ct.taxonomy = 'word-category' AND ct.term_id = %d
+          AND w.post_status = 'publish' AND w.post_password = ''
+          {$wordset_where}
+          AND ((w.post_type = 'words' AND EXISTS (SELECT 1 FROM {$wpdb->posts} a
+            INNER JOIN {$wpdb->postmeta} am ON am.post_id = a.ID AND am.meta_key = 'audio_file_path'
+            WHERE a.post_parent = w.ID AND a.post_type = 'word_audio' AND a.post_status = 'publish'
+              AND a.post_password = '' AND am.meta_value REGEXP '[^[:space:]]'))
+          OR (w.post_type = 'll_prompt_card' AND EXISTS (SELECT 1 FROM {$wpdb->postmeta} pcm
+            WHERE pcm.post_id = w.ID AND (
+              (pcm.meta_key = '_ll_prompt_card_prompt_audio_url' AND pcm.meta_value REGEXP '[^[:space:]]')
+              OR (pcm.meta_key = '_ll_prompt_card_prompt_audio_attachment_id' AND EXISTS (SELECT 1
+                FROM {$wpdb->posts} attachment INNER JOIN {$wpdb->postmeta} af ON af.post_id = attachment.ID
+                WHERE attachment.ID = CAST(pcm.meta_value AS UNSIGNED) AND attachment.post_type = 'attachment'
+                  AND attachment.post_mime_type LIKE 'audio/%%' AND attachment.post_status <> 'trash'
+                  AND af.meta_key = '_wp_attached_file' AND af.meta_value REGEXP '[^[:space:]]'))))))
+        LIMIT 1", $params);
+    $wpdb->last_error = '';
+    $found = $wpdb->get_var($sql);
+    $complete = $wpdb->last_error === '';
+    return $complete && $found !== null;
+}
+
 /** Normalize and decide if translations should be used */
 function ll_flashcards_should_use_translations(array $wordset_ids = []): bool {
     if (function_exists('ll_tools_should_use_category_translations')) {
@@ -171,7 +241,7 @@ function ll_flashcards_get_processed_categories_cached(
         'wordset_epoch' => $wordset_epoch,
         'content_epoch' => $content_epoch,
         'plugin_version' => defined('LL_TOOLS_VERSION') ? (string) LL_TOOLS_VERSION : '',
-        'schema' => 7,
+        'schema' => 8,
     ]));
     $cache_group = 'll_tools_flashcards';
     $cache_ttl = (int) apply_filters('ll_tools_flashcard_categories_cache_ttl', DAY_IN_SECONDS);
@@ -1009,6 +1079,21 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
         $launch_context = '';
     }
 
+    $available_modes = null;
+    $lesson_id = absint($atts['lesson_id'] ?? 0);
+    if ($lesson_id > 0) {
+        $category_ids = array_map('intval', array_column($categories, 'id'));
+        $valid_lesson = count($wordset_ids) === 1 && count($category_ids) === 1
+            && function_exists('ll_tools_vocab_lesson_activity_context_is_accessible')
+            && ll_tools_vocab_lesson_activity_context_is_accessible($lesson_id, $category_ids[0], $wordset_ids[0]);
+        $available_modes = $valid_lesson && function_exists('ll_tools_get_vocab_lesson_available_modes')
+            ? ll_tools_get_vocab_lesson_available_modes($lesson_id)
+            : [];
+        if ($available_modes && !in_array($quiz_mode, $available_modes, true)) {
+            $quiz_mode = reset($available_modes);
+        }
+    }
+
     $is_embed = isset($atts['embed']) && strtolower((string) $atts['embed']) === 'true';
     $preload_tuning_defaults = [
         'categoryAjaxConcurrency'    => 1,
@@ -1047,6 +1132,8 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
         'runtimeMode'           => 'wp',
         'mode'                  => $mode,
         'quiz_mode'             => $quiz_mode,
+        'availableModes'        => $available_modes,
+        'lessonId'              => $lesson_id,
         'isEmbed'               => $is_embed,
         'debug'                 => (bool) apply_filters('ll_tools_flashcards_debug', false),
         'plugin_dir'            => LL_TOOLS_BASE_URL,
@@ -1159,6 +1246,7 @@ function ll_tools_flashcard_widget($atts) {
         'wordset_fallback' => true,
         'quiz_mode' => 'practice',
         'launch_context' => '',
+        'lesson_id' => 0,
     ], $atts);
 
     $atts['wordset'] = isset($atts['wordset']) ? sanitize_text_field((string) $atts['wordset']) : '';
@@ -1370,6 +1458,9 @@ function ll_tools_resolve_effective_category_quiz_config(
     $config['option_type'] = $option_type;
     $config['learning_supported'] = $learning_supported;
     $config['self_check_supported'] = $self_check_supported;
+    $audio_complete = true;
+    $config['listening_supported'] = ll_tools_category_has_playable_audio((int) $category->term_id, $wordset_ids, $audio_complete);
+    $complete = $complete && $audio_complete;
     $config['word_count'] = (int) $word_count;
 
     return $config;
@@ -1458,6 +1549,7 @@ function ll_process_categories(
             'learning_option_type' => (string) ($config['learning_option_type'] ?? ''),
             'learning_supported' => $learning_supported,
             'self_check_supported' => $self_check_supported,
+            'listening_supported' => !empty($config['listening_supported']),
             'question_limit' => (int) ($config['question_limit'] ?? 0),
             'use_titles'  => $config['use_titles'],
             'word_count'  => $word_count,

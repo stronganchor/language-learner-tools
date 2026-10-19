@@ -35,6 +35,82 @@
     );
     const categorySettingsFenceRetryLimit = 3;
 
+    const activityCfg = cfg.activity || {};
+
+    function showEmbeddedActivity(url, mode) {
+        const $host = $('[data-ll-lesson-activity-host]').first();
+        const $study = $('[data-ll-lesson-study-content]').first();
+        if (!$host.length || !$study.length) { return; }
+        if (url) {
+            let target;
+            try { target = new URL(url, window.location.href); } catch (_) { return; }
+            if (target.origin !== window.location.origin) { return; }
+            $study.attr('hidden', 'hidden');
+            $study.find('[data-ll-vocab-lesson-grid-shell]').each(function () {
+                const $shell = $(this);
+                $shell.data('llGridGeneration', ($shell.data('llGridGeneration') || 0) + 1);
+                window.clearTimeout($shell.data('llGridTimer'));
+                const pending = $shell.data('llGridRequest');
+                if (pending && typeof pending.abort === 'function') { pending.abort(); }
+                $shell.removeData('llGridLoading');
+            });
+            let $frame = $host.find('[data-ll-lesson-activity-frame]');
+            if (!$frame.length) {
+                $frame = $('<iframe>', { class: 'll-vocab-lesson-activity-frame', 'data-ll-lesson-activity-frame': '', allow: 'autoplay', loading: 'eager' }).appendTo($host);
+            }
+            const title = (activityCfg.modeLabels || {})[mode] || activityCfg.title || '';
+            if ($frame.attr('src') !== target.href) { $frame.attr('src', target.href); }
+            $frame.attr('title', title);
+            $host.removeAttr('hidden');
+        } else if (mode) {
+            $study.attr('hidden', 'hidden');
+            $host.empty().removeAttr('hidden').append($('<p>', { text: activityCfg.unavailable || '' }));
+        } else {
+            $host.attr('hidden', 'hidden').empty();
+            $study.removeAttr('hidden');
+            let $shell = $study.find('[data-ll-vocab-lesson-grid-shell]').first();
+            if (!$study.children().length && activityCfg.lessonId && activityCfg.gridNonce) {
+                $shell = $('<div>', { 'data-ll-vocab-lesson-grid-shell': '', 'data-lesson-id': activityCfg.lessonId, 'data-nonce': activityCfg.gridNonce, class: 'll-vocab-lesson-grid-shell' }).appendTo($study);
+                $('<div>', { 'data-ll-vocab-lesson-grid-status': '', role: 'status', 'aria-live': 'polite' }).appendTo($shell);
+                $('<div>', { 'data-ll-vocab-lesson-grid-feedback': '', hidden: true }).appendTo($shell);
+                $('<div>', { 'data-ll-word-grid': '', class: 'word-grid' }).appendTo($shell);
+            }
+            if ($shell.length) { loadLessonGrid($shell); }
+        }
+    }
+
+    function applySavedLessonActivities(data) {
+        if (!Array.isArray(data.available_modes) || !activityCfg.embedBase) { return; }
+        const modes = data.available_modes;
+        const embedded = data.embedded_mode || '';
+        const $group = $('.ll-vocab-lesson-modes').first();
+        const oldButtons = {};
+        $group.find('.ll-vocab-lesson-mode-button').each(function () { oldButtons[this.getAttribute('data-mode')] = $(this).clone(); });
+        $group.empty().prop('hidden', !!embedded && modes.length <= 1);
+        modes.forEach(function (mode) {
+            const url = new URL(activityCfg.embedBase, window.location.href);
+            url.searchParams.set('mode', mode);
+            const $button = oldButtons[mode] || $('<button>', { type: 'button', class: 'll-vocab-lesson-mode-button' }).append($('<span>', { class: 'll-vocab-lesson-mode-label', text: (activityCfg.modeLabels || {})[mode] || mode }));
+            // Navigation through the scoped embed also works when an activity-first
+            // page has deliberately omitted the fullscreen widget bootstrap.
+            $button.removeClass('ll-quiz-page-trigger').attr({ 'data-mode': mode, 'data-url': url.href, 'data-ll-embedded-mode': embedded ? '1' : '0' });
+            if (embedded) { $button.attr('aria-pressed', mode === embedded ? 'true' : 'false'); } else { $button.removeAttr('aria-pressed'); }
+            $group.append($button);
+        });
+        showEmbeddedActivity(data.embedded_url || '', embedded);
+    }
+
+    function syncLessonActivityChoices($panel, target) {
+        const $select = $panel.find('[name="ll_vocab_lesson_embedded_mode"]');
+        const $checks = $panel.find('[name="ll_vocab_lesson_enabled_modes[]"]');
+        if (!$select.length) { return; }
+        if (target === $select.get(0) && $select.val()) {
+            $checks.filter(function () { return this.value === $select.val(); }).prop('checked', true);
+        }
+        const enabled = $checks.filter(':checked').map(function () { return this.value; }).get();
+        if ($select.val() && enabled.indexOf($select.val()) < 0) { $select.val(enabled[0] || ''); }
+    }
+
     function createCategorySettingsClientId() {
         const bytes = new Uint8Array(16);
         if (window.crypto && typeof window.crypto.getRandomValues === 'function') {
@@ -636,6 +712,7 @@
             inFlight: false,
             queued: false,
             requestGeneration: 0,
+            draftGeneration: 0,
             fenceRetryCount: 0,
             clientId: categorySettingsClientId,
             requestSequence: 0,
@@ -754,6 +831,7 @@
         state.queued = false;
         state.requestGeneration += 1;
         const requestGeneration = state.requestGeneration;
+        const requestDraftGeneration = state.draftGeneration;
         clearCategorySettingsResetTimer($panel);
         setCategorySettingsBusy($panel, true);
         setCategorySettingsStatus($panel, 'saving', getCategorySettingsMessage('saving', 'Saving changes...'));
@@ -784,7 +862,13 @@
             state.fenceRetryCount = 0;
             setCategorySettingsRevision($panel, getCategorySettingsResponseData(response).revision);
             const savedData = getCategorySettingsResponseData(response);
+            // A newer draft exists as soon as a control changes, including the
+            // debounce interval before the next request becomes queued. Keep
+            // the durable revision, but never apply stale activity settings.
+            if (requestDraftGeneration !== state.draftGeneration) { return; }
+            if (!state.queued) { applySavedLessonActivities(savedData); }
             const flashData = window.llToolsFlashcardsData || {};
+            if (Array.isArray(savedData.available_modes)) { flashData.availableModes = savedData.available_modes.slice(); }
             (Array.isArray(flashData.categories) ? flashData.categories : []).forEach(function (category) {
                 if (parseInt(category.id, 10) === parseInt(savedData.category_id, 10)
                     && Number.isInteger(savedData.question_limit)) {
@@ -849,7 +933,7 @@
                 return;
             }
 
-            if (saveSucceeded) {
+            if (saveSucceeded && requestDraftGeneration === state.draftGeneration && !state.saveTimerId) {
                 scheduleCategorySettingsStatusReset($panel, 1800);
             }
         });
@@ -859,6 +943,11 @@
         const state = getCategorySettingsState($panel);
         if (!state) { return; }
 
+        state.draftGeneration += 1;
+        clearCategorySettingsResetTimer($panel);
+        if (state.inFlight || $panel.find('[data-ll-category-settings-status]').attr('data-state') === 'saved') {
+            setCategorySettingsStatus($panel, 'saving', getCategorySettingsMessage('saving', 'Saving changes...'));
+        }
         clearCategorySettingsSaveTimer($panel);
         state.saveTimerId = window.setTimeout(function () {
             state.saveTimerId = 0;
@@ -909,6 +998,8 @@
             'll_vocab_lesson_quiz_sample_enabled',
             'll_vocab_lesson_quiz_question_limit',
             'll_vocab_lesson_grid_text_visibility',
+            'll_vocab_lesson_enabled_modes[]',
+            'll_vocab_lesson_embedded_mode',
             'll_vocab_lesson_category_enabled_games[]',
             'll_vocab_lesson_desired_recording_types[]',
             'll_vocab_lesson_category_lineup_direction'
@@ -1115,10 +1206,19 @@
     }
 
     $(function () {
+        $(document).on('click', '[data-ll-embedded-mode]', function (event) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            const $button = $(this);
+            const mode = $button.attr('data-mode') || '';
+            showEmbeddedActivity($button.attr('data-url') || '', mode);
+            $('.ll-vocab-lesson-mode-button').attr('aria-pressed', 'false');
+            $button.attr('aria-pressed', 'true');
+        });
         const $printSettings = $('.ll-vocab-lesson-print-settings');
         const $categorySettings = $('.ll-vocab-lesson-category-settings');
         const $shells = $('[data-ll-vocab-lesson-grid-shell]');
-        if ($shells.length) {
+        {
             $shells.each(function () {
                 loadLessonGrid($(this));
             });
@@ -1251,7 +1351,9 @@
                     return;
                 }
 
-                scheduleCategorySettingsSave($(this).closest('.ll-vocab-lesson-category-settings-panel'));
+                const $panel = $(this).closest('.ll-vocab-lesson-category-settings-panel');
+                syncLessonActivityChoices($panel, event.target);
+                scheduleCategorySettingsSave($panel);
             });
 
             $categorySettings.on('click', '[data-ll-category-lineup-move]', function (event) {

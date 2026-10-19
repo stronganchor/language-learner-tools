@@ -30580,3 +30580,147 @@ msgstr "Für jeden Übungsdurchgang wird eine neue zufällige Auswahl getroffen.
 
 msgid "Practice length"
 msgstr "Übungsumfang"
+
+msgid "Use valid text of no more than 20,000 bytes."
+msgstr "Verwenden Sie gültigen Text mit höchstens 20.000 Bytes."
+
+msgid "Use plain text without HTML."
+msgstr "Verwenden Sie Klartext ohne HTML."
+
+msgid "Put each missing word inside matching [[ and ]] markers."
+msgstr "Setzen Sie jedes fehlende Wort zwischen passende [[ und ]]-Markierungen."
+
+msgid "Each blank needs a word or short phrase, without surrounding spaces or nested markers."
+msgstr "Jede Lücke benötigt ein Wort oder eine kurze Wendung ohne umgebende Leerzeichen oder verschachtelte Markierungen."
+
+msgid "Use no more than 60 blanks in one lesson."
+msgstr "Verwenden Sie höchstens 60 Lücken pro Lektion."
+
+msgid "Drag a word into each blank, or select a word and then a blank."
+msgstr "Ziehen Sie ein Wort in jede Lücke oder wählen Sie erst ein Wort und dann eine Lücke."
+
+msgid "Word bank"
+msgstr "Wortbank"
+
+msgid "Blank %d"
+msgstr "Lücke %d"
+
+msgid "Blank %1$d: %2$s. Select to return this word."
+msgstr "Lücke %1$d: %2$s. Zum Zurücklegen des Wortes auswählen."
+
+msgid "Word selected. Choose a blank."
+msgstr "Wort ausgewählt. Wählen Sie eine Lücke."
+
+msgid "Word placed."
+msgstr "Wort eingesetzt."
+
+msgid "Word returned to the bank."
+msgstr "Wort in die Wortbank zurückgelegt."
+
+msgid "Checking..."
+msgstr "Wird überprüft..."
+
+msgid "Start again"
+msgstr "Neu beginnen"
+
+msgid "Fill every blank first."
+msgstr "Füllen Sie zuerst alle Lücken."
+
+msgid "Try the marked blanks again."
+msgstr "Versuchen Sie die markierten Lücken erneut."
+
+msgid "All correct!"
+msgstr "Alles richtig!"
+
+msgid "Your answers are correct, but progress could not be saved. Check again to retry."
+msgstr "Ihre Antworten sind richtig, aber der Fortschritt konnte nicht gespeichert werden. Prüfen Sie erneut, um es nochmals zu versuchen."
+
+msgid "Answers could not be checked. Please try again."
+msgstr "Die Antworten konnten nicht überprüft werden. Bitte versuchen Sie es erneut."
+
+msgid "This lesson changed. Reload the page to try the latest version."
+msgstr "Diese Lektion wurde geändert. Laden Sie die Seite neu, um die aktuelle Version zu bearbeiten."
+
+msgid "This activity is not ready yet."
+msgstr "Diese Aktivität ist noch nicht bereit."
+
+msgid "Enable JavaScript to use this activity."
+msgstr "Aktivieren Sie JavaScript, um diese Aktivität zu verwenden."
+
+msgid "This activity is unavailable."
+msgstr "Diese Aktivität ist nicht verfügbar."
+
+msgid "The activity request could not be verified."
+msgstr "Die Aktivitätsanfrage konnte nicht verifiziert werden."
+
+msgid "Use each word from the bank once."
+msgstr "Verwenden Sie jedes Wort aus der Wortbank einmal."
+
+msgid "The activity request is too large."
+msgstr "Die Aktivitätsanfrage ist zu groß."
+
+msgid "This passage changed in another editor. Reload before editing again."
+msgstr "Dieser Text wurde in einem anderen Editor geändert. Laden Sie die Seite vor weiteren Änderungen neu."
+
+msgid "You are not allowed to edit this activity."
+msgstr "Sie dürfen diese Aktivität nicht bearbeiten."
+
+msgid "The passage could not be saved. Please retry."
+msgstr "Der Text konnte nicht gespeichert werden. Bitte versuchen Sie es erneut."
+
+msgid "Passage with blanks"
+msgstr "Lückentext"
+
+msgid "Paste plain text and put each missing word inside [[double brackets]]. Example: The [[cat]] sat. Use 1-60 blanks. The activity opens directly on the lesson page; no answer key or vocabulary grid is shown."
+msgstr "Fügen Sie Klartext ein und setzen Sie jedes fehlende Wort in doppelte eckige Klammern ([[double brackets]]). Beispiel: The [[cat]] sat. Verwenden Sie 1-60 Lücken. Die Aktivität öffnet sich direkt auf der Lektionsseite; Lösungsschlüssel und Vokabelübersicht werden nicht angezeigt."
+
+msgid "Passage edits autosave once this lesson is saved as a fill-in-the-blank lesson with a word set. Save other lesson settings with Update."
+msgstr "Textänderungen werden automatisch gespeichert, sobald die Lektion als Lückentext mit einem Wortset gespeichert ist. Speichern Sie andere Lektionseinstellungen mit Aktualisieren."
+
+msgid "Save the lesson settings first to enable passage autosave."
+msgstr "Speichern Sie zuerst die Lektionseinstellungen, um das automatische Speichern des Textes zu aktivieren."
+
+msgid "%d blanks ready."
+msgstr "%d Lücken bereit."
+
+msgid "Use 1-60 matching [[word]] markers without empty, nested, or multiline answers."
+msgstr "Verwenden Sie 1-60 passende [[word]]-Markierungen ohne leere, verschachtelte oder mehrzeilige Antworten."
+
+msgid "Complete the fill-in-the-blank activity to save progress."
+msgstr "Schließen Sie die Lückentextaktivität ab, um den Fortschritt zu speichern."
+
+msgid "Choose valid lesson activities."
+msgstr "Wählen Sie gültige Lektionsaktivitäten."
+
+msgid "Choose at least one activity and enable the activity that opens on this lesson."
+msgstr "Wählen Sie mindestens eine Aktivität und aktivieren Sie die Aktivität, die in dieser Lektion geöffnet wird."
+
+msgid "Fill in the blanks"
+msgstr "Lücken ausfüllen"
+
+msgid "Lesson activities cannot be saved until the post metadata table supports transactions."
+msgstr "Lektionsaktivitäten können erst gespeichert werden, wenn die Beitragsmetadatentabelle Transaktionen unterstützt."
+
+msgid "Lesson activity"
+msgstr "Lektionsaktivität"
+
+msgid "Lesson activities"
+msgstr "Lektionsaktivitäten"
+
+msgid "Activities without suitable content are hidden automatically. Listen requires playable audio."
+msgstr "Aktivitäten ohne geeignete Inhalte werden automatisch ausgeblendet. Hören erfordert abspielbare Audioaufnahmen."
+
+msgid "Open on the lesson page"
+msgstr "Auf der Lektionsseite öffnen"
+
+msgid "Vocabulary overview"
+msgstr "Vokabelübersicht"
+
+msgid "This passage is being saved. Please retry."
+msgstr "Dieser Text wird gerade gespeichert. Bitte versuchen Sie es erneut."
+
+msgid "The passage could not be read safely. Please retry."
+msgstr "Der Text konnte nicht sicher gelesen werden. Bitte versuchen Sie es erneut."
+
+msgid "This activity is currently unavailable."
+msgstr "Diese Aktivität ist derzeit nicht verfügbar."

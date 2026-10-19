@@ -1586,7 +1586,37 @@
         return !!leftImage && leftImage === rightImage;
     }
 
+    function isModeAllowed(mode) {
+        const allowed = (root.llToolsFlashcardsData || {}).availableModes;
+        return !Array.isArray(allowed) || allowed.indexOf(mode) !== -1;
+    }
+
+    function isListeningSupportedForCategories(categoryNames) {
+        if (!isModeAllowed('listening')) return false;
+        const names = Array.isArray(categoryNames) && categoryNames.length ? categoryNames : State.categoryNames;
+        if (!Array.isArray(names) || !names.length) return false;
+        return names.some(function (name) {
+            const cfg = getCategoryConfig(name);
+            if (Object.prototype.hasOwnProperty.call(cfg, 'listening_supported')) {
+                return parseBooleanFlag(cfg.listening_supported);
+            }
+            // Older offline packs have no availability flag. Inspect only the
+            // already loaded rows; do not fetch categories to build a menu.
+            const words = (State.wordsByCategory || root.wordsByCategory || {})[name];
+            if (Array.isArray(words) && words.length) {
+                return words.some(function (word) {
+                    return !!(word && (String(word.audio || word.prompt_audio || '').trim()
+                        || (Array.isArray(word.audio_files) && word.audio_files.some(function (file) {
+                            return !!String((file && (file.url || file.audio)) || '').trim();
+                        }))));
+                });
+            }
+            return false;
+        });
+    }
+
     function isLearningSupportedForCategories(categoryNames) {
+        if (!isModeAllowed('learning')) return false;
         try {
             const names = Array.isArray(categoryNames) && categoryNames.length ? categoryNames : State.categoryNames;
             if (!Array.isArray(names) || !names.length) return true;
@@ -1600,6 +1630,7 @@
     }
 
     function isSelfCheckSupportedForCategories(categoryNames) {
+        if (!isModeAllowed('self-check')) return false;
         try {
             const names = Array.isArray(categoryNames) && categoryNames.length ? categoryNames : State.categoryNames;
             if (!Array.isArray(names) || !names.length) return true;
@@ -1613,6 +1644,7 @@
     }
 
     function isGenderSupportedForCategories(categoryNames) {
+        if (!isModeAllowed('gender')) return false;
         if (!isGenderModeEnabled()) return false;
         try {
             const names = Array.isArray(categoryNames) && categoryNames.length ? categoryNames : State.categoryNames;
@@ -2695,7 +2727,7 @@
     window.LLFlashcards = window.LLFlashcards || {};
     root.LLFlashcards = root.LLFlashcards || {};
     root.LLFlashcards.Selection = {
-        getCategoryConfig, getCategoryDisplayMode, getCurrentDisplayMode, getCategoryPromptType, getTargetCategoryName, categoryRequiresAudio, isLearningSupportedForCategories, isSelfCheckSupportedForCategories, isGenderSupportedForCategories,
+        getCategoryConfig, getCategoryDisplayMode, getCurrentDisplayMode, getCategoryPromptType, getTargetCategoryName, categoryRequiresAudio, isModeAllowed, isListeningSupportedForCategories, isLearningSupportedForCategories, isSelfCheckSupportedForCategories, isGenderSupportedForCategories,
         selectTargetWordAndCategory, fillQuizOptions, wordsConflictForOptions,
         getGenderOptions, normalizeGenderValue, getGenderVisualForOption, buildGenderSymbolMarkup, applyGenderStyleVariables,
         selectLearningModeWord, initializeLearningMode, renderPrompt,
