@@ -3201,7 +3201,8 @@
                 "includes/pages/quiz-pages.php:2071",
                 "includes/shortcodes/quiz-pages-shortcodes.php:2397",
                 "includes/shortcodes/quiz-pages-shortcodes.php:2401",
-                "templates/quiz-page-template.php:21"
+                "templates/quiz-page-template.php:21",
+                "templates/vocab-lesson-template.php:1605"
             ],
             "public_references": [
                 "includes/pages/quiz-pages.php:1119",
@@ -10207,13 +10208,13 @@
                 "includes/shortcodes/word-grid-shortcode.php:5898",
                 "includes/shortcodes/word-grid-shortcode.php:8310",
                 "includes/shortcodes/word-grid-shortcode.php:8960",
-                "templates/vocab-lesson-template.php:1820"
+                "templates/vocab-lesson-template.php:1824"
             ],
             "public_references": [
                 "includes/shortcodes/flashcard-widget.php:745",
                 "includes/shortcodes/word-grid-shortcode.php:5380",
                 "includes/shortcodes/word-grid-shortcode.php:5898",
-                "templates/vocab-lesson-template.php:1820"
+                "templates/vocab-lesson-template.php:1824"
             ]
         },
         {
@@ -11623,12 +11624,12 @@
             "msgid": "Loading lesson words...",
             "msgid_plural": null,
             "references": [
-                "templates/vocab-lesson-template.php:1637",
-                "templates/vocab-lesson-template.php:1644",
+                "templates/vocab-lesson-template.php:1641",
+                "templates/vocab-lesson-template.php:1648",
                 "templates/vocab-lesson-template.php:444"
             ],
             "public_references": [
-                "templates/vocab-lesson-template.php:1637",
+                "templates/vocab-lesson-template.php:1641",
                 "templates/vocab-lesson-template.php:444"
             ]
         },

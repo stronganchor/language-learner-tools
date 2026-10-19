@@ -143,6 +143,10 @@ final class VocabLessonActivitiesTest extends LL_Tools_TestCase
         include LL_TOOLS_BASE_PATH . '/templates/vocab-lesson-template.php';
         $html = (string) ob_get_clean();
         $this->assertStringContainsString('data-ll-lesson-activity-frame', $html);
+        $this->assertStringContainsString('data-iframe-state="loading"', $html);
+        $this->assertStringContainsString('ll-tools-iframe-state ll-tools-iframe-state--loading', $html);
+        $this->assertStringContainsString('ll-tools-iframe-loading-status screen-reader-text', $html);
+        $this->assertContains('ll-quiz-pages-js', wp_scripts()->registered['ll-tools-vocab-lesson-page']->deps);
         $this->assertSame(1, preg_match('/<iframe[^>]+data-ll-lesson-activity-frame[^>]+src="([^"]+)"/', $html, $frame));
         $iframe_url = html_entity_decode($frame[1], ENT_QUOTES, 'UTF-8');
         $this->assertSame(ll_tools_get_vocab_lesson_activity_embed_url($f['lesson'], 'practice'), $iframe_url);

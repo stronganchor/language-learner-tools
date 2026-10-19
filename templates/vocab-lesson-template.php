@@ -401,7 +401,7 @@ if (have_posts()) {
             $activity_grid_context = ll_tools_word_grid_resolve_context(['category' => $category_slug, 'wordset' => $wordset_slug, 'deepest_only' => true]);
             ll_tools_word_grid_enqueue_frontend_assets_for_context($activity_grid_context);
         }
-        $lesson_page_script_deps = ['jquery'];
+        $lesson_page_script_deps = ['jquery', 'll-quiz-pages-js'];
         if ($defer_grid) {
             $lesson_page_script_deps[] = 'll-tools-word-grid';
         }
@@ -1598,8 +1598,12 @@ if (have_posts()) {
                 ]); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
             }
             ?>
-            <div class="ll-vocab-lesson-embedded" data-ll-lesson-activity-host <?php if ($embedded_mode === '') : ?>hidden<?php endif; ?>>
+            <div class="ll-vocab-lesson-embedded ll-tools-quiz-iframe-wrapper" data-ll-lesson-activity-host data-iframe-state="loading" data-quiz-src="<?php echo esc_url($embedded_url); ?>" aria-busy="true" <?php if ($embedded_mode === '') : ?>hidden<?php endif; ?>>
                 <?php if ($embedded_url !== '') : ?>
+                    <div class="ll-tools-iframe-state ll-tools-iframe-state--loading">
+                        <div class="ll-tools-iframe-loading" aria-hidden="true"></div>
+                        <div class="ll-tools-iframe-loading-status screen-reader-text" role="status" aria-live="polite" aria-atomic="true"><?php echo esc_html__('Loading quiz...', 'll-tools-text-domain'); ?></div>
+                    </div>
                     <iframe class="ll-vocab-lesson-activity-frame" data-ll-lesson-activity-frame src="<?php echo esc_url($embedded_url); ?>" title="<?php echo esc_attr($mode_labels[$embedded_mode] ?? __('Lesson activity', 'll-tools-text-domain')); ?>" allow="autoplay" loading="eager"></iframe>
                 <?php elseif ($embedded_mode !== '') : ?>
                     <p><?php echo esc_html__('This activity is currently unavailable.', 'll-tools-text-domain'); ?></p>

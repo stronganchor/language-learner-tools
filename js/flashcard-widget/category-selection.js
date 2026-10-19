@@ -216,13 +216,45 @@
             }
             return category.slug || category.name;
         }).filter(Boolean);
-        if (!categories.length) return;
+        if (!categories.length) { notifyEmbedState('ll-embed-error'); return; }
 
+        var presented = false;
+        var unsubscribeState = null;
+        var presentationFrame = null;
+        function finishPresentation(state) {
+            if (presented) return;
+            presented = true;
+            if (unsubscribeState) { unsubscribeState(); unsubscribeState = null; }
+            if (presentationFrame !== null) { window.cancelAnimationFrame(presentationFrame); presentationFrame = null; }
+            $(document).off('lltools:flashcard-content-presented.llEmbedStartup', checkPresentation);
+            notifyEmbedState(state === 'error' ? 'll-embed-error' : 'll-embed-ready');
+        }
+        function checkPresentation() {
+            if (presented) return;
+            var dom = window.LLFlashcards && window.LLFlashcards.Dom;
+            var state = dom && typeof dom.getEmbedPresentationState === 'function'
+                ? dom.getEmbedPresentationState() : '';
+            if (state) finishPresentation(state);
+        }
+        // Initialization starts asynchronous first-round rendering. Keep the host
+        // loading state until a usable card/question or an explicit error is shown.
+        $(document).on('lltools:flashcard-content-presented.llEmbedStartup', checkPresentation);
+        var stateApi = window.LLFlashcards && window.LLFlashcards.State;
+        if (stateApi && typeof stateApi.onStateChange === 'function') {
+            unsubscribeState = stateApi.onStateChange(function () {
+                if (presented || presentationFrame !== null) return;
+                presentationFrame = window.requestAnimationFrame(function () {
+                    presentationFrame = null;
+                    checkPresentation();
+                });
+            });
+        }
         showEmbedAutoplayOverlay();
         startWidget(categories, data.quiz_mode).then(function (result) {
-            notifyEmbedState(result === false ? 'll-embed-error' : 'll-embed-ready');
+            if (result === false) { finishPresentation('error'); }
+            else { checkPresentation(); }
         }).catch(function () {
-            notifyEmbedState('ll-embed-error');
+            finishPresentation('error');
         });
     }
 

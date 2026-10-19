@@ -3893,6 +3893,24 @@ body.ll-vocab-lesson-category-settings-open {
 .ll-vocab-lesson-page [data-ll-lesson-activity-host][hidden],
 .ll-vocab-lesson-page .ll-vocab-lesson-modes[hidden] { display: none !important; }
 .ll-vocab-lesson-page .ll-vocab-lesson-embedded { width: 100%; min-width: 0; }
+/* Mask the child document from first paint until its activity is ready. */
+.ll-vocab-lesson-page .ll-vocab-lesson-embedded .ll-tools-iframe-state { background: transparent; }
+.ll-vocab-lesson-page .ll-vocab-lesson-embedded[data-iframe-state]:not([data-iframe-state="ready"]) .ll-vocab-lesson-activity-frame {
+    visibility: hidden !important;
+    pointer-events: none !important;
+}
+.ll-vocab-lesson-page .ll-vocab-lesson-embedded[data-iframe-state="loading"] .ll-tools-iframe-loading-status {
+    position: absolute !important;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+}
 .ll-vocab-lesson-page .ll-vocab-lesson-activity-frame {
     display: block !important;
     width: 100% !important;

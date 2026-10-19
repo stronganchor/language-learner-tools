@@ -22,6 +22,8 @@
     var iframeTimeoutMs = Number.isFinite(configuredIframeTimeout) && configuredIframeTimeout > 0
         ? configuredIframeTimeout
         : 12000;
+    var iframeControllers = new WeakMap();
+    var iframeStatusSequence = 0;
     var modalHistoryActive = false;
     var suppressNextPopstate = false;
     var suppressResetTimer = null;
@@ -194,10 +196,16 @@
 
         var finished = false;
         var timeoutId = null;
+        var stateProbeId = null;
         var expectedOrigin = expectedOriginForUrl(url);
         var waitsForEmbedSignal = !!expectedOrigin && expectedOrigin === window.location.origin;
 
         function cleanup() {
+            finished = true;
+            if (stateProbeId !== null) {
+                window.clearTimeout(stateProbeId);
+                stateProbeId = null;
+            }
             if (timeoutId) {
                 window.clearTimeout(timeoutId);
                 timeoutId = null;
@@ -267,7 +275,9 @@
         if (opts.navigate !== false) {
             iframe.src = url;
         } else if (waitsForEmbedSignal) {
-            window.setTimeout(function () {
+            stateProbeId = window.setTimeout(function () {
+                stateProbeId = null;
+                if (finished) return;
                 var embeddedState = readEmbeddedState();
                 if (embeddedState === 'll-embed-ready') {
                     finish(opts.onReady);
@@ -750,33 +760,46 @@
     }
 
     // --- Recoverable state control for quiz pages that render an <iframe> ---
-    function wireQuizIframeSpinner() {
-        var wrapper = document.querySelector('.ll-tools-quiz-iframe-wrapper');
-        if (!wrapper) return; // Not on a quiz page
-        if (wrapper.getAttribute('data-ll-iframe-wired') === '1') return;
+    function wireQuizIframeSpinner(wrapper, options) {
+        if (!wrapper || !wrapper.querySelector) return null;
+        var opts = (options && typeof options === 'object') ? options : {};
+        var iframe = wrapper.querySelector('.ll-tools-quiz-iframe, [data-ll-lesson-activity-frame]');
+        if (!iframe) return null;
+        var existing = iframeControllers.get(wrapper);
+        if (existing && existing.iframe === iframe) return existing;
+        if (existing) existing.destroy();
+
+        wrapper.classList.add('ll-tools-quiz-iframe-wrapper');
         wrapper.setAttribute('data-ll-iframe-wired', '1');
-
-        stripInlineQuizCodeLeak(wrapper);
-
-        var iframe = wrapper.querySelector('.ll-tools-quiz-iframe');
+        iframe.classList.add('ll-tools-quiz-iframe');
         var spinner = wrapper.querySelector('.ll-tools-iframe-loading');
         var loadingStatus = wrapper.querySelector('.ll-tools-iframe-loading-status');
-        if (!iframe || !spinner) return;
         var statePanel = wrapper.querySelector('.ll-tools-iframe-state');
         if (!statePanel) {
             statePanel = document.createElement('div');
             statePanel.className = 'll-tools-iframe-state';
-            spinner.parentNode.insertBefore(statePanel, spinner);
-            statePanel.appendChild(spinner);
-            if (loadingStatus) statePanel.appendChild(loadingStatus);
+            wrapper.insertBefore(statePanel, iframe);
         }
+        if (!spinner) {
+            spinner = document.createElement('div');
+            spinner.className = 'll-tools-iframe-loading';
+            spinner.setAttribute('aria-hidden', 'true');
+        }
+        statePanel.appendChild(spinner);
         if (!loadingStatus) {
             loadingStatus = document.createElement('div');
             loadingStatus.className = 'll-tools-iframe-loading-status';
             loadingStatus.setAttribute('role', 'status');
             loadingStatus.setAttribute('aria-live', 'polite');
             loadingStatus.setAttribute('aria-atomic', 'true');
-            statePanel.appendChild(loadingStatus);
+        }
+        statePanel.appendChild(loadingStatus);
+        if (!loadingStatus.id) {
+            iframeStatusSequence += 1;
+            loadingStatus.id = 'll-tools-quiz-iframe-status-runtime-' + iframeStatusSequence;
+        }
+        if (!iframe.hasAttribute('aria-describedby')) {
+            iframe.setAttribute('aria-describedby', loadingStatus.id);
         }
         loadingStatus.classList.remove('screen-reader-text');
 
@@ -805,12 +828,15 @@
             recovery.appendChild(openDirect);
         }
 
-        var sourceUrl = String(wrapper.getAttribute('data-quiz-src') || iframe.getAttribute('src') || iframe.src || '');
+        var sourceUrl = String(opts.url || wrapper.getAttribute('data-quiz-src') || iframe.getAttribute('src') || iframe.src || '');
+        wrapper.setAttribute('data-quiz-src', sourceUrl);
         openDirect.href = sourceUrl;
         var attemptCleanup = null;
         var attemptNumber = 0;
+        var destroyed = false;
 
         function setState(state, message) {
+            if (destroyed) return;
             var isLoading = state === 'loading';
             var isReady = state === 'ready';
             wrapper.setAttribute('data-iframe-state', state);
@@ -824,6 +850,7 @@
         }
 
         function startAttempt(navigate) {
+            if (destroyed) return;
             if (attemptCleanup) {
                 attemptCleanup();
                 attemptCleanup = null;
@@ -841,17 +868,42 @@
             });
         }
 
-        retryButton.addEventListener('click', function () {
-            startAttempt(true);
-        });
+        function onRetry() { startAttempt(true); }
+        var controller = {
+            iframe: iframe,
+            sourceUrl: sourceUrl,
+            destroy: function () {
+                if (destroyed) return;
+                destroyed = true;
+                if (attemptCleanup) { attemptCleanup(); attemptCleanup = null; }
+                retryButton.removeEventListener('click', onRetry);
+                setQuizIframeInteractive(iframe, true);
+                iframeControllers.delete(wrapper);
+                wrapper.removeAttribute('data-ll-iframe-wired');
+            }
+        };
+        iframeControllers.set(wrapper, controller);
+        retryButton.addEventListener('click', onRetry);
+        // The server-rendered or newly inserted iframe already owns navigation.
+        // Observing it avoids a duplicate initial request and catches early readiness.
         startAttempt(false);
+        return controller;
     }
 
-    // Call it on DOM ready
+    // Each changed activity URL must use a new iframe node, so messages from a
+    // previous document cannot satisfy the next activity through its WindowProxy.
+    window.LLToolsQuizIframe = { attach: wireQuizIframeSpinner };
+
+    function wireInitialQuizIframes() {
+        document.querySelectorAll('.ll-tools-quiz-iframe-wrapper').forEach(function (wrapper) {
+            stripInlineQuizCodeLeak(wrapper);
+            wireQuizIframeSpinner(wrapper);
+        });
+    }
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', wireQuizIframeSpinner);
+        document.addEventListener('DOMContentLoaded', wireInitialQuizIframes);
     } else {
-        wireQuizIframeSpinner();
+        wireInitialQuizIframes();
     }
 
 })();

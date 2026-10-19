@@ -260,6 +260,9 @@
             // that animation's removal callback before fadeIn(), leaving the
             // gate active and the answers inert while its overlay is detached.
             $overlay.stop(true, false).fadeIn(180);
+            if ((root.llToolsFlashcardsData || {}).isEmbed) {
+                waitForNextPaint().then(notifyEmbedPresentation);
+            }
             return;
         }
 
@@ -452,6 +455,27 @@
         });
     }
 
+    function getEmbedPresentationState() {
+        if (!(root.llToolsFlashcardsData || {}).isEmbed || !State.widgetActive) return '';
+        const $popup = $('#ll-tools-flashcard-quiz-popup');
+        if (!$popup.is(':visible') || loadingRequested || loadingVisible) return '';
+        if ($popup.hasClass('ll-tools-error-state')) return 'error';
+        // A real blocked-audio control is itself usable first content. Do not
+        // reveal the generic startup overlay until it has audio to resume.
+        if (State.soundGateActive && getSoundGateAudioForResume() && $('#ll-tools-autoplay-overlay .ll-tools-autoplay-button').is(':visible')) return 'ready';
+        const state = typeof State.getState === 'function' ? State.getState() : State.currentFlowState;
+        if (state === 'showing_results') return $('#quiz-results').is(':visible') ? 'ready' : '';
+        if (state !== 'showing_question' && state !== 'introducing_words') return '';
+        const $cards = $('#ll-tools-flashcard');
+        return $cards.is(':visible') && $cards.children().length ? 'ready' : '';
+    }
+
+    function notifyEmbedPresentation() {
+        if (getEmbedPresentationState()) {
+            $(document).trigger('lltools:flashcard-content-presented');
+        }
+    }
+
     function hideLoadingInternal(options) {
         const opts = (options && typeof options === 'object') ? options : {};
         const forceImmediate = !!opts.forceImmediate;
@@ -467,7 +491,12 @@
             const settle = function () {
                 if (settled) return;
                 settled = true;
-                waitForNextPaint().then(resolve);
+                waitForNextPaint().then(function () {
+                    // Init can finish before the first cards/media render. Embeds
+                    // become presentable only after the shared loader has released.
+                    notifyEmbedPresentation();
+                    resolve();
+                });
             };
 
             const finishHide = function () {
@@ -649,6 +678,7 @@
     }
 
     const Dom = {
+        getEmbedPresentationState: getEmbedPresentationState,
         setRepeatButton: setRepeatButtonInternal,
         disableRepeatButton: disableRepeatButton,
         enableRepeatButton: enableRepeatButton,

@@ -37,6 +37,17 @@
 
     const activityCfg = cfg.activity || {};
 
+    let activityFrameController = null;
+
+    function stopEmbeddedActivityWatcher() {
+        if (activityFrameController) { activityFrameController.destroy(); activityFrameController = null; }
+    }
+
+    function watchEmbeddedActivity($host, $frame, url) {
+        if (!$frame.length || !window.LLToolsQuizIframe) { return; }
+        activityFrameController = window.LLToolsQuizIframe.attach($host.get(0), { url: url });
+    }
+
     function showEmbeddedActivity(url, mode) {
         const $host = $('[data-ll-lesson-activity-host]').first();
         const $study = $('[data-ll-lesson-study-content]').first();
@@ -55,17 +66,23 @@
                 $shell.removeData('llGridLoading');
             });
             let $frame = $host.find('[data-ll-lesson-activity-frame]');
-            if (!$frame.length) {
-                $frame = $('<iframe>', { class: 'll-vocab-lesson-activity-frame', 'data-ll-lesson-activity-frame': '', allow: 'autoplay', loading: 'eager' }).appendTo($host);
+            const currentSource = activityFrameController && activityFrameController.iframe === $frame.get(0)
+                ? activityFrameController.sourceUrl : $frame.attr('src');
+            if (!$frame.length || currentSource !== target.href) {
+                stopEmbeddedActivityWatcher();
+                $host.empty();
+                $frame = $('<iframe>', { class: 'll-vocab-lesson-activity-frame', 'data-ll-lesson-activity-frame': '', src: target.href, allow: 'autoplay', loading: 'eager' }).appendTo($host);
             }
             const title = (activityCfg.modeLabels || {})[mode] || activityCfg.title || '';
-            if ($frame.attr('src') !== target.href) { $frame.attr('src', target.href); }
             $frame.attr('title', title);
             $host.removeAttr('hidden');
+            watchEmbeddedActivity($host, $frame, target.href);
         } else if (mode) {
+            stopEmbeddedActivityWatcher();
             $study.attr('hidden', 'hidden');
             $host.empty().removeAttr('hidden').append($('<p>', { text: activityCfg.unavailable || '' }));
         } else {
+            stopEmbeddedActivityWatcher();
             $host.attr('hidden', 'hidden').empty();
             $study.removeAttr('hidden');
             let $shell = $study.find('[data-ll-vocab-lesson-grid-shell]').first();
@@ -1206,6 +1223,9 @@
     }
 
     $(function () {
+        const $activityHost = $('[data-ll-lesson-activity-host]').first();
+        const $activityFrame = $activityHost.find('[data-ll-lesson-activity-frame]').first();
+        watchEmbeddedActivity($activityHost, $activityFrame, $activityFrame.attr('src') || '');
         $(document).on('click', '[data-ll-embedded-mode]', function (event) {
             event.preventDefault();
             event.stopImmediatePropagation();
