@@ -720,6 +720,12 @@
         const state = getCategorySettingsState($panel);
         const form = $panel && $panel.length ? $panel.get(0) : null;
         if (!state || !form) { return; }
+        const sampleEnabled = $panel.find('[name="ll_vocab_lesson_quiz_sample_enabled"]').val() === '1';
+        const countInput = $panel.find('[name="ll_vocab_lesson_quiz_question_limit"]').get(0);
+        if (sampleEnabled && countInput && (!countInput.value || !countInput.checkValidity())) {
+            countInput.reportValidity();
+            return;
+        }
 
         if (state.inFlight) {
             state.queued = true;
@@ -777,6 +783,14 @@
             saveSucceeded = true;
             state.fenceRetryCount = 0;
             setCategorySettingsRevision($panel, getCategorySettingsResponseData(response).revision);
+            const savedData = getCategorySettingsResponseData(response);
+            const flashData = window.llToolsFlashcardsData || {};
+            (Array.isArray(flashData.categories) ? flashData.categories : []).forEach(function (category) {
+                if (parseInt(category.id, 10) === parseInt(savedData.category_id, 10)
+                    && Number.isInteger(savedData.question_limit)) {
+                    category.question_limit = savedData.question_limit;
+                }
+            });
             setCategorySettingsStatus(
                 $panel,
                 'saved',
@@ -892,6 +906,8 @@
             'll_vocab_lesson_category_visibility',
             'll_vocab_lesson_quiz_prompt_type',
             'll_vocab_lesson_quiz_option_type',
+            'll_vocab_lesson_quiz_sample_enabled',
+            'll_vocab_lesson_quiz_question_limit',
             'll_vocab_lesson_grid_text_visibility',
             'll_vocab_lesson_category_enabled_games[]',
             'll_vocab_lesson_desired_recording_types[]',
@@ -1230,7 +1246,7 @@
                 syncCategoryLineupInput($(this));
             });
 
-            $categorySettings.on('change', '.ll-vocab-lesson-category-settings-panel select, .ll-vocab-lesson-category-settings-panel input[type="checkbox"]', function (event) {
+            $categorySettings.on('change input', '.ll-vocab-lesson-category-settings-panel select, .ll-vocab-lesson-category-settings-panel input[type="checkbox"], .ll-vocab-lesson-category-settings-panel .ll-quiz-question-limit', function (event) {
                 if (!isCategorySettingsAutosaveField(event.target)) {
                     return;
                 }

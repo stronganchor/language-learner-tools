@@ -6215,6 +6215,8 @@ function ll_tools_vocab_lesson_category_settings_bounded_string_list(
 /** @return array<string,mixed>|WP_Error */
 function ll_tools_validate_vocab_lesson_category_settings_request_shape(array $request) {
     $valid = true;
+    $question_limit = ll_tools_quiz_question_limit_from_request($request, 'll_vocab_lesson_');
+    if (is_wp_error($question_limit)) { return $question_limit; }
     $category_visibility_present = array_key_exists('ll_vocab_lesson_category_visibility', $request);
     $category_visibility = $category_visibility_present
         ? ll_tools_vocab_lesson_category_settings_bounded_scalar(
@@ -6360,6 +6362,7 @@ function ll_tools_validate_vocab_lesson_category_settings_request_shape(array $r
         'category_visibility_present' => $category_visibility_present,
         'category_visibility' => $category_visibility,
         'prompt_present' => $prompt_present,
+        'question_limit' => $question_limit,
         'prompt_type' => $prompt_type,
         'option_present' => $option_present,
         'option_type' => $option_type,
@@ -6922,6 +6925,12 @@ function ll_tools_save_vocab_lesson_category_settings_from_request(array $reques
             $desired_recording_types
         );
 
+        if (!$settings_write_failed && $validated_settings_request['question_limit'] !== null) {
+            $settings_write_failed = !ll_tools_write_verified_vocab_lesson_category_setting_meta(
+                $category_id, 'll_quiz_question_limit', (string) $validated_settings_request['question_limit']
+            );
+        }
+
         if (!$settings_write_failed && is_array($privacy_update)) {
             $settings_write_failed = !ll_tools_write_verified_vocab_lesson_category_setting_meta(
                 $category_id,
@@ -7016,6 +7025,7 @@ function ll_tools_save_vocab_lesson_category_settings_from_request(array $reques
         'wordset_id' => $wordset_id,
         'category_id' => $category_id,
         'revision' => $next_revision,
+        'question_limit' => ll_tools_get_quiz_question_limit($category_id),
         'message' => __('Changes saved.', 'll-tools-text-domain'),
     ];
     } finally {

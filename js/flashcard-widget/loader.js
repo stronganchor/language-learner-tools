@@ -347,6 +347,47 @@
             return String((word && word.image) || '').trim();
         }
 
+        let quizSampleSeed = '';
+        let quizAttemptMode = '';
+
+        function beginQuizAttempt(mode, options) {
+            quizAttemptMode = mode || 'practice';
+            if (!(options && options.preserveSample) || !quizSampleSeed) {
+                const bytes = new Uint8Array(16);
+                if (window.crypto && window.crypto.getRandomValues) {
+                    window.crypto.getRandomValues(bytes);
+                } else {
+                    bytes.forEach(function (_, i) { bytes[i] = Math.floor(Math.random() * 256); });
+                }
+                quizSampleSeed = Array.from(bytes, function (byte) { return byte.toString(16).padStart(2, '0'); }).join('');
+            }
+        }
+
+        function getQuestionLimit(categoryName) {
+            const data = window.llToolsFlashcardsData || {};
+            if (quizAttemptMode !== 'practice' || isBoundedSelectionPlan()
+                || normalizeWordIdList(data.sessionWordIds || data.session_word_ids || []).length) {
+                return 0;
+            }
+            const limit = parseInt(getCategoryConfig(categoryName).question_limit, 10) || 0;
+            return limit >= 5 ? limit : 0;
+        }
+
+        function getOfflineSampleIds(words, limit) {
+            // The offline export already contains the bank. A seeded shuffle
+            // keeps a failed launch stable without narrowing its answer pool.
+            let seed = parseInt(quizSampleSeed.slice(0, 8), 16) || 1;
+            const targets = words.filter(function (word) {
+                return !isPromptCardSupportOnlyWord(word) && !word.is_specific_wrong_answer_only;
+            }).map(function (word) { return parseInt(word.id, 10); });
+            for (let i = targets.length - 1; i > 0; i--) {
+                seed ^= seed << 13; seed ^= seed >>> 17; seed ^= seed << 5;
+                const j = Math.floor((seed >>> 0) / 4294967296 * (i + 1));
+                [targets[i], targets[j]] = [targets[j], targets[i]];
+            }
+            return targets.slice(0, limit);
+        }
+
         function getWordsetKey() {
             const ws = (window.llToolsFlashcardsData && typeof window.llToolsFlashcardsData.wordset !== 'undefined')
                 ? window.llToolsFlashcardsData.wordset
@@ -367,7 +408,12 @@
             const orderKey = shouldPreserveWordOrder()
                 ? getOrderedWordIdsForCurrentLaunch().join(',')
                 : '';
-            return String(ws || '') + '|' + (fallback ? '1' : '0') + '|' + (sessionKey || 'all') + '|' + (orderKey || 'random');
+            const categories = (window.llToolsFlashcardsData || {}).categories || [];
+            const hasSampling = !sessionKey && !isBoundedSelectionPlan() && categories.some(function (cat) {
+                return (parseInt(cat.question_limit, 10) || 0) >= 5;
+            });
+            return String(ws || '') + '|' + (fallback ? '1' : '0') + '|' + (sessionKey || 'all') + '|' + (orderKey || 'random')
+                + (hasSampling ? '|' + quizAttemptMode + '|' + quizSampleSeed : '');
         }
 
         function resetCacheForNewWordset() {
@@ -988,7 +1034,11 @@
                 return !isPromptCardSupportOnlyWord(w);
             });
 
-            const filteredBySession = sessionWordLookup
+            const exactTargets = Object.prototype.hasOwnProperty.call(processingOptions, 'targetItemIds')
+                ? new Set(normalizeWordIdList(processingOptions.targetItemIds)) : null;
+            const filteredBySession = exactTargets
+                ? filteredByPromptTargets.filter(function (w) { return exactTargets.has(parseInt(w.id, 10)); })
+                : sessionWordLookup
                 ? filteredByPromptTargets.filter(function (w) {
                     return rowMatchesWordLookup(w, sessionWordLookup);
                 })
@@ -1347,7 +1397,9 @@
                     return Promise.resolve({ success: false, category: categoryName, offline: true, missing: true });
                 }
 
-                processFetchedWordData(words, categoryName);
+                const offlineLimit = getQuestionLimit(categoryName);
+                processFetchedWordData(words, categoryName, offlineLimit
+                    ? { targetItemIds: getOfflineSampleIds(words, offlineLimit) } : undefined);
                 if (!loadedCategories.includes(cacheKey)) {
                     loadedCategories.push(cacheKey);
                 }
@@ -1391,6 +1443,10 @@
             if (nonce) {
                 payload._ajax_nonce = nonce;
             }
+            const questionLimit = getQuestionLimit(categoryName);
+            if (questionLimit) {
+                payload.sample_seed = quizSampleSeed;
+            }
             if (candidateWordIds.length) {
                 payload.candidate_word_ids = candidateWordIds.join(',');
                 payload.include_option_pool = '1';
@@ -1401,6 +1457,8 @@
             let callbackInvoked = false;
             const usesPagedPayload = candidateWordIds.length === 0;
             let accumulatedPageRows = [];
+            let accumulatedSampleIds = [];
+            let sampleTotal = null;
             let pageRestartCount = 0;
             let payloadWarmingDeadlineAt = 0;
             let lastPayloadWarmingFailure = null;
@@ -1557,6 +1615,18 @@
                                     && Array.isArray(response.data.rows)
                                 ) {
                                     accumulatedPageRows = accumulatedPageRows.concat(response.data.rows);
+                                    if (questionLimit) {
+                                        if (!Array.isArray(response.data.sample_target_ids)
+                                            || !Number.isInteger(response.data.sample_total)
+                                            || (sampleTotal !== null && sampleTotal !== response.data.sample_total)) {
+                                            delete inFlightRequests[cacheKey];
+                                            invokeCallbackOnce();
+                                            resolve({ success: false, category: categoryName, code: 'invalid_quiz_sample' });
+                                            return;
+                                        }
+                                        sampleTotal = response.data.sample_total;
+                                        accumulatedSampleIds = accumulatedSampleIds.concat(response.data.sample_target_ids);
+                                    }
                                     const nextCursor = String(response.data.next_cursor || '').trim();
                                     if (nextCursor) {
                                         payload.cursor = nextCursor;
@@ -1565,10 +1635,21 @@
                                     }
                                     fetchedRows = accumulatedPageRows;
                                 }
+                                if (questionLimit) {
+                                    const ids = new Set(accumulatedSampleIds);
+                                    if (sampleTotal === null || ids.size !== sampleTotal || accumulatedSampleIds.length !== sampleTotal) {
+                                        delete inFlightRequests[cacheKey];
+                                        invokeCallbackOnce();
+                                        resolve({ success: false, category: categoryName, code: 'invalid_quiz_sample' });
+                                        return;
+                                    }
+                                    fetchedRows = Array.from(new Map(fetchedRows.map(function (row) { return [row.id, row]; })).values());
+                                }
                                 delete payload.cursor;
                                 delete inFlightRequests[cacheKey];
                                 recordAjaxCompletion(response);
-                                processFetchedWordData(fetchedRows, categoryName);
+                                processFetchedWordData(fetchedRows, categoryName, questionLimit
+                                    ? { targetItemIds: accumulatedSampleIds } : undefined);
                                 if (earlyCallback) {
                                     // Let the caller continue as soon as data is available; optional preload continues in background.
                                     invokeCallbackOnce();
@@ -1680,6 +1761,8 @@
                             ) {
                                 pageRestartCount += 1;
                                 accumulatedPageRows = [];
+                                accumulatedSampleIds = [];
+                                sampleTotal = null;
                                 delete payload.cursor;
                                 resolve(runAjaxAttempt(1));
                                 return;
@@ -2007,6 +2090,8 @@
 
         return {
             loadedCategories,
+            beginQuizAttempt,
+            getQuestionLimit,
             loadedResources,
             loadAudio,
             loadImage,

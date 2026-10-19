@@ -30556,3 +30556,24 @@ msgstr "Silinen hesapların temizliği arka planda devam ediyor. Bu kontrol en f
 #: includes/admin/privacy-cleanup-health.php:90
 msgid "LL Tools account cleanup"
 msgstr "LL Tools hesap temizliği"
+
+msgid "Enter a whole number of at least 5 questions."
+msgstr "En az 5 sorudan oluşan bir tam sayı girin."
+
+msgid "Practice questions"
+msgstr "Alıştırma soruları"
+
+msgid "All questions"
+msgstr "Tüm sorular"
+
+msgid "Random selection"
+msgstr "Rastgele seçim"
+
+msgid "Questions per attempt"
+msgstr "Deneme başına soru sayısı"
+
+msgid "Choose a fresh random set for each Practice attempt. Missed questions are repeated for practice."
+msgstr "Her alıştırma denemesinde yeni bir rastgele soru grubu seçilir. Yanlış yanıtlanan sorular alıştırma için tekrarlanır."
+
+msgid "Practice length"
+msgstr "Alıştırma uzunluğu"

@@ -370,6 +370,7 @@ function ll_tools_wordset_editor_copy_category_settings(int $source_category_id,
     }
 
     $meta_keys = [
+        'll_quiz_question_limit',
         'll_quiz_prompt_type',
         'll_quiz_option_type',
         'll_lesson_grid_text_visibility_override',

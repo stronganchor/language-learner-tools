@@ -1754,6 +1754,7 @@
                 mode: String((cat && cat.mode) || 'image'),
                 prompt_type: String((cat && cat.prompt_type) || 'audio'),
                 option_type: String((cat && cat.option_type) || 'image'),
+                question_limit: Math.max(0, parseInt(cat && cat.question_limit, 10) || 0),
                 learning_prompt_type: String((cat && cat.learning_prompt_type) || ''),
                 learning_option_type: String((cat && cat.learning_option_type) || ''),
                 learning_supported: cat && Object.prototype.hasOwnProperty.call(cat, 'learning_supported')

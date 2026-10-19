@@ -7,7 +7,7 @@ if (!defined('LL_TOOLS_FLASHCARD_PAYLOAD_TABLE_VERSION')) {
 if (!defined('LL_TOOLS_FLASHCARD_PAYLOAD_BUILDER_SCHEMA')) {
     // Bump this whenever stored row shape, eligibility, or presentation
     // semantics change. Ordinary plugin releases must not invalidate payloads.
-    define('LL_TOOLS_FLASHCARD_PAYLOAD_BUILDER_SCHEMA', 1);
+    define('LL_TOOLS_FLASHCARD_PAYLOAD_BUILDER_SCHEMA', 2);
 }
 if (!defined('LL_TOOLS_FLASHCARD_PAYLOAD_VERSION_OPTION')) {
     define('LL_TOOLS_FLASHCARD_PAYLOAD_VERSION_OPTION', 'll_tools_flashcard_payload_table_version');
@@ -1554,7 +1554,9 @@ function ll_tools_flashcard_payload_upsert_rows(
         $normalized[$key] = [
             'row_kind' => $row_kind,
             'row_id' => $row_id,
-            'sort_group' => $row_kind === 'prompt' ? 1 : ($phase === 'primary' ? 0 : 2),
+            'sort_group' => ll_tools_quiz_sample_row_is_target($row)
+                ? ($row_kind === 'prompt' ? 1 : ($phase === 'primary' ? 0 : 2))
+                : 2,
             'payload' => $row,
         ];
     }

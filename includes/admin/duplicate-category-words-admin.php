@@ -326,6 +326,7 @@ function ll_tools_duplicate_category_words_copy_source_category_settings($source
     }
 
     $sharedMetaKeys = [
+        'll_quiz_question_limit',
         'll_quiz_prompt_type',
         'll_quiz_option_type',
         'll_lesson_grid_text_visibility_override',

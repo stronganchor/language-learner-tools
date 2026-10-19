@@ -1804,7 +1804,9 @@
                 return;
             }
             matchedCount += 1;
-            total += count;
+            const limit = root.FlashcardLoader && typeof root.FlashcardLoader.getQuestionLimit === 'function'
+                ? root.FlashcardLoader.getQuestionLimit(name) : 0;
+            total += limit ? Math.min(count, limit) : count;
         });
 
         if (matchedCount !== names.length || total <= 0) {
@@ -3645,6 +3647,9 @@
             // Self-check should always review all words once, independent of star prefs.
             setStarModeOverride(targetMode === 'self-check' ? 'normal' : getSessionStarModeOverride());
             restoreCategorySelection();
+            if (root.FlashcardLoader && root.FlashcardLoader.beginQuizAttempt) {
+                root.FlashcardLoader.beginQuizAttempt(targetMode);
+            }
             updateProgressTrackerContext(targetMode);
 
             const activeModule = getActiveModeModule();
@@ -5569,7 +5574,7 @@
                 } catch (_) { /* no-op */ }
 
                 Promise.resolve().then(function () {
-                    return initFlashcardWidget(retryCategories, retryMode);
+                    return initFlashcardWidget(retryCategories, retryMode, { preserveSample: true });
                 }).catch(function (retryError) {
                     console.error('Failed to retry flashcard widget initialization:', retryError);
                     showInitialCategoryRetryError(
@@ -5638,7 +5643,7 @@
         });
     }
 
-    function initFlashcardWidget(selectedCategories, mode) {
+    function initFlashcardWidget(selectedCategories, mode, attemptOptions) {
         // Launch is user-initiated (button click). Warm up visualizer AudioContext
         // here so listening autoplay can use analyser data instead of fallback waves.
         warmupVisualizerContext();
@@ -5759,6 +5764,9 @@
                 // Self-check should always review all words once, independent of star prefs.
                 setStarModeOverride(State.isSelfCheckMode ? 'normal' : getSessionStarModeOverride());
                 updateProgressTrackerContext(requestedMode);
+                if (root.FlashcardLoader && root.FlashcardLoader.beginQuizAttempt) {
+                    root.FlashcardLoader.beginQuizAttempt(requestedMode, attemptOptions);
+                }
 
                 if (State.widgetActive) {
                     State.clearActiveTimeouts();
@@ -6159,6 +6167,9 @@
         State.isGenderMode = wasGender;
         State.isSelfCheckMode = wasSelfCheck;
         restoreCategorySelection();
+        if (root.FlashcardLoader && root.FlashcardLoader.beginQuizAttempt) {
+            root.FlashcardLoader.beginQuizAttempt(wasLearning ? 'learning' : wasListening ? 'listening' : wasGender ? 'gender' : wasSelfCheck ? 'self-check' : 'practice');
+        }
         const module = getActiveModeModule();
         if (module && typeof module.initialize === 'function') {
             try { module.initialize(); } catch (err) { console.error('Mode initialization failed during restart:', err); }

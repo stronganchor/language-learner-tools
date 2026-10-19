@@ -17285,6 +17285,17 @@ function ll_tools_import_normalize_shared_word_category_meta_values(array $value
         }
     }
 
+    if (array_key_exists('ll_quiz_question_limit', $single_values)) {
+        $values = $single_values['ll_quiz_question_limit'];
+        if ($values === []) {
+            $normalized['ll_quiz_question_limit'] = [];
+        } else {
+            $limit = ll_tools_validate_quiz_question_limit(reset($values));
+            if (is_wp_error($limit)) { return $invalid(); }
+            $normalized['ll_quiz_question_limit'] = [(string) $limit];
+        }
+    }
+
     if (array_key_exists('ll_quiz_option_type', $single_values)) {
         $values = $single_values['ll_quiz_option_type'];
         if ($values === []) {
@@ -17441,6 +17452,7 @@ function ll_tools_import_normalize_shared_word_category_meta_values(array $value
  */
 function ll_tools_import_prepare_term_meta_replacement(array $meta, string $taxonomy = '') {
     $sharedCategoryKeys = [
+        'll_quiz_question_limit',
         'll_quiz_prompt_type',
         'll_quiz_option_type',
         'use_word_titles_for_audio',

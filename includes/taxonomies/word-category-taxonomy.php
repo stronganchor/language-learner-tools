@@ -1615,6 +1615,8 @@ function ll_tools_word_category_shared_settings_request_has_fields(array $reques
         '_ll_vocab_lesson_category_settings_taxonomy_submitted',
         'll_quiz_prompt_type',
         'll_quiz_option_type',
+        'll_quiz_question_limit',
+        'll_quiz_sample_enabled',
         'll_lesson_grid_text_visibility_override',
         'll_category_enabled_games_submitted',
         'll_category_lineup_config_submitted',
@@ -1715,6 +1717,11 @@ function ll_tools_apply_word_category_shared_settings_mutation(int $term_id, arr
     }
 
     $writes = [];
+    $question_limit = ll_tools_quiz_question_limit_from_request($request, 'll_');
+    if (is_wp_error($question_limit)) { return $question_limit; }
+    if ($question_limit !== null) {
+        $writes[] = ['key' => 'll_quiz_question_limit', 'value' => (string) $question_limit, 'delete' => false];
+    }
     if (array_key_exists('ll_category_visibility', $request)) {
         $valid = true;
         $visibility = ll_tools_word_category_settings_request_scalar($request, 'll_category_visibility', 7, $valid);
@@ -3026,6 +3033,7 @@ function ll_tools_get_category_quiz_config($term, ?bool &$complete = null): arra
         'use_titles'         => false,
         'learning_supported' => true,
         'self_check_supported' => true,
+        'question_limit' => 0,
     ];
 
     if (!($term instanceof WP_Term)) {
@@ -3042,6 +3050,9 @@ function ll_tools_get_category_quiz_config($term, ?bool &$complete = null): arra
 
     $term_id = (int) $term->term_id;
     $use_titles_complete = true;
+    $question_limit_complete = true;
+    $question_limit = ll_tools_get_quiz_question_limit($term, $question_limit_complete);
+    $complete = $complete && $question_limit_complete;
     $use_titles_legacy = ll_tools_get_category_meta_with_source_fallback(
         $term,
         'use_word_titles_for_audio',
@@ -3087,6 +3098,7 @@ function ll_tools_get_category_quiz_config($term, ?bool &$complete = null): arra
         'use_titles_legacy' => $use_titles_legacy ? 1 : 0,
         'stored_option_type' => $stored_option_type,
         'stored_prompt_type' => $stored_prompt_type,
+        'question_limit' => $question_limit,
         'content_fallback_epoch' => $content_fallback_epoch,
         'schema' => 4,
     ]));
@@ -3147,6 +3159,7 @@ function ll_tools_get_category_quiz_config($term, ?bool &$complete = null): arra
         'use_titles'         => ($option_type === 'text_title') || $use_titles_legacy,
         'learning_supported' => $learning_supported,
         'self_check_supported' => !$is_prompt_card_question_style,
+        'question_limit' => $question_limit,
     ];
 
     if ($complete) {
@@ -4481,6 +4494,7 @@ function ll_add_quiz_prompt_option_fields($term) {
         </select>
         <p class="description"><?php esc_html_e('Use text options for text-only quizzes (no audio/images), or choose audio options to play recordings.', 'll-tools-text-domain'); ?></p>
     </div>
+    <div class="form-field"><?php ll_tools_render_quiz_question_limit_fields(0); ?></div>
     <div class="form-field term-lesson-grid-text-visibility-wrap">
         <label for="ll_lesson_grid_text_visibility_override"><?php esc_html_e('Lesson/Grid Text Visibility', 'll-tools-text-domain'); ?></label>
         <select name="ll_lesson_grid_text_visibility_override" id="ll_lesson_grid_text_visibility_override">
@@ -4596,6 +4610,7 @@ function ll_edit_quiz_prompt_option_fields($term) {
             <p class="description"><?php esc_html_e('Use text options for text-only quizzes (no audio/images), or choose audio options to play recordings.', 'll-tools-text-domain'); ?></p>
         </td>
     </tr>
+    <tr class="form-field"><th scope="row"><?php esc_html_e('Practice length', 'll-tools-text-domain'); ?></th><td><?php ll_tools_render_quiz_question_limit_fields((int) ($config['question_limit'] ?? 0)); ?></td></tr>
     <tr class="form-field term-lesson-grid-text-visibility-wrap">
         <th scope="row" valign="top">
             <label for="ll_lesson_grid_text_visibility_override"><?php esc_html_e('Lesson/Grid Text Visibility', 'll-tools-text-domain'); ?></label>
@@ -4850,6 +4865,10 @@ function ll_tools_save_category_lineup_field($term_id): void {
  * Save prompt + answer option preferences.
  */
 function ll_save_quiz_prompt_option_fields($term_id, $taxonomy) {
+    $question_limit = ll_tools_quiz_question_limit_from_request($_POST, 'll_');
+    if ($question_limit !== null && !is_wp_error($question_limit)) {
+        ll_tools_write_vocab_lesson_category_settings_taxonomy_meta($term_id, 'll_quiz_question_limit', (string) $question_limit);
+    }
     $use_titles = get_term_meta($term_id, 'use_word_titles_for_audio', true) === '1';
     $prompt_for_option = ll_tools_normalize_quiz_prompt_type(
         get_term_meta($term_id, 'll_quiz_prompt_type', true),

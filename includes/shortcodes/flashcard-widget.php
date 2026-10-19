@@ -1458,6 +1458,7 @@ function ll_process_categories(
             'learning_option_type' => (string) ($config['learning_option_type'] ?? ''),
             'learning_supported' => $learning_supported,
             'self_check_supported' => $self_check_supported,
+            'question_limit' => (int) ($config['question_limit'] ?? 0),
             'use_titles'  => $config['use_titles'],
             'word_count'  => $word_count,
             'gender_word_count' => $gender_word_count,
@@ -2675,11 +2676,18 @@ function ll_get_flashcard_payload_page_ajax(): void {
         ? max(10, min(200, (int) $_POST['page_size']))
         : 200;
     try {
-        $page = ll_tools_flashcard_payload_read_page(
-            (array) $resolved['scope'],
-            $cursor,
-            $page_size
-        );
+        $sample_seed = isset($_POST['sample_seed']) && is_string($_POST['sample_seed']) ? wp_unslash($_POST['sample_seed']) : '';
+        $sample_limit_complete = true;
+        $sample_limit = ll_tools_get_quiz_question_limit($resolved['term'], $sample_limit_complete);
+        if (array_key_exists('sample_seed', $_POST) && !preg_match('/^[a-f0-9]{32}$/D', $sample_seed)) {
+            $page = new WP_Error('invalid_quiz_sample', __('Invalid request.', 'll-tools-text-domain'), ['status' => 400]);
+        } elseif (!$sample_limit_complete) {
+            $page = new WP_Error('flashcard_payload_read_failed');
+        } elseif ($sample_seed !== '' && $sample_limit > 0) {
+            $page = ll_tools_quiz_sample_read_page((array) $resolved['scope'], $sample_limit, $sample_seed, $cursor);
+        } else {
+            $page = ll_tools_flashcard_payload_read_page((array) $resolved['scope'], $cursor, $page_size);
+        }
         if (is_wp_error($page)) {
             ll_tools_flashcards_public_ajax_release_client_inflight($client_lease);
             ll_tools_flashcards_send_payload_page_error($page);

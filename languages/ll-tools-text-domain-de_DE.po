@@ -30559,3 +30559,24 @@ msgstr "Die Bereinigung gelöschter Konten läuft im Hintergrund weiter. Diese P
 #: includes/admin/privacy-cleanup-health.php:90
 msgid "LL Tools account cleanup"
 msgstr "LL Tools-Kontenbereinigung"
+
+msgid "Enter a whole number of at least 5 questions."
+msgstr "Geben Sie eine ganze Zahl von mindestens 5 Fragen ein."
+
+msgid "Practice questions"
+msgstr "Übungsfragen"
+
+msgid "All questions"
+msgstr "Alle Fragen"
+
+msgid "Random selection"
+msgstr "Zufällige Auswahl"
+
+msgid "Questions per attempt"
+msgstr "Fragen pro Durchgang"
+
+msgid "Choose a fresh random set for each Practice attempt. Missed questions are repeated for practice."
+msgstr "Für jeden Übungsdurchgang wird eine neue zufällige Auswahl getroffen. Falsch beantwortete Fragen werden zur Übung wiederholt."
+
+msgid "Practice length"
+msgstr "Übungsumfang"

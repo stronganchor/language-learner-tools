@@ -1267,6 +1267,7 @@ if (have_posts()) {
                                                 <option value="hide" <?php selected($category_panel_visibility, 'hide'); ?>><?php echo esc_html__('Always hide text', 'll-tools-text-domain'); ?></option>
                                             </select>
                                         </label>
+                                        <?php ll_tools_render_quiz_question_limit_fields((int) ($category_panel_quiz_config['question_limit'] ?? 0), 'll_vocab_lesson_'); ?>
                                     </div>
 
                                     <div class="ll-vocab-lesson-category-settings-section">

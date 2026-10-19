@@ -267,6 +267,7 @@ function ll_tools_context_pack_definitions(): array
             'sources' => [
                 'includes/shortcodes/flashcard-widget.php',
                 'includes/lib/flashcard-payload-materializer.php',
+                'includes/lib/quiz-sampling.php',
                 'includes/flashcard-shell.php',
                 'includes/pages/quiz-pages.php',
                 'includes/pages/embed-page.php',
@@ -285,6 +286,7 @@ function ll_tools_context_pack_definitions(): array
             ],
             'tests' => [
                 'tests/Integration/Flashcard*Test.php',
+                'tests/Integration/QuizSamplingTest.php',
                 'tests/Integration/PublicAjaxResourceGuardTest.php',
                 'tests/Integration/QuizPagePostTypeTest.php',
                 'tests/Integration/QuizPagesShortcode*Test.php',

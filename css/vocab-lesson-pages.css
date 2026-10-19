@@ -848,6 +848,7 @@ body.ll-vocab-lesson-category-settings-open {
 }
 
 .ll-vocab-lesson-category-settings-panel.ll-tools-settings-panel select,
+.ll-vocab-lesson-category-settings-panel.ll-tools-settings-panel .ll-quiz-question-limit,
 .ll-vocab-lesson-category-settings-panel.ll-tools-settings-panel input[type="text"] {
     width: 100% !important;
     min-width: 0 !important;
@@ -861,6 +862,7 @@ body.ll-vocab-lesson-category-settings-open {
 }
 
 .ll-vocab-lesson-category-settings-panel.ll-tools-settings-panel select:focus,
+.ll-vocab-lesson-category-settings-panel.ll-tools-settings-panel .ll-quiz-question-limit:focus,
 .ll-vocab-lesson-category-settings-panel.ll-tools-settings-panel input[type="text"]:focus {
     border-color: #94a3b8 !important;
     outline: none !important;

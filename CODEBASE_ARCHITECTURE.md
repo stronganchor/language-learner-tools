@@ -624,6 +624,28 @@ vendor/
   - Retire one-way mirror/sync code and legacy fixer assumptions that exist only to support duplicated image state on `words`.
 
 ## Flashcard payload follow-ups
+
+### Random Practice question banks
+
+`includes/lib/quiz-sampling.php` owns the optional category setting
+`ll_quiz_question_limit`: zero/missing means all questions; enabling Random
+selection defaults to 15, with a staff-entered whole number of at least 5.
+Lesson settings autosave through their existing scoped nonce/revision transaction;
+taxonomy settings, category copies, import/export and offline bundles carry it too.
+The limit applies per category to whole-category Practice launches. Explicit
+Progress selections and bounded study plans keep their chosen identities; other
+quiz modes remain unchanged. Missed questions can repeat, so the limit counts
+distinct questions rather than answer clicks.
+
+The loader creates an attempt seed, reuses it for Retry, and replaces it on
+Repeat/restart. The public payload endpoint reads the saved limit and selects from
+one complete materialized generation. Only target identity metadata is scanned;
+payload hydration stays capped at 30 targets plus bounded distractors per page.
+Signed cursors bind scope, generation, seed and count. Target membership uses exact
+item IDs, never shared answer/progress IDs; distractor-only/support rows cannot
+be sampled. Additional answer choices may come from outside the sample. Offline
+exports sample their already-bundled rows and retain the full option pool.
+`QuizSamplingTest.php` and `flashcard-quiz-sampling.spec.js` cover this contract.
 - The durable server protocol is paged. Generic flashcard-widget launches and
   the remaining specialized wordset flows can still drain every materialized
   page for a selected category before launch. Logged-in filtered and broad

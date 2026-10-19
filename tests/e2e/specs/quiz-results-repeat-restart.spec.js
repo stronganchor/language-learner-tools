@@ -713,6 +713,18 @@ async function mountBoundedCategoryLabelHarness(page, options = {}) {
   }
 }
 
+test('Practice repeat and restart request a new sample attempt', async ({ page }) => {
+  await mountRestartHarness(page);
+  await page.evaluate(() => {
+    window.sampleAttempts = [];
+    window.FlashcardLoader.beginQuizAttempt = (mode, options) => window.sampleAttempts.push({ mode, preserve: !!(options && options.preserveSample) });
+    window.LLFlashcards.Main.switchMode('practice');
+  });
+  await expect.poll(() => page.evaluate(() => window.sampleAttempts.length)).toBe(1);
+  await page.evaluate(() => window.LLFlashcards.Main.restartQuiz());
+  expect(await page.evaluate(() => window.sampleAttempts)).toEqual([{mode:'practice',preserve:false},{mode:'practice',preserve:false}]);
+});
+
 test('switchMode keeps the popup session active after resetting state', async ({ page }) => {
   await mountRestartHarness(page);
 

@@ -122,6 +122,14 @@ function buildCategorySettingsMarkup(options = {}) {
                 <div class="ll-vocab-lesson-category-settings-section">
                   <div class="ll-vocab-lesson-category-settings-section__heading">Quiz</div>
                   <label class="ll-vocab-lesson-category-settings-field">
+                    <span>Practice questions</span>
+                    <select name="ll_vocab_lesson_quiz_sample_enabled"><option value="0">All questions</option><option value="1">Random selection</option></select>
+                  </label>
+                  <label class="ll-vocab-lesson-category-settings-field">
+                    <span>Questions per attempt</span>
+                    <input class="ll-quiz-question-limit" type="number" min="5" step="1" name="ll_vocab_lesson_quiz_question_limit" value="15" />
+                  </label>
+                  <label class="ll-vocab-lesson-category-settings-field">
                     <span class="ll-vocab-lesson-category-settings-field__label">Prompt</span>
                     <select name="ll_vocab_lesson_quiz_prompt_type" class="ll-vocab-lesson-category-settings-select">
                       <option value="text_title" selected>Word text</option>
@@ -506,6 +514,23 @@ async function mountCategorySettingsHarness(page, viewport, options = {}) {
   await page.addScriptTag({ content: categoryLineupJsSource });
   await page.addScriptTag({ content: vocabLessonJsSource });
 }
+
+test('random question settings autosave 15 or a custom count and reject fewer than five', async ({ page }) => {
+  await mountCategorySettingsHarness(page, { width: 390, height: 844 });
+  await page.locator('.ll-vocab-lesson-category-settings-trigger').click();
+  await page.locator('[name="ll_vocab_lesson_quiz_sample_enabled"]').selectOption('1');
+  await expect.poll(() => page.evaluate(() => window.__llCategorySettingsServerState?.ll_vocab_lesson_quiz_question_limit)).toEqual(['15']);
+  const input = page.locator('.ll-quiz-question-limit');
+  await input.fill('20');
+  await expect.poll(() => page.evaluate(() => window.__llCategorySettingsServerState?.ll_vocab_lesson_quiz_question_limit)).toEqual(['20']);
+  await input.fill('4');
+  await page.waitForTimeout(500);
+  expect(await page.evaluate(() => window.__llCategorySettingsServerState.ll_vocab_lesson_quiz_question_limit)).toEqual(['20']);
+  await input.fill('5');
+  await expect.poll(() => page.evaluate(() => window.__llCategorySettingsServerState?.ll_vocab_lesson_quiz_question_limit)).toEqual(['5']);
+  await expect(page.locator('[data-ll-category-settings-status]')).toHaveAttribute('data-state', 'saved');
+  expect(page.url()).toBe('about:blank');
+});
 
 test('lesson category privacy autosaves both choices while keeping the popup open', async ({ page }) => {
   await mountCategorySettingsHarness(page, { width: 1280, height: 900 }, { includePrivacy: true });
