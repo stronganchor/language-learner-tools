@@ -663,7 +663,6 @@ test('level-one intro clears compact gender-option layout state before rendering
     contentEl.classList.add('ll-gender-options-mode', 'll-gender-layout-compact');
     containerEl.classList.add('ll-gender-options-layout');
     contentEl.style.setProperty('--ll-gender-layout-scale', '0.68');
-    contentEl.style.setProperty('--ll-gender-safe-bottom', '42px');
     containerEl.style.setProperty('--ll-gender-layout-scale', '0.68');
 
     const intro = Gender.selectTargetWord();
@@ -674,7 +673,6 @@ test('level-one intro clears compact gender-option layout state before rendering
       hasCompactMode: contentEl.classList.contains('ll-gender-layout-compact'),
       hasOptionsLayout: containerEl.classList.contains('ll-gender-options-layout'),
       contentLayoutScale: contentEl.style.getPropertyValue('--ll-gender-layout-scale'),
-      contentSafeBottom: contentEl.style.getPropertyValue('--ll-gender-safe-bottom'),
       containerLayoutScale: containerEl.style.getPropertyValue('--ll-gender-layout-scale'),
       introCardCount: containerEl.querySelectorAll('.ll-gender-intro-card').length
     };
@@ -684,7 +682,6 @@ test('level-one intro clears compact gender-option layout state before rendering
   expect(result.hasCompactMode).toBe(false);
   expect(result.hasOptionsLayout).toBe(false);
   expect(result.contentLayoutScale).toBe('');
-  expect(result.contentSafeBottom).toBe('');
   expect(result.containerLayoutScale).toBe('');
   expect(result.introCardCount).toBe(1);
 });
@@ -1739,7 +1736,6 @@ test('bounded gender checkpoints emit mode completion once at the final logical 
     <!doctype html>
     <html>
       <body>
-        <div id="ll-tools-mode-switcher-wrap"></div>
         <div id="ll-tools-prompt"></div>
         <div id="ll-tools-flashcard"></div>
         <div id="ll-quiz-star-row"></div>

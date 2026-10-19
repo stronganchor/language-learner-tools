@@ -27,12 +27,6 @@ function buildHarnessMarkup() {
           <div id="quiz-results-message">Previous results</div>
           <div><span id="correct-count"></span></div>
         </div>
-        <div id="ll-tools-mode-switcher-wrap" aria-expanded="false">
-          <div id="ll-tools-mode-menu" aria-hidden="true">
-            <button class="ll-tools-mode-option practice" data-mode="practice" type="button"></button>
-          </div>
-          <button id="ll-tools-mode-switcher" type="button"></button>
-        </div>
         <button id="ll-tools-repeat-flashcard" type="button"></button>
         <button id="restart-practice-mode" type="button"></button>
         <button id="restart-learning-mode" type="button"></button>
@@ -69,7 +63,8 @@ async function mountLaunchHarness(page, options = {}) {
         prompt_type: 'audio',
         option_type: 'image',
         aspect_bucket: 'ratio:1_1',
-        learning_supported: true
+        learning_supported: true,
+        listening_supported: true
       },
       {
         id: 22,
@@ -78,7 +73,8 @@ async function mountLaunchHarness(page, options = {}) {
         prompt_type: 'audio',
         option_type: 'text_translation',
         aspect_bucket: 'no-image',
-        learning_supported: true
+        learning_supported: true,
+        listening_supported: true
       }
     ];
 
@@ -179,7 +175,6 @@ async function mountLaunchHarness(page, options = {}) {
       showResults() {}
     };
     window.LLFlashcards.StateMachine = {};
-    window.LLFlashcards.ModeConfig = {};
     window.LLFlashcards.Modes = {
       Practice: {
         initialize() {},

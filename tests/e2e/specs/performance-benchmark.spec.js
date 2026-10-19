@@ -187,7 +187,7 @@ async function runScenarioAction(page, scenario, actionContext = {}) {
     const startedAt = await page.evaluate(() => performance.now());
     await trigger.click({ force: true });
     await expect(page.locator('#ll-tools-flashcard-quiz-popup')).toBeVisible({ timeout: MAX_INTERACTION_MS });
-    await expect(page.locator('#ll-tools-mode-switcher-wrap')).toBeVisible({ timeout: MAX_INTERACTION_MS });
+    await expect(page.locator('#ll-tools-flashcard .flashcard-container:visible').first()).toBeVisible({ timeout: MAX_INTERACTION_MS });
     return page.evaluate((start) => Math.round(performance.now() - start), startedAt);
   }
 

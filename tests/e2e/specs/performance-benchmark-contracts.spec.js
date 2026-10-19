@@ -329,7 +329,10 @@ test('Genç profile matches production-scale dimensions and includes settings an
     comparisonVersion: 1
   });
   expect(byName['wordset-genc-search-filter'].comparisonVersion).toBe(2);
-  expect(byName['learn-grid-genc-quiz-popup'].comparisonVersion).toBe(2);
+  expect(byName['learn-grid-genc-quiz-popup']).toMatchObject({
+    comparisonVersion: 3,
+    comparisonSemantics: 'quiz-popup-answer-ready-v3'
+  });
   expect(byName['wordset-genc-recorder-queues-initial-load']).toMatchObject({
     path: '/ll-perf-genc/settings/?ll_wordset_tool=recorder-queues',
     requiresAuth: true,

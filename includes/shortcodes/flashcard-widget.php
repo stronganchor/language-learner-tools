@@ -727,11 +727,6 @@ function ll_flashcards_get_messages(): array {
         'playOptionAudio'         => __('Play option audio', 'll-tools-text-domain'),
         'pauseAudio'              => __('Pause audio', 'll-tools-text-domain'),
         'starWord'                => __('Star word', 'll-tools-text-domain'),
-        'practiceSwitchLabel'     => __('Practice', 'll-tools-text-domain'),
-        'learningSwitchLabel'     => __('Learn', 'll-tools-text-domain'),
-        'selfCheckSwitchLabel'    => __('Self check', 'll-tools-text-domain'),
-        'listeningSwitchLabel'    => __('Listening', 'll-tools-text-domain'),
-        'genderSwitchLabel'       => __('Gender', 'll-tools-text-domain'),
         'practiceModeText'        => __('Practice', 'll-tools-text-domain'),
         'learningModeText'        => __('Learn', 'll-tools-text-domain'),
         'selfCheckModeText'       => __('Self check', 'll-tools-text-domain'),
@@ -862,33 +857,28 @@ function ll_flashcards_get_mode_ui_config(): array {
         'practice' => [
             'icon'              => '❓',
             'className'         => 'practice-mode',
-            'switchLabel'       => __('Practice', 'll-tools-text-domain'),
             'resultsButtonText' => __('Practice', 'll-tools-text-domain'),
         ],
         'learning' => [
             'icon'              => '🎓',
             'className'         => 'learning-mode',
-            'switchLabel'       => __('Learn', 'll-tools-text-domain'),
             'resultsButtonText' => __('Learn', 'll-tools-text-domain'),
         ],
         'self-check' => [
             'icon'              => '',
             'svg'               => $self_check_svg,
             'className'         => 'self-check-mode',
-            'switchLabel'       => __('Self check', 'll-tools-text-domain'),
             'resultsButtonText' => __('Self check', 'll-tools-text-domain'),
         ],
         'listening' => [
             'icon'              => '🎧',
             'className'         => 'listening-mode',
-            'switchLabel'       => __('Listening', 'll-tools-text-domain'),
             'resultsButtonText' => __('Listen', 'll-tools-text-domain'),
         ],
         'gender' => [
             'icon'              => '',
             'svg'               => $gender_svg,
             'className'         => 'gender-mode',
-            'switchLabel'       => __('Gender', 'll-tools-text-domain'),
             'resultsButtonText' => __('Gender', 'll-tools-text-domain'),
         ],
     ];
@@ -941,8 +931,7 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
 
     ll_enqueue_asset_by_timestamp($shortcode_folder . 'util.js',       'll-flc-util',        ['jquery', 'll-tools-flashcard-audio'], true);
     ll_enqueue_asset_by_timestamp('/js/self-check-shared.js', 'll-tools-self-check-shared-script', ['jquery'], true);
-    ll_enqueue_asset_by_timestamp($shortcode_folder . 'mode-config.js','ll-flc-mode-config', ['ll-flc-util'], true);
-    ll_enqueue_asset_by_timestamp($shortcode_folder . 'state.js',      'll-flc-state',       ['ll-flc-mode-config'], true);
+    ll_enqueue_asset_by_timestamp($shortcode_folder . 'state.js',      'll-flc-state',       ['ll-flc-util'], true);
     ll_enqueue_asset_by_timestamp($shortcode_folder . 'progress-tracker.js', 'll-flc-progress-tracker', ['ll-flc-state'], true);
     ll_enqueue_asset_by_timestamp($shortcode_folder . 'dom.js',       'll-flc-dom',       ['ll-flc-state'], true);
     ll_enqueue_asset_by_timestamp($shortcode_folder . 'audio-visualizer.js', 'll-flc-audio-visualizer', ['ll-flc-dom'], true);

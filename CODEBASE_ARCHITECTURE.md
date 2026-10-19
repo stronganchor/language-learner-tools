@@ -70,6 +70,7 @@ this document owns the detailed contracts and ordered bootstrap include index.
 - Category privacy is administrator-managed in both the lesson Category settings popup and the taxonomy form. Isolated categories may add an exact-term `ll_category_visibility_override` restriction; inherited source privacy remains authoritative, allowed-user assignments are preserved, and new sibling copies do not inherit this local restriction. Privacy saves use verified writes and structural cache invalidation.
 - Word-editor category choices retain exact in-scope identities, including empty and image-only owned categories. Equal display labels show their unique slugs. Published-word badges use grouped SQL scoped to the current wordset, deduplicate ownerless legacy-source/copy membership, exclude foreign-owned aliases, and show unavailable after a failed read. Detached popup counts must not hydrate all words or media to calculate quiz readiness.
 - Flashcard quizzes with multiple modes (practice, learning, listening, gender, self-check) and per-category prompt/option config.
+- Quiz mode choices belong to launch controls and results actions. The active quiz has no floating Switch Mode menu or reserved bottom inset; keep `switchMode()` for results restarts and bounded-session cancellation.
 - Translated answer labels prefer the main word `translation` over a recording's full sentence translation. Keep `Util.getEffectiveOptionLabel()` and selection's compatibility fallback in agreement so correct answers, distractors and duplicate-label filtering use the same text. A missing main translation retains the existing recording/label/title fallbacks; title-only options and prompt text/audio keep their separate contracts. `tests/e2e/specs/practice-option-constraints.spec.js` guards the rendered number/place-name cases with the actual utility and card renderer.
 - Auto quiz pages under `/quiz/<category>` are generated `ll_quiz_page` records, not normal WordPress Pages; embeddable pages under `/embed/<category>`, wordset hub routes, vocab lesson routes, content lessons, games, and teacher class views.
 - Audio workflow: recording interface, bulk uploader, processing/review, recording type management.
@@ -222,6 +223,7 @@ module list.
 - includes/wordset-isolation.php
 - includes/wordset-templates.php
 - includes/lib/flashcard-payload-materializer.php
+- includes/lib/quiz-sampling.php
 - includes/user-roles/wordset-manager.php
 - includes/user-roles/ll-tools-editor.php
 - includes/user-roles/learner-role.php
@@ -556,7 +558,7 @@ vendor/
   - Generated/synced from enabled wordsets and categories.
   - Routes are handled by custom rewrite rules rather than native CPT rewrites.
   - Lesson pages can include word grids, prompt-card grids, manager settings, prerequisites, text visibility, enabled games, desired recording types, and category-specific quiz config.
-- Vocabulary lesson activity settings live in `includes/lib/vocab-lesson-activities.php` as `_ll_tools_vocab_activity_settings`. Defaults preserve all supported activities; opt-in embedded mode replaces the study grid with a lesson-scoped quiz. The embed validates the exact lesson/category/wordset and password boundary; its mode switcher and results obey the effective allowlist. Listen requires a bounded published playable-audio existence check, not expected recording types.
+- Vocabulary lesson activity settings live in `includes/lib/vocab-lesson-activities.php` as `_ll_tools_vocab_activity_settings`. Defaults preserve all supported activities; opt-in embedded mode replaces the study grid with a lesson-scoped quiz. The embed validates the exact lesson/category/wordset and password boundary; its launch choices and results obey the effective allowlist. Listen requires a bounded published playable-audio existence check, not expected recording types.
 - `ll_content_lesson` (public content lessons)
   - Rewrite slug: `/lesson/<slug>`.
   - Meta includes wordset, lesson kind, media type/url, transcript source/format/cues, linked category ids, mix-in flag, and prerequisite category/content-lesson ids.
@@ -806,7 +808,7 @@ wordset can opt into it.
   - `ll_get_words_by_category` remains the bounded explicit-candidate compatibility route. A no-candidate legacy call may return only a complete one-page materialization; larger categories receive `paged_payload_required` instead of falling back to a full synchronous build.
 - `includes/flashcard-shell.php` renders the shared overlay shell used by the
   public flashcard shortcode, offline app shell, and quiz-page/vocab-lesson
-  popup bootstrap so those surfaces keep the same IDs, mode switcher, result
+  popup bootstrap so those surfaces keep the same IDs, result
   controls, and repeat-button startup behavior.
 
 ## JS module map (`js/flashcard-widget/`)
@@ -843,7 +845,6 @@ wordset can opt into it.
 - `effects.js` - confetti and visual feedback.
 - `results.js` - end-of-quiz UI.
 - `audio-visualizer.js` - animated loading/listening visualizer.
-- `mode-config.js` - merges default mode UI labels/icons with `llToolsFlashcardsData.modeUi`.
 - `category-selection.js`, `util.js` - supporting UI/utility helpers.
 
 ## Mode behavior (high level)

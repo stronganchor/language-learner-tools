@@ -40,12 +40,6 @@ async function mountRestartHarness(page) {
         <div id="ll-tools-prompt"></div>
         <div id="ll-tools-flashcard-content"></div>
         <div id="ll-tools-flashcard"></div>
-        <div id="ll-tools-mode-switcher-wrap" aria-expanded="false">
-          <div id="ll-tools-mode-menu" aria-hidden="true">
-            <button class="ll-tools-mode-option practice" data-mode="practice" type="button"></button>
-          </div>
-          <button id="ll-tools-mode-switcher" type="button"></button>
-        </div>
         <div id="quiz-results" style="display:none;">
           <h2 id="quiz-results-title"></h2>
           <p id="quiz-results-message" style="display:none;"></p>
@@ -127,7 +121,6 @@ async function mountRestartHarness(page) {
       hideResults() {}
     };
     window.LLFlashcards.StateMachine = {};
-    window.LLFlashcards.ModeConfig = {};
     window.LLFlashcards.Modes = {};
 
     window.FlashcardOptions = {
@@ -292,7 +285,6 @@ async function mountRenderedImageReadinessHarness(page) {
       showResults() {}
     };
     window.LLFlashcards.StateMachine = {};
-    window.LLFlashcards.ModeConfig = {};
     window.LLFlashcards.Modes = {};
 
     window.FlashcardOptions = {
@@ -501,7 +493,6 @@ async function mountPracticeProgressHarness(page, options = {}) {
       }
     };
     window.LLFlashcards.StateMachine = {};
-    window.LLFlashcards.ModeConfig = {};
     window.LLFlashcards.Modes = {};
 
     window.FlashcardOptions = {
@@ -671,7 +662,6 @@ async function mountBoundedCategoryLabelHarness(page, options = {}) {
     window.LLFlashcards.Cards = {};
     window.LLFlashcards.Results = { hideResults: noop, showResults: noop };
     window.LLFlashcards.StateMachine = {};
-    window.LLFlashcards.ModeConfig = {};
     window.LLFlashcards.Modes = {};
 
     window.FlashcardLoader = {
@@ -944,7 +934,7 @@ test('bounded continuation error renders a localized retry state and clears it o
   await expect(page.locator('.ll-quiz-results-score')).toBeHidden();
   await expect(page.locator('#quiz-mode-buttons')).toBeHidden();
   await expect(page.locator('#ll-tools-learning-progress')).toBeHidden();
-  await expect(page.locator('#ll-tools-mode-switcher-wrap')).toBeHidden();
+  await expect(page.locator('#ll-tools-mode-switcher-wrap, #ll-tools-mode-switcher, #ll-tools-mode-menu')).toHaveCount(0);
 
   await retry.click();
   await page.waitForFunction(() => (

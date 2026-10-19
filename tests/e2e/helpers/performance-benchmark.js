@@ -322,8 +322,8 @@ function buildBenchmarkScenarios(manifest) {
         minActionableCount: Number(targetWordset.categoryCount || 1),
         primaryMetric: 'interactionMs',
         action: 'quiz-popup',
-        comparisonVersion: 2,
-        comparisonSemantics: 'quiz-popup-mode-ready-v2'
+        comparisonVersion: 3,
+        comparisonSemantics: 'quiz-popup-answer-ready-v3'
       },
       {
         name: `wordset-${targetSize}-progress-load`,

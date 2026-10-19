@@ -2870,8 +2870,6 @@ function ll_qpg_print_flashcard_shell_once() {
           'show_category_display' => true,
           'category_label_text' => '',
           'mode_ui' => $mode_ui,
-          'gender_mode_visible' => false,
-          'mode_order' => ['learning', 'practice', 'listening', 'gender', 'self-check'],
           'listening_results_fallback' => __('Listen', 'll-tools-text-domain'),
       ]);
       ?>

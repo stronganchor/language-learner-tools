@@ -634,32 +634,6 @@
         }
     }
 
-    function getGenderSafeBottomInset() {
-        const viewportWidth = Math.max(0, parseInt(root.innerWidth, 10) || 0);
-        const viewportHeight = Math.max(0, parseInt(root.innerHeight, 10) || 0);
-        if (viewportWidth > 420 && viewportHeight > 620) return 0;
-        const doc = root.document;
-        if (!doc) return 0;
-        const wrap = doc.getElementById('ll-tools-mode-switcher-wrap');
-        if (!wrap || typeof wrap.getBoundingClientRect !== 'function') return 0;
-        if (typeof root.getComputedStyle === 'function') {
-            const computed = root.getComputedStyle(wrap);
-            if (!computed || computed.display === 'none' || computed.visibility === 'hidden' || computed.opacity === '0') {
-                return 0;
-            }
-        }
-        const rect = wrap.getBoundingClientRect();
-        if (!rect || rect.top >= viewportHeight || rect.bottom <= 0) return 0;
-
-        // Keep the bottom safety inset bounded to the floating control's own footprint.
-        // On some mobile browsers `rect.top` can transiently report near 0 during URL-bar
-        // collapse/expand, which previously produced a viewport-sized inset and clipped
-        // gender choices out of view.
-        const overlapInset = Math.max(0, Math.ceil(viewportHeight - rect.top + 8));
-        const boundedInset = Math.max(0, Math.ceil((rect.height || 0) + 24));
-        return Math.min(overlapInset, boundedInset);
-    }
-
     function fitGenderLayoutToViewport() {
         const $ = root.jQuery;
         if (!$) return;
@@ -670,8 +644,6 @@
         const containerEl = $container[0];
         if (!contentEl || !containerEl || !contentEl.style || !containerEl.style) return;
 
-        const safeBottom = getGenderSafeBottomInset();
-        contentEl.style.setProperty('--ll-gender-safe-bottom', safeBottom + 'px');
 
         const MIN_LAYOUT_SCALE = 0.5;
         const SCALE_STEP = 0.04;
@@ -2133,7 +2105,6 @@
         }
         if ($content.length && $content[0] && $content[0].style) {
             try { $content[0].style.setProperty('--ll-gender-layout-scale', '1'); } catch (_) { /* no-op */ }
-            try { $content[0].style.setProperty('--ll-gender-safe-bottom', '0px'); } catch (_) { /* no-op */ }
         }
         $('#ll-tools-prompt img').off('load.llGenderFit').on('load.llGenderFit', function () {
             scheduleGenderOptionTextScaleFit();
@@ -2259,7 +2230,6 @@
         }
         if ($layoutContent.length && $layoutContent[0] && $layoutContent[0].style) {
             try { $layoutContent[0].style.removeProperty('--ll-gender-layout-scale'); } catch (_) { /* no-op */ }
-            try { $layoutContent[0].style.removeProperty('--ll-gender-safe-bottom'); } catch (_) { /* no-op */ }
         }
 
         const targetCategoryName = getTargetCategoryName(targetWord) || State.currentCategoryName;

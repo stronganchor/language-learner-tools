@@ -108,8 +108,7 @@ body.ll-tools-quiz-guard-active #ll-tools-flashcard-popup img {
 
 body:not(.ll-tools-flashcard-open):not(.ll-qpg-popup-active) #ll-tools-flashcard-popup,
 body:not(.ll-tools-flashcard-open):not(.ll-qpg-popup-active) #ll-tools-category-selection-popup,
-body:not(.ll-tools-flashcard-open):not(.ll-qpg-popup-active) #ll-tools-flashcard-quiz-popup,
-body:not(.ll-tools-flashcard-open):not(.ll-qpg-popup-active) #ll-tools-mode-switcher-wrap {
+body:not(.ll-tools-flashcard-open):not(.ll-qpg-popup-active) #ll-tools-flashcard-quiz-popup {
     display: none !important;
 }
 
@@ -687,8 +686,7 @@ body.ll-qpg-popup-active #ll-tools-flashcard-content {
     opacity: 0.62 !important;
 }
 
-#ll-tools-flashcard-quiz-popup.ll-tools-error-state #ll-tools-learning-progress,
-#ll-tools-flashcard-quiz-popup.ll-tools-error-state #ll-tools-mode-switcher-wrap {
+#ll-tools-flashcard-quiz-popup.ll-tools-error-state #ll-tools-learning-progress {
     display: none !important;
 }
 
@@ -1049,7 +1047,6 @@ body.ll-qpg-popup-active #ll-tools-flashcard-content {
     flex-grow: 1;
     overflow-y: auto;
     padding: var(--ll-quiz-content-padding, 15px);
-    padding-bottom: var(--ll-quiz-content-padding-bottom, var(--ll-quiz-content-padding, 15px));
     display: flex;
     flex-direction: column;
     justify-content: flex-start;
@@ -1860,24 +1857,6 @@ body.ll-qpg-popup-active #ll-tools-flashcard-content {
     word-wrap: anywhere;
 }
 
-/* Floating mode switcher (single toggle + expanding menu) */
-.ll-tools-mode-switcher-wrap {
-    --ll-tools-fab-size: 56px;
-    position: fixed;
-    bottom: 20px;
-    right: 20px;
-    z-index: 10000;
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 16px;
-}
-
-/* Hard spacing between stacked controls (works even if gap is overridden) */
-.ll-tools-mode-switcher-wrap > * + * {
-    margin-top: 16px;
-}
-
 .ll-tools-settings-control {
     position: relative;
     display: flex;
@@ -1957,140 +1936,6 @@ body.ll-qpg-popup-active #ll-tools-flashcard-content {
     opacity: 1;
     transform: translateY(0);
     pointer-events: auto;
-}
-
-.ll-tools-mode-switcher {
-    width: var(--ll-tools-fab-size);
-    height: var(--ll-tools-fab-size);
-    border-radius: 50%;
-    background: #1d4d99;
-    /* in-progress blue */
-    color: #ffffff;
-    border: none;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
-    transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
-    padding: 0;
-}
-
-.ll-tools-mode-switcher:hover {
-    transform: scale(1.05);
-    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.35);
-}
-
-.ll-tools-mode-switcher:focus-visible {
-    outline: 3px solid #38bdf8;
-    outline-offset: 2px;
-}
-
-.ll-tools-mode-switcher .mode-icon {
-    display: block;
-    line-height: 1;
-    font-size: 28px;
-}
-
-.ll-tools-mode-menu {
-    display: none;
-    flex-direction: column;
-    gap: 16px;
-    padding: 0;
-}
-
-.ll-tools-mode-switcher-wrap[data-menu-open="true"] .ll-tools-mode-menu {
-    display: flex;
-}
-
-.ll-tools-mode-option {
-    width: var(--ll-tools-fab-size);
-    height: var(--ll-tools-fab-size);
-    border-radius: 50%;
-    border: 1px solid #e5e7eb;
-    /* subtle ring to separate on light bg */
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.25);
-    transition: transform 0.12s ease, box-shadow 0.12s ease, background-color 0.12s ease, color 0.12s ease, border-color 0.12s ease;
-    background: #ffffff;
-    /* white for higher contrast with gray icons */
-    color: #111827;
-    /* dark text for non-emoji icons */
-}
-
-.ll-tools-mode-option .mode-icon::before {
-    content: attr(data-emoji);
-    display: block;
-    font-size: 26px;
-    line-height: 1;
-}
-
-/* SVG icon support inside mode menu (color follows element color) */
-.ll-tools-mode-option .mode-icon svg,
-#ll-tools-mode-switcher-wrap .ll-tools-mode-switcher .mode-icon svg {
-    width: 26px !important;
-    height: 26px !important;
-    display: block !important;
-    fill: currentColor !important;
-    stroke: currentColor !important;
-}
-
-/* Darken/adjust emoji rendering for better contrast on light backgrounds */
-.ll-tools-mode-option.listening .mode-icon {
-    /* Darken gray headphones on white */
-    filter: brightness(0.7) contrast(1.25);
-}
-
-.ll-tools-mode-option.practice .mode-icon {
-    /* Tweak red question mark toward a deeper tone */
-    filter: hue-rotate(200deg) saturate(1.1) brightness(0.95) contrast(1.15);
-}
-
-/* Optional: remove filters on active for consistency against green bg */
-.ll-tools-mode-option.active .mode-icon {
-    filter: none;
-}
-
-/* Make the Practice '?' appear white/off-white on active (green) */
-.ll-tools-mode-option.practice.active .mode-icon {
-    /* Desaturate and brighten to near-white for strong contrast */
-    filter: saturate(0) brightness(2.0) contrast(1.05);
-}
-
-/* Make Learning cap and Listening headphones near-white on active */
-.ll-tools-mode-option.learning.active .mode-icon,
-.ll-tools-mode-option.listening.active .mode-icon {
-    filter: saturate(0) brightness(2.0) contrast(1.05);
-}
-
-/* Slightly lighter for Learning icon on green */
-.ll-tools-mode-option.learning.active .mode-icon {
-    filter: saturate(0) brightness(1.2) contrast(1.15);
-}
-
-.ll-tools-mode-option:hover:not(.active):not([disabled]) {
-    transform: scale(1.05);
-    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
-    background: #f9fafb;
-    /* near-white hover */
-    border-color: #d1d5db;
-}
-
-.ll-tools-mode-option.active {
-    background: #15803d;
-    /* green-700 for high contrast */
-    color: #ffffff;
-    border-color: #15803d;
-    cursor: default;
-}
-
-.ll-tools-mode-option[disabled],
-.ll-tools-mode-option[aria-disabled="true"] {
-    opacity: 0.9;
-    cursor: not-allowed;
 }
 
 .ll-tools-settings-section {
@@ -2200,30 +2045,8 @@ body.ll-qpg-popup-active #ll-tools-flashcard-content {
 }
 
 @media (max-width: 480px) {
-    .ll-tools-mode-switcher-wrap {
-        bottom: 15px;
-        right: 15px;
-        gap: 12px;
-    }
-
-    .ll-tools-mode-switcher-wrap > * + * {
-        margin-top: 12px;
-    }
-
     .ll-tools-settings-button .mode-icon {
         font-size: 20px;
-    }
-
-    .ll-tools-mode-switcher .mode-icon {
-        font-size: 24px;
-    }
-
-    .ll-tools-mode-option .mode-icon::before {
-        font-size: 22px;
-    }
-
-    .ll-tools-mode-menu {
-        gap: 12px;
     }
 
     .ll-tools-settings-panel {
@@ -2626,76 +2449,6 @@ body.ll-qpg-popup-active #ll-tools-flashcard-content {
 /* =============================
    Hardening against theme CSS
    ============================= */
-/* Lock settings trigger + panel against aggressive theme button styles */
-#ll-tools-mode-switcher-wrap .ll-tools-settings-control {
-    position: relative !important;
-    display: flex !important;
-    flex-direction: column !important;
-    align-items: flex-end !important;
-    gap: 0 !important;
-}
-
-#ll-tools-mode-switcher-wrap .ll-tools-settings-button.ll-tools-settings-button {
-    width: var(--ll-tools-fab-size) !important;
-    height: var(--ll-tools-fab-size) !important;
-    min-width: var(--ll-tools-fab-size) !important;
-    min-height: var(--ll-tools-fab-size) !important;
-    aspect-ratio: 1 / 1 !important;
-    border-radius: 50% !important;
-    padding: 0 !important;
-    line-height: 1 !important;
-    background: #6b7280 !important;
-    background-color: #6b7280 !important;
-    background-image: none !important;
-    color: #ffffff !important;
-    border: none !important;
-    display: inline-flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    cursor: pointer !important;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3) !important;
-    box-sizing: border-box !important;
-    overflow: hidden !important;
-    -webkit-appearance: none !important;
-    appearance: none !important;
-    text-transform: none !important;
-}
-
-#ll-tools-mode-switcher-wrap .ll-tools-settings-button.ll-tools-settings-button::before,
-#ll-tools-mode-switcher-wrap .ll-tools-settings-button.ll-tools-settings-button::after {
-    content: "" !important;
-    display: none !important;
-}
-
-#ll-tools-mode-switcher-wrap .ll-tools-settings-button.ll-tools-settings-button:hover {
-    transform: scale(1.04) !important;
-    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.35) !important;
-    background: #4b5563 !important;
-    background-color: #4b5563 !important;
-}
-
-#ll-tools-mode-switcher-wrap .ll-tools-settings-button.ll-tools-settings-button:focus-visible {
-    outline: 3px solid #38bdf8 !important;
-    outline-offset: 2px !important;
-}
-
-#ll-tools-mode-switcher-wrap .ll-tools-settings-button .mode-icon {
-    display: block !important;
-    font-size: 22px !important;
-    line-height: 1 !important;
-}
-
-#ll-tools-mode-switcher-wrap .ll-tools-settings-button .mode-icon svg {
-    width: 26px !important;
-    height: 26px !important;
-    display: block !important;
-    fill: none !important;
-    stroke: currentColor !important;
-    stroke-width: 2px !important;
-    stroke-linecap: round !important;
-    stroke-linejoin: round !important;
-}
-
 #ll-tools-settings-panel.ll-tools-settings-panel,
 .ll-tools-settings-panel.ll-tools-settings-panel {
     position: absolute !important;
@@ -2878,117 +2631,9 @@ body.ll-qpg-popup-active #ll-tools-flashcard-content {
     outline-offset: 2px !important;
 }
 
-/* Keep the floating switcher and its menu options perfectly circular */
-#ll-tools-mode-switcher-wrap #ll-tools-mode-switcher.ll-tools-mode-switcher {
-    width: var(--ll-tools-fab-size, 56px) !important;
-    height: var(--ll-tools-fab-size, 56px) !important;
-    aspect-ratio: 1 / 1 !important;
-    border-radius: 50% !important;
-    padding: 0 !important;
-    line-height: 1 !important;
-    display: inline-flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    box-sizing: border-box !important;
-    overflow: hidden !important;
-    background: #1d4d99 !important; /* lock in-progress blue */
-    background-color: #1d4d99 !important;
-    color: #ffffff !important;
-    border: none !important;
-}
-
-#ll-tools-mode-switcher-wrap #ll-tools-mode-menu .ll-tools-mode-option,
-#ll-tools-mode-switcher-wrap .ll-tools-mode-option.ll-tools-mode-option {
-    width: var(--ll-tools-fab-size, 56px) !important;
-    height: var(--ll-tools-fab-size, 56px) !important;
-    aspect-ratio: 1 / 1 !important;
-    border-radius: 50% !important;
-    padding: 0 !important;
-    line-height: 1 !important;
-    display: inline-flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    box-sizing: border-box !important;
-    overflow: hidden !important;
-}
-
-#ll-tools-mode-switcher-wrap #ll-tools-mode-menu .ll-tools-mode-option.hidden,
-#ll-tools-mode-switcher-wrap .ll-tools-mode-option.ll-tools-mode-option.hidden {
-    display: none !important;
-}
-
-#ll-tools-mode-switcher-wrap #ll-tools-mode-menu .ll-tools-mode-option:not(.active):not([aria-checked="true"]),
-#ll-tools-mode-switcher-wrap .ll-tools-mode-option.ll-tools-mode-option:not(.active):not([aria-checked="true"]) {
-    background: #ffffff !important;
-    background-color: #ffffff !important;
-    background-image: none !important;
-    color: #111827 !important;
-    border: 1px solid #e5e7eb !important;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.25) !important;
-}
-
-/* Lock icon sizing/visibility for mode switcher */
-#ll-tools-mode-switcher-wrap .ll-tools-mode-option .mode-icon::before {
-    display: block !important;
-    font-size: var(--ll-tools-mode-option-icon-size, 26px) !important;
-    line-height: 1 !important;
-}
-
-#ll-tools-mode-switcher-wrap .ll-tools-mode-switcher .mode-icon {
-    display: block !important;
-    font-size: var(--ll-tools-mode-switcher-icon-size, 28px) !important;
-    line-height: 1 !important;
-}
-
-/* Keep switcher blue on focus/active/expanded regardless of theme accent */
-#ll-tools-mode-switcher-wrap .ll-tools-mode-switcher:focus,
-#ll-tools-mode-switcher-wrap .ll-tools-mode-switcher:active,
-#ll-tools-mode-switcher-wrap .ll-tools-mode-switcher[aria-expanded="true"],
-#ll-tools-mode-switcher-wrap .ll-tools-mode-switcher[aria-pressed="true"] {
-    background: #1d4d99 !important;
-    background-color: #1d4d99 !important;
-    color: #ffffff !important;
-    border: none !important;
-}
-
-/* Hover stays in the same blue family, not theme accent */
-#ll-tools-mode-switcher-wrap .ll-tools-mode-switcher:hover {
-    background: #2f67ba !important; /* slightly lighter in-progress blue */
-    background-color: #2f67ba !important;
-}
-
-#ll-tools-mode-switcher-wrap .ll-tools-mode-option.active,
-#ll-tools-mode-switcher-wrap .ll-tools-mode-option[aria-checked="true"],
-#ll-tools-mode-switcher-wrap .ll-tools-mode-option.active[disabled],
-#ll-tools-mode-switcher-wrap .ll-tools-mode-option[aria-checked="true"][disabled],
-#ll-tools-mode-switcher-wrap .ll-tools-mode-option.active[aria-disabled="true"],
-#ll-tools-mode-switcher-wrap .ll-tools-mode-option[aria-checked="true"][aria-disabled="true"] {
-    background: #15803d !important;
-    background-color: #15803d !important;
-    background-image: none !important;
-    color: #ffffff !important;
-    border: 1px solid #15803d !important;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.25) !important;
-}
-
-#ll-tools-mode-switcher-wrap .ll-tools-mode-option:hover:not(.active):not([disabled]):not([aria-checked="true"]) {
-    background: #f9fafb !important;
-    background-color: #f9fafb !important;
-    background-image: none !important;
-    border-color: #d1d5db !important;
-}
-
-/* Prefer emoji-capable fonts for the small icons */
-#ll-tools-mode-switcher-wrap .mode-icon,
-#ll-tools-mode-switcher-wrap .mode-icon::before {
-    font-family: "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji", system-ui, sans-serif !important;
-    -webkit-text-size-adjust: none !important;
-}
-
 #ll-tools-flashcard-container.ll-compact-quiz-layout {
     --ll-option-grid-gap: 10px;
     --ll-quiz-content-padding: 10px;
-    --ll-quiz-content-padding-bottom: 58px;
     --ll-quiz-header-gap: 8px;
     --ll-quiz-header-padding: 10px 12px 4px;
     --ll-category-stack-gap: 0.25rem;
@@ -3003,15 +2648,11 @@ body.ll-qpg-popup-active #ll-tools-flashcard-content {
     --ll-repeat-visualizer-min-height: 15px;
     --ll-repeat-visualizer-range: 12px;
     --ll-repeat-visualizer-bar-width: 4px;
-    --ll-tools-fab-size: 46px;
-    --ll-tools-mode-switcher-icon-size: 23px;
-    --ll-tools-mode-option-icon-size: 21px;
 }
 
 #ll-tools-flashcard-container.ll-micro-quiz-layout {
     --ll-option-grid-gap: 7px;
     --ll-quiz-content-padding: 7px;
-    --ll-quiz-content-padding-bottom: 48px;
     --ll-quiz-header-gap: 5px;
     --ll-quiz-header-padding: 6px 8px 2px;
     --ll-repeat-button-padding-y: 4px;
@@ -3025,9 +2666,6 @@ body.ll-qpg-popup-active #ll-tools-flashcard-content {
     --ll-repeat-visualizer-min-height: 12px;
     --ll-repeat-visualizer-range: 9px;
     --ll-repeat-visualizer-bar-width: 3px;
-    --ll-tools-fab-size: 40px;
-    --ll-tools-mode-switcher-icon-size: 20px;
-    --ll-tools-mode-option-icon-size: 18px;
 }
 
 #ll-tools-flashcard-container.ll-compact-quiz-layout #ll-tools-learning-progress {
@@ -3052,26 +2690,6 @@ body.ll-qpg-popup-active #ll-tools-flashcard-content {
 
 #ll-tools-flashcard-container.ll-micro-quiz-layout .learning-progress-bar {
     height: 6px;
-}
-
-#ll-tools-flashcard-container.ll-compact-quiz-layout .ll-tools-mode-switcher-wrap {
-    bottom: 8px;
-    right: 8px;
-    gap: 8px;
-}
-
-#ll-tools-flashcard-container.ll-compact-quiz-layout .ll-tools-mode-switcher-wrap > * + * {
-    margin-top: 8px;
-}
-
-#ll-tools-flashcard-container.ll-micro-quiz-layout .ll-tools-mode-switcher-wrap {
-    bottom: 5px;
-    right: 5px;
-    gap: 6px;
-}
-
-#ll-tools-flashcard-container.ll-micro-quiz-layout .ll-tools-mode-switcher-wrap > * + * {
-    margin-top: 6px;
 }
 
 @media (prefers-reduced-motion: reduce) {

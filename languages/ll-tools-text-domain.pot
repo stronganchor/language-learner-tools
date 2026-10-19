@@ -2,14 +2,14 @@
 # This file is distributed under the same license as the Language Learner Tools plugin.
 msgid ""
 msgstr ""
-"Project-Id-Version: Language Learner Tools 6.7.55\n"
+"Project-Id-Version: Language Learner Tools 6.7.56\n"
 "Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/language-learner-tools\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-10-19T08:35:18+00:00\n"
+"POT-Creation-Date: 2026-10-19T12:06:57+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.10.0\n"
 "X-Domain: ll-tools-text-domain\n"
@@ -706,11 +706,11 @@ msgstr ""
 #: includes/admin/image-aspect-normalizer-admin.php:89
 #: includes/admin/image-aspect-normalizer-admin.php:141
 #: includes/admin/ipa-keyboard-admin.php:466
-#: includes/flashcard-shell.php:116
+#: includes/flashcard-shell.php:77
 #: includes/pages/wordset-pages.php:24164
 #: includes/pages/wordset-pages.php:27486
 #: includes/post-types/content-lesson-post-type.php:1822
-#: includes/shortcodes/flashcard-widget.php:786
+#: includes/shortcodes/flashcard-widget.php:781
 #: templates/audio-image-matcher-template.php:72
 msgid "Load more"
 msgstr ""
@@ -764,7 +764,7 @@ msgstr ""
 #: includes/shortcodes/audio-recording-shortcode.php:1644
 #: includes/shortcodes/audio-recording-shortcode.php:1863
 #: includes/shortcodes/dictionary-shortcode.php:345
-#: includes/shortcodes/flashcard-widget.php:785
+#: includes/shortcodes/flashcard-widget.php:780
 #: includes/shortcodes/quiz-pages-shortcodes.php:2403
 #: includes/taxonomies/word-category-taxonomy.php:3667
 #: templates/audio-image-matcher-template.php:57
@@ -957,8 +957,8 @@ msgstr ""
 #: includes/admin/audio-processor-admin.php:1336
 #: includes/admin/audio-processor-admin.php:1560
 #: includes/admin/missing-audio-admin-page.php:606
-#: includes/admin/offline-app-export.php:2940
-#: includes/admin/offline-app-export.php:3683
+#: includes/admin/offline-app-export.php:2939
+#: includes/admin/offline-app-export.php:3681
 #: includes/admin/split-word-admin.php:178
 #: includes/lib/word-copy.php:463
 #: includes/shortcodes/language-switcher-shortcode.php:1066
@@ -1283,7 +1283,7 @@ msgstr ""
 #: includes/admin/teacher-classes-page.php:502
 #: includes/admin/word-option-rules-admin.php:1975
 #: includes/admin/word-option-rules-admin.php:2582
-#: includes/flashcard-shell.php:212
+#: includes/flashcard-shell.php:155
 #: includes/lib/interlinear.php:1779
 #: includes/lib/interlinear.php:1783
 #: includes/pages/content-lesson-pages.php:1092
@@ -1302,7 +1302,7 @@ msgstr ""
 #: includes/shortcodes/audio-credit-grid-shortcode.php:408
 #: includes/shortcodes/content-lesson-index-shortcode.php:722
 #: includes/shortcodes/dictionary-shortcode.php:2967
-#: includes/shortcodes/flashcard-widget.php:752
+#: includes/shortcodes/flashcard-widget.php:747
 #: includes/shortcodes/image-copyright-grid-shortcode.php:591
 #: includes/taxonomies/word-category-taxonomy.php:3659
 msgid "Next"
@@ -3437,7 +3437,7 @@ msgstr ""
 #: includes/admin/uploads/audio-upload-form.php:428
 #: includes/shortcodes/audio-recording-shortcode.php:29
 #: includes/shortcodes/editor-hub-shortcode.php:302
-#: includes/shortcodes/flashcard-widget.php:746
+#: includes/shortcodes/flashcard-widget.php:741
 #: includes/shortcodes/word-grid-shortcode.php:5375
 #: includes/shortcodes/word-grid-shortcode.php:5860
 #: includes/shortcodes/word-grid-shortcode.php:7895
@@ -3448,7 +3448,7 @@ msgstr ""
 #: includes/admin/export-import.php:593
 #: includes/shortcodes/audio-recording-shortcode.php:31
 #: includes/shortcodes/editor-hub-shortcode.php:303
-#: includes/shortcodes/flashcard-widget.php:747
+#: includes/shortcodes/flashcard-widget.php:742
 #: includes/shortcodes/word-grid-shortcode.php:5376
 #: includes/shortcodes/word-grid-shortcode.php:5861
 #: includes/shortcodes/word-grid-shortcode.php:7896
@@ -4209,8 +4209,8 @@ msgid "No undo data"
 msgstr ""
 
 #: includes/admin/export-import.php:3998
-#: includes/admin/offline-app-export.php:3070
-#: includes/admin/offline-app-export.php:3760
+#: includes/admin/offline-app-export.php:3068
+#: includes/admin/offline-app-export.php:3758
 msgid "Warnings:"
 msgstr ""
 
@@ -4588,7 +4588,7 @@ msgstr ""
 #: includes/admin/ipa-keyboard-admin.php:1320
 #: includes/admin/word-option-rules-admin.php:2318
 #: includes/pages/wordset-editor.php:4199
-#: includes/shortcodes/flashcard-widget.php:745
+#: includes/shortcodes/flashcard-widget.php:740
 #: includes/shortcodes/word-grid-shortcode.php:5380
 #: includes/shortcodes/word-grid-shortcode.php:5898
 #: includes/shortcodes/word-grid-shortcode.php:8310
@@ -5792,9 +5792,9 @@ msgstr ""
 #: includes/pages/quiz-pages.php:1131
 #: includes/pages/vocab-lesson-pages.php:2976
 #: includes/pages/vocab-lesson-pages.php:3181
-#: includes/shortcodes/flashcard-widget.php:2598
-#: includes/shortcodes/flashcard-widget.php:2657
-#: includes/shortcodes/flashcard-widget.php:2839
+#: includes/shortcodes/flashcard-widget.php:2587
+#: includes/shortcodes/flashcard-widget.php:2646
+#: includes/shortcodes/flashcard-widget.php:2828
 #: includes/shortcodes/word-grid-shortcode.php:10494
 #: includes/wordset-isolation.php:1630
 msgid "Invalid category."
@@ -6121,8 +6121,8 @@ msgid "Load active courses"
 msgstr ""
 
 #: includes/admin/google-classroom-integration.php:304
-#: includes/admin/offline-app-export.php:2931
-#: includes/admin/offline-app-export.php:3674
+#: includes/admin/offline-app-export.php:2930
+#: includes/admin/offline-app-export.php:3672
 msgid "Disconnect"
 msgstr ""
 
@@ -6173,7 +6173,7 @@ msgstr ""
 #: includes/admin/image-aspect-normalizer-admin.php:85
 #: includes/admin/image-aspect-normalizer-admin.php:138
 #: includes/admin/offline-app-export.php:920
-#: includes/shortcodes/flashcard-widget.php:787
+#: includes/shortcodes/flashcard-widget.php:782
 #: includes/shortcodes/wordset-buttons-shortcode.php:2178
 #: includes/shortcodes/wordset-buttons-shortcode.php:2198
 msgid "Loading categories..."
@@ -6876,7 +6876,7 @@ msgstr ""
 #: includes/admin/ipa-keyboard-admin.php:397
 #: includes/offline-app-sync.php:1420
 #: includes/pages/wordset-pages.php:27387
-#: includes/shortcodes/flashcard-widget.php:784
+#: includes/shortcodes/flashcard-widget.php:779
 #: includes/shortcodes/quiz-pages-shortcodes.php:1871
 #: includes/user-progress.php:11563
 #: includes/user-progress.php:11719
@@ -7177,8 +7177,8 @@ msgstr ""
 #: includes/admin/ipa-keyboard-admin.php:471
 #: includes/admin/offline-app-export.php:759
 #: includes/admin/user-progress-report.php:1111
-#: includes/flashcard-shell.php:107
-#: includes/flashcard-shell.php:224
+#: includes/flashcard-shell.php:68
+#: includes/flashcard-shell.php:167
 #: includes/pages/wordset-editor.php:4883
 #: includes/pages/wordset-editor.php:4942
 #: includes/pages/wordset-pages.php:14298
@@ -7639,11 +7639,11 @@ msgid "%1$d words ready to convert"
 msgstr ""
 
 #: includes/admin/ipa-keyboard-admin.php:586
-#: includes/flashcard-shell.php:110
+#: includes/flashcard-shell.php:71
 #: includes/pages/wordset-pages.php:27361
 #: includes/pages/wordset-pages.php:27448
 #: includes/pages/wordset-pages.php:28511
-#: includes/shortcodes/flashcard-widget.php:797
+#: includes/shortcodes/flashcard-widget.php:792
 #: templates/offline-app-shell-template.php:809
 msgid "Select all"
 msgstr ""
@@ -7651,7 +7651,7 @@ msgstr ""
 #: includes/admin/ipa-keyboard-admin.php:587
 #: includes/pages/wordset-pages.php:28036
 #: includes/pages/wordset-pages.php:28572
-#: includes/shortcodes/flashcard-widget.php:796
+#: includes/shortcodes/flashcard-widget.php:791
 #: templates/offline-app-shell-template.php:832
 msgid "Clear selection"
 msgstr ""
@@ -8767,7 +8767,7 @@ msgstr ""
 #: includes/admin/offline-app-export.php:2032
 #: includes/admin/offline-app-export.php:2044
 #: includes/admin/offline-app-export.php:2058
-#: includes/admin/offline-app-export.php:3383
+#: includes/admin/offline-app-export.php:3381
 msgid "You do not have permission to export offline app bundles."
 msgstr ""
 
@@ -9066,7 +9066,7 @@ msgid "The offline app bundle is not ready to download."
 msgstr ""
 
 #: includes/admin/offline-app-export.php:2224
-#: includes/admin/offline-app-export.php:3437
+#: includes/admin/offline-app-export.php:3435
 msgid "No quizzable categories were found for this word set and selection."
 msgstr ""
 
@@ -9086,119 +9086,119 @@ msgstr ""
 msgid "Could not save offline app word progress."
 msgstr ""
 
-#: includes/admin/offline-app-export.php:2427
+#: includes/admin/offline-app-export.php:2426
 msgid "The offline app IPA font directory is missing."
 msgstr ""
 
-#: includes/admin/offline-app-export.php:2448
-#: includes/admin/offline-app-export.php:3867
+#: includes/admin/offline-app-export.php:2447
+#: includes/admin/offline-app-export.php:3864
 msgid "Could not find the local WordPress jQuery runtime for the offline app shell."
 msgstr ""
 
-#: includes/admin/offline-app-export.php:2451
-#: includes/admin/offline-app-export.php:3892
+#: includes/admin/offline-app-export.php:2450
+#: includes/admin/offline-app-export.php:3889
 msgid "The offline app bootstrap script is missing from the plugin."
 msgstr ""
 
-#: includes/admin/offline-app-export.php:2494
+#: includes/admin/offline-app-export.php:2493
 msgid "Offline app export word progress is invalid."
 msgstr ""
 
-#: includes/admin/offline-app-export.php:2504
+#: includes/admin/offline-app-export.php:2503
 msgid "A selected offline app category no longer exists."
 msgstr ""
 
 #. translators: 1: category name, 2: minimum word count
-#: includes/admin/offline-app-export.php:2580
+#: includes/admin/offline-app-export.php:2579
 msgid "Category \"%1$s\" was omitted from the offline app because fewer than %2$d usable words remained after offline asset checks."
 msgstr ""
 
-#: includes/admin/offline-app-export.php:2601
-#: includes/admin/offline-app-export.php:3484
+#: includes/admin/offline-app-export.php:2600
+#: includes/admin/offline-app-export.php:3482
 msgid "Every selected category was removed because required offline assets could not be bundled."
 msgstr ""
 
-#: includes/admin/offline-app-export.php:2620
+#: includes/admin/offline-app-export.php:2619
 msgid "Could not create offline app zip progress storage."
 msgstr ""
 
-#: includes/admin/offline-app-export.php:2634
+#: includes/admin/offline-app-export.php:2633
 msgid "Could not save offline app zip progress."
 msgstr ""
 
-#: includes/admin/offline-app-export.php:2643
+#: includes/admin/offline-app-export.php:2642
 msgid "Offline app media manifest is missing."
 msgstr ""
 
-#: includes/admin/offline-app-export.php:2647
+#: includes/admin/offline-app-export.php:2646
 msgid "Could not read the offline app media manifest."
 msgstr ""
 
-#: includes/admin/offline-app-export.php:2652
+#: includes/admin/offline-app-export.php:2651
 msgid "Could not resume offline app media progress."
 msgstr ""
 
-#: includes/admin/offline-app-export.php:2661
+#: includes/admin/offline-app-export.php:2660
 msgid "Offline app media manifest contains invalid data."
 msgstr ""
 
-#: includes/admin/offline-app-export.php:2667
+#: includes/admin/offline-app-export.php:2666
 msgid "A required offline app asset is missing. Restore it and resume with a new export."
 msgstr ""
 
-#: includes/admin/offline-app-export.php:2672
+#: includes/admin/offline-app-export.php:2671
 msgid "Could not copy a required asset into the offline app bundle."
 msgstr ""
 
-#: includes/admin/offline-app-export.php:2786
-#: includes/admin/offline-app-export.php:3049
+#: includes/admin/offline-app-export.php:2785
+#: includes/admin/offline-app-export.php:3047
 msgid "The selected word set no longer exists."
 msgstr ""
 
-#: includes/admin/offline-app-export.php:2928
-#: includes/admin/offline-app-export.php:3671
+#: includes/admin/offline-app-export.php:2927
+#: includes/admin/offline-app-export.php:3669
 msgid "Local progress only"
 msgstr ""
 
-#: includes/admin/offline-app-export.php:2929
-#: includes/admin/offline-app-export.php:3672
+#: includes/admin/offline-app-export.php:2928
+#: includes/admin/offline-app-export.php:3670
 msgid "Connected as %s"
 msgstr ""
 
-#: includes/admin/offline-app-export.php:2930
-#: includes/admin/offline-app-export.php:3673
+#: includes/admin/offline-app-export.php:2929
+#: includes/admin/offline-app-export.php:3671
 msgid "Connect account"
 msgstr ""
 
-#: includes/admin/offline-app-export.php:2932
-#: includes/admin/offline-app-export.php:3675
+#: includes/admin/offline-app-export.php:2931
+#: includes/admin/offline-app-export.php:3673
 msgid "Sync now"
 msgstr ""
 
-#: includes/admin/offline-app-export.php:2933
-#: includes/admin/offline-app-export.php:3676
+#: includes/admin/offline-app-export.php:2932
+#: includes/admin/offline-app-export.php:3674
 msgid "%d pending"
 msgstr ""
 
-#: includes/admin/offline-app-export.php:2934
-#: includes/admin/offline-app-export.php:3677
+#: includes/admin/offline-app-export.php:2933
+#: includes/admin/offline-app-export.php:3675
 msgid "All caught up"
 msgstr ""
 
-#: includes/admin/offline-app-export.php:2935
-#: includes/admin/offline-app-export.php:3678
+#: includes/admin/offline-app-export.php:2934
+#: includes/admin/offline-app-export.php:3676
 #: includes/offline-app-sync.php:2487
 msgid "Sync failed. Your local progress is still saved."
 msgstr ""
 
-#: includes/admin/offline-app-export.php:2936
-#: includes/admin/offline-app-export.php:3679
+#: includes/admin/offline-app-export.php:2935
+#: includes/admin/offline-app-export.php:3677
 #: templates/offline-app-shell-template.php:670
 msgid "Connect to Sync"
 msgstr ""
 
-#: includes/admin/offline-app-export.php:2937
-#: includes/admin/offline-app-export.php:3680
+#: includes/admin/offline-app-export.php:2936
+#: includes/admin/offline-app-export.php:3678
 #: includes/login-window.php:2746
 #: includes/pages/wordset-pages.php:14917
 #: includes/pages/wordset-pages.php:25051
@@ -9206,16 +9206,16 @@ msgstr ""
 msgid "Username or email"
 msgstr ""
 
-#: includes/admin/offline-app-export.php:2938
-#: includes/admin/offline-app-export.php:3681
+#: includes/admin/offline-app-export.php:2937
+#: includes/admin/offline-app-export.php:3679
 #: includes/login-window.php:2756
 #: includes/login-window.php:2828
 #: templates/offline-app-shell-template.php:676
 msgid "Password"
 msgstr ""
 
-#: includes/admin/offline-app-export.php:2939
-#: includes/admin/offline-app-export.php:3682
+#: includes/admin/offline-app-export.php:2938
+#: includes/admin/offline-app-export.php:3680
 #: includes/login-window.php:2526
 #: includes/login-window.php:2528
 #: includes/login-window.php:2924
@@ -9224,300 +9224,300 @@ msgstr ""
 msgid "Sign in"
 msgstr ""
 
-#: includes/admin/offline-app-export.php:2941
-#: includes/admin/offline-app-export.php:3684
+#: includes/admin/offline-app-export.php:2940
+#: includes/admin/offline-app-export.php:3682
 msgid "Disconnected. The app will keep storing progress locally."
 msgstr ""
 
-#: includes/admin/offline-app-export.php:2942
+#: includes/admin/offline-app-export.php:2941
 msgid "Syncing..."
 msgstr ""
 
-#: includes/admin/offline-app-export.php:2943
-#: includes/admin/offline-app-export.php:3686
+#: includes/admin/offline-app-export.php:2942
+#: includes/admin/offline-app-export.php:3684
 #: templates/offline-app-shell-template.php:679
 msgid "Show password"
 msgstr ""
 
-#: includes/admin/offline-app-export.php:2944
-#: includes/admin/offline-app-export.php:3687
+#: includes/admin/offline-app-export.php:2943
+#: includes/admin/offline-app-export.php:3685
 msgid "Hide password"
 msgstr ""
 
-#: includes/admin/offline-app-export.php:3040
-#: includes/admin/offline-app-export.php:4004
+#: includes/admin/offline-app-export.php:3038
+#: includes/admin/offline-app-export.php:4000
 msgid "Could not render the offline app shell template."
 msgstr ""
 
-#: includes/admin/offline-app-export.php:3053
-#: includes/admin/offline-app-export.php:3721
+#: includes/admin/offline-app-export.php:3051
+#: includes/admin/offline-app-export.php:3719
 msgid "LL Tools Offline App Bundle"
 msgstr ""
 
 #. translators: %s: word set name
-#: includes/admin/offline-app-export.php:3056
-#: includes/admin/offline-app-export.php:3726
+#: includes/admin/offline-app-export.php:3054
+#: includes/admin/offline-app-export.php:3724
 #: includes/pages/wordset-pages.php:13095
 msgid "Word set: %s"
 msgstr ""
 
 #. translators: %s: app name
-#: includes/admin/offline-app-export.php:3057
-#: includes/admin/offline-app-export.php:3731
+#: includes/admin/offline-app-export.php:3055
+#: includes/admin/offline-app-export.php:3729
 msgid "App name: %s"
 msgstr ""
 
 #. translators: %s: Android app id
-#: includes/admin/offline-app-export.php:3058
-#: includes/admin/offline-app-export.php:3736
+#: includes/admin/offline-app-export.php:3056
+#: includes/admin/offline-app-export.php:3734
 msgid "Android app id: %s"
 msgstr ""
 
 #. translators: %s: icon source
-#: includes/admin/offline-app-export.php:3060
-#: includes/admin/offline-app-export.php:3742
+#: includes/admin/offline-app-export.php:3058
+#: includes/admin/offline-app-export.php:3740
 msgid "App icon: %s"
 msgstr ""
 
-#: includes/admin/offline-app-export.php:3060
-#: includes/admin/offline-app-export.php:3744
+#: includes/admin/offline-app-export.php:3058
+#: includes/admin/offline-app-export.php:3742
 msgid "Custom override image"
 msgstr ""
 
-#: includes/admin/offline-app-export.php:3060
-#: includes/admin/offline-app-export.php:3745
+#: includes/admin/offline-app-export.php:3058
+#: includes/admin/offline-app-export.php:3743
 msgid "Current site icon"
 msgstr ""
 
-#: includes/admin/offline-app-export.php:3061
-#: includes/admin/offline-app-export.php:3747
+#: includes/admin/offline-app-export.php:3059
+#: includes/admin/offline-app-export.php:3745
 msgid "App icon: Builder default (no bundled icon)"
 msgstr ""
 
 #. translators: 1: version name, 2: version code
-#: includes/admin/offline-app-export.php:3062
-#: includes/admin/offline-app-export.php:3750
+#: includes/admin/offline-app-export.php:3060
+#: includes/admin/offline-app-export.php:3748
 msgid "Version: %1$s (%2$d)"
 msgstr ""
 
-#: includes/admin/offline-app-export.php:3064
-#: includes/admin/offline-app-export.php:3755
+#: includes/admin/offline-app-export.php:3062
+#: includes/admin/offline-app-export.php:3753
 msgid "To build an APK, extract this zip and run the scripts in offline-app-builder from this plugin repository against the bundle zip or extracted folder."
 msgstr ""
 
-#: includes/admin/offline-app-export.php:3065
-#: includes/admin/offline-app-export.php:3756
+#: includes/admin/offline-app-export.php:3063
+#: includes/admin/offline-app-export.php:3754
 msgid "This bundle includes the offline quiz shell, bundled media, and local-first quiz runtime data. Learners can keep studying fully offline, then optionally sign in later to sync saved progress back to the source site."
 msgstr ""
 
-#: includes/admin/offline-app-export.php:3077
+#: includes/admin/offline-app-export.php:3075
 msgid "Could not write the offline app bundle readme."
 msgstr ""
 
-#: includes/admin/offline-app-export.php:3092
-#: includes/admin/offline-app-export.php:3886
+#: includes/admin/offline-app-export.php:3090
+#: includes/admin/offline-app-export.php:3883
 msgid "Could not encode offline app data."
 msgstr ""
 
-#: includes/admin/offline-app-export.php:3099
+#: includes/admin/offline-app-export.php:3097
 msgid "Could not prepare streaming offline app data."
 msgstr ""
 
-#: includes/admin/offline-app-export.php:3104
-#: includes/admin/offline-app-export.php:3881
+#: includes/admin/offline-app-export.php:3102
+#: includes/admin/offline-app-export.php:3878
 msgid "Could not create the offline app data directory."
 msgstr ""
 
-#: includes/admin/offline-app-export.php:3118
+#: includes/admin/offline-app-export.php:3116
 msgid "Could not stage streaming offline app data."
 msgstr ""
 
-#: includes/admin/offline-app-export.php:3169
+#: includes/admin/offline-app-export.php:3167
 msgid "Could not continue writing offline app data."
 msgstr ""
 
-#: includes/admin/offline-app-export.php:3176
+#: includes/admin/offline-app-export.php:3174
 msgid "Prepared offline app word data is missing."
 msgstr ""
 
-#: includes/admin/offline-app-export.php:3180
+#: includes/admin/offline-app-export.php:3178
 msgid "Could not read prepared offline app word data."
 msgstr ""
 
-#: includes/admin/offline-app-export.php:3185
+#: includes/admin/offline-app-export.php:3183
 msgid "Could not resume writing offline app data."
 msgstr ""
 
-#: includes/admin/offline-app-export.php:3197
+#: includes/admin/offline-app-export.php:3195
 msgid "Prepared offline app word data is invalid."
 msgstr ""
 
-#: includes/admin/offline-app-export.php:3246
-#: includes/admin/offline-app-export.php:3306
+#: includes/admin/offline-app-export.php:3244
+#: includes/admin/offline-app-export.php:3304
 msgid "Streaming offline app data state is missing."
 msgstr ""
 
-#: includes/admin/offline-app-export.php:3266
+#: includes/admin/offline-app-export.php:3264
 msgid "Could not encode an offline app category."
 msgstr ""
 
-#: includes/admin/offline-app-export.php:3331
+#: includes/admin/offline-app-export.php:3329
 msgid "Offline app zip manifest is missing."
 msgstr ""
 
-#: includes/admin/offline-app-export.php:3335
+#: includes/admin/offline-app-export.php:3333
 msgid "Could not read the offline app zip manifest."
 msgstr ""
 
-#: includes/admin/offline-app-export.php:3340
+#: includes/admin/offline-app-export.php:3338
 msgid "Could not resume offline app zip progress."
 msgstr ""
 
-#: includes/admin/offline-app-export.php:3349
-#: includes/admin/offline-app-export.php:4485
+#: includes/admin/offline-app-export.php:3347
+#: includes/admin/offline-app-export.php:4481
 msgid "Could not create the offline app export zip."
 msgstr ""
 
-#: includes/admin/offline-app-export.php:3361
-#: includes/admin/offline-app-export.php:4509
+#: includes/admin/offline-app-export.php:3359
+#: includes/admin/offline-app-export.php:4505
 msgid "Could not add files to the offline app export zip."
 msgstr ""
 
-#: includes/admin/offline-app-export.php:3369
-#: includes/admin/offline-app-export.php:4515
+#: includes/admin/offline-app-export.php:3367
+#: includes/admin/offline-app-export.php:4511
 msgid "Could not finalize the offline app export zip."
 msgstr ""
 
-#: includes/admin/offline-app-export.php:3405
+#: includes/admin/offline-app-export.php:3403
 msgid "Offline app export requires a valid word set."
 msgstr ""
 
-#: includes/admin/offline-app-export.php:3410
+#: includes/admin/offline-app-export.php:3408
 msgid "The selected word set is invalid."
 msgstr ""
 
 #. translators: 1: category name, 2: minimum words
-#: includes/admin/offline-app-export.php:3472
+#: includes/admin/offline-app-export.php:3470
 msgid "Category \"%1$s\" was omitted from the offline app because only %2$d or fewer usable words remained after offline asset checks."
 msgstr ""
 
-#: includes/admin/offline-app-export.php:3685
+#: includes/admin/offline-app-export.php:3683
 msgid "Syncing…"
 msgstr ""
 
-#: includes/admin/offline-app-export.php:3696
+#: includes/admin/offline-app-export.php:3694
 msgid "Could not access the uploads directory for offline app export."
 msgstr ""
 
-#: includes/admin/offline-app-export.php:3703
+#: includes/admin/offline-app-export.php:3701
 msgid "Could not create the offline app staging directory."
 msgstr ""
 
-#: includes/admin/offline-app-export.php:3716
+#: includes/admin/offline-app-export.php:3714
 msgid "Could not encode the offline bundle manifest."
 msgstr ""
 
-#: includes/admin/offline-app-export.php:3872
+#: includes/admin/offline-app-export.php:3869
 msgid "Could not create the offline app vendor directory."
 msgstr ""
 
-#: includes/admin/offline-app-export.php:3875
+#: includes/admin/offline-app-export.php:3872
 msgid "Could not stage jQuery for the offline app shell."
 msgstr ""
 
-#: includes/admin/offline-app-export.php:3895
+#: includes/admin/offline-app-export.php:3892
 msgid "Could not stage the offline app bootstrap script."
 msgstr ""
 
-#: includes/admin/offline-app-export.php:3907
+#: includes/admin/offline-app-export.php:3904
 msgid "Could not create the offline app content directory."
 msgstr ""
 
-#: includes/admin/offline-app-export.php:3910
+#: includes/admin/offline-app-export.php:3907
 msgid "Could not copy exported media into the offline app bundle."
 msgstr ""
 
 #. translators: 1: word title, 2: category name
-#: includes/admin/offline-app-export.php:4094
+#: includes/admin/offline-app-export.php:4090
 msgid "Word \"%1$s\" was omitted from offline category \"%2$s\" because no local audio file could be bundled."
 msgstr ""
 
 #. translators: 1: word title, 2: category name
-#: includes/admin/offline-app-export.php:4104
+#: includes/admin/offline-app-export.php:4100
 msgid "Word \"%1$s\" was omitted from offline category \"%2$s\" because no local image file could be bundled."
 msgstr ""
 
 #. translators: %d: audio post id
-#: includes/admin/offline-app-export.php:4153
+#: includes/admin/offline-app-export.php:4149
 msgid "Audio post %d could not be bundled because its source file is missing."
 msgstr ""
 
 #. translators: %d: word id
-#: includes/admin/offline-app-export.php:4191
+#: includes/admin/offline-app-export.php:4187
 msgid "Word %d could not bundle its featured image because the source file is missing."
 msgstr ""
 
 #. translators: %s: relative plugin path
-#: includes/admin/offline-app-export.php:4346
+#: includes/admin/offline-app-export.php:4342
 msgid "The offline app bundle is missing required asset \"%s\"."
 msgstr ""
 
-#: includes/admin/offline-app-export.php:4355
+#: includes/admin/offline-app-export.php:4351
 msgid "Could not create the offline app asset directory."
 msgstr ""
 
 #. translators: %s: relative plugin path
-#: includes/admin/offline-app-export.php:4363
+#: includes/admin/offline-app-export.php:4359
 msgid "Could not copy required offline asset \"%s\"."
 msgstr ""
 
-#: includes/admin/offline-app-export.php:4383
+#: includes/admin/offline-app-export.php:4379
 msgid "Could not create the offline app model directory."
 msgstr ""
 
-#: includes/admin/offline-app-export.php:4386
+#: includes/admin/offline-app-export.php:4382
 msgid "Could not copy the offline STT model file into the app bundle."
 msgstr ""
 
-#: includes/admin/offline-app-export.php:4392
+#: includes/admin/offline-app-export.php:4388
 msgid "The offline STT bundle source could not be found."
 msgstr ""
 
-#: includes/admin/offline-app-export.php:4396
+#: includes/admin/offline-app-export.php:4392
 msgid "Could not create the offline STT bundle directory."
 msgstr ""
 
-#: includes/admin/offline-app-export.php:4411
+#: includes/admin/offline-app-export.php:4407
 msgid "Could not create a nested offline STT directory."
 msgstr ""
 
-#: includes/admin/offline-app-export.php:4417
+#: includes/admin/offline-app-export.php:4413
 msgid "Could not copy the offline STT bundle into the app."
 msgstr ""
 
 #. translators: %s: relative plugin directory
-#: includes/admin/offline-app-export.php:4431
+#: includes/admin/offline-app-export.php:4427
 msgid "The offline app bundle is missing required directory \"%s\"."
 msgstr ""
 
-#: includes/admin/offline-app-export.php:4439
+#: includes/admin/offline-app-export.php:4435
 msgid "Could not create the offline app directory."
 msgstr ""
 
-#: includes/admin/offline-app-export.php:4454
+#: includes/admin/offline-app-export.php:4450
 msgid "Could not create a nested offline app directory."
 msgstr ""
 
 #. translators: %s: relative plugin directory
-#: includes/admin/offline-app-export.php:4464
+#: includes/admin/offline-app-export.php:4460
 msgid "Could not copy files from \"%s\" into the offline app bundle."
 msgstr ""
 
-#: includes/admin/offline-app-export.php:4477
+#: includes/admin/offline-app-export.php:4473
 msgid "The offline app staging directory does not exist."
 msgstr ""
 
-#: includes/admin/offline-app-export.php:4480
+#: includes/admin/offline-app-export.php:4476
 msgid "PHP ZipArchive is required to create the offline app export zip."
 msgstr ""
 
@@ -13715,7 +13715,7 @@ msgid "This lesson changed. Reload the page to try the latest version."
 msgstr ""
 
 #: includes/content-lesson-cloze.php:107
-#: includes/flashcard-shell.php:183
+#: includes/flashcard-shell.php:126
 #: includes/pages/vocab-lesson-pages.php:1970
 #: includes/pages/vocab-lesson-pages.php:2043
 #: includes/pages/wordset-pages.php:13564
@@ -13857,73 +13857,63 @@ msgstr ""
 msgid "The progress request could not be verified."
 msgstr ""
 
-#: includes/flashcard-shell.php:54
+#: includes/flashcard-shell.php:49
 #: includes/pages/wordset-pages.php:6770
 #: includes/pages/wordset-pages.php:25993
 #: includes/pages/wordset-pages.php:27481
-#: includes/shortcodes/flashcard-widget.php:738
-#: includes/shortcodes/flashcard-widget.php:802
-#: includes/shortcodes/flashcard-widget.php:885
-#: includes/shortcodes/quiz-pages-shortcodes.php:2875
+#: includes/shortcodes/flashcard-widget.php:733
+#: includes/shortcodes/flashcard-widget.php:797
+#: includes/shortcodes/flashcard-widget.php:876
+#: includes/shortcodes/quiz-pages-shortcodes.php:2873
 #: templates/offline-app-shell-template.php:823
 #: templates/offline-app-shell-template.php:854
 #: templates/vocab-lesson-template.php:201
 msgid "Listen"
 msgstr ""
 
-#: includes/flashcard-shell.php:59
-#: includes/flashcard-shell.php:91
-#: includes/pages/wordset-pages.php:6769
-#: includes/pages/wordset-pages.php:25992
-#: includes/pages/wordset-pages.php:27480
-#: includes/shortcodes/flashcard-widget.php:731
-#: includes/shortcodes/flashcard-widget.php:736
-#: includes/shortcodes/flashcard-widget.php:801
-#: includes/shortcodes/flashcard-widget.php:806
-#: includes/shortcodes/flashcard-widget.php:871
-#: includes/shortcodes/flashcard-widget.php:872
-#: templates/offline-app-shell-template.php:817
-#: templates/vocab-lesson-template.php:198
-msgid "Learn"
-msgstr ""
-
-#: includes/flashcard-shell.php:65
-#: includes/flashcard-shell.php:90
+#: includes/flashcard-shell.php:51
 #: includes/pages/wordset-pages.php:6768
 #: includes/pages/wordset-pages.php:25991
 #: includes/pages/wordset-pages.php:27479
 #: includes/shortcodes/flashcard-widget.php:730
 #: includes/shortcodes/flashcard-widget.php:735
-#: includes/shortcodes/flashcard-widget.php:740
+#: includes/shortcodes/flashcard-widget.php:795
 #: includes/shortcodes/flashcard-widget.php:800
-#: includes/shortcodes/flashcard-widget.php:805
-#: includes/shortcodes/flashcard-widget.php:865
-#: includes/shortcodes/flashcard-widget.php:866
+#: includes/shortcodes/flashcard-widget.php:860
 #: templates/content-lesson-template.php:263
 #: templates/offline-app-shell-template.php:820
 #: templates/vocab-lesson-template.php:197
 msgid "Practice"
 msgstr ""
 
-#: includes/flashcard-shell.php:71
-#: includes/flashcard-shell.php:92
+#: includes/flashcard-shell.php:52
+#: includes/pages/wordset-pages.php:6769
+#: includes/pages/wordset-pages.php:25992
+#: includes/pages/wordset-pages.php:27480
+#: includes/shortcodes/flashcard-widget.php:731
+#: includes/shortcodes/flashcard-widget.php:796
+#: includes/shortcodes/flashcard-widget.php:801
+#: includes/shortcodes/flashcard-widget.php:865
+#: templates/offline-app-shell-template.php:817
+#: templates/vocab-lesson-template.php:198
+msgid "Learn"
+msgstr ""
+
+#: includes/flashcard-shell.php:53
 #: includes/pages/wordset-pages.php:6771
 #: includes/pages/wordset-pages.php:25994
 #: includes/pages/wordset-pages.php:27483
 #: includes/shortcodes/flashcard-widget.php:711
 #: includes/shortcodes/flashcard-widget.php:732
 #: includes/shortcodes/flashcard-widget.php:737
-#: includes/shortcodes/flashcard-widget.php:742
-#: includes/shortcodes/flashcard-widget.php:804
-#: includes/shortcodes/flashcard-widget.php:878
-#: includes/shortcodes/flashcard-widget.php:879
+#: includes/shortcodes/flashcard-widget.php:799
+#: includes/shortcodes/flashcard-widget.php:871
 #: templates/offline-app-shell-template.php:829
 #: templates/vocab-lesson-template.php:199
 msgid "Self check"
 msgstr ""
 
-#: includes/flashcard-shell.php:77
-#: includes/flashcard-shell.php:94
+#: includes/flashcard-shell.php:55
 #: includes/pages/wordset-editor.php:1025
 #: includes/pages/wordset-pages.php:6772
 #: includes/pages/wordset-pages.php:25995
@@ -13935,10 +13925,8 @@ msgstr ""
 #: includes/shortcodes/editor-hub-shortcode.php:1059
 #: includes/shortcodes/flashcard-widget.php:734
 #: includes/shortcodes/flashcard-widget.php:739
-#: includes/shortcodes/flashcard-widget.php:744
-#: includes/shortcodes/flashcard-widget.php:803
-#: includes/shortcodes/flashcard-widget.php:891
-#: includes/shortcodes/flashcard-widget.php:892
+#: includes/shortcodes/flashcard-widget.php:798
+#: includes/shortcodes/flashcard-widget.php:882
 #: includes/shortcodes/word-grid-shortcode.php:6644
 #: templates/offline-app-shell-template.php:826
 #: templates/vocab-lesson-template.php:200
@@ -13947,28 +13935,21 @@ msgstr ""
 msgid "Gender"
 msgstr ""
 
-#: includes/flashcard-shell.php:84
-#: includes/shortcodes/flashcard-widget.php:733
-#: includes/shortcodes/flashcard-widget.php:743
-#: includes/shortcodes/flashcard-widget.php:884
-msgid "Listening"
-msgstr ""
-
-#: includes/flashcard-shell.php:109
+#: includes/flashcard-shell.php:70
 #: includes/pages/wordset-pages.php:27362
 #: includes/pages/wordset-pages.php:27449
-#: includes/shortcodes/flashcard-widget.php:798
+#: includes/shortcodes/flashcard-widget.php:793
 msgid "Deselect all"
 msgstr ""
 
-#: includes/flashcard-shell.php:119
+#: includes/flashcard-shell.php:80
 #: includes/pages/wordset-pages.php:13563
 #: templates/flashcard-widget-template.php:29
 msgid "Start"
 msgstr ""
 
-#: includes/flashcard-shell.php:120
-#: includes/flashcard-shell.php:134
+#: includes/flashcard-shell.php:81
+#: includes/flashcard-shell.php:95
 #: includes/lib/word-copy.php:463
 #: includes/pages/quiz-pages.php:2068
 #: includes/pages/vocab-lesson-pages.php:4828
@@ -13978,18 +13959,18 @@ msgstr ""
 msgid "Close"
 msgstr ""
 
-#: includes/flashcard-shell.php:133
+#: includes/flashcard-shell.php:94
 #: includes/pages/quiz-pages.php:2067
 #: templates/vocab-lesson-template.php:1281
 msgid "Quiz"
 msgstr ""
 
-#: includes/flashcard-shell.php:144
+#: includes/flashcard-shell.php:105
 #: includes/shortcodes/audio-recording-shortcode.php:1688
 msgid "Play"
 msgstr ""
 
-#: includes/flashcard-shell.php:151
+#: includes/flashcard-shell.php:112
 #: includes/pages/quiz-pages.php:1119
 #: includes/pages/quiz-pages.php:2071
 #: includes/shortcodes/quiz-pages-shortcodes.php:2397
@@ -13999,35 +13980,31 @@ msgstr ""
 msgid "Loading quiz..."
 msgstr ""
 
-#: includes/flashcard-shell.php:174
-msgid "Switch Mode"
-msgstr ""
-
-#: includes/flashcard-shell.php:180
+#: includes/flashcard-shell.php:123
 msgid "Quiz Results"
 msgstr ""
 
-#: includes/flashcard-shell.php:215
-#: includes/shortcodes/flashcard-widget.php:753
+#: includes/flashcard-shell.php:158
+#: includes/shortcodes/flashcard-widget.php:748
 msgid "Next Set"
 msgstr ""
 
-#: includes/flashcard-shell.php:221
+#: includes/flashcard-shell.php:164
 #: includes/pages/wordset-pages.php:27348
-#: includes/shortcodes/flashcard-widget.php:760
+#: includes/shortcodes/flashcard-widget.php:755
 msgid "Repeat"
 msgstr ""
 
-#: includes/flashcard-shell.php:227
+#: includes/flashcard-shell.php:170
 #: includes/lib/wordset-language-settings.php:133
 #: includes/pages/wordset-pages.php:27351
 #: includes/pages/wordset-pages.php:28362
-#: includes/shortcodes/flashcard-widget.php:808
+#: includes/shortcodes/flashcard-widget.php:803
 #: templates/offline-app-shell-template.php:727
 msgid "Recommended"
 msgstr ""
 
-#: includes/flashcard-shell.php:230
+#: includes/flashcard-shell.php:173
 #: includes/pages/wordset-pages.php:13522
 #: includes/pages/wordset-pages.php:29661
 msgid "Replay"
@@ -14633,7 +14610,7 @@ msgstr ""
 
 #: includes/lib/flashcard-payload-materializer.php:793
 #: includes/lib/flashcard-payload-materializer.php:824
-#: includes/shortcodes/flashcard-widget.php:2667
+#: includes/shortcodes/flashcard-widget.php:2656
 msgid "You do not have permission to view this flashcard content."
 msgstr ""
 
@@ -15191,7 +15168,7 @@ msgstr ""
 #: includes/shortcodes/dictionary-shortcode.php:208
 #: includes/shortcodes/dictionary-shortcode.php:217
 #: includes/shortcodes/dictionary-shortcode.php:3834
-#: includes/shortcodes/flashcard-widget.php:2775
+#: includes/shortcodes/flashcard-widget.php:2764
 #: includes/shortcodes/quiz-pages-shortcodes.php:1862
 #: includes/shortcodes/quiz-pages-shortcodes.php:1890
 #: includes/taxonomies/word-category-taxonomy.php:774
@@ -18208,7 +18185,7 @@ msgid "Quiz page synchronization paused because category eligibility was incompl
 msgstr ""
 
 #: includes/pages/quiz-pages.php:2070
-#: includes/shortcodes/flashcard-widget.php:779
+#: includes/shortcodes/flashcard-widget.php:774
 msgid "Exit this activity? Completed rounds are saved, but this activity will restart."
 msgstr ""
 
@@ -18659,7 +18636,7 @@ msgid "Lesson metadata is missing."
 msgstr ""
 
 #: includes/pages/vocab-lesson-pages.php:9020
-#: includes/shortcodes/flashcard-widget.php:2066
+#: includes/shortcodes/flashcard-widget.php:2055
 msgid "Lesson words are still being prepared. Please try again in a moment."
 msgstr ""
 
@@ -19438,7 +19415,7 @@ msgstr ""
 #: includes/pages/wordset-editor.php:5002
 #: includes/pages/wordset-transcription-review.php:307
 #: includes/shortcodes/editor-hub-shortcode.php:1063
-#: includes/shortcodes/flashcard-widget.php:748
+#: includes/shortcodes/flashcard-widget.php:743
 #: includes/shortcodes/word-grid-shortcode.php:4125
 #: includes/shortcodes/word-grid-shortcode.php:5923
 #: includes/shortcodes/word-grid-shortcode.php:6987
@@ -20035,7 +20012,7 @@ msgstr ""
 
 #: includes/pages/wordset-pages.php:7424
 #: includes/pages/wordset-pages.php:27368
-#: includes/shortcodes/flashcard-widget.php:817
+#: includes/shortcodes/flashcard-widget.php:812
 msgid "%1$s: %2$s"
 msgstr ""
 
@@ -21939,7 +21916,7 @@ msgstr ""
 
 #: includes/pages/wordset-pages.php:17554
 #: includes/pages/wordset-pages.php:28524
-#: includes/shortcodes/flashcard-widget.php:814
+#: includes/shortcodes/flashcard-widget.php:809
 msgid "No categories match this search."
 msgstr ""
 
@@ -22449,7 +22426,7 @@ msgid "Queue by Category"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:24820
-#: includes/shortcodes/flashcard-widget.php:1649
+#: includes/shortcodes/flashcard-widget.php:1638
 msgid "The category catalog is temporarily unavailable. Please try again."
 msgstr ""
 
@@ -22882,18 +22859,18 @@ msgstr ""
 #: includes/pages/wordset-pages.php:27331
 #: includes/pages/wordset-pages.php:27332
 #: includes/pages/wordset-pages.php:28368
-#: includes/shortcodes/flashcard-widget.php:809
+#: includes/shortcodes/flashcard-widget.php:804
 #: templates/offline-app-shell-template.php:733
 msgid "Loading next recommendation..."
 msgstr ""
 
 #: includes/pages/wordset-pages.php:27333
-#: includes/shortcodes/flashcard-widget.php:811
+#: includes/shortcodes/flashcard-widget.php:806
 msgid "Recommended: %1$s in %2$s (%3$d words)."
 msgstr ""
 
 #: includes/pages/wordset-pages.php:27334
-#: includes/shortcodes/flashcard-widget.php:812
+#: includes/shortcodes/flashcard-widget.php:807
 msgid "Recommended: %1$s in %2$s."
 msgstr ""
 
@@ -22907,7 +22884,7 @@ msgstr ""
 
 #: includes/pages/wordset-pages.php:27352
 #: includes/pages/wordset-pages.php:28544
-#: includes/shortcodes/flashcard-widget.php:794
+#: includes/shortcodes/flashcard-widget.php:789
 #: templates/offline-app-shell-template.php:814
 msgid "Select categories to study together"
 msgstr ""
@@ -22918,9 +22895,9 @@ msgstr ""
 
 #: includes/pages/wordset-pages.php:27355
 #: includes/pages/wordset-pages.php:27392
-#: includes/shortcodes/flashcard-widget.php:756
-#: includes/shortcodes/flashcard-widget.php:799
-#: includes/shortcodes/flashcard-widget.php:813
+#: includes/shortcodes/flashcard-widget.php:751
+#: includes/shortcodes/flashcard-widget.php:794
+#: includes/shortcodes/flashcard-widget.php:808
 msgid "%d words"
 msgstr ""
 
@@ -23203,21 +23180,21 @@ msgid "Not started"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:27468
-#: includes/shortcodes/flashcard-widget.php:757
-#: includes/shortcodes/flashcard-widget.php:763
+#: includes/shortcodes/flashcard-widget.php:752
+#: includes/shortcodes/flashcard-widget.php:758
 msgid "Level 1"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:27469
-#: includes/shortcodes/flashcard-widget.php:758
-#: includes/shortcodes/flashcard-widget.php:761
-#: includes/shortcodes/flashcard-widget.php:764
+#: includes/shortcodes/flashcard-widget.php:753
+#: includes/shortcodes/flashcard-widget.php:756
+#: includes/shortcodes/flashcard-widget.php:759
 msgid "Level 2"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:27470
-#: includes/shortcodes/flashcard-widget.php:759
-#: includes/shortcodes/flashcard-widget.php:762
+#: includes/shortcodes/flashcard-widget.php:754
+#: includes/shortcodes/flashcard-widget.php:757
 msgid "Level 3"
 msgstr ""
 
@@ -23227,7 +23204,7 @@ msgstr ""
 
 #: includes/pages/wordset-pages.php:27472
 #: includes/privacy.php:870
-#: includes/shortcodes/flashcard-widget.php:754
+#: includes/shortcodes/flashcard-widget.php:749
 msgid "Gender progress"
 msgstr ""
 
@@ -26336,7 +26313,7 @@ msgid "%d answers"
 msgstr ""
 
 #: includes/shortcodes/flashcard-widget.php:722
-#: includes/shortcodes/flashcard-widget.php:789
+#: includes/shortcodes/flashcard-widget.php:784
 #: templates/content-lesson-template.php:205
 #: templates/content-lesson-template.php:253
 msgid "No content available."
@@ -26363,159 +26340,163 @@ msgstr ""
 msgid "Pause audio"
 msgstr ""
 
-#: includes/shortcodes/flashcard-widget.php:741
+#: includes/shortcodes/flashcard-widget.php:736
 msgid "Learning"
 msgstr ""
 
-#: includes/shortcodes/flashcard-widget.php:749
+#: includes/shortcodes/flashcard-widget.php:738
+msgid "Listening"
+msgstr ""
+
+#: includes/shortcodes/flashcard-widget.php:744
 msgid "I don't know"
 msgstr ""
 
-#: includes/shortcodes/flashcard-widget.php:750
+#: includes/shortcodes/flashcard-widget.php:745
 msgid "Gender Round Complete"
 msgstr ""
 
-#: includes/shortcodes/flashcard-widget.php:751
+#: includes/shortcodes/flashcard-widget.php:746
 msgid "Keep training noun gender with the next activity."
 msgstr ""
 
-#: includes/shortcodes/flashcard-widget.php:755
+#: includes/shortcodes/flashcard-widget.php:750
 msgid "Current set"
 msgstr ""
 
-#: includes/shortcodes/flashcard-widget.php:765
+#: includes/shortcodes/flashcard-widget.php:760
 msgid "Level 1 Complete"
 msgstr ""
 
-#: includes/shortcodes/flashcard-widget.php:766
+#: includes/shortcodes/flashcard-widget.php:761
 msgid "Advance to the next gender level with the same words."
 msgstr ""
 
-#: includes/shortcodes/flashcard-widget.php:767
+#: includes/shortcodes/flashcard-widget.php:762
 msgid "Level 1: Keep Building"
 msgstr ""
 
-#: includes/shortcodes/flashcard-widget.php:768
-#: includes/shortcodes/flashcard-widget.php:772
+#: includes/shortcodes/flashcard-widget.php:763
+#: includes/shortcodes/flashcard-widget.php:767
 msgid "Repeat this level to reinforce word-gender memory."
 msgstr ""
 
-#: includes/shortcodes/flashcard-widget.php:769
+#: includes/shortcodes/flashcard-widget.php:764
 msgid "Level 2 Complete"
 msgstr ""
 
-#: includes/shortcodes/flashcard-widget.php:770
+#: includes/shortcodes/flashcard-widget.php:765
 msgid "You are ready for pure isolation practice."
 msgstr ""
 
-#: includes/shortcodes/flashcard-widget.php:771
+#: includes/shortcodes/flashcard-widget.php:766
 msgid "Level 2: Keep Practicing"
 msgstr ""
 
-#: includes/shortcodes/flashcard-widget.php:773
+#: includes/shortcodes/flashcard-widget.php:768
 msgid "Level 2: Reset Needed"
 msgstr ""
 
-#: includes/shortcodes/flashcard-widget.php:774
+#: includes/shortcodes/flashcard-widget.php:769
 msgid "A quick review cycle in Level 1 should help."
 msgstr ""
 
-#: includes/shortcodes/flashcard-widget.php:775
+#: includes/shortcodes/flashcard-widget.php:770
 msgid "Level 3 Stable"
 msgstr ""
 
-#: includes/shortcodes/flashcard-widget.php:776
+#: includes/shortcodes/flashcard-widget.php:771
 msgid "Keep practicing isolation-only to maintain speed."
 msgstr ""
 
-#: includes/shortcodes/flashcard-widget.php:777
+#: includes/shortcodes/flashcard-widget.php:772
 msgid "Level 3: Rebuild Confidence"
 msgstr ""
 
-#: includes/shortcodes/flashcard-widget.php:778
+#: includes/shortcodes/flashcard-widget.php:773
 msgid "Some words need context support again."
 msgstr ""
 
-#: includes/shortcodes/flashcard-widget.php:782
+#: includes/shortcodes/flashcard-widget.php:777
+#: includes/shortcodes/flashcard-widget.php:778
 #: includes/shortcodes/flashcard-widget.php:783
-#: includes/shortcodes/flashcard-widget.php:788
-#: includes/shortcodes/flashcard-widget.php:790
+#: includes/shortcodes/flashcard-widget.php:785
 #: includes/shortcodes/wordset-buttons-shortcode.php:2528
 #: includes/shortcodes/wordset-buttons-shortcode.php:2565
 #: includes/shortcodes/wordset-buttons-shortcode.php:2579
 msgid "Something went wrong"
 msgstr ""
 
-#: includes/shortcodes/flashcard-widget.php:791
+#: includes/shortcodes/flashcard-widget.php:786
 msgid "Quiz round requires at least two options."
 msgstr ""
 
-#: includes/shortcodes/flashcard-widget.php:792
+#: includes/shortcodes/flashcard-widget.php:787
 msgid "Round setup: %1$d of %2$d required options are available."
 msgstr ""
 
-#: includes/shortcodes/flashcard-widget.php:793
+#: includes/shortcodes/flashcard-widget.php:788
 msgid "Error details"
 msgstr ""
 
-#: includes/shortcodes/flashcard-widget.php:795
+#: includes/shortcodes/flashcard-widget.php:790
 #: templates/offline-app-shell-template.php:836
 msgid "No categories are available in this offline app."
 msgstr ""
 
-#: includes/shortcodes/flashcard-widget.php:807
+#: includes/shortcodes/flashcard-widget.php:802
 msgid "Select category: %s"
 msgstr ""
 
-#: includes/shortcodes/flashcard-widget.php:810
+#: includes/shortcodes/flashcard-widget.php:805
 msgid "Start with a category below, or connect sync to get the next study step."
 msgstr ""
 
-#: includes/shortcodes/flashcard-widget.php:815
+#: includes/shortcodes/flashcard-widget.php:810
 msgid "Learning mode is not available for this selection."
 msgstr ""
 
-#: includes/shortcodes/flashcard-widget.php:816
+#: includes/shortcodes/flashcard-widget.php:811
 msgid "Gender mode is not available for this selection."
 msgstr ""
 
-#: includes/shortcodes/flashcard-widget.php:846
+#: includes/shortcodes/flashcard-widget.php:841
 msgid "Female and male symbols icon"
 msgstr ""
 
-#: includes/shortcodes/flashcard-widget.php:1881
-#: includes/shortcodes/flashcard-widget.php:2079
+#: includes/shortcodes/flashcard-widget.php:1870
+#: includes/shortcodes/flashcard-widget.php:2068
 msgid "Too many flashcard category requests. Please try again shortly."
 msgstr ""
 
-#: includes/shortcodes/flashcard-widget.php:2483
+#: includes/shortcodes/flashcard-widget.php:2472
 msgid "Preparing flashcard data. Please wait a moment."
 msgstr ""
 
-#: includes/shortcodes/flashcard-widget.php:2494
+#: includes/shortcodes/flashcard-widget.php:2483
 msgid "Flashcard data changed. Please restart the quiz."
 msgstr ""
 
-#: includes/shortcodes/flashcard-widget.php:2500
+#: includes/shortcodes/flashcard-widget.php:2489
 msgid "Invalid flashcard page cursor."
 msgstr ""
 
-#: includes/shortcodes/flashcard-widget.php:2509
-#: includes/shortcodes/flashcard-widget.php:2526
-#: includes/shortcodes/flashcard-widget.php:2626
+#: includes/shortcodes/flashcard-widget.php:2498
+#: includes/shortcodes/flashcard-widget.php:2515
+#: includes/shortcodes/flashcard-widget.php:2615
 #: includes/user-progress.php:885
 msgid "Flashcard data is temporarily unavailable."
 msgstr ""
 
-#: includes/shortcodes/flashcard-widget.php:2570
+#: includes/shortcodes/flashcard-widget.php:2559
 msgid "Invalid flashcard locale."
 msgstr ""
 
-#: includes/shortcodes/flashcard-widget.php:2636
+#: includes/shortcodes/flashcard-widget.php:2625
 msgid "Invalid wordset."
 msgstr ""
 
-#: includes/shortcodes/flashcard-widget.php:3044
+#: includes/shortcodes/flashcard-widget.php:3033
 msgid "This flashcard category must be loaded in pages. Please refresh the page."
 msgstr ""
 
@@ -26566,28 +26547,28 @@ msgstr ""
 msgid "Quiz loading is taking longer than expected."
 msgstr ""
 
-#: includes/shortcodes/quiz-pages-shortcodes.php:3321
+#: includes/shortcodes/quiz-pages-shortcodes.php:3319
 msgid "No quizzes found."
 msgstr ""
 
 #. translators: %s: quiz card title
-#: includes/shortcodes/quiz-pages-shortcodes.php:3374
+#: includes/shortcodes/quiz-pages-shortcodes.php:3372
 msgid "Start %s"
 msgstr ""
 
-#: includes/shortcodes/quiz-pages-shortcodes.php:3416
+#: includes/shortcodes/quiz-pages-shortcodes.php:3414
 msgid "Select a quiz…"
 msgstr ""
 
-#: includes/shortcodes/quiz-pages-shortcodes.php:3440
+#: includes/shortcodes/quiz-pages-shortcodes.php:3438
 msgid "No quiz pages are available yet."
 msgstr ""
 
-#: includes/shortcodes/quiz-pages-shortcodes.php:3449
+#: includes/shortcodes/quiz-pages-shortcodes.php:3447
 msgid "Quiz selection"
 msgstr ""
 
-#: includes/shortcodes/quiz-pages-shortcodes.php:3464
+#: includes/shortcodes/quiz-pages-shortcodes.php:3462
 msgid "Go"
 msgstr ""
 

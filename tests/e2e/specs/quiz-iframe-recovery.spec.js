@@ -52,7 +52,6 @@ test('shared quiz dialog portals to body, traps focus, isolates the page, and re
       Cards: {},
       Results: {},
       StateMachine: {},
-      ModeConfig: {}
     };
   });
   await page.addScriptTag({ path: jqueryScriptPath });
@@ -138,7 +137,6 @@ test('top-level mobile quiz keeps its established card, header, and audio sizing
       Cards: {},
       Results: {},
       StateMachine: {},
-      ModeConfig: {}
     };
   });
   await page.addScriptTag({ path: jqueryScriptPath });
@@ -186,7 +184,6 @@ test('embedded quiz dialog stays in its container with compact layout variables 
       Cards: {},
       Results: {},
       StateMachine: {},
-      ModeConfig: {}
     };
   });
   await page.addScriptTag({ path: jqueryScriptPath });

@@ -109,11 +109,6 @@ async function renderQuizFrame(page, options = {}) {
               <div id="ll-tools-prompt" class="ll-tools-prompt" style="display:none;"></div>
               <div id="ll-tools-flashcard"></div>
             </div>
-            <div id="ll-tools-mode-switcher-wrap" class="ll-tools-mode-switcher-wrap" style="display:flex;">
-              <button id="ll-tools-mode-switcher" class="ll-tools-mode-switcher" type="button" aria-label="Switch Mode">
-                <span class="mode-icon" aria-hidden="true">&harr;</span>
-              </button>
-            </div>
           </div>
         </div>
       </div>

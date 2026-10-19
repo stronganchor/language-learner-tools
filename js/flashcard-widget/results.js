@@ -666,14 +666,12 @@
         $('#quiz-results-categories').hide().empty();
         resetLearningResultsButtonLabel();
         resetGenderResultsButtonLabel();
-        $('#ll-tools-mode-switcher-wrap').show();
     }
 
     function showResults() {
         const msgs = root.llToolsFlashcardsMessages || {};
         const State = root.LLFlashcards.State;
         $('#ll-tools-flashcard-quiz-popup, #quiz-results').removeClass('ll-tools-error-state');
-        $('#ll-tools-mode-switcher-wrap').hide();
         if (State && !State.modeSessionCompleteTracked && shouldTrackModeSessionCompletionForProgress()) {
             trackModeSessionCompletionForProgress(getCurrentResultsMode());
             State.modeSessionCompleteTracked = true;
@@ -746,7 +744,7 @@
             }
         }
 
-        // Keep mode switch buttons available during results
+        // Keep results mode buttons available.
 
         if (State.isLearningMode) {
             // Insert checkmark BEFORE the title

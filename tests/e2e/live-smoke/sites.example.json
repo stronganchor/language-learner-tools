@@ -58,7 +58,6 @@
     },
     "interaction": {
       "openSelector": "[data-ll-wordset-category-mode]",
-      "expectModeSwitcher": true,
       "expectBodyClassIncludes": [
         "ll-tools-flashcard-open"
       ],

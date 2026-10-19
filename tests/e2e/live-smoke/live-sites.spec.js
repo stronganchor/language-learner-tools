@@ -614,9 +614,8 @@ async function exercisePopupOpenClose(page, interactionConfig, lifecycle = {}) {
 
   await expect(popup).toBeVisible({ timeout: interactionConfig.popupVisibleTimeoutMs || 30000 });
 
-  if (interactionConfig.expectModeSwitcher !== false) {
-    await expect(page.locator('#ll-tools-mode-switcher-wrap')).toBeVisible({ timeout: 30000 });
-  }
+  await expect(page.locator('#ll-tools-flashcard-header')).toBeVisible({ timeout: 30000 });
+  await expect(page.locator('#ll-tools-mode-switcher-wrap, #ll-tools-mode-switcher, #ll-tools-mode-menu')).toHaveCount(0);
 
   const bodyClassWhileOpen = await page.locator('body').getAttribute('class');
   for (const expectedClass of normalizeList(interactionConfig.expectBodyClassIncludes)) {

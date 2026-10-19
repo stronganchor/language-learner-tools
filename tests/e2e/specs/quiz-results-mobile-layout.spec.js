@@ -98,9 +98,6 @@ test('mobile continuation error resists hostile theme styles and hides in-round 
               <div id="ll-tools-learning-progress" style="display:block;"></div>
             </div>
             <div id="ll-tools-flashcard-content"></div>
-            <div id="ll-tools-mode-switcher-wrap" style="display:block;">
-              <button id="ll-tools-mode-switcher" class="ll-tools-mode-switcher" type="button">Mode</button>
-            </div>
             <div id="quiz-results" class="ll-tools-error-state" style="display:block;">
               <h2 id="quiz-results-title">Bir şeyler ters gitti</h2>
               <p id="quiz-results-message"><strong>Hata ayrıntıları:</strong> Lütfen tekrar deneyin.</p>
@@ -134,7 +131,7 @@ test('mobile continuation error resists hostile theme styles and hides in-round 
   ` });
 
   await expect(page.locator('#ll-tools-learning-progress')).toBeHidden();
-  await expect(page.locator('#ll-tools-mode-switcher-wrap')).toBeHidden();
+  await expect(page.locator('#ll-tools-mode-switcher-wrap, #ll-tools-mode-switcher, #ll-tools-mode-menu')).toHaveCount(0);
 
   const metrics = await page.evaluate(() => {
     const results = document.querySelector('#quiz-results');

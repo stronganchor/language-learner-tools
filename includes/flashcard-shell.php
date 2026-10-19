@@ -8,7 +8,6 @@ function ll_tools_flashcard_shell_default_mode_icons(): array {
         'self-check' => html_entity_decode('&#10004;&#10006;', ENT_QUOTES, 'UTF-8'),
         'gender' => html_entity_decode('&#9893;', ENT_QUOTES, 'UTF-8'),
         'listening' => html_entity_decode('&#127911;', ENT_QUOTES, 'UTF-8'),
-        'switch' => html_entity_decode('&#8644;', ENT_QUOTES, 'UTF-8'),
     ];
 }
 
@@ -47,45 +46,7 @@ function ll_tools_render_flashcard_overlay_shell(array $args = []): void {
         ? !empty($args['show_category_display'])
         : true;
     $category_label_text = isset($args['category_label_text']) ? (string) $args['category_label_text'] : '';
-    $gender_mode_visible = !empty($args['gender_mode_visible']);
-    $mode_order = isset($args['mode_order']) && is_array($args['mode_order'])
-        ? array_values(array_filter(array_map('strval', $args['mode_order'])))
-        : ['learning', 'practice', 'self-check', 'gender', 'listening'];
     $listening_results_fallback = $args['listening_results_fallback'] ?? __('Listen', 'll-tools-text-domain');
-
-    $mode_configs = [
-        'learning' => [
-            'class' => 'learning',
-            'label' => $learning_mode_ui['switchLabel'] ?? __('Learn', 'll-tools-text-domain'),
-            'ui' => $learning_mode_ui,
-            'fallback' => $fallback_icons['learning'],
-        ],
-        'practice' => [
-            'class' => 'practice',
-            'label' => $practice_mode_ui['switchLabel'] ?? __('Practice', 'll-tools-text-domain'),
-            'ui' => $practice_mode_ui,
-            'fallback' => $fallback_icons['practice'],
-        ],
-        'self-check' => [
-            'class' => 'self-check',
-            'label' => $self_check_mode_ui['switchLabel'] ?? __('Self check', 'll-tools-text-domain'),
-            'ui' => $self_check_mode_ui,
-            'fallback' => $fallback_icons['self-check'],
-        ],
-        'gender' => [
-            'class' => 'gender' . ($gender_mode_visible ? '' : ' hidden'),
-            'label' => $gender_mode_ui['switchLabel'] ?? __('Gender', 'll-tools-text-domain'),
-            'ui' => $gender_mode_ui,
-            'fallback' => $fallback_icons['gender'],
-            'hidden' => !$gender_mode_visible,
-        ],
-        'listening' => [
-            'class' => 'listening',
-            'label' => $listening_mode_ui['switchLabel'] ?? __('Listening', 'll-tools-text-domain'),
-            'ui' => $listening_mode_ui,
-            'fallback' => $fallback_icons['listening'],
-        ],
-    ];
 
     $practice_results_label = $practice_mode_ui['resultsButtonText'] ?? __('Practice', 'll-tools-text-domain');
     $learning_results_label = $learning_mode_ui['resultsButtonText'] ?? __('Learn', 'll-tools-text-domain');
@@ -156,24 +117,6 @@ function ll_tools_render_flashcard_overlay_shell(array $args = []): void {
           <div id="ll-tools-prompt" class="ll-tools-prompt" style="display:none;"></div>
           <div id="ll-tools-flashcard"></div>
           <audio controls class="hidden"></audio>
-        </div>
-
-        <div id="ll-tools-mode-switcher-wrap" class="ll-tools-mode-switcher-wrap" style="display:none;" aria-expanded="false">
-          <div id="ll-tools-mode-menu" class="ll-tools-mode-menu" role="menu" aria-hidden="true">
-            <?php foreach ($mode_order as $mode_slug) :
-                if (!isset($mode_configs[$mode_slug])) {
-                    continue;
-                }
-                $mode_config = $mode_configs[$mode_slug];
-                ?>
-                <button class="ll-tools-mode-option <?php echo esc_attr($mode_config['class']); ?>" role="menuitemradio" aria-label="<?php echo esc_attr($mode_config['label']); ?>" data-mode="<?php echo esc_attr($mode_slug); ?>" type="button"<?php echo !empty($mode_config['hidden']) ? ' aria-hidden="true"' : ''; ?>>
-                  <?php echo ll_tools_flashcard_shell_mode_icon_html($mode_config['ui'], $mode_config['fallback'], 'mode-icon'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
-                </button>
-            <?php endforeach; ?>
-          </div>
-          <button id="ll-tools-mode-switcher" class="ll-tools-mode-switcher" type="button" aria-haspopup="true" aria-expanded="false" aria-label="<?php echo esc_attr__('Switch Mode', 'll-tools-text-domain'); ?>">
-            <span class="mode-icon" aria-hidden="true"><?php echo esc_html($fallback_icons['switch']); ?></span>
-          </button>
         </div>
 
         <div id="quiz-results" style="display:none;">

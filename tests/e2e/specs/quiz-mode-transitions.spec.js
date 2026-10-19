@@ -2,31 +2,32 @@ const { test, expect } = require('@playwright/test');
 
 const LEARN_PATH = process.env.LL_E2E_LEARN_PATH || '/learn/';
 
-async function openModeMenu(page) {
-  const switcher = page.locator('#ll-tools-mode-switcher');
-  const menu = page.locator('#ll-tools-mode-menu');
-
-  await expect(switcher).toBeVisible();
-  if ((await menu.getAttribute('aria-hidden')) !== 'false') {
-    await switcher.click();
-  }
-  await expect(menu).toHaveAttribute('aria-hidden', 'false');
+async function showResults(page) {
+  // Exercise the same results renderer used by completed rounds without making
+  // this regression depend on a site's word count or audio duration.
+  await page.evaluate(() => {
+    const state = window.LLFlashcards.State;
+    state.clearActiveTimeouts();
+    state.forceTransitionTo('showing_results', 'Result-action regression');
+    window.LLFlashcards.Results.showResults();
+  });
+  await expect(page.locator('#quiz-results')).toBeVisible();
 }
 
-async function switchToMode(page, mode) {
-  const option = page.locator(`#ll-tools-mode-menu .ll-tools-mode-option.${mode}`);
-  await openModeMenu(page);
-  await expect(option).toBeVisible();
-
-  const isDisabled = await option.evaluate((el) => {
-    return el.classList.contains('disabled') || el.hasAttribute('disabled');
-  });
-  if (isDisabled) {
-    throw new Error(`Mode option "${mode}" is unexpectedly disabled`);
-  }
-
-  await option.click();
-  await expect(option).toHaveClass(/active/);
+async function switchViaResults(page, mode) {
+  await showResults(page);
+  const button = page.locator(`#restart-${mode}-mode`);
+  await expect(button).toBeVisible();
+  await expect(button).toBeEnabled();
+  await button.click();
+  await expect(page.locator('#quiz-results')).toBeHidden();
+  await expect.poll(() => page.evaluate(() => {
+    const state = window.LLFlashcards.State;
+    return state.isSelfCheckMode ? 'self-check'
+      : state.isListeningMode ? 'listening'
+      : state.isLearningMode ? 'learning'
+      : state.isGenderMode ? 'gender' : 'practice';
+  })).toBe(mode);
 }
 
 function expectsImage(mode) {
@@ -60,7 +61,7 @@ async function expectFaceMatchesMode(page, faceSelector, mode) {
   }
 }
 
-test('quiz popup supports mode transitions in the primary learn flow', async ({ page }) => {
+test('quiz popup supports results mode actions without a floating switcher', async ({ page }) => {
   await page.goto(LEARN_PATH, { waitUntil: 'domcontentloaded' });
 
   const quizTriggers = page.locator('.ll-quiz-page-trigger');
@@ -69,16 +70,10 @@ test('quiz popup supports mode transitions in the primary learn flow', async ({ 
   await quizTriggers.first().click({ force: true });
 
   await expect(page.locator('#ll-tools-flashcard-quiz-popup')).toBeVisible({ timeout: 60000 });
-  await expect(page.locator('#ll-tools-mode-switcher-wrap')).toBeVisible({ timeout: 60000 });
+  await expect(page.locator('#ll-tools-flashcard-header')).toBeVisible({ timeout: 60000 });
+  await expect(page.locator('#ll-tools-mode-switcher-wrap, #ll-tools-mode-switcher, #ll-tools-mode-menu')).toHaveCount(0);
 
-  await switchToMode(page, 'self-check');
-  const selfCheckOption = page.locator('#ll-tools-mode-menu .ll-tools-mode-option.self-check');
-  const practiceOptionAfterSelfCheck = page.locator('#ll-tools-mode-menu .ll-tools-mode-option.practice');
-  const learningOptionAfterSelfCheck = page.locator('#ll-tools-mode-menu .ll-tools-mode-option.learning');
-  await openModeMenu(page);
-  await expect(selfCheckOption).toHaveClass(/active/);
-  await expect(practiceOptionAfterSelfCheck).not.toHaveClass(/active/);
-  await expect(learningOptionAfterSelfCheck).not.toHaveClass(/active/);
+  await switchViaResults(page, 'self-check');
   await expect(page.locator('#ll-tools-flashcard-quiz-popup')).toHaveClass(/ll-self-check-active/);
   await expect(page.locator('.ll-study-check-round')).toBeVisible();
   await expect(page.locator('.ll-study-check-btn--idk')).toBeVisible();
@@ -132,16 +127,14 @@ test('quiz popup supports mode transitions in the primary learn flow', async ({ 
   await expect(page.locator('.ll-study-check-flip-card')).toHaveClass(/is-flipped/);
   await expectFaceMatchesMode(page, '.ll-study-check-face--back', modeMeta.promptType);
 
-  await switchToMode(page, 'listening');
-  await switchToMode(page, 'practice');
+  await switchViaResults(page, 'listening');
+  await switchViaResults(page, 'practice');
 
-  const learningOption = page.locator('#ll-tools-mode-menu .ll-tools-mode-option.learning');
-  await openModeMenu(page);
-  const learningDisabled = await learningOption.evaluate((el) => {
-    return el.classList.contains('disabled') || el.hasAttribute('disabled');
-  });
-  if (!learningDisabled) {
-    await learningOption.click();
-    await expect(learningOption).toHaveClass(/active/);
+  await showResults(page);
+  const learningButton = page.locator('#restart-learning-mode');
+  if (await learningButton.isVisible() && await learningButton.isEnabled()) {
+    await learningButton.click();
+    await expect(page.locator('#quiz-results')).toBeHidden();
+    await expect.poll(() => page.evaluate(() => window.LLFlashcards.State.isLearningMode)).toBe(true);
   }
 });

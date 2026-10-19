@@ -4,7 +4,7 @@
     if (window.__LLFlashcardsMainLoaded) { return; }
     window.__LLFlashcardsMainLoaded = true;
 
-    const { Util, State, Dom, Effects, Selection, Cards, Results, StateMachine, ModeConfig } = root.LLFlashcards;
+    const { Util, State, Dom, Effects, Selection, Cards, Results, StateMachine } = root.LLFlashcards;
     const { STATES } = State;
 
     // Timer & Session guards
@@ -2524,8 +2524,6 @@
     root.FlashcardLoader.loadAudio(root.FlashcardAudio.getCorrectAudioURL());
     root.FlashcardLoader.loadAudio(root.FlashcardAudio.getWrongAudioURL());
 
-    function updateModeSwitcherButton() { updateModeSwitcherButtons(); }
-    function updateModeSwitcherPanel() { updateModeSwitcherButtons(); }
 
     function isModeAllowed(mode) {
         const allowed = (root.llToolsFlashcardsData || {}).availableModes;
@@ -2996,45 +2994,6 @@
 
 
 
-    const MODE_SWITCH_CONFIG = (ModeConfig && typeof ModeConfig.getSwitchConfig === 'function') ?
-        ModeConfig.getSwitchConfig() : {
-            practice: {
-                label: getMessage('practiceSwitchLabel'),
-                resultsButtonText: getMessage('practiceModeText'),
-                modeLabel: getMessage('practiceModeShort'),
-                icon: '❓',
-                className: 'practice-mode'
-            },
-            learning: {
-                label: getMessage('learningSwitchLabel'),
-                resultsButtonText: getMessage('learningModeText'),
-                modeLabel: getMessage('learningModeShort'),
-                icon: '🎓',
-                className: 'learning-mode'
-            },
-            'self-check': {
-                label: getMessage('selfCheckSwitchLabel'),
-                resultsButtonText: getMessage('selfCheckModeText'),
-                modeLabel: getMessage('selfCheckModeShort'),
-                icon: '',
-                className: 'self-check-mode'
-            },
-            listening: {
-                label: getMessage('listeningSwitchLabel'),
-                resultsButtonText: getMessage('listeningModeText'),
-                modeLabel: getMessage('listeningModeShort'),
-                icon: '🎧',
-                className: 'listening-mode'
-            },
-            gender: {
-                label: getMessage('genderSwitchLabel'),
-                resultsButtonText: getMessage('genderModeText'),
-                modeLabel: getMessage('genderModeShort'),
-                icon: '',
-                className: 'gender-mode'
-            }
-        };
-
     function getActiveModeModule() {
         const Modes = root.LLFlashcards && root.LLFlashcards.Modes;
         if (!Modes) return null;
@@ -3069,7 +3028,7 @@
 
     function getSettingsElements() {
         return {
-            $wrap: $('#ll-tools-mode-switcher-wrap'),
+            $wrap: $('#ll-tools-settings-control'),
             $panel: $('#ll-tools-settings-panel'),
             $button: $('#ll-tools-settings-button')
         };
@@ -3421,6 +3380,11 @@
         return prefs;
     }
 
+    function refreshSettingsPanel() {
+        bindSettingsPanel();
+        syncSettingsPanelSelections();
+    }
+
     function bindSettingsPanel() {
         const { $wrap, $panel, $button } = getSettingsElements();
         if (!$wrap.length || !$button.length || !$panel.length) return;
@@ -3445,7 +3409,6 @@
             e.preventDefault();
             const open = $panel.attr('aria-hidden') === 'false';
             setSettingsOpen(!open);
-            setMenuOpen(false);
         });
 
         $panel.off('.llSettings')
@@ -3471,115 +3434,6 @@
                 setSettingsOpen(false);
             }
         });
-    }
-
-    function setMenuOpen(isOpen) {
-        const $wrap = $('#ll-tools-mode-switcher-wrap');
-        const $toggle = $('#ll-tools-mode-switcher');
-        if (!$wrap.length || !$toggle.length) return;
-        $wrap.attr('aria-expanded', isOpen ? 'true' : 'false');
-        $wrap.attr('data-menu-open', isOpen ? 'true' : 'false');
-        $toggle.attr('aria-expanded', isOpen ? 'true' : 'false');
-        $('#ll-tools-mode-menu').attr('aria-hidden', isOpen ? 'false' : 'true');
-        if (isOpen) {
-            setSettingsOpen(false);
-        }
-    }
-
-    function refreshModeMenuOptions() {
-        const current = getCurrentModeKey();
-        const $wrap = $('#ll-tools-mode-switcher-wrap');
-        const $menu = $('#ll-tools-mode-menu');
-        if (!$wrap.length || !$menu.length) return;
-        const learningAllowed = isLearningSupportedForCurrentSelection();
-        const selfCheckAllowed = isSelfCheckSupportedForCurrentSelection();
-        const genderAllowed = isGenderSupportedForCurrentSelection();
-        const listeningAllowed = isListeningSupportedForCategories(State.categoryNames);
-
-        // Ensure wrapper is visible when widget active
-        $wrap.css('display', 'block');
-
-        // Update icons/labels and active state
-        ['learning', 'practice', 'listening', 'gender', 'self-check'].forEach(function (mode) {
-            const cfg = MODE_SWITCH_CONFIG[mode] || {};
-            const $btn = $menu.find('.ll-tools-mode-option.' + mode);
-            if (!$btn.length) return;
-            // Update icon emoji
-            const $icon = $btn.find('.mode-icon');
-            if ($icon.length) {
-                if (cfg.svg) {
-                    $icon.html(cfg.svg);
-                    $icon.removeAttr('data-emoji');
-                } else if (cfg.icon) {
-                    $icon.empty();
-                    $icon.attr('data-emoji', cfg.icon);
-                } else {
-                    $icon.empty();
-                    $icon.removeAttr('data-emoji');
-                }
-            }
-            const shouldHide = !isModeAllowed(mode) || (mode === 'gender' && !genderAllowed)
-                || (mode === 'listening' && !listeningAllowed);
-            $btn.toggleClass('hidden', shouldHide);
-            if (shouldHide) {
-                $btn.attr('aria-hidden', 'true');
-                $btn.removeClass('active disabled');
-                $btn.removeAttr('disabled').removeAttr('aria-checked').removeAttr('aria-disabled');
-                return;
-            }
-            $btn.removeAttr('aria-hidden');
-            // Active vs inactive
-            const isActive = (mode === current);
-            const isDisabled = (mode === 'learning' && !learningAllowed)
-                || (mode === 'self-check' && !selfCheckAllowed)
-                || (mode === 'gender' && !genderAllowed);
-            $btn.toggleClass('active', isActive);
-            $btn.toggleClass('disabled', isDisabled);
-            if (isActive || isDisabled) { $btn.attr({ 'disabled': 'disabled', 'aria-checked': isActive ? 'true' : 'false', 'aria-disabled': 'true' }); }
-            else { $btn.removeAttr('disabled').attr({ 'aria-checked': 'false' }).removeAttr('aria-disabled'); }
-        });
-    }
-
-    function bindModeMenuHandlers() {
-        const $wrap = $('#ll-tools-mode-switcher-wrap');
-        const $toggle = $('#ll-tools-mode-switcher');
-        const $menu = $('#ll-tools-mode-menu');
-        if (!$wrap.length || !$toggle.length || !$menu.length) return;
-
-        // Toggle open/close
-        $toggle.off('.llModeMenu').on('click.llModeMenu', function (e) {
-            e.preventDefault();
-            const open = $wrap.attr('aria-expanded') === 'true';
-            setMenuOpen(!open);
-        });
-
-        // Select a mode from menu
-        $menu.off('.llModeMenu').on('click.llModeMenu', '.ll-tools-mode-option', function (e) {
-            e.preventDefault();
-            const mode = String($(this).data('mode') || '');
-            if (!mode) return;
-            if ($(this).hasClass('disabled')) { return; }
-            // Keep menu open even after switching; ignore clicks on active option
-            if ($(this).hasClass('active')) { return; }
-            switchMode(mode);
-        });
-
-        // Outside click / Escape closes
-        $(document).off('.llModeMenu').on('pointerdown.llModeMenu', function (e) {
-            const open = $wrap.attr('aria-expanded') === 'true';
-            if (!open) return;
-            if ($(e.target).closest('#ll-tools-mode-switcher-wrap').length) return;
-            setMenuOpen(false);
-        }).on('keydown.llModeMenu', function (e) {
-            if (e.key === 'Escape') { setMenuOpen(false); }
-        });
-    }
-
-    function updateModeSwitcherButtons() {
-        refreshModeMenuOptions();
-        bindModeMenuHandlers();
-        bindSettingsPanel();
-        syncSettingsPanelSelections();
     }
 
     function switchMode(newMode, options) {
@@ -3616,7 +3470,6 @@
         }
         if (isSelfCheckMode(newMode)) {
             if (triggerSelfCheckFlowFromFlashcard()) {
-                setMenuOpen(false);
                 return;
             }
             newMode = 'self-check';
@@ -3634,8 +3487,6 @@
             }
         } catch (_) { /* no-op */ }
 
-        const $btn = $('#ll-tools-mode-switcher');
-        if ($btn.length) $btn.prop('disabled', true).attr('aria-busy', 'true');
 
         // Hide any listening-mode specific UI when switching away
         try {
@@ -3688,21 +3539,15 @@
 
             $('#ll-tools-flashcard').empty();
             Dom.restoreHeaderUI();
-            updateModeSwitcherPanel();
+            refreshSettingsPanel();
 
             // Kick off fresh load
             State.transitionTo(STATES.LOADING, 'Mode switch complete, reloading');
             startQuizRound();
 
-            setTimeout(function () {
-                if ($btn.length) {
-                    $btn.prop('disabled', false).removeAttr('aria-busy');
-                }
-            }, 1500);
         }).catch(function (err) {
             console.error('Error during mode switch:', err);
             State.forceTransitionTo(STATES.IDLE, 'Mode switch error');
-            if ($btn.length) $btn.prop('disabled', false).removeAttr('aria-busy');
         });
     }
 
@@ -4028,7 +3873,7 @@
                     numberOfOptions: number_of_options
                 });
 
-                updateModeSwitcherPanel();
+                refreshSettingsPanel();
                 if (!State.is(STATES.QUIZ_READY)) {
                     const ready = State.transitionTo(STATES.QUIZ_READY, 'Resources loaded');
                     if (!ready) {
@@ -5291,7 +5136,7 @@
         Dom.hideLoading();
         $('#ll-tools-repeat-flashcard').hide();
         $('#ll-tools-category-stack, #ll-tools-category-display').hide();
-        $('#ll-tools-learning-progress, #ll-tools-mode-switcher-wrap').hide();
+        $('#ll-tools-learning-progress').hide();
         State.forceTransitionTo(STATES.SHOWING_RESULTS, 'Error state');
     }
 
@@ -5475,7 +5320,7 @@
                 State.forceTransitionTo(STATES.QUIZ_READY, 'Forcing bounded quiz continuation ready');
             }
             clearContinuationPromise();
-            $('#ll-tools-mode-switcher-wrap').show();
+
             runQuizRound();
         }).catch(function (error) {
             if (currentSession !== __LLSession || !State.widgetActive) {
@@ -5848,9 +5693,8 @@
                     }
                 });
 
-                // Initialize mode switcher UI (single toggle + expanding menu)
-                $('#ll-tools-mode-switcher-wrap').show();
-                updateModeSwitcherPanel();
+                // Initialize quiz settings and results actions.
+                refreshSettingsPanel();
                 $('#restart-practice-mode').off('click').on('click', () => switchMode('practice'));
                 $('#restart-learning-mode').off('click').on('click', () => {
                     if (!continueLearningSetIfAvailable()) {
@@ -5892,7 +5736,7 @@
                 $('#restart-quiz').off('click').on('click', restartQuiz);
 
                 Dom.showLoading();
-                updateModeSwitcherPanel();
+                refreshSettingsPanel();
                 startQuizRound();
 
                 // One-time "kick" to start audio on first user gesture if autoplay was blocked
@@ -6131,10 +5975,8 @@
             $('#ll-tools-flashcard-quiz-popup').hide();
             $('#ll-tools-flashcard-popup').hide();
             $('#ll-tools-listening-controls').remove();
-            // Hide mode switcher and unbind menu handlers
-            $('#ll-tools-mode-switcher-wrap').hide();
+
             setSettingsOpen(false);
-            $(document).off('.llModeMenu');
             $('#ll-tools-learning-progress').hide().empty();
             restorePageScroll();
 
@@ -6191,7 +6033,7 @@
         root.LLFlashcards.Results.hideResults();
         $('#ll-tools-flashcard').empty();
         Dom.restoreHeaderUI();
-        updateModeSwitcherPanel();
+        refreshSettingsPanel();
         State.transitionTo(STATES.QUIZ_READY, 'Quiz restarted');
         startQuizRound();
     }
@@ -6224,7 +6066,7 @@
         }
         $('#ll-tools-flashcard').empty();
         Dom.restoreHeaderUI();
-        updateModeSwitcherPanel();
+        refreshSettingsPanel();
 
         const ready = State.transitionTo(STATES.QUIZ_READY, 'Continue learning set');
         if (!ready) {

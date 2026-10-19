@@ -97,7 +97,8 @@ test('standalone flashcard widget start flow reaches quiz popup', async ({ page 
     }
 
     await expect(quizPopup).toBeVisible({ timeout: 60000 });
-    await expect(page.locator('#ll-tools-mode-switcher-wrap')).toBeVisible({ timeout: 60000 });
+    await expect(page.locator('#ll-tools-flashcard-header')).toBeVisible({ timeout: 60000 });
+    await expect(page.locator('#ll-tools-mode-switcher-wrap, #ll-tools-mode-switcher, #ll-tools-mode-menu')).toHaveCount(0);
 
     await page.locator('#ll-tools-close-flashcard').click({ force: true });
     await expect(quizPopup).toBeHidden({ timeout: 30000 });

@@ -325,7 +325,6 @@ async function mountPracticeExposureHarness(page, options = {}) {
         showResults: noop
       },
       StateMachine: {},
-      ModeConfig: {},
       Modes: {},
       ProgressTracker: {
         trackWordExposure: noop,

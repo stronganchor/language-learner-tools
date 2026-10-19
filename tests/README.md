@@ -617,7 +617,7 @@ Representative E2E coverage areas:
 - `tests/e2e/specs/text-to-text-learning-intro.spec.js`
   - Removes the target category from the initial localized registry, then verifies a learning launch preserves its text-translation prompt and text-title option through the AJAX request, synthesized category config, and introduction pair cards.
 - `tests/e2e/specs/quiz-mode-transitions.spec.js`
-  - Opens `/learn/`, starts the first quiz card, and verifies mode transitions.
+  - Opens `/learn/`, starts the first quiz card, verifies the floating mode control is absent, and exercises Self Check, Listening, Practice, and supported Learning transitions through the existing results actions.
 - `tests/e2e/specs/quiz-popup-fallback-modal.spec.js`
   - Verifies quiz launch falls back to the iframe modal shell when the inline flashcard launcher is absent, including timeout/retry/embed-ready behavior and translated load-error/direct-open recovery.
 - `tests/e2e/specs/quiz-popup-open-close.spec.js`
@@ -627,7 +627,7 @@ Representative E2E coverage areas:
 - `tests/e2e/specs/quiz-results-repeat-restart.spec.js`
   - Verifies the results-page Repeat action starts a fresh practice round instead of leaving the loader stuck, bounded In Progress/Starred continuation plus subsequent rounds replace stale or generic header copy with the concrete target category while retaining session-level filter metadata, and a failed continuation renders one localized retry state without the false no-content line before cleaning that state up immediately on Retry. Mode switches generation-fence queued and already-in-flight bounded continuations, and stale fulfillment/rejection cannot append, show an error, erase the replacement single-flight guard, or block the new mode. It also verifies unready rendered images are not shown, failed distractor images can be pruned only when a healthy two-option round remains, an underfilled rendered round refills once from the hydrated reserve without resetting long-session progress, and playable mounted prompt audio remains authoritative before and after image retries without another background probe.
 - `tests/e2e/specs/quiz-results-mobile-layout.spec.js`
-  - Verifies mobile results remain below the close control and inside the viewport, and that the recoverable continuation error card keeps its neutral Retry geometry, colors, focus treatment, and 44px target under later hostile theme CSS while hiding the in-round progress bar and floating mode switcher.
+  - Verifies mobile results remain below the close control and inside the viewport, and that the recoverable continuation error card keeps its neutral Retry geometry, colors, focus treatment, and 44px target under later hostile theme CSS while hiding the in-round progress bar. Floating mode controls are absent from all quiz shells; mode choices remain available through launch and results actions.
 - `tests/e2e/specs/self-check-shared-image-grouping.spec.js`
   - Verifies Self-check groups words that share one image into a single review
     card while preserving per-word answer audio, and that client-side bounded
