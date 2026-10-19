@@ -64,7 +64,7 @@ function ll_tools_get_vocab_lesson_activity_embed_url(int $lesson_id, string $mo
     $category = get_term((int) get_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, true), 'word-category');
     $wordset = get_term((int) get_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_WORDSET_META, true), 'wordset');
     if (!$category instanceof WP_Term || !$wordset instanceof WP_Term || !in_array($mode, ll_tools_get_vocab_lesson_available_modes($lesson_id), true)) { return ''; }
-    return add_query_arg(['wordset' => $wordset->slug, 'mode' => $mode, 'll_context' => 'vocab_lesson', 'lesson_id' => $lesson_id], home_url('/embed/' . $category->slug));
+    return add_query_arg(['wordset' => $wordset->slug, 'mode' => $mode, 'll_context' => 'vocab_lesson', 'lesson_id' => $lesson_id], home_url(user_trailingslashit('/embed/' . $category->slug)));
 }
 
 /** @return array|null|WP_Error Omitted controls preserve existing settings. */

@@ -6,7 +6,19 @@ const lessonJs = fs.readFileSync(path.resolve(__dirname, '../../../js/vocab-less
 const lessonCss = fs.readFileSync(path.resolve(__dirname, '../../../css/vocab-lesson-pages.css'), 'utf8');
 
 async function mount(page, embedded = false) {
-  await page.route('https://lesson.test/**', route => route.fulfill({ contentType: 'text/html', body: '<html><body>Activity</body></html>' }));
+  const activityRequests = [];
+  await page.route('https://lesson.test/**', route => {
+    const url = new URL(route.request().url());
+    if (url.pathname.startsWith('/embed/')) {
+      activityRequests.push(url.href);
+      if (url.pathname === '/embed/exercise') {
+        url.pathname += '/';
+        return route.fulfill({ status: 301, headers: { location: url.href }, body: '' });
+      }
+      return route.fulfill({ contentType: 'text/html', body: `<html><body><main data-test-activity>Activity ${url.searchParams.get('mode')}</main></body></html>` });
+    }
+    return route.fulfill({ contentType: 'text/html', body: '<html><body>Lesson</body></html>' });
+  });
   await page.goto('https://lesson.test/lesson');
   await page.setContent(`<main class="ll-vocab-lesson-page" data-ll-vocab-lesson>
     <div class="ll-vocab-lesson-category-settings">
@@ -23,8 +35,8 @@ async function mount(page, embedded = false) {
         <div data-ll-category-settings-status hidden><span data-ll-category-settings-status-message></span></div>
       </form>
     </div>
-    <div class="ll-vocab-lesson-modes"><button class="ll-vocab-lesson-mode-button ll-quiz-page-trigger" data-mode="practice" data-url="https://lesson.test/embed/exercise?wordset=hebrew&lesson_id=91&mode=practice">Practice</button></div>
-    <div class="ll-vocab-lesson-embedded" data-ll-lesson-activity-host ${embedded ? '' : 'hidden'}>${embedded ? '<iframe class="ll-vocab-lesson-activity-frame" data-ll-lesson-activity-frame src="https://lesson.test/embed/exercise?wordset=hebrew&lesson_id=91&mode=practice" title="Practice"></iframe>' : ''}</div>
+    <div class="ll-vocab-lesson-modes"><button class="ll-vocab-lesson-mode-button ll-quiz-page-trigger" data-mode="practice" data-url="https://lesson.test/embed/exercise/?wordset=hebrew&lesson_id=91&mode=practice">Practice</button></div>
+    <div class="ll-vocab-lesson-embedded" data-ll-lesson-activity-host ${embedded ? '' : 'hidden'}>${embedded ? '<iframe class="ll-vocab-lesson-activity-frame" data-ll-lesson-activity-frame src="https://lesson.test/embed/exercise/?wordset=hebrew&lesson_id=91&mode=practice" title="Practice"></iframe>' : ''}</div>
     <div data-ll-lesson-study-content ${embedded ? 'hidden' : ''}>${embedded ? '' : '<div class="word-grid">ANSWER KEY</div>'}</div>
   </main>`);
   await page.addStyleTag({ content: lessonCss });
@@ -32,7 +44,7 @@ async function mount(page, embedded = false) {
   await page.evaluate(() => {
     window.llToolsVocabLessonData = {
       ajaxUrl: '/wp-admin/admin-ajax.php',
-      activity: { lessonId: 91, gridNonce: 'grid-nonce', title: 'Lesson activity', modeLabels: { practice: 'Practice', learning: 'Learn' }, embedBase: 'https://lesson.test/embed/exercise?wordset=hebrew&lesson_id=91' },
+      activity: { lessonId: 91, gridNonce: 'grid-nonce', title: 'Lesson activity', modeLabels: { practice: 'Practice', learning: 'Learn' }, embedBase: 'https://lesson.test/embed/exercise/?wordset=hebrew&lesson_id=91' },
       categorySettings: { i18n: { saved: 'Saved', saving: 'Saving', error: 'Unable to save' } }
     };
     window.saves = [];
@@ -56,7 +68,7 @@ async function mount(page, embedded = false) {
             available_modes: enabled,
             activity_settings: { enabled_modes: enabled, embedded_mode: mode },
             embedded_mode: mode,
-            embedded_url: mode ? 'https://lesson.test/embed/exercise?wordset=hebrew&lesson_id=91&mode=' + mode : ''
+            embedded_url: mode ? 'https://lesson.test/embed/exercise/?wordset=hebrew&lesson_id=91&mode=' + mode : ''
           } });
         } else {
           window.gridLoads += 1;
@@ -71,13 +83,25 @@ async function mount(page, embedded = false) {
     };
   });
   await page.addScriptTag({ content: lessonJs });
+  return activityRequests;
 }
+
+test('initial embedded lesson loads its child activity directly at the canonical URL', async ({ page }) => {
+  const activityRequests = await mount(page, true);
+  await expect(page.frameLocator('[data-ll-lesson-activity-frame]').locator('[data-test-activity]')).toHaveText('Activity practice');
+  expect(activityRequests).toHaveLength(1);
+  const url = new URL(activityRequests[0]);
+  expect(url.pathname).toBe('/embed/exercise/');
+  expect(url.searchParams.get('lesson_id')).toBe('91');
+  expect(url.searchParams.get('wordset')).toBe('hebrew');
+});
 
 test('autosave opens the embedded activity and hides the existing answer overview without navigating', async ({ page }) => {
   await mount(page);
   await page.selectOption('[name="ll_vocab_lesson_embedded_mode"]', 'practice');
   const frame = page.locator('[data-ll-lesson-activity-frame]');
   await expect(frame).toHaveAttribute('src', /lesson_id=91&mode=practice/);
+  await expect(page.frameLocator('[data-ll-lesson-activity-frame]').locator('[data-test-activity]')).toHaveText('Activity practice');
   await expect(page.locator('[data-ll-lesson-study-content]')).toBeHidden();
   await expect(page.locator('.ll-vocab-lesson-modes')).toBeHidden();
   await expect(page.locator('[data-ll-category-settings-status]')).toContainText('Saved');

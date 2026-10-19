@@ -63,6 +63,29 @@ final class VocabLessonActivitiesTest extends LL_Tools_TestCase
         $this->assertSame('practice', ll_tools_get_vocab_lesson_embedded_mode($f['lesson']));
     }
 
+    public function test_embed_url_uses_canonical_permalink_slash_before_query_arguments(): void
+    {
+        global $wp_rewrite;
+        $f = $this->fixture();
+        $category = get_term($f['category'], 'word-category');
+        $previous = $wp_rewrite->use_trailing_slashes;
+        try {
+            foreach ([true, false] as $trailing_slash) {
+                $wp_rewrite->use_trailing_slashes = $trailing_slash;
+                $url = ll_tools_get_vocab_lesson_activity_embed_url($f['lesson'], 'practice');
+                $expected = home_url('/embed/' . $category->slug . ($trailing_slash ? '/' : ''));
+                $this->assertSame(wp_parse_url($expected, PHP_URL_PATH), wp_parse_url($url, PHP_URL_PATH));
+                parse_str((string) wp_parse_url($url, PHP_URL_QUERY), $query);
+                $this->assertSame('practice', $query['mode']);
+                $this->assertSame((string) $f['lesson'], $query['lesson_id']);
+                $this->assertSame('vocab_lesson', $query['ll_context']);
+                $this->assertSame(get_term($f['wordset'], 'wordset')->slug, $query['wordset']);
+            }
+        } finally {
+            $wp_rewrite->use_trailing_slashes = $previous;
+        }
+    }
+
     public function test_invalid_modes_and_disabled_primary_are_rejected_before_writes(): void
     {
         $f = $this->fixture();
@@ -120,6 +143,13 @@ final class VocabLessonActivitiesTest extends LL_Tools_TestCase
         include LL_TOOLS_BASE_PATH . '/templates/vocab-lesson-template.php';
         $html = (string) ob_get_clean();
         $this->assertStringContainsString('data-ll-lesson-activity-frame', $html);
+        $this->assertSame(1, preg_match('/<iframe[^>]+data-ll-lesson-activity-frame[^>]+src="([^"]+)"/', $html, $frame));
+        $iframe_url = html_entity_decode($frame[1], ENT_QUOTES, 'UTF-8');
+        $this->assertSame(ll_tools_get_vocab_lesson_activity_embed_url($f['lesson'], 'practice'), $iframe_url);
+        $this->assertSame(
+            wp_parse_url(home_url(user_trailingslashit('/embed/' . get_term($f['category'], 'word-category')->slug)), PHP_URL_PATH),
+            wp_parse_url($iframe_url, PHP_URL_PATH)
+        );
         $this->assertStringContainsString('lesson_id=' . $f['lesson'], $html);
         $this->assertStringContainsString('name="ll_vocab_lesson_enabled_modes[]"', $html);
         $this->assertStringNotContainsString('data-ll-vocab-lesson-grid-shell', $html);

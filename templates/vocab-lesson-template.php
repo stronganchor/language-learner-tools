@@ -184,7 +184,7 @@ if (have_posts()) {
     $has_print_settings = $embedded_mode === '' && is_string($print_form_action) && $print_form_action !== '';
     $category_slug = ($category && !is_wp_error($category)) ? $category->slug : '';
     $category_name = ($category && !is_wp_error($category)) ? $category->name : $display_name;
-    $embed_base = ($category_slug !== '') ? home_url('/embed/' . $category_slug) : '';
+    $embed_base = ($category_slug !== '') ? home_url(user_trailingslashit('/embed/' . $category_slug)) : '';
     $related_content_lessons = (
         $wordset_id > 0
         && $category_id > 0
