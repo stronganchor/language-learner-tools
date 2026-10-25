@@ -44,6 +44,14 @@ read_first:
 
 # Overview (30-second tour)
 
+Quiz media timeouts retain the selected question, rendered options and progress.
+An automatic prompt retry keeps an unfinished download alive; only a failed
+element or explicit Retry reloads it. Exhausted waits show the localized Retry
+state instead of selecting another target or removing words from the session.
+Session and round generations reject late media callbacks after close/restart.
+`quiz-results-repeat-restart.spec.js` covers slow audio, repeated failed retries,
+image recovery, unchanged option elements and closed-session completion.
+
 Learner save contention: `ll_tools_user_study_recommendation_payload()` owns the
 bounded recommendation window for settings, study-state saves, progress batches,
 queue removal, and explicit refreshes. These operations retain the shared user

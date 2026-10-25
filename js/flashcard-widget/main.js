@@ -10,6 +10,7 @@
     // Timer & Session guards
     let __LLTimers = new Set();
     let __LLSession = 0;
+    let roundMediaGeneration = 0;
     let closingCleanupPromise = null;
     let initInProgressPromise = null; // prevents concurrent initializations
     let __LastWordsetKey = null;
@@ -910,7 +911,6 @@
         State.learningWordSets = [];
         State.learningWordSetIndex = 0;
         State.learningWordSetSignature = '';
-        State.roundMediaFailureCounts = {};
     }
 
     function roundRequiresAudio(options) {
@@ -3958,137 +3958,6 @@
         return value;
     }
 
-    function clearRoundMediaFailure(wordId) {
-        const normalized = normalizeRoundWordId(wordId);
-        if (!normalized) return;
-        if (!State.roundMediaFailureCounts || typeof State.roundMediaFailureCounts !== 'object') {
-            State.roundMediaFailureCounts = {};
-        }
-        delete State.roundMediaFailureCounts[String(normalized)];
-    }
-
-    function incrementRoundMediaFailure(wordId) {
-        const normalized = normalizeRoundWordId(wordId);
-        if (!normalized) return 0;
-        if (!State.roundMediaFailureCounts || typeof State.roundMediaFailureCounts !== 'object') {
-            State.roundMediaFailureCounts = {};
-        }
-        const key = String(normalized);
-        State.roundMediaFailureCounts[key] = (State.roundMediaFailureCounts[key] || 0) + 1;
-        return State.roundMediaFailureCounts[key];
-    }
-
-    function removeWordFromListById(list, normalizedWordId) {
-        if (!Array.isArray(list) || !normalizedWordId) return Array.isArray(list) ? list : [];
-        return list.filter(function (item) {
-            const id = normalizeRoundWordId(item && item.id);
-            return String(id) !== String(normalizedWordId);
-        });
-    }
-
-    function removeWordIdFromIdList(list, normalizedWordId) {
-        if (!Array.isArray(list) || !normalizedWordId) return Array.isArray(list) ? list : [];
-        return list.filter(function (value) {
-            const id = normalizeRoundWordId(value);
-            return String(id) !== String(normalizedWordId);
-        });
-    }
-
-    function recomputeWordTotalsAfterSkip() {
-        const seen = {};
-        let count = 0;
-        const byCategory = State.wordsByCategory || {};
-        Object.keys(byCategory).forEach(function (name) {
-            const rows = Array.isArray(byCategory[name]) ? byCategory[name] : [];
-            rows.forEach(function (word) {
-                const id = normalizeRoundWordId(word && word.id);
-                if (!id || seen[id]) return;
-                seen[id] = true;
-                count += 1;
-            });
-        });
-        State.totalWordCount = count;
-    }
-
-    function dropWordFromCurrentSession(wordId) {
-        const normalized = normalizeRoundWordId(wordId);
-        if (!normalized) return false;
-        let removed = false;
-
-        const stripFromMap = function (map) {
-            if (!map || typeof map !== 'object') return;
-            Object.keys(map).forEach(function (key) {
-                const current = map[key];
-                if (!Array.isArray(current)) return;
-                const next = removeWordFromListById(current, normalized);
-                if (next.length !== current.length) {
-                    removed = true;
-                }
-                map[key] = next;
-            });
-        };
-
-        stripFromMap(State.wordsByCategory);
-        stripFromMap(root.wordsByCategory);
-        stripFromMap(root.optionWordsByCategory);
-
-        if (Array.isArray(State.currentCategory)) {
-            State.currentCategory = removeWordFromListById(State.currentCategory, normalized);
-        }
-        if (Array.isArray(State.introducedWordIDs)) {
-            State.introducedWordIDs = removeWordIdFromIdList(State.introducedWordIDs, normalized);
-        }
-        if (Array.isArray(State.wordsToIntroduce)) {
-            State.wordsToIntroduce = removeWordIdFromIdList(State.wordsToIntroduce, normalized);
-        }
-        if (Array.isArray(State.usedWordIDs)) {
-            State.usedWordIDs = removeWordIdFromIdList(State.usedWordIDs, normalized);
-        }
-        if (Array.isArray(State.wordsLinear)) {
-            const before = State.wordsLinear.length;
-            State.wordsLinear = removeWordFromListById(State.wordsLinear, normalized);
-            if (State.wordsLinear.length !== before) {
-                removed = true;
-                State.listenIndex = Math.min(State.listenIndex || 0, State.wordsLinear.length);
-            }
-        }
-        if (Array.isArray(State.listeningHistory)) {
-            State.listeningHistory = removeWordFromListById(State.listeningHistory, normalized);
-            State.listenIndex = Math.max(0, Math.min(State.listenIndex || 0, State.listeningHistory.length));
-        }
-        if (Array.isArray(State.wrongAnswerQueue)) {
-            State.wrongAnswerQueue = State.wrongAnswerQueue.filter(function (entry) {
-                const id = normalizeRoundWordId(entry && typeof entry === 'object' ? entry.id : entry);
-                return String(id) !== String(normalized);
-            });
-        }
-        if (Array.isArray(State.learningWordSets)) {
-            State.learningWordSets = State.learningWordSets
-                .map(function (set) { return removeWordIdFromIdList(set, normalized); })
-                .filter(function (set) { return Array.isArray(set) && set.length > 0; });
-            if (State.learningWordSetIndex >= State.learningWordSets.length) {
-                State.learningWordSetIndex = Math.max(0, State.learningWordSets.length - 1);
-            }
-        }
-        if (State.wordCorrectCounts && typeof State.wordCorrectCounts === 'object') {
-            delete State.wordCorrectCounts[String(normalized)];
-            delete State.wordCorrectCounts[normalized];
-        }
-        if (State.wordIntroductionProgress && typeof State.wordIntroductionProgress === 'object') {
-            delete State.wordIntroductionProgress[String(normalized)];
-            delete State.wordIntroductionProgress[normalized];
-        }
-        if (State.listeningCurrentTarget && String(normalizeRoundWordId(State.listeningCurrentTarget.id)) === String(normalized)) {
-            State.listeningCurrentTarget = null;
-        }
-        if (String(normalizeRoundWordId(State.lastWordShownId)) === String(normalized)) {
-            State.lastWordShownId = null;
-        }
-
-        recomputeWordTotalsAfterSkip();
-        return removed;
-    }
-
     function waitForImageElementReady(imageElement, timeoutMs) {
         return new Promise(function (resolve) {
             if (!imageElement) {
@@ -4437,13 +4306,23 @@
         return String(targetWord.__runtimePromptAudio || targetWord.prompt_audio || '').trim();
     }
 
-    function retryPromptAudioForRound(targetWord) {
+    function retryPromptAudioForRound(targetWord, forceReload) {
         const explicitPromptAudioUrl = getExplicitPromptCardAudioUrl(targetWord);
         const promptAudioUrl = explicitPromptAudioUrl || ((Util && typeof Util.getPromptAudioUrl === 'function')
             ? Util.getPromptAudioUrl(targetWord)
             : String((targetWord && targetWord.audio) || '').trim());
         if (!targetWord || !promptAudioUrl || !root.FlashcardAudio || typeof root.FlashcardAudio.setTargetWordAudio !== 'function') {
             return Promise.resolve(false);
+        }
+
+        const mountedAudio = root.FlashcardAudio.getCurrentTargetAudio
+            ? root.FlashcardAudio.getCurrentTargetAudio()
+            : null;
+        if (mountedAudio && !mountedAudio.error && mountedAudio.networkState !== 3) {
+            if (mountedAudio.readyState >= 2) return Promise.resolve(true);
+            // A readiness deadline is not a failed request. Replacing an active
+            // download discards its progress and can keep slow connections stuck.
+            if (!forceReload) return waitForTargetAudioReady('audio', 5200);
         }
 
         const audioOptions = { autoplay: false };
@@ -4466,43 +4345,6 @@
             .catch(function () { return false; });
     }
 
-    function skipWordAfterMediaFailure(targetWord, reason, details) {
-        const normalized = normalizeRoundWordId(targetWord && targetWord.id);
-        if (!normalized) return false;
-        if (isInteractiveQuizRoundState()) {
-            console.warn('Ignoring stale media skip after the question became interactive', {
-                wordId: normalized,
-                reason: reason || '',
-                details: details || {}
-            });
-            return false;
-        }
-        const attempts = incrementRoundMediaFailure(normalized);
-        const shouldDropWord = attempts >= 2;
-        let dropped = false;
-        if (shouldDropWord) {
-            dropped = dropWordFromCurrentSession(normalized);
-        }
-
-        console.warn('Skipping quiz word because media was not ready', {
-            wordId: normalized,
-            reason: reason || '',
-            attempts: attempts,
-            droppedFromSession: dropped || shouldDropWord,
-            details: details || {}
-        });
-
-        const movedToReady = State.transitionTo(STATES.QUIZ_READY, 'Skipping unready media word');
-        if (!movedToReady) {
-            State.forceTransitionTo(STATES.QUIZ_READY, 'Forced skip for unready media word');
-        }
-        setGuardedTimeout(function () {
-            if (!State.widgetActive) return;
-            runQuizRound();
-        }, 120);
-        return true;
-    }
-
     function escapeErrorText(raw) {
         return String(raw === null || raw === undefined ? '' : raw)
             .replace(/&/g, '&amp;')
@@ -4517,6 +4359,7 @@
             console.warn('Cannot start quiz round in state:', State.getState());
             return;
         }
+        const currentRoundGeneration = ++roundMediaGeneration;
 
         updateProgressTrackerContext();
 
@@ -4674,7 +4517,8 @@
         const roundSessionToken = __LLSession;
         let distractorRefillGeneration = 0;
         const isStaleRound = function () {
-            return roundSessionToken !== __LLSession || !State.widgetActive;
+            return roundSessionToken !== __LLSession || !State.widgetActive
+                || currentRoundGeneration !== roundMediaGeneration;
         };
 
         if (target && typeof target === 'object') {
@@ -4755,7 +4599,6 @@
             const finalizeQuestionDisplay = function () {
                 if (isStaleRound()) { return; }
                 hideLoadingThenPlayPromptAudio(promptType, isStaleRound);
-                clearRoundMediaFailure(target && target.id);
                 State.transitionTo(STATES.SHOWING_QUESTION, 'Question displayed');
                 const handledAfterRender = modeModule && typeof modeModule.afterQuestionShown === 'function'
                     ? !!modeModule.afterQuestionShown({
@@ -4771,6 +4614,45 @@
                 if (!handledAfterRender) {
                     scheduleAutoplayAfterOptionsReady();
                 }
+            };
+
+            const showRoundMediaRetry = function (word, reason, details) {
+                if (isStaleRound() || isInteractiveQuizRoundState()) return;
+                console.warn('Quiz media unavailable; retaining the current round for Retry', {
+                    wordId: word && word.id, reason: reason, details: details || {}
+                });
+                const messages = root.llToolsFlashcardsMessages || {};
+                const progressWasVisible = $('#ll-tools-learning-progress').is(':visible');
+                showLoadingError({ reason: 'round-media-retry', preserveRoundMedia: true });
+                $('#restart-quiz').text(messages.retry || 'Retry').prop('disabled', false).show()
+                    .off('click').on('click.llRoundMediaRetry', function (event) {
+                        event.preventDefault();
+                        if (isStaleRound() || !State.is(STATES.SHOWING_RESULTS)) return;
+                        $(this).prop('disabled', true).hide();
+                        $('#ll-tools-flashcard-quiz-popup, #quiz-results').removeClass('ll-tools-error-state');
+                        $('#quiz-results').hide();
+                        Dom.restoreHeaderUI({ preserveProgress: true });
+                        $('#ll-tools-learning-progress').toggle(progressWasVisible);
+                        Dom.updateCategoryNameDisplay(categoryNameForRound);
+                        $('#ll-tools-flashcard').show();
+                        Dom.showLoading();
+                        State.forceTransitionTo(STATES.QUIZ_READY, 'Retrying the same round media');
+                        applyRoundSoundRequirement(roundRequiresAudio({ promptType: promptType, optionType: displayMode }));
+                        Promise.all([
+                            retryRenderedImagesForRound(6200),
+                            needsPromptAudio ? retryPromptAudioForRound(target, true) : Promise.resolve(true)
+                        ]).then(function (ready) {
+                            if (isStaleRound()) return;
+                            if (!ready[0] || !ready[1]) {
+                                showRoundMediaRetry(target, 'explicit-media-retry');
+                                return;
+                            }
+                            if (needsPromptAudio) Dom.enableRepeatButton();
+                            finalizeQuestionDisplay();
+                        }).catch(function () {
+                            showRoundMediaRetry(target, 'explicit-media-retry-exception');
+                        });
+                    });
             };
 
                 const needsPromptAudio = promptTypeHasAudio(promptType) && !!(
@@ -4836,7 +4718,7 @@
                         retryPromptAudioForRound(target).then(function (retryReady) {
                             if (isStaleRound()) { return; }
                             if (!retryReady) {
-                                skipWordAfterMediaFailure(target, 'prompt-audio-not-ready', {
+                                showRoundMediaRetry(target, 'prompt-audio-not-ready', {
                                     targetMediaStatus: targetMediaStatus,
                                     optionStatus: optionStatus,
                                     renderedStatus: readyRenderedStatus
@@ -4975,7 +4857,7 @@
                                 showDistractorMinimumOptionsError(finalRecovery);
                                 return;
                             }
-                            skipWordAfterMediaFailure(target, 'round-images-not-ready-after-distractor-refill', {
+                            showRoundMediaRetry(target, 'round-images-not-ready-after-distractor-refill', {
                                 initialRecovery: recovery,
                                 optionStatus: refillOptionStatus,
                                 renderedStatus: retriedRefillStatus,
@@ -4989,7 +4871,7 @@
                                 showDistractorMinimumOptionsError(exceptionRecovery);
                                 return;
                             }
-                            skipWordAfterMediaFailure(target, 'round-distractor-refill-retry-exception', {
+                            showRoundMediaRetry(target, 'round-distractor-refill-retry-exception', {
                                 initialRecovery: recovery,
                                 unreadyImages: getUnreadyRenderedImageDetails()
                             });
@@ -5032,7 +4914,7 @@
                                 refillFailedDistractorOptions(distractorRecovery);
                                 return;
                             }
-                            skipWordAfterMediaFailure(target, 'round-images-not-ready', {
+                            showRoundMediaRetry(target, 'round-images-not-ready', {
                                 targetMediaStatus: targetMediaStatus,
                                 optionStatus: optionStatus,
                                 renderedStatus: retryRenderedStatus,
@@ -5053,7 +4935,7 @@
                     retryPromptAudioForRound(target).then(function (retryReady) {
                         if (isStaleRound()) { return; }
                         if (!retryReady) {
-                            skipWordAfterMediaFailure(target, 'prompt-audio-readiness-exception');
+                            showRoundMediaRetry(target, 'prompt-audio-readiness-exception');
                             return;
                         }
                         finalizeQuestionDisplay();
@@ -5063,6 +4945,7 @@
                 finalizeQuestionDisplay();
             });
         }).catch(function (err) {
+            if (isStaleRound()) return;
             console.error('Error in runQuizRound:', err);
             showLoadingError({
                 reason: 'round-runtime',
@@ -5083,10 +4966,10 @@
                 root.FlashcardAudio.pauseAllAudio();
                 root.FlashcardAudio.pauseAllAudio(-1);
             }
-            if (root.FlashcardAudio && typeof root.FlashcardAudio.setTargetWordAudio === 'function') {
+            if (!opts.preserveRoundMedia && root.FlashcardAudio && typeof root.FlashcardAudio.setTargetWordAudio === 'function') {
                 root.FlashcardAudio.setTargetWordAudio(null);
             }
-            if (root.FlashcardAudio && typeof root.FlashcardAudio.suspendPlayback === 'function') {
+            if (!opts.preserveRoundMedia && root.FlashcardAudio && typeof root.FlashcardAudio.suspendPlayback === 'function') {
                 root.FlashcardAudio.suspendPlayback();
             }
         } catch (_) { /* no-op */ }
@@ -5117,7 +5000,7 @@
                 escapeErrorText(summaryLine) +
                 '<br>' +
                 escapeErrorText(msgs.minimumOptionsInvariantMessage || msgs.noContentAvailable || 'No content available.');
-        } else if (isBoundedSessionContinuationError || isInitialCategoryRetryError) {
+        } else if (isBoundedSessionContinuationError || isInitialCategoryRetryError || reason === 'round-media-retry') {
             errorMessage = detailHtml
                 ? detailHtml.replace(/<br>$/, '')
                 : escapeErrorText(msgs.sessionContinuationError || msgs.somethingWentWrong || 'Please try again.');

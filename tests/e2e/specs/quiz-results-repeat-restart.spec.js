@@ -1367,14 +1367,38 @@ for (const preserveWordOrder of [false, true]) {
   });
 }
 
-test('practice rounds skip an unready rendered image instead of showing a blank option', async ({ page }) => {
+test('unready target media retains the round and progress until explicit Retry succeeds', async ({ page }) => {
   await mountRenderedImageReadinessHarness(page);
 
   await page.evaluate(() => {
+    window.jQuery('#quiz-results').html('<h2 id="quiz-results-title"></h2><p id="quiz-results-message"></p><button id="restart-quiz"></button>');
+    window.llToolsFlashcardsMessages = { retry: 'Yeniden Dene', sessionContinuationError: 'Lütfen yeniden deneyin.' };
+    window.LLFlashcards.State.quizResults.correctOnFirstTry = 3;
     window.LLFlashcards.Main.runQuizRound();
   });
 
-  await page.waitForFunction(() => window.__shownWordIds.includes(502));
+  const retry = page.locator('#restart-quiz');
+  await expect(retry).toBeVisible();
+  await expect(retry).toHaveText('Yeniden Dene');
+  const before = await page.evaluate(() => ({
+    selected: window.__targetSelectionCalls,
+    shown: window.__shownWordIds.slice(),
+    wordIds: window.LLFlashcards.State.wordsByCategory.Kitchen.map(word => word.id),
+    correct: window.LLFlashcards.State.quizResults.correctOnFirstTry
+  }));
+  expect(before).toEqual({ selected: 1, shown: [], wordIds: [501, 502], correct: 3 });
+
+  // A failed explicit retry must also retain the question and session membership.
+  await retry.click();
+  await expect(retry).toBeVisible();
+  expect(await page.evaluate(() => window.__targetSelectionCalls)).toBe(1);
+  await page.evaluate(() => {
+    window.__originalCards = Array.from(document.querySelectorAll('#ll-tools-flashcard .flashcard-container'));
+    const image = document.querySelector('#ll-tools-flashcard img');
+    image.src = document.querySelectorAll('#ll-tools-flashcard img')[1].src;
+  });
+  await retry.click();
+  await page.waitForFunction(() => window.__shownWordIds.includes(501));
 
   const result = await page.evaluate(() => {
     const images = Array.from(document.querySelectorAll('#ll-tools-flashcard img'));
@@ -1382,6 +1406,9 @@ test('practice rounds skip an unready rendered image instead of showing a blank 
       shownWordIds: window.__shownWordIds.slice(),
       loadImageCalls: window.__loadImageCalls.slice(),
       currentTargetId: window.__currentTarget ? Number(window.__currentTarget.id) : 0,
+      sameCards: window.__originalCards.every((card, index) => card === document.querySelectorAll('#ll-tools-flashcard .flashcard-container')[index]),
+      correct: window.LLFlashcards.State.quizResults.correctOnFirstTry,
+      wordIds: window.LLFlashcards.State.wordsByCategory.Kitchen.map(word => word.id),
       imageStates: images.map((img) => ({
         complete: img.complete,
         naturalWidth: img.naturalWidth,
@@ -1390,8 +1417,11 @@ test('practice rounds skip an unready rendered image instead of showing a blank 
     };
   });
 
-  expect(result.shownWordIds).toEqual([502]);
-  expect(result.currentTargetId).toBe(502);
+  expect(result.shownWordIds).toEqual([501]);
+  expect(result.currentTargetId).toBe(501);
+  expect(result.sameCards).toBe(true);
+  expect(result.correct).toBe(3);
+  expect(result.wordIds).toEqual([501, 502]);
   expect(result.loadImageCalls.some((call) => call.forceRetry && call.url.includes('this-is-not-a-valid-image'))).toBe(true);
   expect(result.imageStates.every((img) => img.complete && img.naturalWidth > 0)).toBe(true);
 });
@@ -1840,7 +1870,77 @@ test('practice round trusts playable mounted prompt audio when the preload probe
   expect(result.remainingWordIds).toEqual([701]);
 });
 
-test('prompt-audio retry remounts the foreground element without another preload probe', async ({ page }) => {
+for (const recovery of ['pending download', 'explicit retry', 'closed retry']) {
+  test(`slow prompt audio preserves its round and handles ${recovery}`, async ({ page }) => {
+    await mountRenderedImageReadinessHarness(page);
+    await page.evaluate((recovery) => {
+      const target = { id: 703, title: 'Slow prompt', audio: 'https://media.test/slow.m4a', __categoryName: 'Kitchen' };
+      window.__targets = [target];
+      window.__targetMountCalls = 0;
+      window.__audioWaitCalls = 0;
+      window.__mountedAudio = null;
+      window.jQuery('#quiz-results').html('<h2 id="quiz-results-title"></h2><p id="quiz-results-message"></p><button id="restart-quiz" style="display:none"></button>');
+      window.LLFlashcards.Util.getPromptAudioUrl = word => (word && word.audio) || '';
+      window.LLFlashcards.Selection.getCategoryConfig = () => ({ option_type: 'text', prompt_type: 'audio' });
+      window.LLFlashcards.Selection.fillQuizOptions = word => {
+        window.jQuery('#ll-tools-flashcard').html(`<button class="flashcard-container" data-word-id="${word.id}">Slow prompt</button><button class="flashcard-container" data-word-id="900">Other</button>`);
+        return Promise.resolve({ ready: true });
+      };
+      window.FlashcardAudio.setTargetWordAudio = () => {
+        window.__targetMountCalls++;
+        window.__mountedAudio = { readyState: 0, networkState: 2, error: null };
+        return Promise.resolve(window.__mountedAudio);
+      };
+      window.FlashcardAudio.getCurrentTargetAudio = () => window.__mountedAudio;
+      window.FlashcardAudio.waitForAudioPlayable = audio => {
+        window.__audioWaitCalls++;
+        if (window.__audioWaitCalls === 1) return Promise.resolve(false);
+        if (recovery === 'pending download') {
+          audio.readyState = 3;
+          return Promise.resolve(true);
+        }
+        if (window.__targetMountCalls === 1) return Promise.resolve(false);
+        return new Promise(resolve => {
+          window.__resolveRetryAudio = () => { audio.readyState = 3; resolve(true); };
+        });
+      };
+      window.LLFlashcards.State.wordsByCategory = { Kitchen: [target] };
+      window.LLFlashcards.State.currentCategory = [target];
+      window.wordsByCategory = window.LLFlashcards.State.wordsByCategory;
+      window.LLFlashcards.Main.runQuizRound();
+    }, recovery);
+
+    if (recovery !== 'pending download') {
+      await expect(page.locator('#restart-quiz')).toBeVisible();
+      expect(await page.evaluate(() => window.__targetMountCalls)).toBe(1);
+      expect(await page.evaluate(() => window.__targetSelectionCalls)).toBe(1);
+      await page.evaluate(() => { window.__retainedCards = Array.from(document.querySelectorAll('.flashcard-container')); });
+      await page.locator('#restart-quiz').click();
+      await page.waitForFunction(() => typeof window.__resolveRetryAudio === 'function');
+      await page.evaluate((closed) => {
+        if (closed) {
+          window.LLFlashcards.State.widgetActive = false;
+          window.LLFlashcards.State.forceTransitionTo('idle', 'closed fixture');
+        }
+        window.__resolveRetryAudio();
+      }, recovery === 'closed retry');
+    }
+
+    if (recovery === 'closed retry') {
+      await expect.poll(() => page.evaluate(() => window.LLFlashcards.State.getState())).toBe('idle');
+      expect(await page.evaluate(() => window.__shownWordIds)).toEqual([]);
+    } else {
+      await page.waitForFunction(() => window.__shownWordIds.includes(703));
+      expect(await page.evaluate(() => window.__targetSelectionCalls)).toBe(1);
+      expect(await page.evaluate(() => window.__targetMountCalls)).toBe(recovery === 'pending download' ? 1 : 2);
+      if (recovery === 'explicit retry') {
+        expect(await page.evaluate(() => window.__retainedCards.every((card, i) => card === document.querySelectorAll('.flashcard-container')[i]))).toBe(true);
+      }
+    }
+  });
+}
+
+test('prompt-audio retry remounts a failed foreground element without another preload probe', async ({ page }) => {
   await mountRenderedImageReadinessHarness(page);
 
   await page.evaluate(() => {
@@ -1850,7 +1950,7 @@ test('prompt-audio retry remounts the foreground element without another preload
       audio: 'https://media.test/donkey.m4a',
       __categoryName: 'Kitchen'
     };
-    const initialAudio = { readyState: 0, error: null };
+    const initialAudio = { readyState: 0, error: { code: 2 } };
     const retryAudio = { readyState: 3, error: null };
 
     window.__targets = [target];
