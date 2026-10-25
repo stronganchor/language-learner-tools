@@ -4052,7 +4052,10 @@
         const targetKey = targetWordId === null ? '' : String(targetWordId);
         const failedCards = [];
         const failedWordIds = [];
-        let distractorOnly = failedImages.length > 0 && !!targetKey;
+        // Only replace images with a completed failure. An unfinished download
+        // keeps its option and uses the same-round Retry UI after the deadline.
+        let distractorOnly = failedImages.length > 0 && !!targetKey
+            && failedImages.every(function (imageElement) { return imageElement.complete; });
 
         failedImages.forEach(function (imageElement, index) {
             const detail = failedDetails[index] || {};

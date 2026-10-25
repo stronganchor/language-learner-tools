@@ -1426,6 +1426,34 @@ test('unready target media retains the round and progress until explicit Retry s
   expect(result.imageStates.every((img) => img.complete && img.naturalWidth > 0)).toBe(true);
 });
 
+test('pending distractor downloads keep their original option instead of being replaced', async ({ page }) => {
+  await mountRenderedImageReadinessHarness(page);
+  await page.evaluate(() => {
+    window.jQuery('#quiz-results').html('<h2 id="quiz-results-title"></h2><p id="quiz-results-message"></p><button id="restart-quiz" style="display:none"></button>');
+    window.__targets.shift(); // The target image is healthy; only its distractor is pending.
+    const fillOptions = window.LLFlashcards.Selection.fillQuizOptions;
+    window.__fillCalls = 0;
+    window.LLFlashcards.Selection.fillQuizOptions = word => {
+      window.__fillCalls++;
+      const result = fillOptions(word);
+      const image = document.querySelector('[data-word-id="900"] img');
+      image.removeAttribute('src');
+      Object.defineProperty(image, 'complete', { get: () => false, configurable: true });
+      Object.defineProperty(image, 'naturalWidth', { get: () => 0, configurable: true });
+      window.__pendingImage = image;
+      return result;
+    };
+    window.LLFlashcards.Main.runQuizRound();
+  });
+  await expect(page.locator('#restart-quiz')).toBeVisible();
+  expect(await page.evaluate(() => ({
+    selections: window.__targetSelectionCalls,
+    fills: window.__fillCalls,
+    cards: Array.from(document.querySelectorAll('.flashcard-container')).map(card => card.getAttribute('data-word-id')),
+    retained: window.__pendingImage.isConnected
+  }))).toEqual({ selections: 1, fills: 1, cards: ['502', '900'], retained: true });
+});
+
 test('practice rounds remove failed distractor images without dropping a healthy target', async ({ page }) => {
   const goodImage = fixtureImage('#dcfce7', 'OK');
   const brokenImage = 'data:image/png;base64,this-is-not-a-valid-image';
