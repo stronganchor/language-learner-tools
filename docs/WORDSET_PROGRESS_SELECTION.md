@@ -42,6 +42,14 @@ It stays available at portrait phone widths even when the Last column is hidden.
   while table analytics loads. Launch uses the authoritative ID-only lookup,
   independently of the slower table refresh; an unknown count never borrows
   the previous filter's total. Known-empty selections hide the actions.
+- Summary pills and Select are available from the initial page shell, before
+  the first analytics response. Unresolved counts retain their loading mask;
+  choosing a group must not wait for counts or table rows before exposing
+  Practice and resolving its exact IDs independently.
+- Full analytics reuses the authoritative category catalog's effective
+  `prompt_type` and `option_type` for gender eligibility. Do not recount media
+  or resolve category fallbacks a second time for each category; missing
+  catalog configurations alone may use the compatibility resolver.
 - Another filter change cancels the previous intent. Failed table analytics
   preserves the descriptor and cannot block the independent launch lookup.
   Choosing the same preset after a failure also requests fresh table results.

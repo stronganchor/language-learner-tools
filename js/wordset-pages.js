@@ -5658,8 +5658,8 @@
         const $cards = $progressSummary.find('.ll-wordset-progress-kpi');
         $cards.toggleClass('is-loading', loading);
         $cards.filter('button')
-            .prop('disabled', loading)
-            .attr('aria-disabled', loading ? 'true' : 'false');
+            .prop('disabled', false)
+            .attr('aria-disabled', 'false');
     }
 
     function renderProgressSummary() {
@@ -5696,8 +5696,6 @@
             });
             if (loading) {
                 $card
-                    .prop('disabled', true)
-                    .attr('aria-disabled', 'true')
                     .attr('aria-busy', 'true');
             }
             if (item.icon) {
@@ -6589,7 +6587,9 @@
         syncProgressSelectionOptions();
         if ($progressSelectionSelect.length) {
             const initialLoading = progressAnalyticsLoading && !progressAnalyticsLoaded;
-            const selectDisabled = progressSelectionLaunchBusy || initialLoading;
+            // Selecting a scope does not need the counts or rendered rows.
+            // The launch resolves its exact IDs independently of analytics.
+            const selectDisabled = progressSelectionLaunchBusy;
             $progressSelectionSelect
                 .prop('disabled', selectDisabled)
                 .toggleClass('is-loading', initialLoading)
@@ -20125,7 +20125,6 @@
         });
 
         $root.on('click', '[data-ll-wordset-progress-kpi-filter]', function () {
-            if (progressSummaryIsLoading()) { return; }
             const $button = $(this);
             const key = normalizeSummaryFilter($(this).attr('data-ll-wordset-progress-kpi-filter'));
             if (!key) { return; }

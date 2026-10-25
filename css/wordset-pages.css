@@ -6830,18 +6830,8 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     animation: ll-wordset-progress-kpi-click 0.28s ease;
 }
 
-.ll-wordset-progress-kpi.is-loading {
-    cursor: wait;
-}
-
-.ll-wordset-progress-summary button.ll-wordset-progress-kpi.is-loading,
-.ll-wordset-progress-summary button.ll-wordset-progress-kpi.is-loading:hover,
-.ll-wordset-progress-summary button.ll-wordset-progress-kpi.is-loading:focus-visible,
-.ll-wordset-progress-summary button.ll-wordset-progress-kpi.is-loading:disabled {
-    transform: none;
-    cursor: wait;
-    opacity: 1;
-    box-shadow: none !important;
+.ll-wordset-progress-summary button.ll-wordset-progress-kpi.is-loading {
+    cursor: pointer;
 }
 
 .ll-wordset-progress-kpi.is-loading .ll-wordset-progress-kpi-value {

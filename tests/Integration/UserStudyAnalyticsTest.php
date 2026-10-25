@@ -14,6 +14,51 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_paged_gender_analytics_reuses_catalog_presentation_without_category_recounts(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        wp_set_current_user($user_id);
+        $fixture = $this->createAnalyticsFixture();
+        $wordset_id = $fixture['wordset_id'];
+        update_term_meta($wordset_id, 'll_wordset_has_gender', 1);
+        update_term_meta($wordset_id, 'll_wordset_gender_options', ['Masculine', 'Feminine']);
+        $noun_id = $this->ensurePartOfSpeechTerm('noun', 'Noun');
+        foreach ($fixture['word_ids'] as $word_id) {
+            wp_set_post_terms($word_id, [$noun_id], 'part_of_speech', false);
+            update_post_meta($word_id, 'll_grammatical_gender', 'Masculine');
+        }
+        $this->completeLlToolsSimulatedRequest();
+
+        $catalog = ll_tools_user_study_categories_for_wordset($wordset_id);
+        $this->assertCount(2, $catalog);
+        $queries_from_config_rebuild = [];
+        $capture = static function (string $query) use (&$queries_from_config_rebuild): string {
+            if (strpos(wp_debug_backtrace_summary(), 'll_tools_user_progress_category_quiz_config_map') !== false) {
+                $queries_from_config_rebuild[] = $query;
+            }
+            return $query;
+        };
+        add_filter('query', $capture);
+        try {
+            $complete = true;
+            $payload = ll_tools_build_user_study_analytics_payload(
+                $user_id, $wordset_id, $fixture['category_ids'], 14, false,
+                ['include_words' => true, 'word_limit' => 2], $complete
+            );
+        } finally {
+            remove_filter('query', $capture);
+        }
+        $this->assertTrue($complete);
+        $this->assertCount(2, $payload['words']);
+        $this->assertSame(10, $payload['summary']['total_words']);
+        $this->assertSame(10, $payload['gender_progress']['tracked_word_total']);
+        $this->assertSame([], $queries_from_config_rebuild,
+            'Gender statistics must reuse the resolved catalog instead of recounting every category.');
+        foreach ($payload['words'] as $word) {
+            $this->assertTrue($word['gender_eligible']);
+        }
+    }
+
     public function test_older_summary_pill_and_selection_share_last_seen_filter_across_payload_shapes(): void
     {
         $user_id = self::factory()->user->create(['role' => 'subscriber']);

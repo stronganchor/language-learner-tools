@@ -5194,7 +5194,7 @@ function ll_tools_user_progress_analytics_word_ids_by_category(
     return $word_ids_by_category;
 }
 
-function ll_tools_user_progress_category_quiz_config_map(array $category_ids, int $wordset_id): array {
+function ll_tools_user_progress_category_quiz_config_map(array $category_ids, int $wordset_id, array $category_rows = []): array {
     $category_ids = array_values(array_unique(array_filter(array_map('intval', $category_ids), static function (int $category_id): bool {
         return $category_id > 0;
     })));
@@ -5202,18 +5202,34 @@ function ll_tools_user_progress_category_quiz_config_map(array $category_ids, in
         return [];
     }
 
+    // The analytics catalog already resolved effective presentation, including
+    // wordset overrides and low-count fallbacks. Reuse those exact types instead
+    // of recounting and hydrating every category again for gender statistics.
+    $configs = [];
+    $requested_categories = array_fill_keys($category_ids, true);
+    foreach ($category_rows as $row) {
+        $category_id = is_array($row) ? (int) ($row['id'] ?? 0) : 0;
+        if (isset($requested_categories[$category_id])
+            && !empty($row['prompt_type']) && !empty($row['option_type'])) {
+            $configs[$category_id] = $row;
+        }
+    }
+    $missing_category_ids = array_values(array_diff($category_ids, array_keys($configs)));
+    if (empty($missing_category_ids)) {
+        return $configs;
+    }
+
     $terms = get_terms([
         'taxonomy' => 'word-category',
         'hide_empty' => false,
-        'include' => $category_ids,
+        'include' => $missing_category_ids,
     ]);
     if (is_wp_error($terms) || empty($terms)) {
-        return [];
+        return $configs;
     }
 
     $wordset_ids = $wordset_id > 0 ? [$wordset_id] : [];
     $min_word_count = (int) apply_filters('ll_tools_quiz_min_words', LL_TOOLS_MIN_WORDS_PER_QUIZ);
-    $configs = [];
     foreach ($terms as $term) {
         if (!($term instanceof WP_Term)) {
             continue;
@@ -7322,7 +7338,9 @@ function ll_tools_build_user_study_analytics_payload(
         : 'thumbnail';
     $image_url_by_word = ($include_words && !empty($display_word_ids)) ? ll_tools_user_progress_get_word_image_url_map($display_word_ids, $analytics_image_size) : [];
     $gender_meta_by_word = $needs_gender_maps ? ll_tools_user_progress_get_word_gender_meta_map($all_word_ids) : [];
-    $category_quiz_configs = $needs_gender_maps ? ll_tools_user_progress_category_quiz_config_map($scope_category_ids, $scope_wordset_id) : [];
+    $category_quiz_configs = $needs_gender_maps
+        ? ll_tools_user_progress_category_quiz_config_map($scope_category_ids, $scope_wordset_id, $category_lookup)
+        : [];
     $needs_audio_presence_map = false;
     $needs_image_presence_map = false;
     if (!$include_words && $needs_gender_maps) {

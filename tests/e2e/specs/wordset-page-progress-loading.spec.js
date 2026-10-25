@@ -375,6 +375,7 @@ function buildPageConfig(overrides = {}) {
         prompt_type: 'audio',
         option_type: 'image',
         learning_supported: true,
+        listening_supported: true,
         gender_supported: true,
         aspect_bucket: 'ratio:1_1',
         hidden: false,
@@ -1740,6 +1741,49 @@ test('Older pill and search filters show the launch menu while clearing selectio
   await expect(selectionBar).toBeVisible();
   await expect(page.locator('[data-ll-wordset-progress-selection-count]')).toHaveText('1 selected words');
   await expect(page.locator('[data-ll-wordset-progress-words-body] tr.is-selected')).toHaveCount(1);
+});
+
+for (const filter of ['new', 'starred', 'hard']) {
+  test(`progress ${filter} pill launches practice before initial analytics finishes`, async ({ page }) => {
+    await mountProgressPage(page, { config: { summaryCountsDeferred: true } });
+    await expect.poll(() => page.evaluate(() => window.__llAnalyticsRequests.length)).toBe(1);
+    const pill = page.locator(`[data-ll-wordset-progress-kpi-filter="${filter}"]`);
+    await expect(pill).toBeEnabled();
+    await expect(pill.locator('.ll-wordset-progress-kpi-value')).toHaveText('');
+    await pill.click();
+    await expect(pill).toHaveAttribute('aria-pressed', 'true');
+    const practice = page.locator('[data-ll-wordset-progress-selection-mode][data-mode="practice"]');
+    await expect(practice).toBeEnabled();
+    await practice.click();
+    await expectFlashcardLaunchUiOpen(page);
+    const [index] = await waitForAllFilteredLaunchRequestCount(page, 1);
+    expect(await page.evaluate((i) => JSON.parse(window.__llAnalyticsRequests[i].request.word_filter).summary, index)).toBe(filter);
+    const ids = [101, 102, 103, 104, 105];
+    await page.evaluate(({ index, payload }) => window.__resolveAnalyticsRequest(index, payload), {
+      index, payload: buildAllFilteredWordIdAnalytics(ids)
+    });
+    await expect.poll(() => page.evaluate(() => window.__llFlashcardLaunches.length)).toBe(1);
+    expect(await page.evaluate(() => ({
+      analytics: window.__llAnalyticsRequests[0].deferred.state(),
+      mode: window.__llFlashcardLaunches[0].mode,
+      ids: window.__llFlashcardLaunches[0].sessionWordIds
+    }))).toEqual({ analytics: 'pending', mode: 'practice', ids });
+    // A late failed chart/table request must not cancel the active activity.
+    await page.evaluate(() => window.__rejectAnalyticsRequest(0));
+    await expectFlashcardLaunchUiOpen(page);
+    expect(await page.evaluate(() => window.__llFlashcardLaunches.length)).toBe(1);
+  });
+}
+
+test('progress Select can choose a group before initial counts arrive', async ({ page }) => {
+  await mountProgressPage(page, { config: { summaryCountsDeferred: true } });
+  await page.getByRole('tab', { name: 'Words' }).click();
+  const select = page.locator('[data-ll-wordset-progress-select-all]');
+  await expect(select).toBeEnabled();
+  await select.selectOption('older');
+  await expect(page.locator('[data-ll-wordset-progress-selection-mode][data-mode="practice"]')).toBeEnabled();
+  await expect(page.locator('[data-ll-wordset-progress-kpi-filter="older"]')).toHaveAttribute('aria-pressed', 'true');
+  expect(await page.evaluate(() => window.__llAnalyticsRequests[0].deferred.state())).toBe('pending');
 });
 
 test('progress summary counts stay blank while initial analytics loads', async ({ page }) => {
