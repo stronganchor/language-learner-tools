@@ -2,6 +2,10 @@
 
 A WordPress toolkit for building vocabulary-driven language learning sites. It provides custom post types and taxonomies, flashcard quizzes (with image + audio), auto-generated quiz pages, embeddable quiz pages, vocabulary grids, audio players, prompt cards, content lessons, teacher classes, bulk uploaders, DeepL-assisted translations, a template override system, and helper roles.
 
+## Recent changes
+
+- **6.7.60:** Category presentation edits preserve unchanged lesson activities without rewriting post metadata. Actual activity changes retain transactional storage checks; a failed activity comparison read refuses the save.
+
 ## Developer navigation
 
 - [Codebase map](docs/ai-context/codebase-map.md): source owners, focused tests, and documentation by subsystem.

@@ -7,13 +7,41 @@ if (!defined('LL_TOOLS_VOCAB_LESSON_ACTIVITIES_META')) {
 
 /** Lesson preferences are separate from category presentation and word data. */
 function ll_tools_get_vocab_lesson_activity_settings(int $lesson_id): array {
+    return ll_tools_normalize_vocab_lesson_activity_settings(get_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_ACTIVITIES_META, true));
+}
+
+function ll_tools_normalize_vocab_lesson_activity_settings($stored): array {
     $defaults = ['enabled_modes' => ['learning', 'practice', 'listening', 'self-check', 'gender'], 'embedded_mode' => ''];
-    $stored = get_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_ACTIVITIES_META, true);
     if (!is_array($stored)) { return $defaults; }
     $modes = array_values(array_intersect($defaults['enabled_modes'], (array) ($stored['enabled_modes'] ?? $defaults['enabled_modes'])));
     if (!$modes) { $modes = ['practice']; }
     $embedded = is_string($stored['embedded_mode'] ?? null) ? $stored['embedded_mode'] : '';
     return ['enabled_modes' => $modes, 'embedded_mode' => in_array($embedded, $modes, true) ? $embedded : ''];
+}
+
+/**
+ * Fresh comparison for a writer already holding the category settings lock.
+ * @return array|WP_Error
+ */
+function ll_tools_read_vocab_lesson_activity_settings(int $lesson_id) {
+    global $wpdb;
+    $wpdb->last_error = '';
+    $rows = $wpdb->get_results($wpdb->prepare(
+        "SELECT meta_value FROM {$wpdb->postmeta} WHERE post_id = %d AND meta_key = %s ORDER BY meta_id ASC LIMIT 1",
+        $lesson_id,
+        LL_TOOLS_VOCAB_LESSON_ACTIVITIES_META
+    ), ARRAY_A);
+    if ($wpdb->last_error !== '' || !is_array($rows)) {
+        return ll_tools_vocab_lesson_category_settings_error(
+            'activity_settings_source',
+            __('Unable to save category settings right now.', 'll-tools-text-domain'),
+            503,
+            ['retryable' => true]
+        );
+    }
+    return ll_tools_normalize_vocab_lesson_activity_settings(
+        $rows === [] ? null : maybe_unserialize($rows[0]['meta_value'])
+    );
 }
 
 /** Validate the exact lesson boundary before an embed or widget uses its settings. */

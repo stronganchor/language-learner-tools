@@ -20,6 +20,8 @@ Vocabulary lessons retain their normal activity buttons and study cards by defau
 
 Available modes are always intersected with what the lesson can actually support. Listen requires a published, playable recording in the current scope. A category expecting recordings is not sufficient by itself. A lesson's restrictions also apply to its embedded quiz controls and results-screen mode choices.
 
+The settings form submits activity controls along with category presentation edits. The server compares the submitted activities with a fresh, error-detecting read while holding the category settings lock. Unchanged effective activities are preserved without writing post metadata; a category-only edit therefore does not require transactional post metadata. Actual activity changes still require InnoDB post metadata and commit with category settings in the same transaction. An incomplete comparison read refuses the entire save.
+
 For a text-to-text transformation exercise, Practice can be the only enabled activity and the embedded default. The random-question setting remains independent: a 73-item bank can still use a fresh sample of 15 targets for each Practice attempt.
 
 The shared `LLToolsQuizIframe.attach(wrapper, { url })` controller in `js/quiz-pages.js` owns loading, origin/source validation, timeout, retry, and cleanup for standalone quizzes and vocabulary lessons. It observes the initial iframe without navigating again and returns its canonical `sourceUrl`, `iframe`, and `destroy()` method. The lesson destroys the old controller before removing an iframe or replacing it for a changed activity URL, so stale messages cannot activate the next mode. A successful Retry does not restart when the same activity is selected or unrelated settings are saved.

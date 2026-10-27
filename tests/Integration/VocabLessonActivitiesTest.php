@@ -116,6 +116,114 @@ final class VocabLessonActivitiesTest extends LL_Tools_TestCase
             $this->assertSame('transaction_storage', ll_tools_get_vocab_lesson_category_settings_error_code($result));
             $this->assertSame('text_title', get_term_meta($f['category'], 'll_quiz_prompt_type', true));
             $this->assertSame('', get_post_meta($f['lesson'], LL_TOOLS_VOCAB_LESSON_ACTIVITIES_META, true));
+            $this->assertSame(0, ll_tools_get_vocab_lesson_category_settings_revision($f['category']));
+        } finally { remove_filter('ll_tools_vocab_lesson_activity_settings_storage_is_transactional', '__return_false'); }
+    }
+
+    public function test_nontransactional_postmeta_allows_category_edits_with_unchanged_default_activities(): void
+    {
+        $f = $this->fixture();
+        $defaults = ll_tools_get_vocab_lesson_activity_settings($f['lesson']);
+        $activity_writes = 0;
+        $engine_checks = 0;
+        $observe_write = static function ($value, $object_id, $meta_key) use ($f, &$activity_writes) {
+            if ($object_id === $f['lesson'] && $meta_key === LL_TOOLS_VOCAB_LESSON_ACTIVITIES_META) { $activity_writes++; }
+            return $value;
+        };
+        $nontransactional = static function () use (&$engine_checks): bool { $engine_checks++; return false; };
+        add_filter('update_post_metadata', $observe_write, 10, 3);
+        add_filter('ll_tools_vocab_lesson_activity_settings_storage_is_transactional', $nontransactional);
+        try {
+            $result = ll_tools_save_vocab_lesson_category_settings_from_request($this->request($f, [
+                'll_vocab_lesson_quiz_prompt_type' => 'text_translation',
+                'll_vocab_lesson_enabled_modes' => $defaults['enabled_modes'],
+                'll_vocab_lesson_embedded_mode' => $defaults['embedded_mode'],
+            ]));
+            $this->assertIsArray($result);
+            $this->assertSame('text_translation', get_term_meta($f['category'], 'll_quiz_prompt_type', true));
+            $this->assertSame($defaults, $result['activity_settings']);
+            $this->assertFalse(metadata_exists('post', $f['lesson'], LL_TOOLS_VOCAB_LESSON_ACTIVITIES_META));
+            $this->assertSame(0, $activity_writes);
+            $this->assertSame(0, $engine_checks);
+            $this->assertSame(1, $result['revision']);
+        } finally {
+            remove_filter('update_post_metadata', $observe_write, 10);
+            remove_filter('ll_tools_vocab_lesson_activity_settings_storage_is_transactional', $nontransactional);
+        }
+    }
+
+    public function test_nontransactional_postmeta_preserves_unchanged_stored_activities(): void
+    {
+        $f = $this->fixture();
+        $stored = ['enabled_modes' => ['practice'], 'embedded_mode' => 'practice'];
+        update_post_meta($f['lesson'], LL_TOOLS_VOCAB_LESSON_ACTIVITIES_META, $stored);
+        $activity_writes = 0;
+        $observe_write = static function ($value, $object_id, $meta_key) use ($f, &$activity_writes) {
+            if ($object_id === $f['lesson'] && $meta_key === LL_TOOLS_VOCAB_LESSON_ACTIVITIES_META) { $activity_writes++; }
+            return $value;
+        };
+        add_filter('update_post_metadata', $observe_write, 10, 3);
+        add_filter('ll_tools_vocab_lesson_activity_settings_storage_is_transactional', '__return_false');
+        try {
+            $result = ll_tools_save_vocab_lesson_category_settings_from_request($this->request($f, ['ll_vocab_lesson_quiz_prompt_type' => 'text_translation']));
+            $this->assertIsArray($result);
+            $this->assertSame($stored, get_post_meta($f['lesson'], LL_TOOLS_VOCAB_LESSON_ACTIVITIES_META, true));
+            $this->assertSame($stored, $result['activity_settings']);
+            $this->assertSame(0, $activity_writes);
+            $this->assertSame('text_translation', get_term_meta($f['category'], 'll_quiz_prompt_type', true));
+        } finally {
+            remove_filter('update_post_metadata', $observe_write, 10);
+            remove_filter('ll_tools_vocab_lesson_activity_settings_storage_is_transactional', '__return_false');
+        }
+    }
+
+    public function test_activity_comparison_read_failure_refuses_category_edits(): void
+    {
+        global $wpdb;
+        $f = $this->fixture();
+        $defaults = ll_tools_get_vocab_lesson_activity_settings($f['lesson']);
+        $failed_reads = 0;
+        $fail_read = static function ($query) use (&$failed_reads): string {
+            if (strpos($query, 'SELECT meta_value FROM ') === 0 && strpos($query, LL_TOOLS_VOCAB_LESSON_ACTIVITIES_META) !== false) {
+                $failed_reads++;
+                return 'SELECT meta_value FROM ll_tools_test_missing_activity_settings_table';
+            }
+            return $query;
+        };
+        $previous_suppress = $wpdb->suppress_errors(true);
+        add_filter('query', $fail_read);
+        try {
+            $result = ll_tools_save_vocab_lesson_category_settings_from_request($this->request($f, [
+                'll_vocab_lesson_quiz_prompt_type' => 'text_translation',
+                'll_vocab_lesson_enabled_modes' => $defaults['enabled_modes'],
+                'll_vocab_lesson_embedded_mode' => $defaults['embedded_mode'],
+            ]));
+            $this->assertWPError($result);
+            $this->assertSame('activity_settings_source', ll_tools_get_vocab_lesson_category_settings_error_code($result));
+            $this->assertSame(1, $failed_reads);
+            $this->assertSame('text_title', get_term_meta($f['category'], 'll_quiz_prompt_type', true));
+            $this->assertFalse(metadata_exists('post', $f['lesson'], LL_TOOLS_VOCAB_LESSON_ACTIVITIES_META));
+            $this->assertSame(0, ll_tools_get_vocab_lesson_category_settings_revision($f['category']));
+        } finally {
+            remove_filter('query', $fail_read);
+            $wpdb->suppress_errors($previous_suppress);
+            $wpdb->last_error = '';
+        }
+    }
+
+    public function test_activity_noop_compares_effective_values_without_rewriting_legacy_storage(): void
+    {
+        $f = $this->fixture();
+        $stored = ['enabled_modes' => ['practice', 'learning', 'retired-mode'], 'embedded_mode' => 'practice'];
+        update_post_meta($f['lesson'], LL_TOOLS_VOCAB_LESSON_ACTIVITIES_META, $stored);
+        add_filter('ll_tools_vocab_lesson_activity_settings_storage_is_transactional', '__return_false');
+        try {
+            $result = ll_tools_save_vocab_lesson_category_settings_from_request($this->request($f, [
+                'll_vocab_lesson_enabled_modes' => ['learning', 'practice'],
+            ]));
+            $this->assertIsArray($result);
+            $this->assertSame(['enabled_modes' => ['learning', 'practice'], 'embedded_mode' => 'practice'], $result['activity_settings']);
+            $this->assertSame($stored, get_post_meta($f['lesson'], LL_TOOLS_VOCAB_LESSON_ACTIVITIES_META, true));
         } finally { remove_filter('ll_tools_vocab_lesson_activity_settings_storage_is_transactional', '__return_false'); }
     }
 

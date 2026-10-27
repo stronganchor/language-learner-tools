@@ -6896,7 +6896,17 @@ function ll_tools_save_vocab_lesson_category_settings_from_request(array $reques
             );
         }
 
-        if (is_array($validated_settings_request['activity_settings']) && !ll_tools_vocab_lesson_activity_settings_storage_is_transactional()) {
+        $activity_settings_changed = false;
+        if (is_array($validated_settings_request['activity_settings'])) {
+            $current_activity_settings = ll_tools_read_vocab_lesson_activity_settings($lesson_id);
+            if (is_wp_error($current_activity_settings)) {
+                return $current_activity_settings;
+            }
+            // The editor submits every activity control with category-only edits.
+            // An unchanged effective value needs no postmeta write or transaction.
+            $activity_settings_changed = $validated_settings_request['activity_settings'] !== $current_activity_settings;
+        }
+        if ($activity_settings_changed && !ll_tools_vocab_lesson_activity_settings_storage_is_transactional()) {
             return ll_tools_vocab_lesson_category_settings_error('transaction_storage', __('Lesson activities cannot be saved until the post metadata table supports transactions.', 'll-tools-text-domain'), 503, ['retryable' => false]);
         }
 
@@ -6947,7 +6957,7 @@ function ll_tools_save_vocab_lesson_category_settings_from_request(array $reques
             );
         }
 
-        if (!$settings_write_failed && is_array($validated_settings_request['activity_settings'])) {
+        if (!$settings_write_failed && $activity_settings_changed) {
             $settings_write_failed = !ll_tools_write_verified_vocab_lesson_activity_settings($lesson_id, $validated_settings_request['activity_settings']);
         }
 
