@@ -828,6 +828,72 @@ function ll_tools_wordset_button_eligibility_batch_size(): int {
     )));
 }
 
+/** Cached pairs are cheap; keep discovery bounded separately from cold scans. */
+function ll_tools_wordset_button_lesson_pair_page_size(): int {
+    return min(250, max(1, (int) apply_filters(
+        'll_tools_wordset_buttons_shortcode_lesson_pair_page_size',
+        100
+    )));
+}
+
+/**
+ * An exact pair can survive edits in another category of the same wordset.
+ * Category versions cover known content mutations; unknown/failsafe and
+ * structural epochs still invalidate every potentially affected pair.
+ */
+function ll_tools_wordset_button_pair_eligibility_cache_key(int $wordset_id, int $category_id, int $minimum): string {
+    global $wpdb;
+
+    $scope_complete = true;
+    $category_ids = function_exists('ll_tools_get_vocab_lesson_category_meta_candidates')
+        ? ll_tools_get_vocab_lesson_category_meta_candidates($category_id, $wordset_id, $scope_complete)
+        : [$category_id];
+    if (!$scope_complete) {
+        return '';
+    }
+    $versions = [];
+    foreach ($category_ids as $candidate_id) {
+        $wpdb->last_error = '';
+        $versions[(int) $candidate_id] = ll_tools_get_category_cache_version((int) $candidate_id);
+        if ($wpdb->last_error !== '') {
+            return '';
+        }
+    }
+    ksort($versions);
+    $epochs = [];
+    foreach ([
+        'category_epoch' => 'll_tools_get_category_cache_epoch',
+        'wordset_epoch' => 'll_tools_get_wordset_cache_epoch',
+        'buttons_epoch' => 'll_tools_wordset_buttons_shortcode_generation_epoch',
+        'unknown_epoch' => 'll_tools_get_quiz_content_unknown_epoch',
+        'failsafe_epoch' => 'll_tools_get_quiz_content_failsafe_epoch',
+    ] as $name => $reader) {
+        if (!is_callable($reader)) {
+            return '';
+        }
+        $wpdb->last_error = '';
+        $epochs[$name] = (int) $reader();
+        if ($wpdb->last_error !== '') {
+            return '';
+        }
+    }
+    $user = wp_get_current_user();
+    $capabilities = (array) $user->allcaps;
+    ksort($capabilities);
+
+    return 'll_ws_button_pair_' . md5((string) wp_json_encode([
+        'schema' => 1,
+        'wordset_id' => $wordset_id,
+        'category_id' => $category_id,
+        'minimum' => $minimum,
+        'category_versions' => $versions,
+        'epochs' => $epochs,
+        'builder_schema' => ll_tools_wordset_button_count_builder_schema(),
+        'user_id' => (int) $user->ID,
+        'capabilities' => $capabilities,
+    ]));
+}
+
 function ll_tools_wordset_button_counts_generation_key(array $wordset_ids, int $min_word_count): string {
     $wordset_ids = ll_tools_wordset_button_normalize_wordset_ids($wordset_ids);
     $payload = [
@@ -1263,6 +1329,18 @@ function ll_tools_process_wordset_button_active_pair(
         return false;
     }
 
+    $eligibility_cache_key = ll_tools_wordset_button_pair_eligibility_cache_key($wordset_id, $category_id, $min_word_count);
+    $cached = $eligibility_cache_key !== '' ? get_transient($eligibility_cache_key) : false;
+    if (is_array($cached) && ($cached['schema'] ?? 0) === 1 && is_bool($cached['eligible'] ?? null)) {
+        $pair_complete = true;
+        return $cached['eligible'];
+    }
+    if ((int) ($raw_budget['eligibility_pairs_used'] ?? 0) >= ll_tools_wordset_button_eligibility_batch_size()) {
+        $incomplete_reason = 'budget';
+        return false;
+    }
+    $raw_budget['eligibility_pairs_used'] = (int) ($raw_budget['eligibility_pairs_used'] ?? 0) + 1;
+
     $scan_context = isset($active_pair['scan']) && is_array($active_pair['scan'])
         ? $active_pair['scan']
         : [];
@@ -1304,6 +1382,12 @@ function ll_tools_process_wordset_button_active_pair(
     }
 
     $pair_complete = true;
+    if (
+        $eligibility_cache_key !== ''
+        && $eligibility_cache_key === ll_tools_wordset_button_pair_eligibility_cache_key($wordset_id, $category_id, $min_word_count)
+    ) {
+        set_transient($eligibility_cache_key, ['schema' => 1, 'eligible' => (bool) $can_generate_quiz], HOUR_IN_SECONDS);
+    }
     return (bool) $can_generate_quiz;
 }
 
@@ -1513,7 +1597,7 @@ function ll_tools_get_wordset_button_lesson_counts_bounded_unlocked(
 
     $has_more = true;
     if ($failure_reason === '') {
-        $batch_size = ll_tools_wordset_button_eligibility_batch_size();
+        $batch_size = ll_tools_wordset_button_lesson_pair_page_size();
         $source_complete = true;
         $lesson_rows = ll_tools_get_wordset_button_lesson_pair_batch(
             $wordset_ids,
@@ -2421,10 +2505,12 @@ function ll_tools_wordset_buttons_shortcode_create_status_token(array $atts, str
 function ll_tools_wordset_buttons_shortcode_verify_status_token(
     string $token,
     ?string &$error_code = null,
-    ?string &$verified_context = null
+    ?string &$verified_context = null,
+    ?array &$renewable_scope = null
 ): ?array {
     $error_code = 'invalid_status_token';
     $verified_context = null;
+    $renewable_scope = null;
     if ($token === '' || strlen($token) > 2048 || substr_count($token, '.') !== 1) {
         return null;
     }
@@ -2442,8 +2528,14 @@ function ll_tools_wordset_buttons_shortcode_verify_status_token(
     $payload = json_decode($json, true);
     if (
         !is_array($payload)
-        || (int) ($payload['schema'] ?? 0) !== 1
+        || ($payload['schema'] ?? null) !== 1
+        || !is_int($payload['expires_at'] ?? null)
+        || !is_string($payload['tag'] ?? null)
         || !is_array($payload['atts'] ?? null)
+        || !is_string($payload['atts']['class'] ?? null)
+        || !is_string($payload['atts']['hide_empty'] ?? null)
+        || !is_string($payload['context'] ?? null)
+        || preg_match('/^ll_ws_buttons_[a-f0-9]{32}$/D', $payload['context']) !== 1
     ) {
         return null;
     }
@@ -2459,18 +2551,31 @@ function ll_tools_wordset_buttons_shortcode_verify_status_token(
     if (
         $scope['tag'] !== (string) ($payload['tag'] ?? '')
         || $scope['atts'] !== $payload['atts']
-        || !hash_equals(
-            ll_tools_wordset_buttons_shortcode_cache_key($scope['atts'], $scope['tag']),
-            (string) ($payload['context'] ?? '')
-        )
     ) {
+        return null;
+    }
+    if (!hash_equals(
+        ll_tools_wordset_buttons_shortcode_cache_key($scope['atts'], $scope['tag']),
+        (string) ($payload['context'] ?? '')
+    )) {
         $error_code = 'stale_status_token';
+        // Only a signed, unexpired token with an exact normalized public scope
+        // may renew after content changes. Never accept caller-supplied scope.
+        $renewable_scope = $scope;
         return null;
     }
 
     $error_code = '';
     $verified_context = (string) $payload['context'];
     return $scope;
+}
+
+function ll_tools_wordset_buttons_shortcode_stale_status_payload(array $scope): array {
+    return [
+        'code' => 'stale_status_token',
+        'statusToken' => ll_tools_wordset_buttons_shortcode_create_status_token($scope['atts'], $scope['tag']),
+        'retryAfterMs' => ll_tools_wordset_buttons_shortcode_refresh_retry_ms(),
+    ];
 }
 
 function ll_tools_wordset_buttons_shortcode_incomplete_cache_control(): string {
@@ -2936,14 +3041,18 @@ function ll_tools_wordset_buttons_shortcode_status_ajax(): void {
         : '';
     $error_code = '';
     $verified_context = null;
+    $renewable_scope = null;
     $scope = ll_tools_wordset_buttons_shortcode_verify_status_token(
         $token,
         $error_code,
-        $verified_context
+        $verified_context,
+        $renewable_scope
     );
     if (!is_array($scope)) {
         wp_send_json_error(
-            ['code' => $error_code],
+            $error_code === 'stale_status_token' && is_array($renewable_scope)
+                ? ll_tools_wordset_buttons_shortcode_stale_status_payload($renewable_scope)
+                : ['code' => $error_code],
             ll_tools_wordset_buttons_shortcode_status_error_http_code($error_code)
         );
     }
@@ -2975,7 +3084,7 @@ function ll_tools_wordset_buttons_shortcode_status_ajax(): void {
             )
         )
     ) {
-        wp_send_json_error(['code' => 'stale_status_token'], 409);
+        wp_send_json_error(ll_tools_wordset_buttons_shortcode_stale_status_payload($scope), 409);
     }
 
     wp_send_json_success($payload);

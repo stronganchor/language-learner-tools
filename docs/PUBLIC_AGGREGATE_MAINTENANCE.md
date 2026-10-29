@@ -44,6 +44,15 @@ witness. Both ordinary cron and the dedicated worker use the same retry delay;
 the worker accepts the original seven-field event and its nine-field backoff
 continuation, and checkpoints the latter without dropping its retry state.
 
+Homepage counts reuse completed category eligibility for one hour across edits
+to other categories. Keys retain the category content version, structural and
+unknown/failsafe epochs, minimum word count, builder schema, and exact viewer
+identity/capabilities. Each batch discovers at most 100 lesson pairs (hard cap
+250), with at most eight cold eligibility scans and the existing raw/prompt
+budgets. Final totals still require a complete current count generation.
+Public polling can renew a signed, unexpired status token for the same normalized
+scope when content changes; malformed or expired tokens cannot renew.
+
 `tests/Integration/PublicAggregateWorkerTest.php` is the focused guard for
 allowlisting, budgets, family fairness, held dictionary leases, callback
 interruption, failed reads/checkpoints, recorder backoff continuations, locale

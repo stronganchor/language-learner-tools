@@ -13,6 +13,10 @@ Static-cache quarantine/purge overlap and legacy-schema cleanup belong to
 `ll_tools_public_static_cache_begin_purge`, `ll_tools_public_static_cache_finish_purge`,
 and `PublicStaticCacheTest`. Public initialization only schedules cleanup;
 maintenance retries retain a durable cooldown and exact-owner admission.
+Homepage counts restarting during recording use `wordset-vocab-manager`:
+`ll_tools_wordset_button_pair_eligibility_cache_key`, `WordsetButtonsShortcodeTest`,
+and `wordset-buttons-loading-refresh.spec.js` cover category-specific reuse and
+signed public status-token renewal after content changes.
 For a copied word invalidating a large lesson cursor, use `wordset-vocab-manager`
 and `vocab-lesson-deferred-grid.spec.js`: restart with bounded replacement,
 retain the copied card/focus, fence old responses, and avoid duplicate cards.

@@ -252,6 +252,7 @@
             state.showingRetry = false;
             state.failures = 0;
             state.nonceRefreshes = 0;
+            state.statusTokenRefreshes = 0;
             state.configWaits = 0;
             state.startedAt = Date.now();
             root.setAttribute('aria-busy', 'true');
@@ -346,6 +347,26 @@
         return true;
     }
 
+    function refreshStaleStatusToken(root, state, response, payload, config) {
+        var data = payload && payload.data ? payload.data : {};
+        if (
+            !config.statusToken
+            || response.status !== 409
+            || data.code !== 'stale_status_token'
+            || typeof data.statusToken !== 'string'
+            || data.statusToken === ''
+            || data.statusToken === config.statusToken
+            || state.statusTokenRefreshes >= config.maxFailures
+        ) {
+            return false;
+        }
+
+        root.setAttribute('data-status-token', data.statusToken);
+        state.statusTokenRefreshes += 1;
+        schedule(root, state, data.retryAfterMs);
+        return true;
+    }
+
     function requestNextBatch(root, state) {
         if (!root.isConnected || state.pending || state.showingRetry) {
             return;
@@ -401,6 +422,9 @@
                 if (refreshExpiredNonce(root, state, result.response, result.payload, config)) {
                     return;
                 }
+                if (refreshStaleStatusToken(root, state, result.response, result.payload, config)) {
+                    return;
+                }
                 var errorData = result.payload && result.payload.data ? result.payload.data : {};
                 if (result.response.status === 429 && config.statusToken) {
                     var retryHeader = parseInt(result.response.headers.get('Retry-After') || '', 10);
@@ -432,6 +456,7 @@
             var data = payload.data;
             state.failures = 0;
             state.nonceRefreshes = 0;
+            state.statusTokenRefreshes = 0;
             if (data.complete === true) {
                 replaceCompleteRoot(root, data.html, state);
                 return;
@@ -477,6 +502,7 @@
         var state = {
             failures: 0,
             nonceRefreshes: 0,
+            statusTokenRefreshes: 0,
             configWaits: 0,
             pending: false,
             timer: 0,
