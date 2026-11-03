@@ -4,6 +4,7 @@ A WordPress toolkit for building vocabulary-driven language learning sites. It p
 
 ## Recent changes
 
+- **6.7.62:** Article lessons use a compact phone header so the opening lesson text appears sooner. One prerequisite remains directly linked; multiple prerequisites expand through a keyboard-accessible disclosure. Phone navigation shortens trailing examples while preserving full accessible titles and completion status.
 - **6.7.61:** Homepage lesson counts retain completed category eligibility across unrelated content edits while keeping count work bounded. Public count polling renews authenticated stale status tokens after content changes.
 - **6.7.60:** Category presentation edits preserve unchanged lesson activities without rewriting post metadata. Actual activity changes retain transactional storage checks; a failed activity comparison read refuses the save.
 

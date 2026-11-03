@@ -246,15 +246,53 @@ function ll_tools_get_content_lesson_prerequisite_status_rows(
         if ($prerequisite_id <= 0 || $url === '') {
             continue;
         }
+        $fallback_title = (string) get_the_title($prerequisite_id);
+        $title = function_exists('ll_tools_get_lesson_display_title')
+            ? ll_tools_get_lesson_display_title($post, ['fallback' => $fallback_title])
+            : $fallback_title;
         $rows[] = [
             'id' => $prerequisite_id,
-            'title' => (string) get_the_title($prerequisite_id),
+            'title' => $title,
             'url' => $url,
             'completed' => !empty($completed_lookup[$prerequisite_id]),
         ];
     }
 
     return $rows;
+}
+
+/**
+ * Omit a trailing examples parenthesis only from the compact navigation label.
+ * Keep malformed, parenthetical-only and punctuation-only titles intact.
+ */
+function ll_tools_content_lesson_prerequisite_short_title(string $title): string {
+    $title = trim($title);
+    if ($title === '' || substr($title, -1) !== ')') {
+        return $title;
+    }
+
+    $depth = 0;
+    $trailing_start = null;
+    $length = strlen($title);
+    for ($index = 0; $index < $length; $index++) {
+        if ($title[$index] === '(') {
+            if ($depth === 0) {
+                $trailing_start = $index;
+            }
+            $depth++;
+        } elseif ($title[$index] === ')') {
+            $depth--;
+            if ($depth < 0) {
+                return $title;
+            }
+        }
+    }
+    if ($depth !== 0 || $trailing_start === null) {
+        return $title;
+    }
+
+    $prefix = rtrim(substr($title, 0, $trailing_start));
+    return preg_match('/[\p{L}\p{N}]/u', $prefix) === 1 ? $prefix : $title;
 }
 
 function ll_tools_render_content_lesson_prerequisites(int $lesson_id, int $user_id = 0): string {
@@ -264,10 +302,19 @@ function ll_tools_render_content_lesson_prerequisites(int $lesson_id, int $user_
     }
 
     $is_logged_in = $user_id > 0 || is_user_logged_in();
-    $html = '<section class="ll-content-lesson-prerequisites" aria-labelledby="ll-content-lesson-prerequisites-title">';
-    $html .= '<h2 id="ll-content-lesson-prerequisites-title" class="ll-content-lessons-section__title">';
+    $is_single = count($rows) === 1;
+    $title_id = 'll-content-lesson-prerequisites-title-' . $lesson_id;
+    $tag = $is_single ? 'section' : 'details';
+    $heading_tag = $is_single ? 'h2' : 'summary';
+    $html = '<' . $tag . ' class="ll-content-lesson-prerequisites ll-content-lesson-prerequisites--compact '
+        . ($is_single ? 'll-content-lesson-prerequisites--single' : 'll-content-lesson-prerequisites--disclosure')
+        . '" aria-labelledby="' . esc_attr($title_id) . '">';
+    $html .= '<' . $heading_tag . ' id="' . esc_attr($title_id) . '" class="ll-content-lesson-prerequisites__heading">';
     $html .= esc_html__('Before this lesson', 'll-tools-text-domain');
-    $html .= '</h2><ul class="ll-content-lesson-prerequisites__list">';
+    if (!$is_single) {
+        $html .= ' <span class="ll-content-lesson-prerequisites__count">' . esc_html((string) count($rows)) . '</span>';
+    }
+    $html .= '</' . $heading_tag . '><ul class="ll-content-lesson-prerequisites__list">';
     foreach ($rows as $row) {
         $is_completed = !empty($row['completed']);
         $class_name = 'll-content-lesson-prerequisites__item';
@@ -277,19 +324,27 @@ function ll_tools_render_content_lesson_prerequisites(int $lesson_id, int $user_
         $status = $is_completed
             ? __('Completed', 'll-tools-text-domain')
             : __('Not completed', 'll-tools-text-domain');
+        $title = (string) $row['title'];
+        $short_title = ll_tools_content_lesson_prerequisite_short_title($title);
+        $accessible_title = $title . ($is_logged_in ? ' — ' . $status : '');
         $html .= '<li class="' . esc_attr($class_name) . '">';
-        $html .= '<a href="' . esc_url((string) $row['url']) . '">';
+        $html .= '<a href="' . esc_url((string) $row['url']) . '" title="' . esc_attr($title)
+            . '" aria-label="' . esc_attr($accessible_title) . '">';
         $html .= '<span class="ll-content-lesson-prerequisites__status" aria-hidden="true">'
             . ($is_completed ? '&#10003;' : '&#9675;')
             . '</span>';
-        $html .= '<span>' . esc_html((string) $row['title']) . '</span>';
-        $html .= '</a>';
-        if ($is_logged_in) {
-            $html .= '<span class="screen-reader-text"> — ' . esc_html($status) . '</span>';
+        $html .= '<span class="ll-content-lesson-prerequisites__label'
+            . ($short_title !== $title ? ' ll-content-lesson-prerequisites__label--shortened' : '') . '">';
+        $html .= '<span class="ll-content-lesson-prerequisites__title-full">' . esc_html($title) . '</span>';
+        if ($short_title !== $title) {
+            $html .= '<span class="ll-content-lesson-prerequisites__title-short" aria-hidden="true">'
+                . esc_html($short_title) . '</span>';
         }
+        $html .= '</span>';
+        $html .= '</a>';
         $html .= '</li>';
     }
-    $html .= '</ul></section>';
+    $html .= '</ul></' . $tag . '>';
     return $html;
 }
 

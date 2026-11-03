@@ -899,6 +899,7 @@ tests/bin/run-performance-benchmark.sh
 
 ## Notes
 
+- Compact article headers: `ContentLessonProgressTest` covers zero/one/many prerequisite rendering, localized labels, completion state and safe trailing-parenthesis shortening. The self-contained `content-lesson-compact-header.spec.js` checks initial lesson visibility at 320/390/430px, 44px controls, keyboard disclosure, full accessible names and unchanged desktop/footer presentation; stored lesson titles are never shortened.
 - `WordsetTemplateBundleImportExportTest` enforces that imported `wordset_template` bundles are private staging objects, including duplicate/race cleanup and final cache fencing; destination wordsets created from templates are a separate workflow.
 - PHPUnit runs against a WordPress test database, not your production site DB.
 - Playwright and performance fixtures target the configured Local site. They can mutate Local-site content; the performance seeder deletes only objects already carrying its fixture marker and refuses untagged slug collisions.
