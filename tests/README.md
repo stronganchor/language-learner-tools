@@ -2,6 +2,13 @@
 
 For AI-oriented operational guidance (how to run, add, and modify tests safely), see `tests/AI_TESTING_PLAYBOOK.md`.
 
+Compact lesson-header coverage: `Integration/ContentLessonProgressTest.php`
+checks zero/single/multiple prerequisites, localized full names, completion
+status and balanced short labels. The self-contained browser spec
+`e2e/specs/content-lesson-compact-header.spec.js` checks 320/390/430px layouts,
+44px targets, visible opening text, native keyboard disclosure and unchanged
+desktop/footer navigation without requiring a live WordPress page.
+
 This directory contains the plugin test framework:
 
 - `composer.json`: isolated PHPUnit dependency config (separate from plugin `vendor/`).

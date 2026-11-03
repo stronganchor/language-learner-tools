@@ -251,6 +251,200 @@
     line-height: 1;
 }
 
+/* Top-of-lesson navigation stays small; footer dependent cards keep their layout. */
+.ll-content-lesson-prerequisites--compact {
+    margin-bottom: 12px;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+}
+
+.ll-content-lesson-prerequisites--compact .ll-content-lesson-prerequisites__heading {
+    margin: 0;
+    color: var(--ll-cl-muted);
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.35;
+    letter-spacing: 0;
+    text-transform: none;
+}
+
+.ll-content-lesson-prerequisites--compact .ll-content-lesson-prerequisites__list {
+    grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+    gap: 6px;
+    margin: 8px 0 0;
+}
+
+.ll-content-lesson-prerequisites--compact .ll-content-lesson-prerequisites__item a {
+    min-height: 44px;
+    padding: 7px 10px !important;
+    border-radius: 10px !important;
+    font-size: 14px !important;
+    line-height: 1.4 !important;
+}
+
+.ll-content-lesson-prerequisites__label {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.ll-content-lesson-prerequisites__title-short {
+    display: none;
+}
+
+.ll-content-lesson-prerequisites--single {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.ll-content-lesson-prerequisites--single .ll-content-lesson-prerequisites__heading {
+    flex: 0 1 auto;
+}
+
+.ll-content-lesson-prerequisites--single .ll-content-lesson-prerequisites__list {
+    flex: 1 1 0;
+    min-width: 0;
+    margin: 0;
+}
+
+.ll-content-lesson-prerequisites--single .ll-content-lesson-prerequisites__item a {
+    padding: 6px 0 !important;
+    border: 0 !important;
+    background: transparent !important;
+}
+
+.ll-content-lesson-prerequisites--disclosure {
+    padding: 0 10px;
+    border: 1px solid var(--ll-cl-border);
+    border-radius: 12px;
+}
+
+.ll-content-lesson-prerequisites--disclosure > summary {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 44px;
+    padding: 6px 0;
+    list-style: none;
+    cursor: pointer;
+}
+
+.ll-content-lesson-prerequisites--disclosure > summary::-webkit-details-marker {
+    display: none;
+}
+
+.ll-content-lesson-prerequisites--disclosure > summary::before {
+    content: "";
+    flex: 0 0 7px;
+    width: 7px;
+    height: 7px;
+    margin-inline-end: 2px;
+    border-right: 2px solid currentColor;
+    border-bottom: 2px solid currentColor;
+    transform: rotate(-45deg);
+}
+
+.ll-content-lesson-prerequisites--disclosure[open] > summary::before {
+    transform: rotate(45deg);
+}
+
+.ll-content-lesson-prerequisites--disclosure > summary:focus-visible {
+    outline: 3px solid var(--ll-cl-accent);
+    outline-offset: 3px;
+    border-radius: 4px;
+}
+
+.ll-content-lesson-prerequisites__count {
+    padding: 2px 7px;
+    border-radius: 999px;
+    background: var(--ll-cl-accent-soft);
+    color: var(--ll-cl-accent);
+    font-size: 12px;
+    line-height: 1.35;
+}
+
+.ll-content-lesson-prerequisites--disclosure[open] {
+    padding-bottom: 10px;
+}
+
+@media (max-width: 640px) {
+    .ll-content-lesson-page.ll-content-lesson-page--article {
+        padding: 12px 16px 40px;
+    }
+
+    .ll-content-lesson-page--article .ll-content-lesson-hero {
+        gap: 8px;
+        margin-bottom: 12px;
+    }
+
+    .ll-content-lesson-page--article .ll-content-lesson-hero__top {
+        gap: 8px;
+    }
+
+    .ll-content-lesson-page--article .ll-content-lesson-back {
+        min-height: 44px;
+        padding: 6px 10px !important;
+        font-size: 14px;
+        line-height: 1.3;
+    }
+
+    .ll-content-lesson-page--article .ll-content-lesson-pill {
+        display: none !important;
+    }
+
+    .ll-content-lesson-page--article .ll-content-lesson-title {
+        margin: 0 0 4px;
+        font-size: 26px;
+        line-height: 1.15;
+    }
+
+    .ll-content-lesson-page--article .ll-content-lesson-summary {
+        margin: 0 0 4px;
+        font-size: 13px;
+        line-height: 1.4;
+    }
+
+    .ll-content-lesson-page--article .ll-content-lesson-progress {
+        gap: 4px 8px;
+        margin-top: 0;
+    }
+
+    .ll-content-lesson-page--article .ll-content-lesson-progress-button,
+    .ll-content-lesson-page--article .ll-content-lesson-progress-login {
+        min-height: 44px !important;
+        max-width: 100%;
+        padding: 6px 10px !important;
+        font-size: 13px !important;
+        line-height: 1.3 !important;
+        white-space: normal;
+    }
+
+    .ll-content-lesson-page--article .ll-content-lesson-progress-status:empty {
+        display: none;
+    }
+
+    .ll-content-lesson-page--article .ll-content-lesson-article {
+        margin-bottom: 12px;
+        padding: 16px;
+        border-radius: 14px;
+    }
+
+    .ll-content-lesson-page--article .ll-content-lesson-article__content {
+        font-size: 16px;
+    }
+
+    .ll-content-lesson-prerequisites--compact .ll-content-lesson-prerequisites__label--shortened > .ll-content-lesson-prerequisites__title-full {
+        display: none;
+    }
+
+    .ll-content-lesson-prerequisites--compact .ll-content-lesson-prerequisites__title-short {
+        display: inline;
+    }
+}
+
 .ll-content-lesson-stage {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
@@ -476,6 +670,10 @@
 }
 
 .ll-content-lesson-article__content > :first-child {
+    margin-top: 0;
+}
+
+.ll-content-lesson-article__content > :first-child > :is(h1, h2, h3, h4, h5, h6, p):first-child {
     margin-top: 0;
 }
 
