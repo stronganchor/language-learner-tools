@@ -263,6 +263,7 @@
 
 .ll-content-lesson-prerequisites--compact .ll-content-lesson-prerequisites__heading {
     margin: 0;
+    padding: 0;
     color: var(--ll-cl-muted);
     font-size: 14px;
     font-weight: 600;
@@ -434,6 +435,10 @@
 
     .ll-content-lesson-page--article .ll-content-lesson-article__content {
         font-size: 16px;
+    }
+
+    .ll-content-lesson-page.ll-content-lesson-page--article .ll-content-lesson-article__content :is(p, table, td, th) {
+        font-size: max(16px, 1em);
     }
 
     .ll-content-lesson-prerequisites--compact .ll-content-lesson-prerequisites__label--shortened > .ll-content-lesson-prerequisites__title-full {

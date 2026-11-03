@@ -37,12 +37,17 @@ function prerequisiteBlock(count) {
 async function mountArticle(page, count) {
   await page.setContent(`<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">
     <style>
+      html { font-size: 14.592px; }
       body { margin: 0; font: 16px/1.6 Arial, sans-serif; }
       h1,h2 { font-size: 38px; letter-spacing: 0.08em; margin: 1.6em 0 0.8em; }
+      h2 { padding: 40px 0 0; }
       p { margin: 0 0 1.4em; }
       a { color: #900; }
       .site-header { height: 120px; background: #eee; }
-      .tt-lesson h2 { margin-top: 2em; font-size: 23px; letter-spacing: 0; line-height: 1.3; }
+      .tt-lesson { font-size: 1.0625rem; }
+      .tt-lesson h2 { margin-top: 2em; padding: 0; font-size: 23px; letter-spacing: 0; line-height: 1.3; }
+      .tt-lesson .tt-table { font-size: 1rem; }
+      .tt-lesson .tt-table td, .tt-lesson .tt-table th { font-size: inherit; }
     </style><style>${css}</style></head><body>
     <div class="site-header">Site navigation and language selector</div>
     <main class="ll-content-lesson-page ll-content-lesson-page--article">
@@ -64,6 +69,7 @@ async function mountArticle(page, count) {
       <article class="ll-content-lesson-article"><div class="ll-content-lesson-article__content"><div class="tt-lesson">
         <h2>Everyone is a part of the family</h2>
         <p>One thing I love about Turkey is the culture of including everyone into part of the family.</p>
+        <table class="tt-table"><thead><tr><th>Turkish</th><th>English</th></tr></thead><tbody><tr><td>Anne</td><td>Mother</td></tr></tbody></table>
       </div></div></article>
       <section class="ll-content-lesson-prerequisites ll-content-lesson-dependents">
         <h2 class="ll-content-lessons-section__title">Continue learning</h2>
@@ -82,6 +88,13 @@ for (const width of [320, 390, 430]) {
       const position = await paragraph.boundingBox();
       expect(position.y).toBeLessThan(500);
       await expect(page.locator('.ll-content-lesson-article__content')).toHaveCSS('font-size', '16px');
+      const bodySizes = await page.locator('.ll-content-lesson-article__content p, .ll-content-lesson-article__content table, .ll-content-lesson-article__content td, .ll-content-lesson-article__content th').evaluateAll((elements) => elements.map((element) => parseFloat(getComputedStyle(element).fontSize)));
+      expect(bodySizes.length).toBeGreaterThan(4);
+      expect(bodySizes.every((size) => size >= 16)).toBe(true);
+      await expect(page.locator('.tt-lesson > h2')).toHaveCSS('font-size', '23px');
+      if (count > 0) {
+        await expect(page.locator('.ll-content-lesson-prerequisites--compact > .ll-content-lesson-prerequisites__heading')).toHaveCSS('padding-top', '0px');
+      }
       await expect(page.locator('.ll-content-lesson-pill')).toBeHidden();
       for (const selector of ['.ll-content-lesson-back', '.ll-content-lesson-progress-login']) {
         expect((await page.locator(selector).boundingBox()).height).toBeGreaterThanOrEqual(44);
@@ -126,6 +139,7 @@ test('desktop retains full prerequisite titles and the footer cards keep their o
   await expect(full).toHaveText(fullTitle);
   await expect(page.locator('.ll-content-lesson-prerequisites__title-short')).toBeHidden();
   await expect(page.locator('.ll-content-lesson-pill')).toBeVisible();
+  await expect(page.locator('.ll-content-lesson-prerequisites--compact > .ll-content-lesson-prerequisites__heading')).toHaveCSS('padding-top', '0px');
   await expect(page.locator('.ll-content-lesson-dependents')).toHaveCSS('border-top-width', '1px');
   await expect(page.locator('.ll-content-lesson-dependents')).toHaveCSS('border-radius', '24px');
   await expect(page.locator('.ll-content-lesson-dependents a')).toHaveText('Next lesson (examples remain)');
