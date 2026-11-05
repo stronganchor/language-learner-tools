@@ -319,6 +319,180 @@ final class RestPasswordAuthAdmissionTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_current_user_lookup_in_authentication_does_not_restart_password_auth(): void
+    {
+        $username = $this->uniqueUsername('nested-success');
+        $adminId = self::factory()->user->create([
+            'role' => 'administrator',
+            'user_login' => $username,
+            'user_pass' => 'CorrectPass!Nested',
+        ]);
+        $clientIp = '203.0.113.46';
+        $calls = 0;
+        $nestedUserId = null;
+        $lookupCurrentUser = static function ($user) use (&$calls, &$nestedUserId) {
+            if (++$calls > 1) {
+                throw new RuntimeException('Raw-password authentication restarted from a current-user lookup.');
+            }
+            $nestedUserId = get_current_user_id();
+            return $user;
+        };
+        add_filter('authenticate', $lookupCurrentUser, 1);
+
+        try {
+            $response = $this->dispatchAuthenticatedStatus($username, 'CorrectPass!Nested', $clientIp);
+            $this->assertSame(200, $response->get_status());
+            $this->assertSame(1, $calls);
+            $this->assertSame(0, $nestedUserId);
+            $this->assertSame($adminId, get_current_user_id());
+            $this->assertSame('basic_password', $response->get_data()['auth_mode']);
+            $this->assertArrayNotHasKey('ll_tools_rest_automation_auth_error', $GLOBALS);
+        } finally {
+            remove_filter('authenticate', $lookupCurrentUser, 1);
+            ll_tools_rest_automation_password_auth_reset_failures($username, $clientIp);
+        }
+    }
+
+    public function test_current_user_lookup_during_admission_does_not_reserve_again(): void
+    {
+        $username = $this->uniqueUsername('nested-admission');
+        self::factory()->user->create([
+            'role' => 'administrator',
+            'user_login' => $username,
+            'user_pass' => 'CorrectPass!Admission',
+        ]);
+        $clientIp = '203.0.113.47';
+        $calls = 0;
+        $nestedUserId = null;
+        $limit = static function () use (&$calls, &$nestedUserId): int {
+            if (++$calls > 1) {
+                throw new RuntimeException('Raw-password admission restarted from a current-user lookup.');
+            }
+            $nestedUserId = get_current_user_id();
+            return 8;
+        };
+        add_filter('ll_tools_rest_password_auth_failure_limit', $limit);
+
+        try {
+            $response = $this->dispatchAuthenticatedStatus($username, 'CorrectPass!Admission', $clientIp);
+            $this->assertSame(200, $response->get_status());
+            $this->assertSame(1, $calls);
+            $this->assertSame(0, $nestedUserId);
+        } finally {
+            remove_filter('ll_tools_rest_password_auth_failure_limit', $limit);
+            ll_tools_rest_automation_password_auth_reset_failures($username, $clientIp);
+        }
+    }
+
+    public function test_translation_current_user_lookup_preserves_the_outer_auth_error(): void
+    {
+        $username = $this->uniqueUsername('nested-error');
+        $clientIp = '203.0.113.48';
+        $authenticateCalls = 0;
+        $translationCalls = 0;
+        $watchAuthenticate = static function ($user) use (&$authenticateCalls) {
+            if (++$authenticateCalls > 1) {
+                throw new RuntimeException('Formatting an authentication error restarted authentication.');
+            }
+            return $user;
+        };
+        $translate = static function ($translation, $text) use (&$translationCalls) {
+            if ($text === 'Unable to authenticate this REST request.') {
+                $translationCalls++;
+                // Locale/translation hooks may resolve the current user before
+                // REST_REQUEST exists. Exercise that lookup even if a preceding
+                // test has already defined the process-wide REST constant.
+                ll_tools_get_logged_in_user_locale_preference();
+            }
+            return $translation;
+        };
+        add_filter('authenticate', $watchAuthenticate, 1);
+        add_filter('gettext_ll-tools-text-domain', $translate, 10, 2);
+
+        try {
+            $response = $this->dispatchAuthenticatedStatus($username, 'WrongPass!Nested', $clientIp);
+            $this->assertSame(401, $response->get_status());
+            $this->assertSame('ll_tools_rest_invalid_basic_credentials', $response->get_data()['code']);
+            $this->assertSame(1, $authenticateCalls);
+            $this->assertSame(1, $translationCalls);
+            $this->assertSame(0, get_current_user_id());
+            $this->assertArrayNotHasKey('ll_tools_rest_automation_auth_mode', $GLOBALS);
+        } finally {
+            remove_filter('gettext_ll-tools-text-domain', $translate, 10);
+            remove_filter('authenticate', $watchAuthenticate, 1);
+            ll_tools_rest_automation_password_auth_reset_failures($username, $clientIp);
+        }
+    }
+
+    public function test_security_hook_can_still_reject_valid_credentials_after_nested_lookup(): void
+    {
+        $username = $this->uniqueUsername('nested-denial');
+        $adminId = self::factory()->user->create([
+            'role' => 'administrator',
+            'user_login' => $username,
+            'user_pass' => 'CorrectPass!Denied',
+        ]);
+        $clientIp = '203.0.113.49';
+        $calls = 0;
+        $credentialUserId = null;
+        $deny = static function ($user) use (&$calls, &$credentialUserId) {
+            if (++$calls > 1) {
+                throw new RuntimeException('Security policy lookup restarted authentication.');
+            }
+            $credentialUserId = $user instanceof WP_User ? (int) $user->ID : 0;
+            get_current_user_id();
+            return new WP_Error('test_security_policy_denied', 'Test authentication policy denied login.');
+        };
+        add_filter('authenticate', $deny, 99);
+
+        try {
+            $response = $this->dispatchAuthenticatedStatus($username, 'CorrectPass!Denied', $clientIp);
+            $this->assertSame($adminId, $credentialUserId);
+            $this->assertSame(1, $calls);
+            $this->assertSame(401, $response->get_status());
+            $this->assertSame('ll_tools_rest_invalid_basic_credentials', $response->get_data()['code']);
+            $this->assertSame(0, get_current_user_id());
+            $this->assertArrayNotHasKey('ll_tools_rest_automation_auth_mode', $GLOBALS);
+        } finally {
+            remove_filter('authenticate', $deny, 99);
+            ll_tools_rest_automation_password_auth_reset_failures($username, $clientIp);
+        }
+    }
+
+    public function test_authentication_exception_releases_the_recursion_guard(): void
+    {
+        $username = $this->uniqueUsername('exception');
+        $adminId = self::factory()->user->create([
+            'role' => 'administrator',
+            'user_login' => $username,
+            'user_pass' => 'CorrectPass!Exception',
+        ]);
+        $clientIp = '203.0.113.50';
+        $throw = static function () {
+            throw new RuntimeException('Test authentication hook exception.');
+        };
+        add_filter('authenticate', $throw, 1);
+
+        try {
+            try {
+                $this->dispatchAuthenticatedStatus($username, 'CorrectPass!Exception', $clientIp);
+                $this->fail('The authentication hook exception should propagate.');
+            } catch (RuntimeException $error) {
+                $this->assertSame('Test authentication hook exception.', $error->getMessage());
+            } finally {
+                remove_filter('authenticate', $throw, 1);
+            }
+
+            $this->completeLlToolsSimulatedRequest();
+            $response = $this->dispatchAuthenticatedStatus($username, 'CorrectPass!Exception', $clientIp);
+            $this->assertSame(200, $response->get_status());
+            $this->assertSame($adminId, get_current_user_id());
+        } finally {
+            remove_filter('authenticate', $throw, 1);
+            ll_tools_rest_automation_password_auth_reset_failures($username, $clientIp);
+        }
+    }
+
     /**
      * Run the authentication stage before dispatch so this helper mirrors
      * WP_REST_Server::serve_request rather than the test server's bare dispatch.
