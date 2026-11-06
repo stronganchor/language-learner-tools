@@ -612,6 +612,9 @@ function ll_tools_context_pack_definitions(): array
             'load_when' => 'A change touches REST automation, import previews, metadata plans, site sync snapshots, remote apply flows, CLI resume files, or server-side job ownership and recovery.',
             'signals' => [
                 'automation rest',
+                'rest authentication',
+                'basic auth',
+                'rest auth recursion',
                 'site sync',
                 'snapshot',
                 'import preview',
@@ -662,6 +665,7 @@ function ll_tools_context_pack_definitions(): array
             ],
             'tests' => [
                 'tests/Integration/AutomationRest*Test.php',
+                'tests/Integration/RestPasswordAuthAdmissionTest.php',
                 'tests/Integration/SiteSyncTest.php',
                 'tests/Integration/BulkWordImportAdminTest.php',
                 'tests/Integration/AdminImport*Test.php',

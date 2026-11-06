@@ -537,7 +537,29 @@ function ll_tools_rest_automation_clear_auth_runtime_state(): void {
     unset($GLOBALS['ll_tools_rest_automation_auth_mode']);
 }
 
+/**
+ * Resolve raw-password authentication once per current-user resolution stack.
+ *
+ * Authentication hooks and translated errors may ask for the current user
+ * before WordPress has finished resolving it. Do not restart authentication
+ * or clear the outer attempt's error/mode state from that nested lookup.
+ */
 function ll_tools_rest_automation_determine_current_user($user_id) {
+    static $resolving = false;
+
+    if ($resolving) {
+        return $user_id;
+    }
+
+    $resolving = true;
+    try {
+        return ll_tools_rest_automation_determine_current_user_once($user_id);
+    } finally {
+        $resolving = false;
+    }
+}
+
+function ll_tools_rest_automation_determine_current_user_once($user_id) {
     if (!empty($user_id)) {
         if (ll_tools_rest_automation_is_request()) {
             // Core cookie/application-password authentication completed before
