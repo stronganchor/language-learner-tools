@@ -7,7 +7,7 @@ if (!defined('LL_TOOLS_FLASHCARD_PAYLOAD_TABLE_VERSION')) {
 if (!defined('LL_TOOLS_FLASHCARD_PAYLOAD_BUILDER_SCHEMA')) {
     // Bump this whenever stored row shape, eligibility, or presentation
     // semantics change. Ordinary plugin releases must not invalidate payloads.
-    define('LL_TOOLS_FLASHCARD_PAYLOAD_BUILDER_SCHEMA', 2);
+    define('LL_TOOLS_FLASHCARD_PAYLOAD_BUILDER_SCHEMA', 3);
 }
 if (!defined('LL_TOOLS_FLASHCARD_PAYLOAD_VERSION_OPTION')) {
     define('LL_TOOLS_FLASHCARD_PAYLOAD_VERSION_OPTION', 'll_tools_flashcard_payload_table_version');
