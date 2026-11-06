@@ -249,7 +249,7 @@ final class RestPasswordAuthAdmissionTest extends LL_Tools_TestCase
         $this->assertSame([], $credentials);
     }
 
-    public function test_application_password_auth_bypasses_a_saturated_raw_password_counter(): void
+    public function test_application_password_resolves_after_early_anonymous_lookup_with_raw_admission_saturated(): void
     {
         $username = $this->uniqueUsername('app-pass');
         $adminId = self::factory()->user->create([
@@ -257,64 +257,72 @@ final class RestPasswordAuthAdmissionTest extends LL_Tools_TestCase
             'user_login' => $username,
             'user_pass' => 'AccountPass!789',
         ]);
-        $applicationPassword = 'abcd EFGH 1234 WXYZ 5678 uvwx';
-        $coreApplicationPasswordAuth = static function ($userId) use (
-            $username,
-            $applicationPassword,
-            $adminId
-        ) {
-            if (!empty($userId)) {
-                return $userId;
-            }
+        $applicationPassword = 'abcdEFGH1234WXYZ5678uvwx';
+        $applicationUuid = wp_generate_uuid4();
+        update_user_meta($adminId, WP_Application_Passwords::USERMETA_KEY_APPLICATION_PASSWORDS, [[
+            'uuid' => $applicationUuid,
+            'app_id' => '',
+            'name' => 'REST authentication regression',
+            // Core continues to support pre-6.8 application password hashes.
+            // This fixture works in PHP test runtimes without sodium.
+            'password' => wp_hash_password($applicationPassword),
+            'created' => time(),
+            'last_used' => null,
+            'last_ip' => null,
+        ]]);
+        $inUseOption = WP_Application_Passwords::OPTION_KEY_IN_USE;
+        $previousInUse = get_site_option($inUseOption);
+        update_site_option($inUseOption, true);
 
-            $credentials = ll_tools_rest_automation_get_basic_auth_credentials();
-            if (
-                (string) ($credentials['username'] ?? '') !== $username
-                || (string) ($credentials['password'] ?? '') !== $applicationPassword
-            ) {
-                return $userId;
-            }
-
-            $user = get_user_by('id', $adminId);
-            if (!$user instanceof WP_User) {
-                return $userId;
-            }
-
-            // Simulate core's successful priority-20 application-password
-            // determination without depending on sodium_compat in this test
-            // runtime. The LL Tools raw-password layer runs at priority 30.
-            $GLOBALS['wp_rest_application_password_status'] = $user;
-            $GLOBALS['wp_rest_application_password_uuid'] = 'll-tools-test-application-password';
-            return $adminId;
-        };
-        add_filter('determine_current_user', $coreApplicationPasswordAuth, 20);
+        // The test does not change the process-wide REST_REQUEST constant.
+        // Mirror its transition at parse time and let core validate credentials.
+        $isApiRequest = static fn (): bool => !empty($GLOBALS['wp']->query_vars['rest_route']);
+        add_filter('application_password_is_api_request', $isApiRequest);
+        $basicAuth = static fn (string $password): array => [
+            'PHP_AUTH_USER' => $username,
+            'PHP_AUTH_PW' => $password,
+        ];
 
         $clientIp = '203.0.113.43';
         $limitFilter = static fn (): int => 1;
         add_filter('ll_tools_rest_password_auth_failure_limit', $limitFilter);
 
         try {
+            $rawSuccess = $this->dispatchAuthenticatedStatus($username, 'AccountPass!789', $clientIp, $basicAuth('AccountPass!789'));
+            $this->assertSame(200, $rawSuccess->get_status());
+            $this->assertSame('basic_password', $rawSuccess->get_data()['auth_mode']);
+
             $rawFailure = $this->dispatchAuthenticatedStatus(
                 $username,
                 'WrongAccountPass!789',
-                $clientIp
+                $clientIp,
+                $basicAuth('WrongAccountPass!789')
             );
             $this->assertSame(401, $rawFailure->get_status());
 
+            // Reset endpoint pacing while preserving the saturated raw-password counter.
+            ll_tools_rest_resource_guard_clear_state();
             $applicationSuccess = $this->dispatchAuthenticatedStatus(
                 $username,
                 $applicationPassword,
-                $clientIp
+                $clientIp,
+                $basicAuth($applicationPassword)
             );
             $this->assertSame(200, $applicationSuccess->get_status());
             $data = $applicationSuccess->get_data();
             $this->assertIsArray($data);
             $this->assertSame('cookie_or_application_password', (string) ($data['auth_mode'] ?? ''));
             $this->assertSame($adminId, (int) ($data['user']['id'] ?? 0));
+            $this->assertSame($applicationUuid, rest_get_authenticated_app_password());
         } finally {
             ll_tools_rest_automation_password_auth_reset_failures($username, $clientIp);
             remove_filter('ll_tools_rest_password_auth_failure_limit', $limitFilter);
-            remove_filter('determine_current_user', $coreApplicationPasswordAuth, 20);
+            remove_filter('application_password_is_api_request', $isApiRequest);
+            if ($previousInUse === false) {
+                delete_site_option($inUseOption);
+            } else {
+                update_site_option($inUseOption, $previousInUse);
+            }
             unset($GLOBALS['wp_rest_application_password_status'], $GLOBALS['wp_rest_application_password_uuid']);
         }
     }
@@ -399,9 +407,8 @@ final class RestPasswordAuthAdmissionTest extends LL_Tools_TestCase
         $translate = static function ($translation, $text) use (&$translationCalls) {
             if ($text === 'Unable to authenticate this REST request.') {
                 $translationCalls++;
-                // Locale/translation hooks may resolve the current user before
-                // REST_REQUEST exists. Exercise that lookup even if a preceding
-                // test has already defined the process-wide REST constant.
+                // Exercise the locale helper's current-user lookup while
+                // the raw authentication result is being formatted.
                 ll_tools_get_logged_in_user_locale_preference();
             }
             return $translation;
@@ -517,21 +524,32 @@ final class RestPasswordAuthAdmissionTest extends LL_Tools_TestCase
             $_SERVER[$key] = $value;
         }
 
-        global $current_user;
         wp_set_current_user(0);
-        $current_user = null;
+        $GLOBALS['current_user'] = null;
         ll_tools_rest_automation_clear_auth_runtime_state();
 
-        $request = new WP_REST_Request('GET', '/ll-tools/v1/automation/status');
-        wp_get_current_user();
-        $server = rest_get_server();
-        $authentication = $server->check_authentication();
-        $response = is_wp_error($authentication)
-            ? rest_convert_error_to_response($authentication)
-            : rest_ensure_response($server->dispatch($request));
-        $response = apply_filters('rest_post_dispatch', $response, $server, $request);
+        $wp = $GLOBALS['wp'];
+        $previousQueryVars = $wp->query_vars;
+        unset($wp->query_vars['rest_route']);
 
-        return rest_ensure_response($response);
+        try {
+            // Early current-user resolution must leave Basic credentials for
+            // REST dispatch. The core REST server then clears the cached guest.
+            $this->assertSame(0, get_current_user_id());
+            $request = new WP_REST_Request('GET', '/ll-tools/v1/automation/status');
+            $wp->query_vars['rest_route'] = $request->get_route();
+            $server = rest_get_server();
+            $GLOBALS['current_user'] = null;
+            $authentication = $server->check_authentication();
+            $response = is_wp_error($authentication)
+                ? rest_convert_error_to_response($authentication)
+                : rest_ensure_response($server->dispatch($request));
+            $response = apply_filters('rest_post_dispatch', $response, $server, $request);
+
+            return rest_ensure_response($response);
+        } finally {
+            $wp->query_vars = $previousQueryVars;
+        }
     }
 
     private function uniqueUsername(string $suffix): string

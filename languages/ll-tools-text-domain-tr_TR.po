@@ -3551,7 +3551,7 @@ msgid "Import failed: selected zip is outside the import directory."
 msgstr "İçe aktarma başarısız oldu: seçilen zip içe aktarma dizininin dışında."
 
 #: includes/admin/export-import.php:5361
-#: includes/api/automation-rest.php:10177
+#: includes/api/automation-rest.php:10160
 msgid "Import failed: server import folder is not available."
 msgstr "İçe aktarma başarısız oldu: sunucu içe aktarma klasörü mevcut değil."
 
@@ -4824,10 +4824,10 @@ msgstr "Eksik transkript kimliği."
 msgid "Missing word data"
 msgstr "Eksik kelime verileri"
 
-#: includes/api/automation-rest.php:3529
-#: includes/api/automation-rest.php:3631
-#: includes/api/automation-rest.php:3919
-#: includes/api/automation-rest.php:4519
+#: includes/api/automation-rest.php:3512
+#: includes/api/automation-rest.php:3614
+#: includes/api/automation-rest.php:3902
+#: includes/api/automation-rest.php:4502
 #: includes/api/word-metadata-plan-rest.php:1747
 #: includes/shortcodes/audio-recording-shortcode.php:5605
 #: includes/shortcodes/word-grid-shortcode.php:9133
@@ -9526,7 +9526,7 @@ msgstr "Kelime dersi ayarlarını güncelleme iznin yok."
 #: includes/admin/uploads/audio-upload-form.php:636
 #: includes/admin/uploads/image-upload-form.php:454
 #: includes/admin/uploads/image-upload-form.php:718
-#: includes/api/automation-rest.php:7780
+#: includes/api/automation-rest.php:7763
 msgid "You do not have permission to upload files."
 msgstr "Dosya yüklemek için iznin yok."
 
@@ -9645,7 +9645,7 @@ msgstr "Oturumun süresi doldu. Lütfen tekrar dene."
 #: includes/admin/export-import.php:14898
 #: includes/admin/offline-app-export.php:1722
 #: includes/admin/orphan-media-admin.php:1483
-#: includes/api/automation-rest.php:10238
+#: includes/api/automation-rest.php:10221
 #: includes/pages/wordset-pages.php:9400
 #: includes/pages/wordset-pages.php:9764
 msgid "ZipArchive is not available on this server."
@@ -10573,7 +10573,7 @@ msgstr "Sözlük içe aktarma işlemini gerçekleştirme iznin yok."
 #: includes/admin/export-import.php:12496
 #: includes/admin/export-import.php:12717
 #: includes/admin/export-import.php:12742
-#: includes/api/automation-rest.php:10299
+#: includes/api/automation-rest.php:10282
 msgid "The requested import job could not be found."
 msgstr "İstenen içe aktarma işi bulunamadı."
 
@@ -11915,7 +11915,7 @@ msgid "Could not create the import extraction directory."
 msgstr "İçe aktarma çıkarma dizini oluşturulamadı."
 
 #: includes/admin/export-import.php:12655
-#: includes/api/automation-rest.php:10319
+#: includes/api/automation-rest.php:10302
 msgid "Another import job is already active. Resume or finish it before starting a new one."
 msgstr "Başka bir içe aktarma işi zaten etkin. Yenisine başlamadan önce devam edin veya bitirin."
 
@@ -14491,131 +14491,131 @@ msgstr "Otomatik"
 msgid "Unable to save word option rules."
 msgstr "Kelime seçeneği kuralları kaydedilemiyor."
 
-#: includes/api/automation-rest.php:79
+#: includes/api/automation-rest.php:84
 msgid "Unexpected REST automation error."
 msgstr "Beklenmeyen REST otomasyon hatası."
 
-#: includes/api/automation-rest.php:591
+#: includes/api/automation-rest.php:559
 msgid "LL Tools password-based REST authentication requires HTTPS, except in local development."
 msgstr "LL Tools parola tabanlı REST kimlik doğrulaması, yerel geliştirme dışında HTTPS gerektirir."
 
-#: includes/api/automation-rest.php:610
-#: includes/api/automation-rest.php:625
+#: includes/api/automation-rest.php:578
+#: includes/api/automation-rest.php:593
 msgid "Unable to authenticate this REST request."
 msgstr "Bu REST isteğinin kimliği doğrulanamıyor."
 
-#: includes/api/automation-rest.php:681
+#: includes/api/automation-rest.php:664
 msgid "You are not allowed to use LL Tools automation on this site."
 msgstr "Bu sitede LL Tools otomasyonunu kullanma iznin yok."
 
-#: includes/api/automation-rest.php:688
+#: includes/api/automation-rest.php:671
 msgid "Authenticate with a WordPress login, application password, or LL Tools basic password access before calling this endpoint."
 msgstr "Bu uç noktayı çağırmadan önce WordPress oturum açma adı, uygulama parolası veya LL Tools temel parola erişimiyle kimlik doğrulaması yap."
 
-#: includes/api/automation-rest.php:728
+#: includes/api/automation-rest.php:711
 msgid "You cannot manage automation for this word set."
 msgstr "Bu kelime seti için otomasyonu yönetemezsin."
 
-#: includes/api/automation-rest.php:751
+#: includes/api/automation-rest.php:734
 msgid "You cannot view internal review notes for this word set."
 msgstr "Bu kelime seti için dahili inceleme notlarını görüntüleyemezsin."
 
-#: includes/api/automation-rest.php:762
+#: includes/api/automation-rest.php:745
 msgid "You cannot manage internal review notes for this word set."
 msgstr "Bu kelime seti için dahili inceleme notlarını yönetemezsin."
 
-#: includes/api/automation-rest.php:814
+#: includes/api/automation-rest.php:797
 msgid "You cannot create word sets through LL Tools automation."
 msgstr "LL Tools otomasyonu aracılığıyla kelime setleri oluşturamazsın."
 
-#: includes/api/automation-rest.php:832
+#: includes/api/automation-rest.php:815
 msgid "You cannot import LL Tools bundles through automation."
 msgstr "LL Tools paketlerini otomasyon yoluyla içe aktaramazsın."
 
-#: includes/api/automation-rest.php:947
+#: includes/api/automation-rest.php:930
 msgid "Missing set.field in the REST update payload."
 msgstr "REST güncelleme yükünde set.field eksik."
 
 #. translators: 1: field name, 2: comma-separated field list
-#: includes/api/automation-rest.php:957
+#: includes/api/automation-rest.php:940
 #: includes/cli/cli-support.php:130
 #, php-format
 msgid "Unsupported update field \"%1$s\". Allowed fields: %2$s"
 msgstr "Desteklenmeyen güncelleme alanı \"%1$s\". İzin verilen alanlar: %2$s"
 
-#: includes/api/automation-rest.php:974
+#: includes/api/automation-rest.php:957
 msgid "Provide set as either \"field=value\" or an object with field/value."
 msgstr "set değerini \"field=value\" olarak veya field/value içeren bir nesne olarak sağlayın."
 
-#: includes/api/automation-rest.php:3002
+#: includes/api/automation-rest.php:2985
 msgid "Provide a name for the new word set."
 msgstr "Yeni kelime seti için bir ad gir."
 
-#: includes/api/automation-rest.php:7419
+#: includes/api/automation-rest.php:7402
 msgid "Provide category, category_id, or category_slug for the word-option rules update."
 msgstr "Kelime seçeneği kuralları güncellemesi için category, category_id veya category_slug sağla."
 
 #. translators: %s: category identifier
-#: includes/api/automation-rest.php:7438
+#: includes/api/automation-rest.php:7421
 #, php-format
 msgid "Unable to resolve word category: %s"
 msgstr "Kelime kategorisi çözülemiyor: %s"
 
-#: includes/api/automation-rest.php:7461
+#: includes/api/automation-rest.php:7444
 msgid "That word category belongs to a different word set."
 msgstr "Bu kelime kategorisi farklı bir kelime setine aittir."
 
-#: includes/api/automation-rest.php:7600
+#: includes/api/automation-rest.php:7583
 msgid "Groups must be an array."
 msgstr "Gruplar bir dizi olmalıdır."
 
-#: includes/api/automation-rest.php:7618
+#: includes/api/automation-rest.php:7601
 msgid "Every word-option group needs a label."
 msgstr "Her kelime seçeneği grubunun bir etikete ihtiyacı vardır."
 
-#: includes/api/automation-rest.php:7633
+#: includes/api/automation-rest.php:7616
 msgid "Word-option groups must contain at least one resolved word."
 msgstr "Kelime seçeneği grupları en az bir çözümlenmiş kelime içermelidir."
 
-#: includes/api/automation-rest.php:7653
+#: includes/api/automation-rest.php:7636
 msgid "Word-option pairs must be an array."
 msgstr "Kelime-seçenek çiftleri bir dizi olmalıdır."
 
-#: includes/api/automation-rest.php:7671
+#: includes/api/automation-rest.php:7654
 msgid "Word-option pairs must contain two resolved words."
 msgstr "Kelime-seçenek çiftleri iki çözümlenmiş kelime içermelidir."
 
-#: includes/api/automation-rest.php:8952
+#: includes/api/automation-rest.php:8935
 msgid "Word-option rules were not saved because the payload did not validate. Review missing_words and errors in the response data."
 msgstr "Yük doğrulanmadığı için kelime seçeneği kuralları kaydedilmedi. Yanıt verilerindeki missing_words ve errors alanlarını incele."
 
-#: includes/api/automation-rest.php:8970
+#: includes/api/automation-rest.php:8953
 msgid "Word-option rules could not be saved for this word set and category."
 msgstr "Bu kelime seti ve kategori için kelime seçeneği kuralları kaydedilemedi."
 
-#: includes/api/automation-rest.php:9425
+#: includes/api/automation-rest.php:9408
 msgid "Provide a note value. Send an empty string to clear the note."
 msgstr "Bir not değeri gir. Notu temizlemek için boş bir dize gönder."
 
-#: includes/api/automation-rest.php:9432
+#: includes/api/automation-rest.php:9415
 msgid "Provide the word or prompt card object_id to update."
 msgstr "Güncellenecek kelime veya soru kartı object_id değerini gir."
 
-#: includes/api/automation-rest.php:9443
+#: includes/api/automation-rest.php:9426
 #: includes/lib/internal-review-notes.php:369
 msgid "This item cannot store an internal review note."
 msgstr "Bu öğe dahili inceleme notunu saklayamaz."
 
-#: includes/api/automation-rest.php:9450
+#: includes/api/automation-rest.php:9433
 #: includes/lib/internal-review-notes.php:381
 msgid "This item does not belong to the selected word set."
 msgstr "Bu öğe seçilen kelime setine ait değil."
 
-#: includes/api/automation-rest.php:10172
+#: includes/api/automation-rest.php:10155
 msgid "Import failed: provide an uploaded zip file or a server import filename."
 msgstr "İçe aktarma başarısız oldu: Yüklenen bir zip dosyasını veya sunucu içe aktarma dosya adını sağlayın."
 
-#: includes/api/automation-rest.php:10290
+#: includes/api/automation-rest.php:10273
 msgid "The requested import job could not be identified."
 msgstr "İstenen içe aktarma işi tanımlanamadı."
 
@@ -14684,7 +14684,7 @@ msgstr "Kullanıcı çözülemiyor: %s"
 msgid "Unable to resolve category: %s"
 msgstr "Kategori çözülemiyor: %s"
 
-#: includes/api/automation-rest.php:3389
+#: includes/api/automation-rest.php:3372
 #: includes/cli/cli-support.php:298
 msgid "Missing word identifier."
 msgstr "Eksik kelime tanımlayıcı."
@@ -14695,7 +14695,7 @@ msgstr "Eksik kelime tanımlayıcı."
 msgid "Unable to resolve word in this word set: %s"
 msgstr "Bu kelime setindeki kelime çözülemiyor: %s"
 
-#: includes/api/automation-rest.php:7211
+#: includes/api/automation-rest.php:7194
 #: includes/cli/cli-support.php:351
 #: includes/cli/cli-support.php:388
 msgid "Missing word set ID."
@@ -14709,16 +14709,16 @@ msgstr "Editör Merkezi yardımcıları mevcut değil."
 msgid "Missing word or word set for update."
 msgstr "Güncelleme için eksik kelime veya kelime seti."
 
-#: includes/api/automation-rest.php:3423
+#: includes/api/automation-rest.php:3406
 #: includes/cli/cli-support.php:844
 msgid "Unable to load the current word state."
 msgstr "Geçerli kelime durumu yüklenemiyor."
 
-#: includes/api/automation-rest.php:1981
-#: includes/api/automation-rest.php:2301
-#: includes/api/automation-rest.php:3958
-#: includes/api/automation-rest.php:3981
-#: includes/api/automation-rest.php:4154
+#: includes/api/automation-rest.php:1964
+#: includes/api/automation-rest.php:2284
+#: includes/api/automation-rest.php:3941
+#: includes/api/automation-rest.php:3964
+#: includes/api/automation-rest.php:4137
 #: includes/api/word-metadata-plan-rest.php:572
 #: includes/cli/cli-support.php:879
 msgid "Dictionary entry helpers are not available."
@@ -14776,7 +14776,7 @@ msgid "Invalid verb mood value. Allowed values: %s"
 msgstr "Geçersiz fiil ruh hali değeri. İzin verilen değerler: %s"
 
 #. translators: %s: field name
-#: includes/api/automation-rest.php:3399
+#: includes/api/automation-rest.php:3382
 #: includes/cli/cli-support.php:1066
 #, php-format
 msgid "Unsupported update field: %s"
@@ -15379,7 +15379,7 @@ msgstr "Bu kayıt formunun süresi doldu. Lütfen tekrar dene."
 msgid "Please solve the math question."
 msgstr "Lütfen matematik sorusunu çöz."
 
-#: includes/api/automation-rest.php:434
+#: includes/api/automation-rest.php:439
 #: includes/login-window.php:1476
 msgid "Too many login attempts from this connection. Please try again in a few minutes."
 msgstr "Bu bağlantıdan çok fazla oturum açma denemesi yapıldı. Lütfen birkaç dakika sonra tekrar dene."
@@ -18780,9 +18780,9 @@ msgstr "Türkçe"
 msgid "Deutsch"
 msgstr "Almanca"
 
-#: includes/api/automation-rest.php:1965
-#: includes/api/automation-rest.php:2364
-#: includes/api/automation-rest.php:2476
+#: includes/api/automation-rest.php:1948
+#: includes/api/automation-rest.php:2347
+#: includes/api/automation-rest.php:2459
 #: includes/shortcodes/dictionary-shortcode.php:1055
 #: includes/shortcodes/dictionary-shortcode.php:3847
 msgid "Dictionary entry not found."
@@ -20335,8 +20335,8 @@ msgstr "Bu kelime dağarcığını tanıtan ana sesli/görüntülü derse dön."
 msgid "Open main lesson"
 msgstr "Ana dersi aç"
 
-#: includes/api/automation-rest.php:1459
-#: includes/api/automation-rest.php:1479
+#: includes/api/automation-rest.php:1442
+#: includes/api/automation-rest.php:1462
 msgid "LL Tools automation is already processing a write request. Wait and retry this request instead of running parallel updates."
 msgstr "LL Tools otomasyonu zaten bir yazma isteği işliyor. Paralel güncellemeler çalıştırmak yerine bekle ve bu isteği yeniden dene."
 
@@ -21472,24 +21472,24 @@ msgstr "Kısa kodları şimdi ekle (hariç tutulanlara uy)"
 msgid "Insert Shortcodes in Column Now (respect exclusions)"
 msgstr "Sütuna kısa kodları şimdi ekle (hariç tutulanlara uy)"
 
-#: includes/api/automation-rest.php:789
+#: includes/api/automation-rest.php:772
 msgid "You cannot view interlinear data for this word set."
 msgstr "Bu kelime setinin satır arası verilerini görüntüleyemezsin."
 
-#: includes/api/automation-rest.php:797
+#: includes/api/automation-rest.php:780
 msgid "You cannot manage interlinear data for this word set."
 msgstr "Bu kelime setinin satır arası verilerini yönetemezsin."
 
-#: includes/api/automation-rest.php:9910
-#: includes/api/automation-rest.php:10016
+#: includes/api/automation-rest.php:9893
+#: includes/api/automation-rest.php:9999
 msgid "Could not find a matching content or vocab lesson in this word set."
 msgstr "Bu kelime setinde eşleşen bir içerik veya kelime dersi bulunamadı."
 
-#: includes/api/automation-rest.php:9937
+#: includes/api/automation-rest.php:9920
 msgid "Provide an interlinear payload object, or send delete=true to clear one."
 msgstr "Bir satır arası veri yükü nesnesi gönder veya temizlemek için delete=true gönder."
 
-#: includes/api/automation-rest.php:10080
+#: includes/api/automation-rest.php:10063
 msgid "Each interlinear import item must be an object."
 msgstr "Her satır arası içe aktarma öğesi bir nesne olmalı."
 
@@ -21873,112 +21873,112 @@ msgstr "Metinler"
 msgid "Open text"
 msgstr "Metni aç"
 
-#: includes/api/automation-rest.php:10553
+#: includes/api/automation-rest.php:10536
 msgid "Corpus text payload must be a valid JSON object."
 msgstr "Korpus metni yükü geçerli bir JSON nesnesi olmalıdır."
 
-#: includes/api/automation-rest.php:10565
+#: includes/api/automation-rest.php:10548
 msgid "Provide a corpus text payload object."
 msgstr "Bir korpus metni yük nesnesi sağla."
 
-#: includes/api/automation-rest.php:10501
-#: includes/api/automation-rest.php:10545
+#: includes/api/automation-rest.php:10484
+#: includes/api/automation-rest.php:10528
 msgid "Corpus text payload is larger than the allowed automation import limit."
 msgstr "Korpus metni yükü izin verilen otomasyon içe aktarma sınırından büyük."
 
-#: includes/api/automation-rest.php:10510
+#: includes/api/automation-rest.php:10493
 msgid "Corpus text payload is too deeply nested for automation import."
 msgstr "Korpus metni yükü otomasyon içe aktarımı için çok derin iç içe geçmiş."
 
-#: includes/api/automation-rest.php:10518
+#: includes/api/automation-rest.php:10501
 msgid "Corpus text payload contains too many rows for automation import."
 msgstr "Korpus metni yükünde otomasyon içe aktarımı için çok fazla satır var."
 
-#: includes/api/automation-rest.php:10589
+#: includes/api/automation-rest.php:10572
 msgid "Historical Zazaki text with source witnesses, interlinear analysis, and translations."
 msgstr "Kaynak tanıklar, satır arası analiz ve çeviriler içeren tarihsel Zazaca metin."
 
-#: includes/api/automation-rest.php:10596
+#: includes/api/automation-rest.php:10579
 msgid "You cannot upload corpus text assets."
 msgstr "Korpus metni varlıklarını yükleme iznin yok."
 
-#: includes/api/automation-rest.php:10605
+#: includes/api/automation-rest.php:10588
 msgid "Provide a source key for the corpus text asset."
 msgstr "Korpus metni varlığı için bir kaynak anahtarı sağla."
 
-#: includes/api/automation-rest.php:10632
+#: includes/api/automation-rest.php:10615
 msgid "Provide a corpus text asset file."
 msgstr "Bir korpus metni varlık dosyası sağla."
 
-#: includes/api/automation-rest.php:10645
+#: includes/api/automation-rest.php:10628
 msgid "Corpus text asset file is larger than the allowed automation import limit."
 msgstr "Korpus metni varlık dosyası izin verilen otomasyon içe aktarma sınırından büyük."
 
-#: includes/api/automation-rest.php:10657
+#: includes/api/automation-rest.php:10640
 msgid "Corpus text asset image dimensions exceed the allowed automation import limit."
 msgstr "Korpus metni varlık görselinin boyutları izin verilen otomasyon içe aktarma sınırını aşıyor."
 
-#: includes/api/automation-rest.php:10678
+#: includes/api/automation-rest.php:10661
 msgid "The corpus text asset could not be uploaded."
 msgstr "Korpus metni varlığı yüklenemedi."
 
-#: includes/api/automation-rest.php:10697
+#: includes/api/automation-rest.php:10680
 msgid "The corpus text asset could not be added to the media library."
 msgstr "Korpus metni varlığı medya kütüphanesine eklenemedi."
 
-#: includes/api/automation-rest.php:10733
+#: includes/api/automation-rest.php:10716
 msgid "Provide a corpus text post slug."
 msgstr "Korpus metni yazısı için bir kısa ad ver."
 
-#: includes/api/automation-rest.php:10782
+#: includes/api/automation-rest.php:10765
 msgid "The corpus text post could not be created or updated."
 msgstr "Korpus metni yazısı oluşturulamadı veya güncellenemedi."
 
-#: includes/api/automation-rest.php:9055
+#: includes/api/automation-rest.php:9038
 msgid "Prompt-card category references cannot be empty."
 msgstr "Soru kartı kategori referansları boş olamaz."
 
 #. translators: %s: category identifier
-#: includes/api/automation-rest.php:9079
+#: includes/api/automation-rest.php:9062
 #, php-format
 msgid "Unable to resolve prompt-card category: %s"
 msgstr "Soru kartı kategorisi çözümlenemedi: %s"
 
-#: includes/api/automation-rest.php:9101
+#: includes/api/automation-rest.php:9084
 msgid "That prompt-card category belongs to a different word set."
 msgstr "Bu soru kartı kategorisi farklı bir kelime setine ait."
 
-#: includes/api/automation-rest.php:9125
+#: includes/api/automation-rest.php:9108
 msgid "Provide at least one word-category assignment for the prompt card."
 msgstr "Soru kartı için en az bir kelime kategorisi ataması sağla."
 
-#: includes/api/automation-rest.php:9138
+#: includes/api/automation-rest.php:9121
 msgid "Prompt-card word set references cannot be empty."
 msgstr "Soru kartı kelime seti referansları boş olamaz."
 
 #. translators: %s: word set identifier
-#: includes/api/automation-rest.php:9158
+#: includes/api/automation-rest.php:9141
 #, php-format
 msgid "Unable to resolve prompt-card word set: %s"
 msgstr "Soru kartı kelime seti çözümlenemedi: %s"
 
-#: includes/api/automation-rest.php:9183
+#: includes/api/automation-rest.php:9166
 msgid "Provide at least one word set assignment for the prompt card."
 msgstr "Soru kartı için en az bir kelime seti ataması sağla."
 
-#: includes/api/automation-rest.php:9190
+#: includes/api/automation-rest.php:9173
 msgid "Prompt-card word set assignments must include the route word set."
 msgstr "Soru kartı kelime seti atamaları rota kelime setini içermelidir."
 
-#: includes/api/automation-rest.php:9241
+#: includes/api/automation-rest.php:9224
 msgid "Provide prompt_card_id, object_id, or id for the prompt card to update."
 msgstr "Güncellenecek soru kartı için prompt_card_id, object_id veya id sağla."
 
-#: includes/api/automation-rest.php:9250
+#: includes/api/automation-rest.php:9233
 msgid "That prompt card was not found."
 msgstr "Bu soru kartı bulunamadı."
 
-#: includes/api/automation-rest.php:9258
+#: includes/api/automation-rest.php:9241
 msgid "That prompt card does not belong to the selected word set."
 msgstr "Bu soru kartı seçili kelime setine ait değil."
 
@@ -22972,8 +22972,8 @@ msgstr "Ses kaydedici kuyruğu ayarları kaydedildi."
 msgid "Recorder queue updated. Recording prompts saved."
 msgstr "Ses kaydedici kuyruğu güncellendi. Kayıt istemleri kaydedildi."
 
-#: includes/api/automation-rest.php:5964
-#: includes/api/automation-rest.php:6179
+#: includes/api/automation-rest.php:5947
+#: includes/api/automation-rest.php:6162
 msgid "Recording not found in this word set."
 msgstr "Bu kelime setinde kayıt bulunamadı."
 
@@ -23271,20 +23271,20 @@ msgstr "Bunu işaret dili kelime seti olarak ele al ve quiz kullanılabilirliği
 msgid "Categories default to image prompts with image answer options; use a category quiz override for image prompts with text answers."
 msgstr "Kategoriler varsayılan olarak görsel istemleri ve görsel cevap seçeneklerini kullanır; metin cevaplı görsel istemler için kategori quiz ayarında geçersiz kılma kullan."
 
-#: includes/api/automation-rest.php:849
+#: includes/api/automation-rest.php:832
 msgid "You are not allowed to clear LL Tools caches on this site."
 msgstr "Bu sitede LL Tools önbelleklerini temizleme iznin yok."
 
-#: includes/api/automation-rest.php:2973
+#: includes/api/automation-rest.php:2956
 msgid "Use cache=all, cache=dictionary, or cache=public."
 msgstr "cache=all, cache=dictionary veya cache=public kullan."
 
-#: includes/api/automation-rest.php:10819
+#: includes/api/automation-rest.php:10802
 msgid "Could not find a matching corpus text post."
 msgstr "Eşleşen corpus text yazısı bulunamadı."
 
-#: includes/api/automation-rest.php:10755
-#: includes/api/automation-rest.php:10830
+#: includes/api/automation-rest.php:10738
+#: includes/api/automation-rest.php:10813
 msgid "The matching content lesson is not a corpus text."
 msgstr "Eşleşen içerik dersi bir corpus text değil."
 
@@ -23551,16 +23551,16 @@ msgid "Release"
 msgstr "Kaldır"
 
 #. translators: %s: word set name.
-#: includes/api/automation-rest.php:7793
+#: includes/api/automation-rest.php:7776
 #, php-format
 msgid "%s profile image"
 msgstr "%s profil görseli"
 
-#: includes/api/automation-rest.php:7807
+#: includes/api/automation-rest.php:7790
 msgid "The uploaded file is not a valid image."
 msgstr "Yüklenen dosya geçerli bir görsel değil."
 
-#: includes/api/automation-rest.php:8502
+#: includes/api/automation-rest.php:8485
 msgid "The profile image attachment must be an existing image attachment."
 msgstr "Profil görseli eki mevcut bir görsel eki olmalıdır."
 
@@ -24247,82 +24247,82 @@ msgid "Failed to save the suggested recording text."
 msgstr "Önerilen kayıt metni kaydedilemedi."
 
 #. translators: %d: maximum update count
-#: includes/api/automation-rest.php:3363
+#: includes/api/automation-rest.php:3346
 #, php-format
 msgid "Too many word updates in one request. Maximum is %d."
 msgstr "Bir istekte çok fazla kelime güncellemesi var. En fazla %d."
 
-#: includes/api/automation-rest.php:3555
+#: includes/api/automation-rest.php:3538
 msgid "Failed to update the word title."
 msgstr "Kelime başlığı güncellenemedi."
 
-#: includes/api/automation-rest.php:3607
+#: includes/api/automation-rest.php:3590
 msgid "Provide one or more word title updates."
 msgstr "Bir veya daha fazla kelime başlığı güncellemesi sağla."
 
 #. translators: %d: maximum update count
-#: includes/api/automation-rest.php:3616
+#: includes/api/automation-rest.php:3599
 #, php-format
 msgid "Too many word title updates in one request. Maximum is %d."
 msgstr "Bir istekte çok fazla kelime başlığı güncellemesi var. En fazla %d."
 
-#: includes/api/automation-rest.php:3640
-#: includes/api/automation-rest.php:3928
-#: includes/api/automation-rest.php:4527
+#: includes/api/automation-rest.php:3623
+#: includes/api/automation-rest.php:3911
+#: includes/api/automation-rest.php:4510
 msgid "Duplicate word ID in this batch."
 msgstr "Bu grupta yinelenen kelime kimliği var."
 
-#: includes/api/automation-rest.php:3653
+#: includes/api/automation-rest.php:3636
 msgid "Missing replacement title."
 msgstr "Yeni başlık eksik."
 
-#: includes/api/automation-rest.php:3895
+#: includes/api/automation-rest.php:3878
 msgid "Provide one or more word helper translation updates."
 msgstr "Bir veya daha fazla kelime yardımcı çevirisi güncellemesi sağla."
 
 #. translators: %d: maximum update count
-#: includes/api/automation-rest.php:3904
+#: includes/api/automation-rest.php:3887
 #, php-format
 msgid "Too many word helper translation updates in one request. Maximum is %d."
 msgstr "Bir istekte çok fazla kelime yardımcı çevirisi güncellemesi var. En fazla %d."
 
-#: includes/api/automation-rest.php:8087
+#: includes/api/automation-rest.php:8070
 msgid "Unable to resolve a word category for the translation item."
 msgstr "Çeviri öğesi için kelime kategorisi çözümlenemedi."
 
-#: includes/api/automation-rest.php:8105
+#: includes/api/automation-rest.php:8088
 msgid "That word category is not part of this word set."
 msgstr "Bu kelime kategorisi bu kelime setinin parçası değil."
 
-#: includes/api/automation-rest.php:8192
+#: includes/api/automation-rest.php:8175
 msgid "Unable to resolve a lesson for the translation item."
 msgstr "Çeviri öğesi için ders çözümlenemedi."
 
-#: includes/api/automation-rest.php:8200
+#: includes/api/automation-rest.php:8183
 msgid "That lesson is not part of this word set."
 msgstr "Bu ders bu kelime setinin parçası değil."
 
-#: includes/api/automation-rest.php:8308
+#: includes/api/automation-rest.php:8291
 msgid "Entity translation helpers are not available."
 msgstr "Varlık çevirisi yardımcıları kullanılamıyor."
 
-#: includes/api/automation-rest.php:8317
+#: includes/api/automation-rest.php:8300
 msgid "Provide wordset, categories, lessons, or items to update translations."
 msgstr "Çevirileri güncellemek için kelime seti, kategoriler, dersler veya öğeler sağla."
 
-#: includes/api/automation-rest.php:8330
+#: includes/api/automation-rest.php:8313
 msgid "Translation items must include type wordset, category, or lesson."
 msgstr "Çeviri öğeleri wordset, category veya lesson türünü içermelidir."
 
-#: includes/api/automation-rest.php:8340
+#: includes/api/automation-rest.php:8323
 msgid "Translation item does not contain any supported translated fields."
 msgstr "Çeviri öğesi desteklenen hiçbir çevrilmiş alan içermiyor."
 
-#: includes/api/automation-rest.php:8401
+#: includes/api/automation-rest.php:8384
 msgid "One or more translation items could not be applied."
 msgstr "Bir veya daha fazla çeviri öğesi uygulanamadı."
 
-#: includes/api/automation-rest.php:8659
+#: includes/api/automation-rest.php:8642
 msgid "Manual orthography rules must be an object keyed by IPA segment."
 msgstr "Manuel yazım kuralları IPA segmentine göre anahtarlanmış bir nesne olmalıdır."
 
@@ -24360,31 +24360,31 @@ msgstr "%s göster"
 msgid "Saved text does not match the current orthography rules."
 msgstr "Kaydedilen metin geçerli yazım kurallarıyla eşleşmiyor."
 
-#: includes/api/automation-rest.php:3812
+#: includes/api/automation-rest.php:3795
 msgid "Dictionary entry ID must be a positive integer, or 0 to unlink."
 msgstr "Sözlük girişi kimliği pozitif bir tam sayı veya bağlantıyı kaldırmak için 0 olmalıdır."
 
-#: includes/api/automation-rest.php:3820
+#: includes/api/automation-rest.php:3803
 msgid "Invalid dictionary entry ID."
 msgstr "Geçersiz sözlük girişi kimliği."
 
-#: includes/api/automation-rest.php:4028
+#: includes/api/automation-rest.php:4011
 msgid "Missing helper translation or dictionary entry value."
 msgstr "Yardımcı çeviri veya sözlük girişi değeri eksik."
 
-#: includes/api/automation-rest.php:8643
+#: includes/api/automation-rest.php:8626
 msgid "Orthography conversion profiles are no longer supported. Configure wordset-level orthography settings instead."
 msgstr "Yazım dönüştürme profilleri artık desteklenmiyor. Bunun yerine kelime seti düzeyindeki yazım ayarlarını yapılandır."
 
-#: includes/api/automation-rest.php:8706
+#: includes/api/automation-rest.php:8689
 msgid "Orthography settings must be an object."
 msgstr "Yazım ayarları bir nesne olmalıdır."
 
-#: includes/api/automation-rest.php:8778
+#: includes/api/automation-rest.php:8761
 msgid "Orthography exception word IDs must be an array."
 msgstr "Yazım istisnası kelime kimlikleri bir dizi olmalıdır."
 
-#: includes/api/automation-rest.php:8790
+#: includes/api/automation-rest.php:8773
 msgid "Orthography exception dictionary entry IDs must be an object keyed by word ID."
 msgstr "Yazım istisnası sözlük girişi kimlikleri, anahtarı kelime kimliği olan bir nesne olmalıdır."
 
@@ -24408,83 +24408,83 @@ msgstr "Kelime düzenleyici penceresi bu sayfada kullanılamıyor."
 msgid "Invalid word editor context."
 msgstr "Geçersiz kelime düzenleyici bağlamı."
 
-#: includes/api/automation-rest.php:4413
+#: includes/api/automation-rest.php:4396
 msgid "Word category update helpers are not available."
 msgstr "Kelime kategorisi güncelleme yardımcıları kullanılamıyor."
 
-#: includes/api/automation-rest.php:4479
+#: includes/api/automation-rest.php:4462
 msgid "Choose add_category, remove_category, or move_category."
 msgstr "add_category, remove_category veya move_category seç."
 
-#: includes/api/automation-rest.php:4487
+#: includes/api/automation-rest.php:4470
 msgid "Provide the target category ID."
 msgstr "Hedef kategori kimliğini gir."
 
-#: includes/api/automation-rest.php:4495
+#: includes/api/automation-rest.php:4478
 msgid "Provide one or more explicit word IDs."
 msgstr "Bir veya daha fazla açık kelime kimliği gir."
 
 #. translators: %d: maximum word count
-#: includes/api/automation-rest.php:4505
+#: includes/api/automation-rest.php:4488
 #, php-format
 msgid "Too many word category updates in one request. Maximum is %d."
 msgstr "Tek istekte çok fazla kelime kategorisi güncellemesi var. En fazla %d."
 
-#: includes/api/automation-rest.php:4538
+#: includes/api/automation-rest.php:4521
 msgid "Fix word ID errors before retrying this category update."
 msgstr "Bu kategori güncellemesini yeniden denemeden önce kelime kimliği hatalarını düzelt."
 
-#: includes/api/automation-rest.php:4559
+#: includes/api/automation-rest.php:4542
 msgid "Select a category that belongs to this word set."
 msgstr "Bu kelime setine ait bir kategori seç."
 
-#: includes/api/automation-rest.php:4581
+#: includes/api/automation-rest.php:4564
 msgid "Word ID does not refer to a word post."
 msgstr "Kelime kimliği bir kelime gönderisine karşılık gelmiyor."
 
-#: includes/api/automation-rest.php:4594
+#: includes/api/automation-rest.php:4577
 #: includes/api/word-metadata-plan-rest.php:1797
 msgid "Word is not assigned to this word set."
 msgstr "Kelime bu kelime setine atanmamış."
 
-#: includes/api/automation-rest.php:4615
+#: includes/api/automation-rest.php:4598
 #: includes/api/word-metadata-plan-rest.php:917
 msgid "Refusing to remove the final category for this word."
 msgstr "Bu kelimenin son kategorisi kaldırılamaz."
 
-#: includes/api/automation-rest.php:4635
+#: includes/api/automation-rest.php:4618
 msgid "Category update preflight failed. No words were changed."
 msgstr "Kategori güncellemesi ön kontrolü başarısız oldu. Hiçbir kelime değiştirilmedi."
 
-#: includes/api/automation-rest.php:4723
+#: includes/api/automation-rest.php:4706
 msgid "One or more category updates failed."
 msgstr "Bir veya daha fazla kategori güncellemesi başarısız oldu."
 
-#: includes/api/automation-rest.php:866
+#: includes/api/automation-rest.php:849
 msgid "You are not allowed to update LL Tools on this site."
 msgstr "Bu sitede LL Tools'u güncelleme iznin yok."
 
-#: includes/api/automation-rest.php:2803
+#: includes/api/automation-rest.php:2786
 msgid "LL Tools automation updates currently support only the dev branch package."
 msgstr "LL Tools otomasyon güncellemeleri şu anda yalnızca dev dalı paketini destekler."
 
-#: includes/api/automation-rest.php:2811
+#: includes/api/automation-rest.php:2794
 msgid "The LL Tools automation update package URL failed the built-in allowlist check."
 msgstr "LL Tools otomasyon güncelleme paketi URL'si yerleşik izin listesi kontrolünden geçemedi."
 
-#: includes/api/automation-rest.php:2822
+#: includes/api/automation-rest.php:2805
 msgid "The installed LL Tools version does not match the expected current version, so the automation update was not started."
 msgstr "Kurulu LL Tools sürümü beklenen geçerli sürümle eşleşmiyor, bu yüzden otomasyon güncellemesi başlatılmadı."
 
-#: includes/api/automation-rest.php:2839
+#: includes/api/automation-rest.php:2822
 msgid "Set confirm=true and dry_run=false to update LL Tools through automation."
 msgstr "LL Tools'u otomasyonla güncellemek için confirm=true ve dry_run=false ayarla."
 
-#: includes/api/automation-rest.php:2847
+#: includes/api/automation-rest.php:2830
 msgid "WordPress path constants are unavailable, so the plugin updater cannot run."
 msgstr "WordPress yol sabitleri kullanılamıyor, bu yüzden eklenti güncelleyicisi çalışamaz."
 
-#: includes/api/automation-rest.php:2894
+#: includes/api/automation-rest.php:2877
 msgid "LL Tools plugin update failed."
 msgstr "LL Tools eklenti güncellemesi başarısız oldu."
 
@@ -24559,100 +24559,100 @@ msgstr "Kelime meta verisi planı ön denetimi başarısız oldu. İş oluşturu
 msgid "Word metadata plan job belongs to a different word set."
 msgstr "Kelime meta verisi plan işi farklı bir kelime setine ait."
 
-#: includes/api/automation-rest.php:2909
+#: includes/api/automation-rest.php:2892
 msgid "LL Tools plugin files were updated, but the plugin could not be reactivated automatically."
 msgstr "LL Tools eklenti dosyaları güncellendi, ancak eklenti otomatik olarak yeniden etkinleştirilemedi."
 
-#: includes/api/automation-rest.php:6368
-#: includes/api/automation-rest.php:6428
+#: includes/api/automation-rest.php:6351
+#: includes/api/automation-rest.php:6411
 msgid "Invalid transcription validation job ID."
 msgstr "Geçersiz transkripsiyon doğrulama işi kimliği."
 
-#: includes/api/automation-rest.php:6377
+#: includes/api/automation-rest.php:6360
 msgid "Transcription validation job was not found."
 msgstr "Transkripsiyon doğrulama işi bulunamadı."
 
-#: includes/api/automation-rest.php:6764
-#: includes/api/automation-rest.php:6903
+#: includes/api/automation-rest.php:6747
+#: includes/api/automation-rest.php:6886
 msgid "Transcription validation job belongs to a different word set."
 msgstr "Transkripsiyon doğrulama işi farklı bir kelime setine ait."
 
-#: includes/api/automation-rest.php:4858
+#: includes/api/automation-rest.php:4841
 msgid "Prerequisite target category does not belong to this word set."
 msgstr "Ön koşul hedef kategorisi bu kelime setine ait değil."
 
-#: includes/api/automation-rest.php:4865
+#: includes/api/automation-rest.php:4848
 msgid "Prerequisite categories must belong to the requested word set and cannot include the target category."
 msgstr "Ön koşul kategorileri istenen kelime setine ait olmalı ve hedef kategoriyi içermemelidir."
 
-#: includes/api/automation-rest.php:4884
+#: includes/api/automation-rest.php:4867
 msgid "The requested prerequisites would create a cycle."
 msgstr "İstenen ön koşullar bir döngü oluşturur."
 
-#: includes/api/automation-rest.php:4943
+#: includes/api/automation-rest.php:4926
 msgid "Provide one or more explicit category actions."
 msgstr "Bir veya daha fazla açık kategori eylemi belirt."
 
 #. translators: %d: maximum category action count
-#: includes/api/automation-rest.php:4952
+#: includes/api/automation-rest.php:4935
 #, php-format
 msgid "Too many category actions in one request. Maximum is %d."
 msgstr "Tek istekte çok fazla kategori eylemi var. En fazla %d."
 
-#: includes/api/automation-rest.php:4963
+#: includes/api/automation-rest.php:4946
 msgid "No categories are available for this word set."
 msgstr "Bu kelime seti için kullanılabilir kategori yok."
 
-#: includes/api/automation-rest.php:4983
+#: includes/api/automation-rest.php:4966
 msgid "Choose create_category, rename_category, set_prerequisites, or delete_empty_category."
 msgstr "create_category, rename_category, set_prerequisites veya delete_empty_category seç."
 
-#: includes/api/automation-rest.php:4995
+#: includes/api/automation-rest.php:4978
 msgid "Category name is required."
 msgstr "Kategori adı gerekli."
 
-#: includes/api/automation-rest.php:5008
+#: includes/api/automation-rest.php:4991
 msgid "A category with that slug exists outside this word set."
 msgstr "Bu slug'a sahip bir kategori bu kelime setinin dışında mevcut."
 
-#: includes/api/automation-rest.php:5040
+#: includes/api/automation-rest.php:5023
 msgid "Could not create category."
 msgstr "Kategori oluşturulamadı."
 
-#: includes/api/automation-rest.php:5083
+#: includes/api/automation-rest.php:5066
 msgid "Category does not belong to this word set."
 msgstr "Kategori bu kelime setine ait değil."
 
-#: includes/api/automation-rest.php:5094
+#: includes/api/automation-rest.php:5077
 msgid "Category was not found."
 msgstr "Kategori bulunamadı."
 
-#: includes/api/automation-rest.php:5104
+#: includes/api/automation-rest.php:5087
 msgid "Expected category name does not match live state."
 msgstr "Beklenen kategori adı canlı durumla eşleşmiyor."
 
-#: includes/api/automation-rest.php:5119
+#: includes/api/automation-rest.php:5102
 msgid "New category name is required."
 msgstr "Yeni kategori adı gerekli."
 
-#: includes/api/automation-rest.php:5198
+#: includes/api/automation-rest.php:5181
 msgid "Expected prerequisite IDs do not match live state."
 msgstr "Beklenen ön koşul kimlikleri canlı durumla eşleşmiyor."
 
-#: includes/api/automation-rest.php:5252
+#: includes/api/automation-rest.php:5235
 msgid "Refusing to delete a category that still has word posts in this word set."
 msgstr "Bu kelime setinde hâlâ kelime gönderileri bulunan kategori silinmeyecek."
 
-#: includes/api/automation-rest.php:5272
+#: includes/api/automation-rest.php:5255
 msgid "Could not delete category."
 msgstr "Kategori silinemedi."
 
-#: includes/api/automation-rest.php:5303
+#: includes/api/automation-rest.php:5286
 msgid "Category term action preflight failed. No later failed action was applied."
 msgstr "Kategori terimi eylemi ön kontrolü başarısız oldu. Daha sonra başarısız olan hiçbir eylem uygulanmadı."
 
-#: includes/api/automation-rest.php:6442
-#: includes/api/automation-rest.php:6467
+#: includes/api/automation-rest.php:6425
+#: includes/api/automation-rest.php:6450
 msgid "Transcription validation job is already processing."
 msgstr "Transkripsiyon doğrulama işi zaten işleniyor."
 
@@ -24695,7 +24695,7 @@ msgstr "Oluşturulan herkese açık quiz sayfalarını, normal Sayfalarla karı�
 msgid "Review generated quiz pages and open their public URLs without editing normal Pages."
 msgstr "Oluşturulan quiz sayfalarını incele ve normal Sayfaları düzenlemeden herkese açık URL'lerini aç."
 
-#: includes/api/automation-rest.php:3972
+#: includes/api/automation-rest.php:3955
 msgid "Use field=word_translation or field=dictionary_entry_id with value. Legacy helper aliases are mapped to word_translation."
 msgstr "field=word_translation veya field=dictionary_entry_id ile value kullan. Eski yardımcı takma adları word_translation alanına eşlenir."
 
@@ -24805,46 +24805,46 @@ msgid "Too many card loading requests. Please wait a few minutes and try again."
 msgstr "Çok fazla kart yükleme isteği var. Lütfen birkaç dakika bekleyip yeniden dene."
 
 #. translators: %d: maximum word image count
-#: includes/api/automation-rest.php:5392
+#: includes/api/automation-rest.php:5375
 #, php-format
 msgid "The category has more than %d word images. Provide an explicit smaller image_ids list."
 msgstr "Kategoride %d adetten fazla kelime görseli var. Açık ve daha küçük bir image_ids listesi ver."
 
-#: includes/api/automation-rest.php:5493
+#: includes/api/automation-rest.php:5476
 msgid "Provide an existing word-category category_id or category_slug."
 msgstr "Mevcut bir word-category category_id veya category_slug ver."
 
-#: includes/api/automation-rest.php:5516
+#: includes/api/automation-rest.php:5499
 msgid "Category slug does not match expected_category_slug."
 msgstr "Kategori slug'ı expected_category_slug ile eşleşmiyor."
 
-#: includes/api/automation-rest.php:5525
+#: includes/api/automation-rest.php:5508
 msgid "Category is already owned by another word set."
 msgstr "Kategori zaten başka bir kelime setine ait."
 
 #. translators: %d: maximum word image count
-#: includes/api/automation-rest.php:5548
+#: includes/api/automation-rest.php:5531
 #, php-format
 msgid "Too many word images in one request. Maximum is %d."
 msgstr "Tek istekte çok fazla kelime görseli var. En fazla %d olabilir."
 
-#: includes/api/automation-rest.php:5564
+#: includes/api/automation-rest.php:5547
 msgid "Image ID does not refer to a word_images post."
 msgstr "Görsel ID'si bir word_images gönderisine karşılık gelmiyor."
 
-#: includes/api/automation-rest.php:5578
+#: includes/api/automation-rest.php:5561
 msgid "Word image is not assigned to the requested category."
 msgstr "Kelime görseli istenen kategoriye atanmamış."
 
-#: includes/api/automation-rest.php:5593
+#: includes/api/automation-rest.php:5576
 msgid "Word image is also assigned to a category owned by another word set."
 msgstr "Kelime görseli ayrıca başka bir kelime setine ait bir kategoriye atanmış."
 
-#: includes/api/automation-rest.php:5606
+#: includes/api/automation-rest.php:5589
 msgid "Word image is already owned by another word set."
 msgstr "Kelime görseli zaten başka bir kelime setine ait."
 
-#: includes/api/automation-rest.php:5636
+#: includes/api/automation-rest.php:5619
 msgid "Word image category ownership preflight failed. No ownership metadata was changed."
 msgstr "Kelime görseli kategori sahipliği ön denetimi başarısız oldu. Hiçbir sahiplik meta verisi değiştirilmedi."
 
@@ -25067,24 +25067,24 @@ msgstr "Dil Değiştirici Sırası:"
 msgid "Optional comma-separated locale order for the language switcher. Listed locales appear first; unlisted available languages follow in the default order."
 msgstr "Dil değiştirici için isteğe bağlı, virgülle ayrılmış locale sırası. Listelenen locale'ler önce görünür; listelenmeyen kullanılabilir diller varsayılan sırayla devam eder."
 
-#: includes/api/automation-rest.php:1973
-#: includes/api/automation-rest.php:2174
-#: includes/api/automation-rest.php:2386
-#: includes/api/automation-rest.php:2483
+#: includes/api/automation-rest.php:1956
+#: includes/api/automation-rest.php:2157
+#: includes/api/automation-rest.php:2369
+#: includes/api/automation-rest.php:2466
 msgid "You are not allowed to edit this dictionary entry."
 msgstr "Bu sözlük girişini düzenleme iznin yok."
 
-#: includes/api/automation-rest.php:1991
+#: includes/api/automation-rest.php:1974
 msgid "Provide the imported headword text to replace."
 msgstr "Değiştirilecek içe aktarılmış madde başı metnini sağla."
 
-#: includes/api/automation-rest.php:1998
+#: includes/api/automation-rest.php:1981
 msgid "Provide the replacement headword text."
 msgstr "Yerine kullanılacak madde başı metnini sağla."
 
-#: includes/api/automation-rest.php:2008
-#: includes/api/automation-rest.php:2413
-#: includes/api/automation-rest.php:2500
+#: includes/api/automation-rest.php:1991
+#: includes/api/automation-rest.php:2396
+#: includes/api/automation-rest.php:2483
 msgid "Expected dictionary entry title does not match live state."
 msgstr "Beklenen sözlük girişi başlığı canlı durumla eşleşmiyor."
 
@@ -25109,47 +25109,47 @@ msgstr "Dil değiştirici düğmeleri"
 msgid "Language switcher order"
 msgstr "Dil değiştirici sırası"
 
-#: includes/api/automation-rest.php:2153
+#: includes/api/automation-rest.php:2136
 msgid "Old dictionary entry not found."
 msgstr "Eski sözlük girişi bulunamadı."
 
-#: includes/api/automation-rest.php:2160
+#: includes/api/automation-rest.php:2143
 msgid "Target dictionary entry not found."
 msgstr "Hedef sözlük girişi bulunamadı."
 
-#: includes/api/automation-rest.php:2167
+#: includes/api/automation-rest.php:2150
 msgid "Old and target dictionary entries must be different."
 msgstr "Eski ve hedef sözlük girişleri farklı olmalıdır."
 
-#: includes/api/automation-rest.php:2186
+#: includes/api/automation-rest.php:2169
 msgid "Expected old dictionary entry title does not match live state."
 msgstr "Beklenen eski sözlük girişi başlığı canlı durumla eşleşmiyor."
 
-#: includes/api/automation-rest.php:2198
+#: includes/api/automation-rest.php:2181
 msgid "Expected target dictionary entry title does not match live state."
 msgstr "Beklenen hedef sözlük girişi başlığı canlı durumla eşleşmiyor."
 
-#: includes/api/automation-rest.php:2490
+#: includes/api/automation-rest.php:2473
 msgid "Dictionary import helpers are not available."
 msgstr "Sözlük içe aktarma yardımcıları kullanılamıyor."
 
-#: includes/api/automation-rest.php:2514
+#: includes/api/automation-rest.php:2497
 msgid "Provide a dictionary import row."
 msgstr "Bir sözlük içe aktarma satırı sağla."
 
-#: includes/api/automation-rest.php:2537
+#: includes/api/automation-rest.php:2520
 msgid "Dictionary row entry is required."
 msgstr "Sözlük satırı girişi gerekli."
 
-#: includes/api/automation-rest.php:6189
+#: includes/api/automation-rest.php:6172
 msgid "Speaker user not found."
 msgstr "Konuşmacı kullanıcısı bulunamadı."
 
-#: includes/api/automation-rest.php:6201
+#: includes/api/automation-rest.php:6184
 msgid "Speaker user precondition failed."
 msgstr "Konuşmacı kullanıcısı önkoşulu başarısız oldu."
 
-#: includes/api/automation-rest.php:6212
+#: includes/api/automation-rest.php:6195
 msgid "Post author precondition failed."
 msgstr "Yazı yazarı önkoşulu başarısız oldu."
 
@@ -25223,25 +25223,25 @@ msgstr "AI aracıları için oluşturulmuş kompakt Markdown dizini."
 msgid "Public dictionary search and browse page."
 msgstr "Herkese açık sözlük arama ve göz atma sayfası."
 
-#: includes/api/automation-rest.php:883
+#: includes/api/automation-rest.php:866
 msgid "You cannot manage the dictionary lookup index through LL Tools automation."
 msgstr "Sözlük arama dizinini LL Tools otomasyonu üzerinden yönetemezsin."
 
-#: includes/api/automation-rest.php:2324
+#: includes/api/automation-rest.php:2307
 msgid "Provide one or more dictionary translation AI flag updates."
 msgstr "Bir veya daha fazla sözlük çevirisi AI bayrağı güncellemesi sağla."
 
 #. translators: %d: maximum update count
-#: includes/api/automation-rest.php:2340
+#: includes/api/automation-rest.php:2323
 #, php-format
 msgid "Too many dictionary translation AI flag updates in one request. Maximum is %d."
 msgstr "Tek istekte çok fazla sözlük çevirisi AI bayrağı güncellemesi var. En fazla %d olabilir."
 
-#: includes/api/automation-rest.php:2375
+#: includes/api/automation-rest.php:2358
 msgid "Provide translation_is_ai as true or false."
 msgstr "translation_is_ai değerini true veya false olarak sağla."
 
-#: includes/api/automation-rest.php:2426
+#: includes/api/automation-rest.php:2409
 msgid "Expected dictionary entry translation does not match live state."
 msgstr "Beklenen sözlük girişi çevirisi canlı durumla eşleşmiyor."
 
@@ -25330,13 +25330,13 @@ msgid "The selected category is not available for the chosen word set scope."
 msgstr "Seçilen kategori, seçilen kelime seti kapsamı için kullanılamıyor."
 
 #. translators: %d: maximum update count
-#: includes/api/automation-rest.php:5947
+#: includes/api/automation-rest.php:5930
 #, php-format
 msgid "Too many transcription updates in one request. Maximum is %d."
 msgstr "Tek istekte çok fazla transkripsiyon güncellemesi var. En fazla %d."
 
 #. translators: %d: maximum update count
-#: includes/api/automation-rest.php:6162
+#: includes/api/automation-rest.php:6145
 #, php-format
 msgid "Too many word audio speaker updates in one request. Maximum is %d."
 msgstr "Tek istekte çok fazla kelime ses kaydı konuşmacısı güncellemesi var. En fazla %d."
@@ -25403,7 +25403,7 @@ msgid_plural "Prompt audio import is limited to %d rows per request. Split the l
 msgstr[0] "İstem ses kaydı içe aktarma istek başına %d satırla sınırlıdır. Listeyi böl ve kalan satırları ayrı olarak gönder."
 msgstr[1] "İstem ses kaydı içe aktarma istek başına %d satırla sınırlıdır. Listeyi böl ve kalan satırları ayrı olarak gönder."
 
-#: includes/api/automation-rest.php:7230
+#: includes/api/automation-rest.php:7213
 #: includes/cli/cli-support.php:439
 msgid "Unable to resolve the requested word category."
 msgstr "İstenen kelime kategorisi çözümlenemedi."
@@ -27691,13 +27691,13 @@ msgstr "Diğer kelime seti ayarları kaydedildi, ancak kategori sıralaması ve 
 msgid "Category ordering and prerequisites were not saved because the submitted settings were incomplete. Refresh and save again."
 msgstr "Kategori sıralaması ve önkoşullar, gönderilen ayarlar eksik olduğu için kaydedilmedi. Sayfayı yenile ve tekrar kaydet."
 
-#: includes/api/automation-rest.php:7279
-#: includes/api/automation-rest.php:7300
-#: includes/api/automation-rest.php:7361
+#: includes/api/automation-rest.php:7262
+#: includes/api/automation-rest.php:7283
+#: includes/api/automation-rest.php:7344
 msgid "Unable to calculate the word set report summary."
 msgstr "Kelime seti rapor özeti hesaplanamadı."
 
-#: includes/api/automation-rest.php:1212
+#: includes/api/automation-rest.php:1195
 #, php-format
 msgid "Offset is too large. Use an offset no greater than %d or narrow the filters."
 msgstr "Ofset çok büyük. %d değerini aşmayan bir ofset kullan veya filtreleri daralt."

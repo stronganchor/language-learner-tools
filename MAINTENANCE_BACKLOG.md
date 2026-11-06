@@ -21,9 +21,10 @@ being folded into a small opportunistic fix.
   export through a failed replacement and limits audio decoding.
 - Recorder text saves check the current revision before a no-op response.
   Terminal preparation failures let the recorder download retained audio locally.
-- Dictionary publication fencing and direct cache-file access still need
-  protocol and hosting review. The unpublished legacy route fixture from the
-  audit also needs separate compatibility review.
+- Dictionary publication checks the current database generation and exact
+  builder lease. Generated HTML uses private storage. Verify direct access to
+  old uploads on each host during [rollout](docs/PRIVATE_HTML_CACHE_ROLLOUT.md).
+  The unpublished legacy route fixture still needs separate compatibility review.
 
 ## October 9 maintenance follow-up (6.7.46)
 

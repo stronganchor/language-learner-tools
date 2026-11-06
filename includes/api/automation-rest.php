@@ -30,7 +30,12 @@ function ll_tools_rest_automation_load_orthography_helpers(): void {
 }
 
 function ll_tools_rest_automation_get_route_path(): string {
-    $rest_route = isset($_GET['rest_route']) ? wp_unslash((string) $_GET['rest_route']) : '';
+    $parsed_route = $GLOBALS['wp']->query_vars['rest_route'] ?? null;
+    if (is_string($parsed_route) && $parsed_route !== '') {
+        return '/' . ltrim($parsed_route, '/');
+    }
+
+    $rest_route = isset($_GET['rest_route']) && is_string($_GET['rest_route']) ? wp_unslash($_GET['rest_route']) : '';
     if ($rest_route !== '') {
         return '/' . ltrim($rest_route, '/');
     }
@@ -56,8 +61,8 @@ function ll_tools_rest_automation_get_route_path(): string {
     return is_string($route) ? '/' . ltrim($route, '/') : '';
 }
 
-function ll_tools_rest_automation_is_request(): bool {
-    $route_path = ll_tools_rest_automation_get_route_path();
+function ll_tools_rest_automation_is_request(?string $route_path = null): bool {
+    $route_path = $route_path ?? ll_tools_rest_automation_get_route_path();
     return $route_path === '/ll-tools/v1' || strpos($route_path, '/ll-tools/v1/') === 0;
 }
 
@@ -537,44 +542,7 @@ function ll_tools_rest_automation_clear_auth_runtime_state(): void {
     unset($GLOBALS['ll_tools_rest_automation_auth_mode']);
 }
 
-/**
- * Resolve raw-password authentication once per current-user resolution stack.
- *
- * Authentication hooks and translated errors may ask for the current user
- * before WordPress has finished resolving it. Do not restart authentication
- * or clear the outer attempt's error/mode state from that nested lookup.
- */
-function ll_tools_rest_automation_determine_current_user($user_id) {
-    static $resolving = false;
-
-    if ($resolving) {
-        return $user_id;
-    }
-
-    $resolving = true;
-    try {
-        return ll_tools_rest_automation_determine_current_user_once($user_id);
-    } finally {
-        $resolving = false;
-    }
-}
-
-function ll_tools_rest_automation_determine_current_user_once($user_id) {
-    if (!empty($user_id)) {
-        if (ll_tools_rest_automation_is_request()) {
-            // Core cookie/application-password authentication completed before
-            // this raw-password compatibility layer.
-            ll_tools_rest_automation_clear_auth_runtime_state();
-        }
-        return $user_id;
-    }
-
-    ll_tools_rest_automation_clear_auth_runtime_state();
-
-    if (!ll_tools_rest_automation_is_request()) {
-        return $user_id;
-    }
-
+function ll_tools_rest_automation_resolve_raw_password_user(): int {
     $credentials = ll_tools_rest_automation_get_basic_auth_credentials();
     $invalid_credentials = !empty($credentials['invalid']);
     if (
@@ -582,7 +550,7 @@ function ll_tools_rest_automation_determine_current_user_once($user_id) {
         && empty($credentials['username'])
         && empty($credentials['password'])
     ) {
-        return $user_id;
+        return 0;
     }
 
     if (!ll_tools_rest_automation_password_auth_is_allowed()) {
@@ -591,7 +559,7 @@ function ll_tools_rest_automation_determine_current_user_once($user_id) {
             __('LL Tools password-based REST authentication requires HTTPS, except in local development.', 'll-tools-text-domain'),
             403
         );
-        return $user_id;
+        return 0;
     }
 
     $reservation = ll_tools_rest_automation_password_auth_reserve(
@@ -601,7 +569,7 @@ function ll_tools_rest_automation_determine_current_user_once($user_id) {
         $GLOBALS['ll_tools_rest_automation_auth_error'] = ll_tools_rest_automation_password_auth_limit_error(
             $reservation
         );
-        return $user_id;
+        return 0;
     }
 
     if ($invalid_credentials) {
@@ -610,7 +578,7 @@ function ll_tools_rest_automation_determine_current_user_once($user_id) {
             __('Unable to authenticate this REST request.', 'll-tools-text-domain'),
             401
         );
-        return $user_id;
+        return 0;
     }
 
     $authenticated = wp_authenticate((string) $credentials['username'], (string) $credentials['password']);
@@ -626,25 +594,40 @@ function ll_tools_rest_automation_determine_current_user_once($user_id) {
         401
     );
 
-    return $user_id;
+    return 0;
 }
-add_filter('determine_current_user', 'll_tools_rest_automation_determine_current_user', 30);
 
+/**
+ * Give core a current-user lookup once WordPress is serving the parsed REST
+ * route. Before then, core cannot reliably recognize application passwords.
+ */
 function ll_tools_rest_automation_authentication_errors($result) {
-    if (!ll_tools_rest_automation_is_request()) {
+    static $resolving = false;
+
+    $route = $GLOBALS['wp']->query_vars['rest_route'] ?? null;
+    if ($resolving || $result !== null || !is_string($route) || !ll_tools_rest_automation_is_request($route)) {
         return $result;
     }
 
-    $auth_error = $GLOBALS['ll_tools_rest_automation_auth_error'] ?? null;
-    if ($auth_error instanceof WP_Error) {
-        // Core attempts application-password validation before this raw account
-        // password compatibility layer. When raw authentication was attempted,
-        // its generic/limited result is authoritative and must not leak the
-        // more specific upstream credential failure.
-        return $auth_error;
-    }
+    $resolving = true;
+    try {
+        ll_tools_rest_automation_clear_auth_runtime_state();
+        if (get_current_user_id()) {
+            return $result;
+        }
 
-    return $result;
+        $user_id = ll_tools_rest_automation_resolve_raw_password_user();
+        if ($user_id) {
+            wp_set_current_user($user_id);
+            // Core may have interpreted the same Basic credential as an
+            // application password. The raw account password authenticated.
+            return true;
+        }
+
+        return $GLOBALS['ll_tools_rest_automation_auth_error'] ?? $result;
+    } finally {
+        $resolving = false;
+    }
 }
 add_filter('rest_authentication_errors', 'll_tools_rest_automation_authentication_errors');
 

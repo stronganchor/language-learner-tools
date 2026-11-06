@@ -2232,7 +2232,7 @@ msgstr "Du hast nicht die Berechtigung, Wörterbuchimporte zu verarbeiten."
 #: includes/admin/export-import.php:12496
 #: includes/admin/export-import.php:12717
 #: includes/admin/export-import.php:12742
-#: includes/api/automation-rest.php:10299
+#: includes/api/automation-rest.php:10282
 msgid "The requested import job could not be found."
 msgstr "Der angeforderte Importauftrag konnte nicht gefunden werden."
 
@@ -3254,7 +3254,7 @@ msgstr "Vorbereitet %1$d von %2$d Mediendateien."
 #: includes/admin/export-import.php:14898
 #: includes/admin/offline-app-export.php:1722
 #: includes/admin/orphan-media-admin.php:1483
-#: includes/api/automation-rest.php:10238
+#: includes/api/automation-rest.php:10221
 #: includes/pages/wordset-pages.php:9400
 #: includes/pages/wordset-pages.php:9764
 msgid "ZipArchive is not available on this server."
@@ -4327,7 +4327,7 @@ msgid "Import failed: please choose a zip file to import."
 msgstr "Import fehlgeschlagen: Bitte wähle eine Zip-Datei zum Importieren aus."
 
 #: includes/admin/export-import.php:5361
-#: includes/api/automation-rest.php:10177
+#: includes/api/automation-rest.php:10160
 msgid "Import failed: server import folder is not available."
 msgstr "Import fehlgeschlagen: Server-Importordner ist nicht verfügbar."
 
@@ -4941,7 +4941,7 @@ msgid "Could not create the import extraction directory."
 msgstr "Das Import-Extraktionsverzeichnis konnte nicht erstellt werden."
 
 #: includes/admin/export-import.php:12655
-#: includes/api/automation-rest.php:10319
+#: includes/api/automation-rest.php:10302
 msgid "Another import job is already active. Resume or finish it before starting a new one."
 msgstr "Ein anderer Importauftrag ist bereits aktiv. Setze ihn fort oder beende ihn, bevor du einen neuen startest."
 
@@ -9807,7 +9807,7 @@ msgstr "Die Erstellung von Kategorien ist im Moment nicht verfügbar."
 #: includes/admin/uploads/audio-upload-form.php:636
 #: includes/admin/uploads/image-upload-form.php:454
 #: includes/admin/uploads/image-upload-form.php:718
-#: includes/api/automation-rest.php:7780
+#: includes/api/automation-rest.php:7763
 msgid "You do not have permission to upload files."
 msgstr "Du hast nicht die Erlaubnis, Dateien hochzuladen."
 
@@ -10867,271 +10867,271 @@ msgstr "Importregeln können nicht angewendet werden."
 msgid "Word option settings imported."
 msgstr "Vokabel-Optionseinstellungen importiert."
 
-#: includes/api/automation-rest.php:79
+#: includes/api/automation-rest.php:84
 msgid "Unexpected REST automation error."
 msgstr "Unerwarteter REST Automatisierungsfehler."
 
-#: includes/api/automation-rest.php:591
+#: includes/api/automation-rest.php:559
 msgid "LL Tools password-based REST authentication requires HTTPS, except in local development."
 msgstr "Die passwortbasierte REST-Authentifizierung der LL Tools erfordert HTTPS, außer in der lokalen Entwicklung."
 
-#: includes/api/automation-rest.php:610
-#: includes/api/automation-rest.php:625
+#: includes/api/automation-rest.php:578
+#: includes/api/automation-rest.php:593
 msgid "Unable to authenticate this REST request."
 msgstr "Diese REST-Anfrage kann nicht authentifiziert werden."
 
-#: includes/api/automation-rest.php:681
+#: includes/api/automation-rest.php:664
 msgid "You are not allowed to use LL Tools automation on this site."
 msgstr "Du darfst die LL Tools-Automatisierung auf dieser Seite nicht verwenden."
 
-#: includes/api/automation-rest.php:688
+#: includes/api/automation-rest.php:671
 msgid "Authenticate with a WordPress login, application password, or LL Tools basic password access before calling this endpoint."
 msgstr "Authentifiziere dich mit einem WordPress-Login, einem Anwendungspasswort oder dem LL Tools Basispasswort, bevor du diesen Endpunkt aufrufst."
 
-#: includes/api/automation-rest.php:728
+#: includes/api/automation-rest.php:711
 msgid "You cannot manage automation for this word set."
 msgstr "Du kannst für dieses Vokabelset keine Automatisierung verwalten."
 
-#: includes/api/automation-rest.php:751
+#: includes/api/automation-rest.php:734
 msgid "You cannot view internal review notes for this word set."
 msgstr "Du kannst keine internen Überprüfungsnotizen für dieses Vokabelset anzeigen."
 
-#: includes/api/automation-rest.php:762
+#: includes/api/automation-rest.php:745
 msgid "You cannot manage internal review notes for this word set."
 msgstr "Du kannst für dieses Vokabelset keine internen Überprüfungsnotizen verwalten."
 
-#: includes/api/automation-rest.php:789
+#: includes/api/automation-rest.php:772
 msgid "You cannot view interlinear data for this word set."
 msgstr "Du kannst keine interlinearen Daten für dieses Vokabelset anzeigen."
 
-#: includes/api/automation-rest.php:797
+#: includes/api/automation-rest.php:780
 msgid "You cannot manage interlinear data for this word set."
 msgstr "Du kannst keine interlinearen Daten für dieses Vokabelset verwalten."
 
-#: includes/api/automation-rest.php:814
+#: includes/api/automation-rest.php:797
 msgid "You cannot create word sets through LL Tools automation."
 msgstr "Du kannst Vokabelsets nicht über die LL Tools-Automatisierung erstellen."
 
-#: includes/api/automation-rest.php:832
+#: includes/api/automation-rest.php:815
 msgid "You cannot import LL Tools bundles through automation."
 msgstr "Du kannst LL Tools-Bündel nicht durch Automatisierung importieren."
 
-#: includes/api/automation-rest.php:947
+#: includes/api/automation-rest.php:930
 msgid "Missing set.field in the REST update payload."
 msgstr "Fehlendes set.field in der REST Update-Payload."
 
 #. translators: 1: field name, 2: comma-separated field list
-#: includes/api/automation-rest.php:957
+#: includes/api/automation-rest.php:940
 #: includes/cli/cli-support.php:130
 #, php-format
 msgid "Unsupported update field \"%1$s\". Allowed fields: %2$s"
 msgstr "Nicht unterstütztes Aktualisierungsfeld \"%1$s\". Erlaubte Felder: %2$s"
 
-#: includes/api/automation-rest.php:974
+#: includes/api/automation-rest.php:957
 msgid "Provide set as either \"field=value\" or an object with field/value."
 msgstr "Set entweder als \"field=value\" oder als Objekt mit field/value bereitstellen."
 
-#: includes/api/automation-rest.php:1459
-#: includes/api/automation-rest.php:1479
+#: includes/api/automation-rest.php:1442
+#: includes/api/automation-rest.php:1462
 msgid "LL Tools automation is already processing a write request. Wait and retry this request instead of running parallel updates."
 msgstr "Die LL Tools-Automatisierung bearbeitet bereits eine Schreibanforderung. Warte und versuche diese Anfrage erneut, anstatt parallele Aktualisierungen durchzuführen."
 
-#: includes/api/automation-rest.php:3002
+#: includes/api/automation-rest.php:2985
 msgid "Provide a name for the new word set."
 msgstr "Gib einen Namen für das neue Vokabelset an."
 
-#: includes/api/automation-rest.php:5964
-#: includes/api/automation-rest.php:6179
+#: includes/api/automation-rest.php:5947
+#: includes/api/automation-rest.php:6162
 msgid "Recording not found in this word set."
 msgstr "Aufnahme nicht in diesem Vokabelset gefunden."
 
-#: includes/api/automation-rest.php:7419
+#: includes/api/automation-rest.php:7402
 msgid "Provide category, category_id, or category_slug for the word-option rules update."
 msgstr "Gib Vokabelkategorie, category_id oder category_slug für die Aktualisierung der Regeln für Antwortoptionen an."
 
 #. translators: %s: category identifier
-#: includes/api/automation-rest.php:7438
+#: includes/api/automation-rest.php:7421
 #, php-format
 msgid "Unable to resolve word category: %s"
 msgstr "Vokabelkategorie kann nicht aufgelöst werden: %s"
 
-#: includes/api/automation-rest.php:7461
+#: includes/api/automation-rest.php:7444
 msgid "That word category belongs to a different word set."
 msgstr "Diese Vokabelkategorie gehört zu einem anderen Vokabelset."
 
-#: includes/api/automation-rest.php:7600
+#: includes/api/automation-rest.php:7583
 msgid "Groups must be an array."
 msgstr "Gruppen müssen ein Array sein."
 
-#: includes/api/automation-rest.php:7618
+#: includes/api/automation-rest.php:7601
 msgid "Every word-option group needs a label."
 msgstr "Jede Vokabel-Optionsgruppe braucht eine Bezeichnung."
 
-#: includes/api/automation-rest.php:7633
+#: includes/api/automation-rest.php:7616
 msgid "Word-option groups must contain at least one resolved word."
 msgstr "Antwortoptionsgruppen müssen mindestens eine aufgelöste Vokabel enthalten."
 
-#: includes/api/automation-rest.php:7653
+#: includes/api/automation-rest.php:7636
 msgid "Word-option pairs must be an array."
 msgstr "Vokabel-Optionspaare müssen ein Array sein."
 
-#: includes/api/automation-rest.php:7671
+#: includes/api/automation-rest.php:7654
 msgid "Word-option pairs must contain two resolved words."
 msgstr "Antwortoptionspaare müssen zwei aufgelöste Vokabeln enthalten."
 
-#: includes/api/automation-rest.php:8952
+#: includes/api/automation-rest.php:8935
 msgid "Word-option rules were not saved because the payload did not validate. Review missing_words and errors in the response data."
 msgstr "Regeln für Antwortoptionen wurden nicht gespeichert, weil der Payload nicht validiert wurde. Überprüfe missing_words und Fehler in den Antwortdaten."
 
-#: includes/api/automation-rest.php:8970
+#: includes/api/automation-rest.php:8953
 msgid "Word-option rules could not be saved for this word set and category."
 msgstr "Die Regeln für Antwortoptionen konnten für dieses Vokabelset und diese Kategorie nicht gespeichert werden."
 
-#: includes/api/automation-rest.php:9055
+#: includes/api/automation-rest.php:9038
 msgid "Prompt-card category references cannot be empty."
 msgstr "Prompt-Karten-Kategorieverweise dürfen nicht leer sein."
 
 #. translators: %s: category identifier
-#: includes/api/automation-rest.php:9079
+#: includes/api/automation-rest.php:9062
 #, php-format
 msgid "Unable to resolve prompt-card category: %s"
 msgstr "Prompt-Karten-Kategorie kann nicht aufgelöst werden: %s"
 
-#: includes/api/automation-rest.php:9101
+#: includes/api/automation-rest.php:9084
 msgid "That prompt-card category belongs to a different word set."
 msgstr "Diese Vokabelkartenkategorie gehört zu einem anderen Vokabelset."
 
-#: includes/api/automation-rest.php:9125
+#: includes/api/automation-rest.php:9108
 msgid "Provide at least one word-category assignment for the prompt card."
 msgstr "Gib mindestens eine Vokabelkategorie für die Lernkarte an."
 
-#: includes/api/automation-rest.php:9138
+#: includes/api/automation-rest.php:9121
 msgid "Prompt-card word set references cannot be empty."
 msgstr "Prompt-Karten-Vokabelsetverweise dürfen nicht leer sein."
 
 #. translators: %s: word set identifier
-#: includes/api/automation-rest.php:9158
+#: includes/api/automation-rest.php:9141
 #, php-format
 msgid "Unable to resolve prompt-card word set: %s"
 msgstr "Prompt-Karten-Vokabelset kann nicht aufgelöst werden: %s"
 
-#: includes/api/automation-rest.php:9183
+#: includes/api/automation-rest.php:9166
 msgid "Provide at least one word set assignment for the prompt card."
 msgstr "Gib mindestens eine Vokabelset-Zuordnung für die Lernkarte an."
 
-#: includes/api/automation-rest.php:9190
+#: includes/api/automation-rest.php:9173
 msgid "Prompt-card word set assignments must include the route word set."
 msgstr "Prompt-Karten-Vokabelset-Zuweisungen müssen das Routen-Vokabelset enthalten."
 
-#: includes/api/automation-rest.php:9241
+#: includes/api/automation-rest.php:9224
 msgid "Provide prompt_card_id, object_id, or id for the prompt card to update."
 msgstr "Gib prompt_card_id, object_id oder id für die zu aktualisierende Lernkarte an."
 
-#: includes/api/automation-rest.php:9250
+#: includes/api/automation-rest.php:9233
 msgid "That prompt card was not found."
 msgstr "Diese Lernkarte wurde nicht gefunden."
 
-#: includes/api/automation-rest.php:9258
+#: includes/api/automation-rest.php:9241
 msgid "That prompt card does not belong to the selected word set."
 msgstr "Diese Prompt-Karte gehört nicht zum ausgewählten Vokabelset."
 
-#: includes/api/automation-rest.php:9425
+#: includes/api/automation-rest.php:9408
 msgid "Provide a note value. Send an empty string to clear the note."
 msgstr "Gib einen Notenwert an. Sende einen leeren String, um die Notiz zu löschen."
 
-#: includes/api/automation-rest.php:9432
+#: includes/api/automation-rest.php:9415
 msgid "Provide the word or prompt card object_id to update."
 msgstr "Gib die Vokabel oder die Lernkarte object_id zur Aktualisierung an."
 
-#: includes/api/automation-rest.php:9443
+#: includes/api/automation-rest.php:9426
 #: includes/lib/internal-review-notes.php:369
 msgid "This item cannot store an internal review note."
 msgstr "Dieser Artikel kann keine interne Überprüfungsnotiz speichern."
 
-#: includes/api/automation-rest.php:9450
+#: includes/api/automation-rest.php:9433
 #: includes/lib/internal-review-notes.php:381
 msgid "This item does not belong to the selected word set."
 msgstr "Dieses Element gehört nicht zum ausgewählten Vokabelset."
 
-#: includes/api/automation-rest.php:9910
-#: includes/api/automation-rest.php:10016
+#: includes/api/automation-rest.php:9893
+#: includes/api/automation-rest.php:9999
 msgid "Could not find a matching content or vocab lesson in this word set."
 msgstr "In diesem Vokabelset konnte kein passender Inhalt oder keine passende Vokabellektion gefunden werden."
 
-#: includes/api/automation-rest.php:9937
+#: includes/api/automation-rest.php:9920
 msgid "Provide an interlinear payload object, or send delete=true to clear one."
 msgstr "Gib ein interlineares Payload-Objekt an, oder sende delete=true, um es zu löschen."
 
-#: includes/api/automation-rest.php:10080
+#: includes/api/automation-rest.php:10063
 msgid "Each interlinear import item must be an object."
 msgstr "Jedes interlineare Importelement muss ein Objekt sein."
 
-#: includes/api/automation-rest.php:10172
+#: includes/api/automation-rest.php:10155
 msgid "Import failed: provide an uploaded zip file or a server import filename."
 msgstr "Import fehlgeschlagen: Gib eine hochgeladene Zip-Datei oder einen Server-Import-Dateinamen an."
 
-#: includes/api/automation-rest.php:10290
+#: includes/api/automation-rest.php:10273
 msgid "The requested import job could not be identified."
 msgstr "Der angeforderte Importauftrag konnte nicht identifiziert werden."
 
-#: includes/api/automation-rest.php:10501
-#: includes/api/automation-rest.php:10545
+#: includes/api/automation-rest.php:10484
+#: includes/api/automation-rest.php:10528
 msgid "Corpus text payload is larger than the allowed automation import limit."
 msgstr "Die Textlast des Korpus ist größer als die zulässige Grenze für den Automationsimport."
 
-#: includes/api/automation-rest.php:10510
+#: includes/api/automation-rest.php:10493
 msgid "Corpus text payload is too deeply nested for automation import."
 msgstr "Der Text des Korpus ist für den automatischen Import zu tief verschachtelt."
 
-#: includes/api/automation-rest.php:10518
+#: includes/api/automation-rest.php:10501
 msgid "Corpus text payload contains too many rows for automation import."
 msgstr "Corpus Text Payload enthält zu viele Zeilen für den Automatisierungsimport."
 
-#: includes/api/automation-rest.php:10553
+#: includes/api/automation-rest.php:10536
 msgid "Corpus text payload must be a valid JSON object."
 msgstr "Corpus Text Payload muss ein gültiges JSON Objekt sein."
 
-#: includes/api/automation-rest.php:10565
+#: includes/api/automation-rest.php:10548
 msgid "Provide a corpus text payload object."
 msgstr "Stelle ein Korpustext-Nutzlastobjekt bereit."
 
-#: includes/api/automation-rest.php:10589
+#: includes/api/automation-rest.php:10572
 msgid "Historical Zazaki text with source witnesses, interlinear analysis, and translations."
 msgstr "Historischer Zazaki-Text mit Quellennachweisen, interlinearer Analyse und Übersetzungen."
 
-#: includes/api/automation-rest.php:10596
+#: includes/api/automation-rest.php:10579
 msgid "You cannot upload corpus text assets."
 msgstr "Du kannst keine Korpustext-Assets hochladen."
 
-#: includes/api/automation-rest.php:10605
+#: includes/api/automation-rest.php:10588
 msgid "Provide a source key for the corpus text asset."
 msgstr "Gib einen Quellschlüssel für das Korpustext-Asset an."
 
-#: includes/api/automation-rest.php:10632
+#: includes/api/automation-rest.php:10615
 msgid "Provide a corpus text asset file."
 msgstr "Stelle eine Korpus-Text-Asset-Datei zur Verfügung."
 
-#: includes/api/automation-rest.php:10645
+#: includes/api/automation-rest.php:10628
 msgid "Corpus text asset file is larger than the allowed automation import limit."
 msgstr "Die Text-Asset-Datei ist größer als die zulässige Grenze für den Automationsimport."
 
-#: includes/api/automation-rest.php:10657
+#: includes/api/automation-rest.php:10640
 msgid "Corpus text asset image dimensions exceed the allowed automation import limit."
 msgstr "Die Abmessungen der Text-Asset-Bilder überschreiten die zulässige Grenze für den automatischen Import."
 
-#: includes/api/automation-rest.php:10678
+#: includes/api/automation-rest.php:10661
 msgid "The corpus text asset could not be uploaded."
 msgstr "Das Textkorpus-Asset konnte nicht hochgeladen werden."
 
-#: includes/api/automation-rest.php:10697
+#: includes/api/automation-rest.php:10680
 msgid "The corpus text asset could not be added to the media library."
 msgstr "Das Textkorpus-Asset konnte nicht zur Medienbibliothek hinzugefügt werden."
 
-#: includes/api/automation-rest.php:10733
+#: includes/api/automation-rest.php:10716
 msgid "Provide a corpus text post slug."
 msgstr "Gib einen Korpus-Text-Post-Slug an."
 
-#: includes/api/automation-rest.php:10782
+#: includes/api/automation-rest.php:10765
 msgid "The corpus text post could not be created or updated."
 msgstr "Der Korpus-Textbeitrag konnte nicht erstellt oder aktualisiert werden."
 
@@ -11200,7 +11200,7 @@ msgstr "Benutzer kann nicht aufgelöst werden: %s"
 msgid "Unable to resolve category: %s"
 msgstr "Kategorie kann nicht aufgelöst werden: %s"
 
-#: includes/api/automation-rest.php:3389
+#: includes/api/automation-rest.php:3372
 #: includes/cli/cli-support.php:298
 msgid "Missing word identifier."
 msgstr "Fehlender Vokabel-Bezeichner."
@@ -11211,7 +11211,7 @@ msgstr "Fehlender Vokabel-Bezeichner."
 msgid "Unable to resolve word in this word set: %s"
 msgstr "Vokabel in diesem Vokabelset kann nicht aufgelöst werden: %s"
 
-#: includes/api/automation-rest.php:7211
+#: includes/api/automation-rest.php:7194
 #: includes/cli/cli-support.php:351
 #: includes/cli/cli-support.php:388
 msgid "Missing word set ID."
@@ -11255,16 +11255,16 @@ msgstr "Nicht kategorisiert"
 msgid "Missing word or word set for update."
 msgstr "Vokabel oder Vokabelset für die Aktualisierung fehlt."
 
-#: includes/api/automation-rest.php:3423
+#: includes/api/automation-rest.php:3406
 #: includes/cli/cli-support.php:844
 msgid "Unable to load the current word state."
 msgstr "Der aktuelle Vokabelstatus kann nicht geladen werden."
 
-#: includes/api/automation-rest.php:1981
-#: includes/api/automation-rest.php:2301
-#: includes/api/automation-rest.php:3958
-#: includes/api/automation-rest.php:3981
-#: includes/api/automation-rest.php:4154
+#: includes/api/automation-rest.php:1964
+#: includes/api/automation-rest.php:2284
+#: includes/api/automation-rest.php:3941
+#: includes/api/automation-rest.php:3964
+#: includes/api/automation-rest.php:4137
 #: includes/api/word-metadata-plan-rest.php:572
 #: includes/cli/cli-support.php:879
 msgid "Dictionary entry helpers are not available."
@@ -11334,7 +11334,7 @@ msgid "Invalid verb mood value. Allowed values: %s"
 msgstr "Ungültiger Wert für Verbmodus. Erlaubte Werte: %s"
 
 #. translators: %s: field name
-#: includes/api/automation-rest.php:3399
+#: includes/api/automation-rest.php:3382
 #: includes/cli/cli-support.php:1066
 #, php-format
 msgid "Unsupported update field: %s"
@@ -12456,7 +12456,7 @@ msgstr "Das Anmeldeformular ist abgelaufen. Bitte versuche es erneut."
 msgid "Please solve the math question."
 msgstr "Bitte löse die Mathefrage."
 
-#: includes/api/automation-rest.php:434
+#: includes/api/automation-rest.php:439
 #: includes/login-window.php:1476
 msgid "Too many login attempts from this connection. Please try again in a few minutes."
 msgstr "Zu viele Anmeldeversuche von dieser Verbindung. Bitte versuche es in ein paar Minuten noch einmal."
@@ -19598,10 +19598,10 @@ msgstr "Vokabel kann nicht erstellt werden: %s"
 msgid "Forbidden."
 msgstr "Verboten."
 
-#: includes/api/automation-rest.php:3529
-#: includes/api/automation-rest.php:3631
-#: includes/api/automation-rest.php:3919
-#: includes/api/automation-rest.php:4519
+#: includes/api/automation-rest.php:3512
+#: includes/api/automation-rest.php:3614
+#: includes/api/automation-rest.php:3902
+#: includes/api/automation-rest.php:4502
 #: includes/api/word-metadata-plan-rest.php:1747
 #: includes/shortcodes/audio-recording-shortcode.php:5605
 #: includes/shortcodes/word-grid-shortcode.php:9133
@@ -19921,9 +19921,9 @@ msgstr "Türkçe"
 msgid "Deutsch"
 msgstr "Deutsch"
 
-#: includes/api/automation-rest.php:1965
-#: includes/api/automation-rest.php:2364
-#: includes/api/automation-rest.php:2476
+#: includes/api/automation-rest.php:1948
+#: includes/api/automation-rest.php:2347
+#: includes/api/automation-rest.php:2459
 #: includes/shortcodes/dictionary-shortcode.php:1055
 #: includes/shortcodes/dictionary-shortcode.php:3847
 msgid "Dictionary entry not found."
@@ -23259,20 +23259,20 @@ msgstr "Vokabel zu dieser Lektion hinzufügen"
 msgid "Fallback for recorder pages without a wordset-specific text visibility setting. Wordset managers can override this in wordset study settings."
 msgstr "Ausweichwert für Aufnahme-Seiten ohne Vokabelset-spezifische Einstellung zur Textanzeige. Vokabelset-Manager können dies in den Lern-Einstellungen des Vokabelsets überschreiben."
 
-#: includes/api/automation-rest.php:849
+#: includes/api/automation-rest.php:832
 msgid "You are not allowed to clear LL Tools caches on this site."
 msgstr "Du darfst die LL Tools-Caches auf dieser Website nicht leeren."
 
-#: includes/api/automation-rest.php:2973
+#: includes/api/automation-rest.php:2956
 msgid "Use cache=all, cache=dictionary, or cache=public."
 msgstr "Verwende cache=all, cache=dictionary oder cache=public."
 
-#: includes/api/automation-rest.php:10819
+#: includes/api/automation-rest.php:10802
 msgid "Could not find a matching corpus text post."
 msgstr "Es wurde kein passender Korpustext-Beitrag gefunden."
 
-#: includes/api/automation-rest.php:10755
-#: includes/api/automation-rest.php:10830
+#: includes/api/automation-rest.php:10738
+#: includes/api/automation-rest.php:10813
 msgid "The matching content lesson is not a corpus text."
 msgstr "Die passende Inhaltslektion ist kein Korpustext."
 
@@ -23535,16 +23535,16 @@ msgid "Release"
 msgstr "Freigeben"
 
 #. translators: %s: word set name.
-#: includes/api/automation-rest.php:7793
+#: includes/api/automation-rest.php:7776
 #, php-format
 msgid "%s profile image"
 msgstr "%s-Profilbild"
 
-#: includes/api/automation-rest.php:7807
+#: includes/api/automation-rest.php:7790
 msgid "The uploaded file is not a valid image."
 msgstr "Die hochgeladene Datei ist kein gültiges Bild."
 
-#: includes/api/automation-rest.php:8502
+#: includes/api/automation-rest.php:8485
 msgid "The profile image attachment must be an existing image attachment."
 msgstr "Der Profilbild-Anhang muss ein vorhandener Bildanhang sein."
 
@@ -24227,82 +24227,82 @@ msgid "Failed to save the suggested recording text."
 msgstr "Der vorgeschlagene Aufnahmetext konnte nicht gespeichert werden."
 
 #. translators: %d: maximum update count
-#: includes/api/automation-rest.php:3363
+#: includes/api/automation-rest.php:3346
 #, php-format
 msgid "Too many word updates in one request. Maximum is %d."
 msgstr "Zu viele Vokabelaktualisierungen in einer Anfrage. Maximum ist %d."
 
-#: includes/api/automation-rest.php:3555
+#: includes/api/automation-rest.php:3538
 msgid "Failed to update the word title."
 msgstr "Der Vokabeltitel konnte nicht aktualisiert werden."
 
-#: includes/api/automation-rest.php:3607
+#: includes/api/automation-rest.php:3590
 msgid "Provide one or more word title updates."
 msgstr "Gib eine oder mehrere Vokabeltitel-Aktualisierungen an."
 
 #. translators: %d: maximum update count
-#: includes/api/automation-rest.php:3616
+#: includes/api/automation-rest.php:3599
 #, php-format
 msgid "Too many word title updates in one request. Maximum is %d."
 msgstr "Zu viele Vokabeltitel-Aktualisierungen in einer Anfrage. Maximum ist %d."
 
-#: includes/api/automation-rest.php:3640
-#: includes/api/automation-rest.php:3928
-#: includes/api/automation-rest.php:4527
+#: includes/api/automation-rest.php:3623
+#: includes/api/automation-rest.php:3911
+#: includes/api/automation-rest.php:4510
 msgid "Duplicate word ID in this batch."
 msgstr "Doppelte Vokabel-ID in diesem Stapel."
 
-#: includes/api/automation-rest.php:3653
+#: includes/api/automation-rest.php:3636
 msgid "Missing replacement title."
 msgstr "Ersatztitel fehlt."
 
-#: includes/api/automation-rest.php:3895
+#: includes/api/automation-rest.php:3878
 msgid "Provide one or more word helper translation updates."
 msgstr "Gib eine oder mehrere Aktualisierungen für Vokabel-Hilfsübersetzungen an."
 
 #. translators: %d: maximum update count
-#: includes/api/automation-rest.php:3904
+#: includes/api/automation-rest.php:3887
 #, php-format
 msgid "Too many word helper translation updates in one request. Maximum is %d."
 msgstr "Zu viele Aktualisierungen für Vokabel-Hilfsübersetzungen in einer Anfrage. Maximum ist %d."
 
-#: includes/api/automation-rest.php:8087
+#: includes/api/automation-rest.php:8070
 msgid "Unable to resolve a word category for the translation item."
 msgstr "Für das Übersetzungselement konnte keine Vokabelkategorie ermittelt werden."
 
-#: includes/api/automation-rest.php:8105
+#: includes/api/automation-rest.php:8088
 msgid "That word category is not part of this word set."
 msgstr "Diese Vokabelkategorie gehört nicht zu diesem Vokabelset."
 
-#: includes/api/automation-rest.php:8192
+#: includes/api/automation-rest.php:8175
 msgid "Unable to resolve a lesson for the translation item."
 msgstr "Für das Übersetzungselement konnte keine Lektion ermittelt werden."
 
-#: includes/api/automation-rest.php:8200
+#: includes/api/automation-rest.php:8183
 msgid "That lesson is not part of this word set."
 msgstr "Diese Lektion gehört nicht zu diesem Vokabelset."
 
-#: includes/api/automation-rest.php:8308
+#: includes/api/automation-rest.php:8291
 msgid "Entity translation helpers are not available."
 msgstr "Hilfsfunktionen für Entitätsübersetzungen sind nicht verfügbar."
 
-#: includes/api/automation-rest.php:8317
+#: includes/api/automation-rest.php:8300
 msgid "Provide wordset, categories, lessons, or items to update translations."
 msgstr "Gib Vokabelset, Kategorien, Lektionen oder Elemente an, um Übersetzungen zu aktualisieren."
 
-#: includes/api/automation-rest.php:8330
+#: includes/api/automation-rest.php:8313
 msgid "Translation items must include type wordset, category, or lesson."
 msgstr "Übersetzungselemente müssen den Typ wordset, category oder lesson enthalten."
 
-#: includes/api/automation-rest.php:8340
+#: includes/api/automation-rest.php:8323
 msgid "Translation item does not contain any supported translated fields."
 msgstr "Das Übersetzungselement enthält keine unterstützten übersetzten Felder."
 
-#: includes/api/automation-rest.php:8401
+#: includes/api/automation-rest.php:8384
 msgid "One or more translation items could not be applied."
 msgstr "Ein oder mehrere Übersetzungselemente konnten nicht angewendet werden."
 
-#: includes/api/automation-rest.php:8659
+#: includes/api/automation-rest.php:8642
 msgid "Manual orthography rules must be an object keyed by IPA segment."
 msgstr "Manuelle Orthografieregeln müssen ein Objekt sein, das nach IPA-Segmenten indexiert ist."
 
@@ -24340,31 +24340,31 @@ msgstr "%s anzeigen"
 msgid "Saved text does not match the current orthography rules."
 msgstr "Gespeicherter Text entspricht nicht den aktuellen Orthografieregeln."
 
-#: includes/api/automation-rest.php:3812
+#: includes/api/automation-rest.php:3795
 msgid "Dictionary entry ID must be a positive integer, or 0 to unlink."
 msgstr "Die Wörterbucheintrag-ID muss eine positive Ganzzahl sein oder 0, um die Verknüpfung aufzuheben."
 
-#: includes/api/automation-rest.php:3820
+#: includes/api/automation-rest.php:3803
 msgid "Invalid dictionary entry ID."
 msgstr "Ungültige Wörterbucheintrag-ID."
 
-#: includes/api/automation-rest.php:4028
+#: includes/api/automation-rest.php:4011
 msgid "Missing helper translation or dictionary entry value."
 msgstr "Hilfsübersetzung oder Wörterbucheintragswert fehlt."
 
-#: includes/api/automation-rest.php:8643
+#: includes/api/automation-rest.php:8626
 msgid "Orthography conversion profiles are no longer supported. Configure wordset-level orthography settings instead."
 msgstr "Orthografie-Konvertierungsprofile werden nicht mehr unterstützt. Konfiguriere stattdessen Orthografieeinstellungen auf Vokabelset-Ebene."
 
-#: includes/api/automation-rest.php:8706
+#: includes/api/automation-rest.php:8689
 msgid "Orthography settings must be an object."
 msgstr "Orthografieeinstellungen müssen ein Objekt sein."
 
-#: includes/api/automation-rest.php:8778
+#: includes/api/automation-rest.php:8761
 msgid "Orthography exception word IDs must be an array."
 msgstr "Vokabel-IDs für Orthografieausnahmen müssen ein Array sein."
 
-#: includes/api/automation-rest.php:8790
+#: includes/api/automation-rest.php:8773
 msgid "Orthography exception dictionary entry IDs must be an object keyed by word ID."
 msgstr "Wörterbucheintrag-IDs für Orthografieausnahmen müssen ein Objekt mit Vokabel-ID als Schlüssel sein."
 
@@ -24388,83 +24388,83 @@ msgstr "Der Vokabeleditor-Dialog ist auf dieser Seite nicht verfügbar."
 msgid "Invalid word editor context."
 msgstr "Ungültiger Vokabeleditor-Kontext."
 
-#: includes/api/automation-rest.php:4413
+#: includes/api/automation-rest.php:4396
 msgid "Word category update helpers are not available."
 msgstr "Hilfsfunktionen für Vokabelkategorie-Aktualisierungen sind nicht verfügbar."
 
-#: includes/api/automation-rest.php:4479
+#: includes/api/automation-rest.php:4462
 msgid "Choose add_category, remove_category, or move_category."
 msgstr "Wähle add_category, remove_category oder move_category."
 
-#: includes/api/automation-rest.php:4487
+#: includes/api/automation-rest.php:4470
 msgid "Provide the target category ID."
 msgstr "Gib die ID der Zielkategorie an."
 
-#: includes/api/automation-rest.php:4495
+#: includes/api/automation-rest.php:4478
 msgid "Provide one or more explicit word IDs."
 msgstr "Gib eine oder mehrere explizite Vokabel-IDs an."
 
 #. translators: %d: maximum word count
-#: includes/api/automation-rest.php:4505
+#: includes/api/automation-rest.php:4488
 #, php-format
 msgid "Too many word category updates in one request. Maximum is %d."
 msgstr "Zu viele Vokabelkategorie-Aktualisierungen in einer Anfrage. Maximal %d."
 
-#: includes/api/automation-rest.php:4538
+#: includes/api/automation-rest.php:4521
 msgid "Fix word ID errors before retrying this category update."
 msgstr "Behebe die Vokabel-ID-Fehler, bevor du diese Kategorieaktualisierung erneut versuchst."
 
-#: includes/api/automation-rest.php:4559
+#: includes/api/automation-rest.php:4542
 msgid "Select a category that belongs to this word set."
 msgstr "Wähle eine Kategorie, die zu diesem Vokabelset gehört."
 
-#: includes/api/automation-rest.php:4581
+#: includes/api/automation-rest.php:4564
 msgid "Word ID does not refer to a word post."
 msgstr "Die Vokabel-ID verweist nicht auf einen Vokabel-Beitrag."
 
-#: includes/api/automation-rest.php:4594
+#: includes/api/automation-rest.php:4577
 #: includes/api/word-metadata-plan-rest.php:1797
 msgid "Word is not assigned to this word set."
 msgstr "Die Vokabel ist diesem Vokabelset nicht zugewiesen."
 
-#: includes/api/automation-rest.php:4615
+#: includes/api/automation-rest.php:4598
 #: includes/api/word-metadata-plan-rest.php:917
 msgid "Refusing to remove the final category for this word."
 msgstr "Die letzte Kategorie für diese Vokabel wird nicht entfernt."
 
-#: includes/api/automation-rest.php:4635
+#: includes/api/automation-rest.php:4618
 msgid "Category update preflight failed. No words were changed."
 msgstr "Die Vorabprüfung der Kategorieaktualisierung ist fehlgeschlagen. Es wurden keine Vokabeln geändert."
 
-#: includes/api/automation-rest.php:4723
+#: includes/api/automation-rest.php:4706
 msgid "One or more category updates failed."
 msgstr "Mindestens eine Kategorieaktualisierung ist fehlgeschlagen."
 
-#: includes/api/automation-rest.php:866
+#: includes/api/automation-rest.php:849
 msgid "You are not allowed to update LL Tools on this site."
 msgstr "Du darfst LL Tools auf dieser Website nicht aktualisieren."
 
-#: includes/api/automation-rest.php:2803
+#: includes/api/automation-rest.php:2786
 msgid "LL Tools automation updates currently support only the dev branch package."
 msgstr "Automatische LL Tools-Updates unterstützen derzeit nur das Paket des dev-Branches."
 
-#: includes/api/automation-rest.php:2811
+#: includes/api/automation-rest.php:2794
 msgid "The LL Tools automation update package URL failed the built-in allowlist check."
 msgstr "Die Paket-URL für das automatische LL Tools-Update hat die integrierte Allowlist-Prüfung nicht bestanden."
 
-#: includes/api/automation-rest.php:2822
+#: includes/api/automation-rest.php:2805
 msgid "The installed LL Tools version does not match the expected current version, so the automation update was not started."
 msgstr "Die installierte LL Tools-Version entspricht nicht der erwarteten aktuellen Version, daher wurde das automatische Update nicht gestartet."
 
-#: includes/api/automation-rest.php:2839
+#: includes/api/automation-rest.php:2822
 msgid "Set confirm=true and dry_run=false to update LL Tools through automation."
 msgstr "Setze confirm=true und dry_run=false, um LL Tools per Automatisierung zu aktualisieren."
 
-#: includes/api/automation-rest.php:2847
+#: includes/api/automation-rest.php:2830
 msgid "WordPress path constants are unavailable, so the plugin updater cannot run."
 msgstr "Die WordPress-Pfadkonstanten sind nicht verfügbar, daher kann der Plugin-Updater nicht ausgeführt werden."
 
-#: includes/api/automation-rest.php:2894
+#: includes/api/automation-rest.php:2877
 msgid "LL Tools plugin update failed."
 msgstr "Das LL Tools-Plugin-Update ist fehlgeschlagen."
 
@@ -24539,100 +24539,100 @@ msgstr "Die Vorabprüfung des Vokabelmetadatenplans ist fehlgeschlagen. Es wurde
 msgid "Word metadata plan job belongs to a different word set."
 msgstr "Der Job für den Vokabelmetadatenplan gehört zu einem anderen Vokabelset."
 
-#: includes/api/automation-rest.php:2909
+#: includes/api/automation-rest.php:2892
 msgid "LL Tools plugin files were updated, but the plugin could not be reactivated automatically."
 msgstr "Die LL Tools-Plugin-Dateien wurden aktualisiert, aber das Plugin konnte nicht automatisch reaktiviert werden."
 
-#: includes/api/automation-rest.php:6368
-#: includes/api/automation-rest.php:6428
+#: includes/api/automation-rest.php:6351
+#: includes/api/automation-rest.php:6411
 msgid "Invalid transcription validation job ID."
 msgstr "Ungültige ID des Transkriptionsvalidierungs-Jobs."
 
-#: includes/api/automation-rest.php:6377
+#: includes/api/automation-rest.php:6360
 msgid "Transcription validation job was not found."
 msgstr "Der Transkriptionsvalidierungs-Job wurde nicht gefunden."
 
-#: includes/api/automation-rest.php:6764
-#: includes/api/automation-rest.php:6903
+#: includes/api/automation-rest.php:6747
+#: includes/api/automation-rest.php:6886
 msgid "Transcription validation job belongs to a different word set."
 msgstr "Der Transkriptionsvalidierungs-Job gehört zu einem anderen Vokabelset."
 
-#: includes/api/automation-rest.php:4858
+#: includes/api/automation-rest.php:4841
 msgid "Prerequisite target category does not belong to this word set."
 msgstr "Die Zielkategorie für Voraussetzungen gehört nicht zu diesem Vokabelset."
 
-#: includes/api/automation-rest.php:4865
+#: includes/api/automation-rest.php:4848
 msgid "Prerequisite categories must belong to the requested word set and cannot include the target category."
 msgstr "Voraussetzungskategorien müssen zum angeforderten Vokabelset gehören und dürfen die Zielkategorie nicht enthalten."
 
-#: includes/api/automation-rest.php:4884
+#: includes/api/automation-rest.php:4867
 msgid "The requested prerequisites would create a cycle."
 msgstr "Die angeforderten Voraussetzungen würden einen Zyklus erzeugen."
 
-#: includes/api/automation-rest.php:4943
+#: includes/api/automation-rest.php:4926
 msgid "Provide one or more explicit category actions."
 msgstr "Gib eine oder mehrere explizite Kategorieaktionen an."
 
 #. translators: %d: maximum category action count
-#: includes/api/automation-rest.php:4952
+#: includes/api/automation-rest.php:4935
 #, php-format
 msgid "Too many category actions in one request. Maximum is %d."
 msgstr "Zu viele Kategorieaktionen in einer Anfrage. Maximal %d."
 
-#: includes/api/automation-rest.php:4963
+#: includes/api/automation-rest.php:4946
 msgid "No categories are available for this word set."
 msgstr "Für dieses Vokabelset sind keine Kategorien verfügbar."
 
-#: includes/api/automation-rest.php:4983
+#: includes/api/automation-rest.php:4966
 msgid "Choose create_category, rename_category, set_prerequisites, or delete_empty_category."
 msgstr "Wähle create_category, rename_category, set_prerequisites oder delete_empty_category."
 
-#: includes/api/automation-rest.php:4995
+#: includes/api/automation-rest.php:4978
 msgid "Category name is required."
 msgstr "Kategoriename ist erforderlich."
 
-#: includes/api/automation-rest.php:5008
+#: includes/api/automation-rest.php:4991
 msgid "A category with that slug exists outside this word set."
 msgstr "Eine Kategorie mit diesem Slug existiert außerhalb dieses Vokabelsets."
 
-#: includes/api/automation-rest.php:5040
+#: includes/api/automation-rest.php:5023
 msgid "Could not create category."
 msgstr "Kategorie konnte nicht erstellt werden."
 
-#: includes/api/automation-rest.php:5083
+#: includes/api/automation-rest.php:5066
 msgid "Category does not belong to this word set."
 msgstr "Kategorie gehört nicht zu diesem Vokabelset."
 
-#: includes/api/automation-rest.php:5094
+#: includes/api/automation-rest.php:5077
 msgid "Category was not found."
 msgstr "Kategorie wurde nicht gefunden."
 
-#: includes/api/automation-rest.php:5104
+#: includes/api/automation-rest.php:5087
 msgid "Expected category name does not match live state."
 msgstr "Der erwartete Kategoriename stimmt nicht mit dem Live-Zustand überein."
 
-#: includes/api/automation-rest.php:5119
+#: includes/api/automation-rest.php:5102
 msgid "New category name is required."
 msgstr "Neuer Kategoriename ist erforderlich."
 
-#: includes/api/automation-rest.php:5198
+#: includes/api/automation-rest.php:5181
 msgid "Expected prerequisite IDs do not match live state."
 msgstr "Die erwarteten Voraussetzung-IDs stimmen nicht mit dem Live-Zustand überein."
 
-#: includes/api/automation-rest.php:5252
+#: includes/api/automation-rest.php:5235
 msgid "Refusing to delete a category that still has word posts in this word set."
 msgstr "Eine Kategorie, die in diesem Vokabelset noch Vokabelbeiträge enthält, wird nicht gelöscht."
 
-#: includes/api/automation-rest.php:5272
+#: includes/api/automation-rest.php:5255
 msgid "Could not delete category."
 msgstr "Kategorie konnte nicht gelöscht werden."
 
-#: includes/api/automation-rest.php:5303
+#: includes/api/automation-rest.php:5286
 msgid "Category term action preflight failed. No later failed action was applied."
 msgstr "Vorabprüfung der Kategorieterm-Aktion fehlgeschlagen. Keine spätere fehlgeschlagene Aktion wurde angewendet."
 
-#: includes/api/automation-rest.php:6442
-#: includes/api/automation-rest.php:6467
+#: includes/api/automation-rest.php:6425
+#: includes/api/automation-rest.php:6450
 msgid "Transcription validation job is already processing."
 msgstr "Der Transkriptionsvalidierungsauftrag wird bereits verarbeitet."
 
@@ -24675,7 +24675,7 @@ msgstr "Überprüfe generierte öffentliche Quizseiten, ohne sie mit normalen Se
 msgid "Review generated quiz pages and open their public URLs without editing normal Pages."
 msgstr "Überprüfe generierte Quizseiten und öffne ihre öffentlichen URLs, ohne normale Seiten zu bearbeiten."
 
-#: includes/api/automation-rest.php:3972
+#: includes/api/automation-rest.php:3955
 msgid "Use field=word_translation or field=dictionary_entry_id with value. Legacy helper aliases are mapped to word_translation."
 msgstr "Verwende field=word_translation oder field=dictionary_entry_id mit value. Legacy-Helfer-Aliasse werden word_translation zugeordnet."
 
@@ -24785,46 +24785,46 @@ msgid "Too many card loading requests. Please wait a few minutes and try again."
 msgstr "Zu viele Anfragen zum Laden von Karten. Bitte warte ein paar Minuten und versuche es erneut."
 
 #. translators: %d: maximum word image count
-#: includes/api/automation-rest.php:5392
+#: includes/api/automation-rest.php:5375
 #, php-format
 msgid "The category has more than %d word images. Provide an explicit smaller image_ids list."
 msgstr "Die Kategorie hat mehr als %d Vokabelbilder. Gib eine explizite, kleinere image_ids-Liste an."
 
-#: includes/api/automation-rest.php:5493
+#: includes/api/automation-rest.php:5476
 msgid "Provide an existing word-category category_id or category_slug."
 msgstr "Gib eine vorhandene category_id oder category_slug für word-category an."
 
-#: includes/api/automation-rest.php:5516
+#: includes/api/automation-rest.php:5499
 msgid "Category slug does not match expected_category_slug."
 msgstr "Der Kategorie-Slug entspricht nicht expected_category_slug."
 
-#: includes/api/automation-rest.php:5525
+#: includes/api/automation-rest.php:5508
 msgid "Category is already owned by another word set."
 msgstr "Die Kategorie gehört bereits zu einem anderen Vokabelset."
 
 #. translators: %d: maximum word image count
-#: includes/api/automation-rest.php:5548
+#: includes/api/automation-rest.php:5531
 #, php-format
 msgid "Too many word images in one request. Maximum is %d."
 msgstr "Zu viele Vokabelbilder in einer Anfrage. Maximum ist %d."
 
-#: includes/api/automation-rest.php:5564
+#: includes/api/automation-rest.php:5547
 msgid "Image ID does not refer to a word_images post."
 msgstr "Die Bild-ID verweist nicht auf einen word_images-Beitrag."
 
-#: includes/api/automation-rest.php:5578
+#: includes/api/automation-rest.php:5561
 msgid "Word image is not assigned to the requested category."
 msgstr "Das Vokabelbild ist der angeforderten Kategorie nicht zugewiesen."
 
-#: includes/api/automation-rest.php:5593
+#: includes/api/automation-rest.php:5576
 msgid "Word image is also assigned to a category owned by another word set."
 msgstr "Das Vokabelbild ist auch einer Kategorie zugewiesen, die zu einem anderen Vokabelset gehört."
 
-#: includes/api/automation-rest.php:5606
+#: includes/api/automation-rest.php:5589
 msgid "Word image is already owned by another word set."
 msgstr "Das Vokabelbild gehört bereits zu einem anderen Vokabelset."
 
-#: includes/api/automation-rest.php:5636
+#: includes/api/automation-rest.php:5619
 msgid "Word image category ownership preflight failed. No ownership metadata was changed."
 msgstr "Die Vorabprüfung der Vokabelbild-Kategoriezuordnung ist fehlgeschlagen. Es wurden keine Besitz-Metadaten geändert."
 
@@ -25059,24 +25059,24 @@ msgstr "Reihenfolge des Sprachumschalters:"
 msgid "Optional comma-separated locale order for the language switcher. Listed locales appear first; unlisted available languages follow in the default order."
 msgstr "Optionale, durch Kommas getrennte Locale-Reihenfolge für den Sprachumschalter. Aufgelistete Locales erscheinen zuerst; nicht aufgelistete verfügbare Sprachen folgen in der Standardreihenfolge."
 
-#: includes/api/automation-rest.php:1973
-#: includes/api/automation-rest.php:2174
-#: includes/api/automation-rest.php:2386
-#: includes/api/automation-rest.php:2483
+#: includes/api/automation-rest.php:1956
+#: includes/api/automation-rest.php:2157
+#: includes/api/automation-rest.php:2369
+#: includes/api/automation-rest.php:2466
 msgid "You are not allowed to edit this dictionary entry."
 msgstr "Du darfst diesen Wörterbucheintrag nicht bearbeiten."
 
-#: includes/api/automation-rest.php:1991
+#: includes/api/automation-rest.php:1974
 msgid "Provide the imported headword text to replace."
 msgstr "Gib den importierten Stichworttext an, der ersetzt werden soll."
 
-#: includes/api/automation-rest.php:1998
+#: includes/api/automation-rest.php:1981
 msgid "Provide the replacement headword text."
 msgstr "Gib den Ersatz-Stichworttext an."
 
-#: includes/api/automation-rest.php:2008
-#: includes/api/automation-rest.php:2413
-#: includes/api/automation-rest.php:2500
+#: includes/api/automation-rest.php:1991
+#: includes/api/automation-rest.php:2396
+#: includes/api/automation-rest.php:2483
 msgid "Expected dictionary entry title does not match live state."
 msgstr "Der erwartete Wörterbucheintragstitel stimmt nicht mit dem Live-Status überein."
 
@@ -25101,35 +25101,35 @@ msgstr "Schaltflächen des Sprachumschalters"
 msgid "Language switcher order"
 msgstr "Reihenfolge des Sprachumschalters"
 
-#: includes/api/automation-rest.php:2153
+#: includes/api/automation-rest.php:2136
 msgid "Old dictionary entry not found."
 msgstr "Alter Wörterbucheintrag nicht gefunden."
 
-#: includes/api/automation-rest.php:2160
+#: includes/api/automation-rest.php:2143
 msgid "Target dictionary entry not found."
 msgstr "Ziel-Wörterbucheintrag nicht gefunden."
 
-#: includes/api/automation-rest.php:2167
+#: includes/api/automation-rest.php:2150
 msgid "Old and target dictionary entries must be different."
 msgstr "Alter und Ziel-Wörterbucheintrag müssen verschieden sein."
 
-#: includes/api/automation-rest.php:2186
+#: includes/api/automation-rest.php:2169
 msgid "Expected old dictionary entry title does not match live state."
 msgstr "Der erwartete Titel des alten Wörterbucheintrags stimmt nicht mit dem Live-Status überein."
 
-#: includes/api/automation-rest.php:2198
+#: includes/api/automation-rest.php:2181
 msgid "Expected target dictionary entry title does not match live state."
 msgstr "Der erwartete Titel des Ziel-Wörterbucheintrags stimmt nicht mit dem Live-Status überein."
 
-#: includes/api/automation-rest.php:2490
+#: includes/api/automation-rest.php:2473
 msgid "Dictionary import helpers are not available."
 msgstr "Hilfsfunktionen für den Wörterbuchimport sind nicht verfügbar."
 
-#: includes/api/automation-rest.php:2514
+#: includes/api/automation-rest.php:2497
 msgid "Provide a dictionary import row."
 msgstr "Gib eine Wörterbuch-Importzeile an."
 
-#: includes/api/automation-rest.php:2537
+#: includes/api/automation-rest.php:2520
 msgid "Dictionary row entry is required."
 msgstr "Der Eintrag in der Wörterbuchzeile ist erforderlich."
 
@@ -25137,15 +25137,15 @@ msgstr "Der Eintrag in der Wörterbuchzeile ist erforderlich."
 msgid "Generic"
 msgstr "Allgemein"
 
-#: includes/api/automation-rest.php:6189
+#: includes/api/automation-rest.php:6172
 msgid "Speaker user not found."
 msgstr "Sprecher-Benutzer nicht gefunden."
 
-#: includes/api/automation-rest.php:6201
+#: includes/api/automation-rest.php:6184
 msgid "Speaker user precondition failed."
 msgstr "Vorbedingung für Sprecher-Benutzer fehlgeschlagen."
 
-#: includes/api/automation-rest.php:6212
+#: includes/api/automation-rest.php:6195
 msgid "Post author precondition failed."
 msgstr "Vorbedingung für Beitragsautor fehlgeschlagen."
 
@@ -25219,25 +25219,25 @@ msgstr "Kompakter generierter Markdown-Index für KI-Agenten."
 msgid "Public dictionary search and browse page."
 msgstr "Öffentliche Wörterbuchseite zum Suchen und Stöbern."
 
-#: includes/api/automation-rest.php:883
+#: includes/api/automation-rest.php:866
 msgid "You cannot manage the dictionary lookup index through LL Tools automation."
 msgstr "Der Wörterbuch-Suchindex kann nicht über die LL Tools-Automatisierung verwaltet werden."
 
-#: includes/api/automation-rest.php:2324
+#: includes/api/automation-rest.php:2307
 msgid "Provide one or more dictionary translation AI flag updates."
 msgstr "Gib mindestens eine Aktualisierung des KI-Kennzeichens für Wörterbuchübersetzungen an."
 
 #. translators: %d: maximum update count
-#: includes/api/automation-rest.php:2340
+#: includes/api/automation-rest.php:2323
 #, php-format
 msgid "Too many dictionary translation AI flag updates in one request. Maximum is %d."
 msgstr "Zu viele Aktualisierungen des KI-Kennzeichens für Wörterbuchübersetzungen in einer Anfrage. Maximal %d."
 
-#: includes/api/automation-rest.php:2375
+#: includes/api/automation-rest.php:2358
 msgid "Provide translation_is_ai as true or false."
 msgstr "Gib translation_is_ai als true oder false an."
 
-#: includes/api/automation-rest.php:2426
+#: includes/api/automation-rest.php:2409
 msgid "Expected dictionary entry translation does not match live state."
 msgstr "Die erwartete Übersetzung des Wörterbucheintrags stimmt nicht mit dem Live-Stand überein."
 
@@ -25326,13 +25326,13 @@ msgid "The selected category is not available for the chosen word set scope."
 msgstr "Die ausgewählte Kategorie ist für den gewählten Vokabelset-Bereich nicht verfügbar."
 
 #. translators: %d: maximum update count
-#: includes/api/automation-rest.php:5947
+#: includes/api/automation-rest.php:5930
 #, php-format
 msgid "Too many transcription updates in one request. Maximum is %d."
 msgstr "Zu viele Transkriptionsaktualisierungen in einer Anfrage. Maximal %d."
 
 #. translators: %d: maximum update count
-#: includes/api/automation-rest.php:6162
+#: includes/api/automation-rest.php:6145
 #, php-format
 msgid "Too many word audio speaker updates in one request. Maximum is %d."
 msgstr "Zu viele Sprecheraktualisierungen für Vokabel-Audio in einer Anfrage. Maximal %d."
@@ -26512,7 +26512,7 @@ msgstr "Für diese Kandidaten gibt es weitere automatische Konflikte. Grenze die
 msgid "Saved pair page %1$d of %2$d"
 msgstr "Seite %1$d von %2$d der gespeicherten Paare"
 
-#: includes/api/automation-rest.php:7230
+#: includes/api/automation-rest.php:7213
 #: includes/cli/cli-support.php:439
 msgid "Unable to resolve the requested word category."
 msgstr "Die angeforderte Vokabelkategorie konnte nicht aufgelöst werden."
@@ -27687,13 +27687,13 @@ msgid_plural "%s more lesson words are loading"
 msgstr[0] "%s weitere Vokabel der Lektion wird geladen"
 msgstr[1] "%s weitere Vokabeln der Lektion werden geladen"
 
-#: includes/api/automation-rest.php:7279
-#: includes/api/automation-rest.php:7300
-#: includes/api/automation-rest.php:7361
+#: includes/api/automation-rest.php:7262
+#: includes/api/automation-rest.php:7283
+#: includes/api/automation-rest.php:7344
 msgid "Unable to calculate the word set report summary."
 msgstr "Die Zusammenfassung des Vokabelset-Berichts konnte nicht berechnet werden."
 
-#: includes/api/automation-rest.php:1212
+#: includes/api/automation-rest.php:1195
 #, php-format
 msgid "Offset is too large. Use an offset no greater than %d or narrow the filters."
 msgstr "Der Offset ist zu groß. Verwende einen Offset von höchstens %d oder schränke die Filter ein."
