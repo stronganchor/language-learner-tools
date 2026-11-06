@@ -117,6 +117,72 @@ final class PublicStaticCacheLifecycleTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_legacy_retirement_keeps_open_basedir_denied_junctions_pending(): void
+    {
+        if (!function_exists('proc_open') || !$this->runNode('', [])) {
+            $this->markTestSkipped('The restricted PHP junction fixture requires Node and proc_open.');
+        }
+        $root = trailingslashit(sys_get_temp_dir()) . 'll-tools-legacy-basedir-' . wp_generate_uuid4();
+        $uploads = $root . '/uploads';
+        $outside = $root . '/outside';
+        $public = $uploads . '/ll-public-static-cache';
+        $layout = $uploads . '/ll-cache-stripes/files';
+        $this->assertTrue(wp_mkdir_p($outside));
+        $this->assertTrue(wp_mkdir_p($public));
+        $this->assertTrue(wp_mkdir_p($layout));
+        $this->ownedDirectories = [$outside, $public, $layout, dirname($layout), $uploads, $root];
+        $links = [$uploads . '/ll-dictionary-cache', $public . '/files', $layout . '/ab'];
+        $file = $outside . '/public-ab' . str_repeat('c', 30) . '.html';
+        $this->ownedFiles[] = $file;
+        $this->assertNotFalse(file_put_contents($file, 'outside file'));
+
+        try {
+            $create = "const fs=require('node:fs');const [target,...links]=process.argv.slice(1);"
+                . "for(const link of links)fs.symlinkSync(target,link,process.platform==='win32'?'junction':'dir');";
+            if (!$this->runNode($create, array_merge([$outside], $links))) {
+                $this->markTestSkipped('A real directory junction or symlink could not be created.');
+            }
+
+            // Narrow open_basedir only in a child process because PHP cannot undo it.
+            $probe = <<<'PHP'
+define('WPINC', 'wp-includes');
+function wp_upload_dir($time, $create, $refresh): array {
+    return ['basedir' => $GLOBALS['legacy_uploads']];
+}
+function trailingslashit(string $path): string { return rtrim($path, '/\\') . '/'; }
+function wp_normalize_path(string $path): string { return str_replace('\\', '/', $path); }
+require $argv[1];
+$GLOBALS['legacy_uploads'] = $argv[2];
+if (ini_set('open_basedir', $argv[2]) === false) { exit(2); }
+echo json_encode([
+    ll_tools_static_cache_legacy_upload_dir('ll-dictionary-cache'),
+    ll_tools_static_cache_retire_legacy_files('ll-public-static-cache', 'public', true),
+    ll_tools_static_cache_retire_legacy_files('ll-cache-stripes', 'public', true),
+    ll_tools_static_cache_legacy_upload_dir('ll-missing-cache'),
+]);
+PHP;
+            $process = proc_open([
+                PHP_BINARY, '-n', '-d', 'display_errors=1', '-r', $probe,
+                dirname(__DIR__, 2) . '/includes/lib/static-cache-maintenance.php', $uploads,
+            ], [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
+            $this->assertIsResource($process);
+            fclose($pipes[0]);
+            $output = stream_get_contents($pipes[1]);
+            fclose($pipes[1]);
+            $errors = stream_get_contents($pipes[2]);
+            fclose($pipes[2]);
+            $this->assertSame(0, proc_close($process), (string) $errors);
+            $this->assertSame([false, false, false, ''], json_decode((string) $output, true, 512, JSON_THROW_ON_ERROR));
+            $this->assertSame('', $errors);
+            $this->assertSame('outside file', file_get_contents($file));
+        } finally {
+            $cleanup = "const fs=require('node:fs');for(const link of process.argv.slice(1)){"
+                . "const entry=fs.lstatSync(link,{throwIfNoEntry:false});if(!entry)continue;"
+                . "if(!entry.isSymbolicLink())throw Error('Refusing non-link cleanup');fs.unlinkSync(link);}";
+            $this->assertTrue($this->runNode($cleanup, $links));
+        }
+    }
+
     public function test_production_md5_key_publication_is_inventoried_and_uses_sharded_storage(): void
     {
         $identity = $this->identity(1);

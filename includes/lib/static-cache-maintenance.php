@@ -85,6 +85,36 @@ function ll_tools_static_cache_private_dir(string $leaf): string {
     return is_writable($cache_dir) ? $cache_dir : '';
 }
 
+/**
+ * Return null for a linked or inaccessible legacy path.
+ *
+ * PHP can return false from both file_exists and is_link for a junction
+ * whose target is outside open_basedir. A failed probe leaves retirement
+ * pending. Preserve other warning handling.
+ */
+function ll_tools_static_cache_legacy_path_exists(string $path, bool $regular_file = false): ?bool {
+    $failed = false;
+    $previous = null;
+    $previous = set_error_handler(static function (int $level, string $message, string $file, int $line) use (&$failed, &$previous) {
+        $failed = true;
+        if (str_contains($message, 'open_basedir restriction in effect')) {
+            return true;
+        }
+        return $previous === null ? false : $previous($level, $message, $file, $line);
+    }, E_WARNING);
+
+    try {
+        clearstatcache(true, $path);
+        if (is_link($path) || $failed) {
+            return null;
+        }
+        $exists = $regular_file ? is_file($path) : file_exists($path);
+        return $failed ? null : $exists;
+    } finally {
+        restore_error_handler();
+    }
+}
+
 /** Find an old cache directory solely for retirement. False means unsafe or unavailable. */
 function ll_tools_static_cache_legacy_upload_dir(string $leaf): string|false {
     if (preg_match('/^[a-z0-9-]+$/D', $leaf) !== 1) {
@@ -100,17 +130,15 @@ function ll_tools_static_cache_legacy_upload_dir(string $leaf): string|false {
         // A restricted path can look absent even when it exists.
         $parent = @realpath(dirname($upload_path));
         return (string) ini_get('open_basedir') === '' && is_string($parent) && is_dir($parent)
-            && is_readable($parent) && !file_exists($upload_path) && !is_link($upload_path) ? '' : false;
+            && is_readable($parent) && ll_tools_static_cache_legacy_path_exists($upload_path) === false ? '' : false;
     }
     if (!is_dir($base) || !is_readable($base)) {
         return false;
     }
     $path = trailingslashit($base) . $leaf;
-    if (is_link($path)) {
-        return false;
-    }
-    if (!file_exists($path)) {
-        return '';
+    $exists = ll_tools_static_cache_legacy_path_exists($path);
+    if ($exists !== true) {
+        return $exists === false ? '' : false;
     }
     $actual = @realpath($path);
     return is_string($actual) && is_dir($actual)
@@ -127,9 +155,13 @@ function ll_tools_static_cache_retire_legacy_files(string $leaf, string $prefix,
 
     $layout = trailingslashit($root) . 'files';
     $directories = [$root];
-    if ($sharded && (file_exists($layout) || is_link($layout))) {
+    $layout_exists = $sharded ? ll_tools_static_cache_legacy_path_exists($layout) : false;
+    if ($layout_exists === null) {
+        return false;
+    }
+    if ($layout_exists) {
         $actual = @realpath($layout);
-        if (is_link($layout) || !is_dir($layout) || !is_string($actual)
+        if (!is_string($actual) || !is_dir($actual)
             || !ll_tools_static_cache_path_is_within($actual, $layout)
             || !ll_tools_static_cache_path_is_within($layout, $actual)) {
             return false;
@@ -147,11 +179,12 @@ function ll_tools_static_cache_retire_legacy_files(string $leaf, string $prefix,
         if (microtime(true) >= $deadline) {
             return false;
         }
-        if (is_link($directory)) {
+        $exists = ll_tools_static_cache_legacy_path_exists($directory);
+        if ($exists === null) {
             $complete = false;
             continue;
         }
-        if (!file_exists($directory)) {
+        if (!$exists) {
             continue;
         }
         $actual = @realpath($directory);
@@ -173,7 +206,7 @@ function ll_tools_static_cache_retire_legacy_files(string $leaf, string $prefix,
                     continue;
                 }
                 $file = trailingslashit($directory) . $name;
-                if (is_link($file) || !is_file($file) || !@unlink($file)) {
+                if (ll_tools_static_cache_legacy_path_exists($file, true) !== true || !@unlink($file)) {
                     $complete = false;
                 }
             }

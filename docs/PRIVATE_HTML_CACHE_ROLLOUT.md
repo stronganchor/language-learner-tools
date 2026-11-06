@@ -10,10 +10,13 @@ alias. An HTTP worker that has no `DOCUMENT_ROOT` requires this explicit path.
 The plugin checks the known document, WordPress, content, and uploads roots.
 It separates cache directories by installation, database, table prefix, and
 blog. PHP must be able to create the site directory, with owner-only mode on
-Unix. WordPress renders the canonical page dynamically under the usual request
-limits when private file storage is unavailable. Keep the database shared
-between workers so cache invalidation applies even when their temporary
-directories differ.
+Unix. Verify write access from the HTTP PHP worker before enabling the release
+on each host. If PHP cannot use a private directory, the pages can still render,
+but each eligible anonymous public page request spends the cold render budget
+(by default, 30 per client and 120 per site per minute). Sustained traffic can
+then receive HTTP 429. Configure a writable private directory before sending
+normal traffic to the release. Keep the database shared between workers so
+cache invalidation applies even when their temporary directories differ.
 
 Existing uploads may still contain HTML or metadata written by an older
 worker. Before promotion, identify the actual upload URL and filesystem path
@@ -34,7 +37,11 @@ files are retired.
 After the old PHP workers have drained, send anonymous GET and HEAD requests
 to a formerly valid URL from each legacy directory. Include at least one
 public-cache shard if it existed. Confirm a 403 or 404 with no cached body,
-then warm a normal public lesson and dictionary URL and confirm their
-expected status and content. Check both the origin and any CDN that could
-already hold a copy. Repeat this check after a rollback or a hosting-rule
-change.
+then request a cache-eligible public lesson and a canonical dictionary URL in
+the site's default language, anonymously and without a locale override. Check
+for the expected HTTP 200 and content, then repeat the requests directly at the
+origin and require `X-LL-Public-Static-Cache: HIT` and
+`X-LL-Dictionary-Cache: HIT`, respectively. An HTTP 200 alone does not establish
+that the worker can use the private cache. Check both the origin and any CDN
+that could already hold a copy of a legacy file. Repeat these checks after a
+rollback or a hosting-rule change.
