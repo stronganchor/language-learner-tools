@@ -743,6 +743,7 @@ function ll_tools_context_pack_definitions(): array
                 'includes/lib/public-static-cache.php',
                 'includes/lib/public-static-cache-lifecycle.php',
                 'includes/lib/static-cache-maintenance.php',
+                'docs/PRIVATE_HTML_CACHE_ROLLOUT.md',
                 'includes/lib/schema-maintenance.php',
                 'includes/lib/public-ajax-resource-guards.php',
                 'includes/lib/entity-translations.php',

@@ -2121,10 +2121,10 @@
             "msgid": "Clear LL cache",
             "msgid_plural": null,
             "references": [
-                "includes/lib/public-static-cache.php:2721"
+                "includes/lib/public-static-cache.php:2730"
             ],
             "public_references": [
-                "includes/lib/public-static-cache.php:2721"
+                "includes/lib/public-static-cache.php:2730"
             ]
         },
         {
@@ -2133,10 +2133,10 @@
             "msgid": "LL cache cleared (%d)",
             "msgid_plural": null,
             "references": [
-                "includes/lib/public-static-cache.php:2726"
+                "includes/lib/public-static-cache.php:2735"
             ],
             "public_references": [
-                "includes/lib/public-static-cache.php:2726"
+                "includes/lib/public-static-cache.php:2735"
             ]
         },
         {
@@ -2145,10 +2145,10 @@
             "msgid": "You are not allowed to clear LL Tools caches.",
             "msgid_plural": null,
             "references": [
-                "includes/lib/public-static-cache.php:2745"
+                "includes/lib/public-static-cache.php:2754"
             ],
             "public_references": [
-                "includes/lib/public-static-cache.php:2745"
+                "includes/lib/public-static-cache.php:2754"
             ]
         },
         {
@@ -2157,10 +2157,10 @@
             "msgid": "Cleared LL Tools static caches. %d cache file was removed.",
             "msgid_plural": "Cleared LL Tools static caches. %d cache files were removed.",
             "references": [
-                "includes/lib/public-static-cache.php:2781"
+                "includes/lib/public-static-cache.php:2790"
             ],
             "public_references": [
-                "includes/lib/public-static-cache.php:2781"
+                "includes/lib/public-static-cache.php:2790"
             ]
         },
         {
@@ -2169,11 +2169,11 @@
             "msgid": "Too many requests. Please wait a moment and try again.",
             "msgid_plural": null,
             "references": [
-                "includes/lib/dictionary-static-cache.php:1059",
-                "includes/lib/public-static-cache.php:528"
+                "includes/lib/dictionary-static-cache.php:1224",
+                "includes/lib/public-static-cache.php:525"
             ],
             "public_references": [
-                "includes/lib/public-static-cache.php:528"
+                "includes/lib/public-static-cache.php:525"
             ]
         },
         {
@@ -9268,7 +9268,7 @@
             "references": [
                 "includes/lib/ai-crawler-support.php:394",
                 "includes/lib/dictionary-browser.php:192",
-                "includes/lib/dictionary-static-cache.php:1060",
+                "includes/lib/dictionary-static-cache.php:1225",
                 "includes/shortcodes/dictionary-shortcode.php:2539",
                 "includes/shortcodes/dictionary-shortcode.php:3052",
                 "includes/shortcodes/dictionary-shortcode.php:3487",

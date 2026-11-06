@@ -2,14 +2,14 @@
 # This file is distributed under the same license as the Language Learner Tools plugin.
 msgid ""
 msgstr ""
-"Project-Id-Version: Language Learner Tools 6.7.64\n"
+"Project-Id-Version: Language Learner Tools 6.7.65\n"
 "Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/language-learner-tools\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-11-06T06:53:57+00:00\n"
+"POT-Creation-Date: 2026-11-06T07:45:34+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.10.0\n"
 "X-Domain: ll-tools-text-domain\n"
@@ -14348,7 +14348,7 @@ msgstr ""
 
 #: includes/lib/ai-crawler-support.php:394
 #: includes/lib/dictionary-browser.php:192
-#: includes/lib/dictionary-static-cache.php:1060
+#: includes/lib/dictionary-static-cache.php:1225
 #: includes/shortcodes/dictionary-shortcode.php:2539
 #: includes/shortcodes/dictionary-shortcode.php:3052
 #: includes/shortcodes/dictionary-shortcode.php:3487
@@ -14938,8 +14938,8 @@ msgstr ""
 msgid "Unable to save the dictionary snapshot entry."
 msgstr ""
 
-#: includes/lib/dictionary-static-cache.php:1059
-#: includes/lib/public-static-cache.php:528
+#: includes/lib/dictionary-static-cache.php:1224
+#: includes/lib/public-static-cache.php:525
 msgid "Too many requests. Please wait a moment and try again."
 msgstr ""
 
@@ -15467,21 +15467,21 @@ msgstr ""
 msgid "An earlier job step did not finish checkpointing. Review its applied changes and saved state before recovery; automatic replay is blocked."
 msgstr ""
 
-#: includes/lib/public-static-cache.php:2721
+#: includes/lib/public-static-cache.php:2730
 msgid "Clear LL cache"
 msgstr ""
 
 #. translators: %d: number of deleted cache files
-#: includes/lib/public-static-cache.php:2726
+#: includes/lib/public-static-cache.php:2735
 msgid "LL cache cleared (%d)"
 msgstr ""
 
-#: includes/lib/public-static-cache.php:2745
+#: includes/lib/public-static-cache.php:2754
 msgid "You are not allowed to clear LL Tools caches."
 msgstr ""
 
 #. translators: %d: number of deleted cache files
-#: includes/lib/public-static-cache.php:2781
+#: includes/lib/public-static-cache.php:2790
 msgid "Cleared LL Tools static caches. %d cache file was removed."
 msgid_plural "Cleared LL Tools static caches. %d cache files were removed."
 msgstr[0] ""

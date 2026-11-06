@@ -40,7 +40,9 @@ function ll_tools_public_static_cache_gc_entry_option(string $key): string {
 
 /** Never follow a shard junction/symlink outside the configured cache root. */
 function ll_tools_public_static_cache_gc_path_is_safe(string $file): bool {
-    $root = realpath(ll_tools_public_static_cache_dir());
+    $dir = ll_tools_public_static_cache_dir();
+    if ($dir === '' || $file === '') { return false; }
+    $root = realpath($dir);
     $parent = realpath(dirname($file));
     if (!is_string($root) || is_link($file)) { return false; }
     $root = rtrim(wp_normalize_path($root), '/');
@@ -331,6 +333,11 @@ function ll_tools_public_static_cache_gc_run(): array {
     $limits = ll_tools_public_static_cache_gc_limits();
     $deadline = microtime(true) + $limits['seconds'];
     $result = ['visited' => 0, 'adopted' => 0, 'signature_bytes' => 0, 'selected' => 0, 'deleted' => 0, 'bytes_deleted' => 0, 'protected' => 0, 'deferred' => 0, 'row_retries' => 0, 'retry' => false];
+    if (ll_tools_public_static_cache_dir() === '') {
+        $result['retry'] = true;
+        ll_tools_public_static_cache_gc_schedule(HOUR_IN_SECONDS);
+        return $result;
+    }
     $lease = ll_tools_mutation_job_acquire('public_static_cache_gc', 'files');
     if (is_wp_error($lease)) { $result['retry'] = true; ll_tools_public_static_cache_gc_schedule(30); return $result; }
     try {

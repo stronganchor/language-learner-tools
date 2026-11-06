@@ -43,11 +43,18 @@
   fallback, fences publication, and backs off individual failed rows while
   continuing the inventory sweep.
 
+- Dictionary HTML files are scoped to the current generation and each render
+  holds an exact rebuild lease. Invalidation advances the generation before
+  deleting files. It also advances the generation for later edits in a bulk
+  request even when the directory scan has already run. A failed database
+  rotation quarantines dictionary HTML until a successful retry. Private
+  dictionary storage can serve the current generation while legacy uploads
+  retirement awaits a separate maintenance retry.
+
 ## Future Work
 
-- Plan host-level protection of generated files, dictionary publication fencing,
-  and resumable explicit public-cache purges separately. Ordinary cache hits
-  and canonical crawler routes must keep working during rollout.
+- Review server rules for legacy uploads URLs that still need retirement and
+  plan resumable explicit public-cache purges.
 - Add bounded prewarming after explicit cache purges or dictionary content changes. Start with canonical dictionary landing and letter pages, not arbitrary search/result combinations.
 - Add LL-owned static caching for public blog/article pages that contain LL shortcodes. These pages are intentionally excluded from generic page caches today, but a plugin-owned cache could safely refresh LL nonce placeholders while avoiding full PHP renders for mostly static article content.
 - Add an admin cache diagnostic panel that shows current LL cache status, page-cache bypass reason, cache directory size, and last purge/prewarm time.

@@ -913,6 +913,8 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
             'key' => $key,
             'file' => $file,
             'lock_acquired' => true,
+            'generation' => ll_tools_dictionary_static_cache_generation(),
+            'lease_value' => ll_tools_dictionary_static_cache_get_rebuild_lease_value($key),
             'buffer_level' => $buffer_level,
         ];
 
@@ -931,6 +933,178 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertStringContainsString('dictionary cache store test', (string) file_get_contents($file));
         $this->assertFalse(get_option($lock_option, false));
         delete_option($lock_option);
+    }
+
+    public function test_dictionary_static_cache_rejects_a_capture_and_file_from_a_purged_generation(): void
+    {
+        $identity = ['page_id' => 71, 'path' => '/dictionary/'];
+        $generation = ll_tools_dictionary_static_cache_generation();
+        $key = ll_tools_dictionary_static_cache_key($identity, [], 'en_US', $generation);
+        $file = ll_tools_dictionary_static_cache_file_path($key);
+        $this->assertTrue(ll_tools_dictionary_static_cache_acquire_rebuild_lock($key));
+        $lease = ll_tools_dictionary_static_cache_get_rebuild_lease_value($key);
+
+        ll_tools_purge_dictionary_static_cache();
+
+        $this->assertNotSame($generation, ll_tools_dictionary_static_cache_generation());
+        $this->assertNotSame($key, ll_tools_dictionary_static_cache_key($identity, [], 'en_US'));
+        $this->storeDictionaryStaticCacheCapture($key, $file, $generation, $lease);
+        $this->assertFileDoesNotExist($file);
+
+        // Even if a filesystem race leaves the old body behind, it is inaccessible.
+        file_put_contents($file, '<!doctype html><html><body>purged body</body></html>');
+        try {
+            $this->assertNull(ll_tools_dictionary_static_cache_read_prepared_file($file, $generation));
+        } finally {
+            unlink($file);
+        }
+    }
+
+    public function test_dictionary_static_cache_old_owner_cannot_publish_or_release_a_successor(): void
+    {
+        $key = md5('dictionary-exact-owner-test');
+        $file = ll_tools_dictionary_static_cache_file_path($key);
+        $option = ll_tools_dictionary_static_cache_rebuild_lock_option($key);
+        $generation = ll_tools_dictionary_static_cache_generation();
+        $this->assertTrue(ll_tools_dictionary_static_cache_acquire_rebuild_lock($key));
+        $lease = ll_tools_dictionary_static_cache_get_rebuild_lease_value($key);
+        $expired_lease = (time() - 1) . '|' . explode('|', $lease, 2)[1];
+        update_option($option, $expired_lease, false);
+        $this->assertTrue(ll_tools_dictionary_static_cache_acquire_rebuild_lock($key));
+        $successor = ll_tools_dictionary_static_cache_get_rebuild_lease_value($key);
+
+        try {
+            file_put_contents($file, '<!doctype html><html><body>successor body</body></html>');
+            $this->storeDictionaryStaticCacheCapture($key, $file, $generation, $expired_lease);
+            $this->assertStringContainsString('successor body', (string) file_get_contents($file));
+            $this->assertSame($successor, get_option($option));
+        } finally {
+            ll_tools_dictionary_static_cache_release_rebuild_lock($key, $successor);
+            @unlink($file);
+        }
+    }
+
+    public function test_dictionary_static_cache_quarantines_reads_after_generation_write_failure(): void
+    {
+        global $wpdb;
+        $generation = ll_tools_dictionary_static_cache_generation();
+        $key = ll_tools_dictionary_static_cache_key(['page_id' => 72, 'path' => '/dictionary/'], [], 'en_US', $generation);
+        $file = ll_tools_dictionary_static_cache_file_path($key);
+        file_put_contents($file, '<!doctype html><html><body>retired body</body></html>');
+
+        $fail = static function (string $query): string {
+            if (stripos(ltrim($query), 'INSERT INTO') === 0
+                && strpos($query, "'" . LL_TOOLS_DICTIONARY_STATIC_CACHE_GENERATION_OPTION . "'") !== false) {
+                return 'SELECT * FROM ll_tools_nonexistent_dictionary_generation_test';
+            }
+            return $query;
+        };
+        $was_suppressed = $wpdb->suppress_errors(true);
+        add_filter('query', $fail);
+        try {
+            $this->assertFalse(ll_tools_dictionary_static_cache_invalidate_generation());
+            ll_tools_reset_dictionary_static_cache_purge_once_state();
+            $this->assertFileExists(ll_tools_dictionary_static_cache_quarantine_file());
+            $this->assertFileExists($file);
+            $this->assertSame('', ll_tools_dictionary_static_cache_generation());
+            $this->assertNull(ll_tools_dictionary_static_cache_read_prepared_file($file, $generation));
+        } finally {
+            remove_filter('query', $fail);
+            $wpdb->suppress_errors($was_suppressed);
+            $recovered = ll_tools_dictionary_static_cache_invalidate_generation();
+            @unlink($file);
+        }
+
+        $this->assertTrue($recovered);
+        $this->assertFileDoesNotExist(ll_tools_dictionary_static_cache_quarantine_file());
+        $this->assertNotSame($generation, ll_tools_dictionary_static_cache_generation());
+    }
+
+    public function test_dictionary_static_cache_can_serve_private_files_while_legacy_retirement_is_pending(): void
+    {
+        $uploads = tempnam(sys_get_temp_dir(), 'll-dictionary-legacy-');
+        $this->assertIsString($uploads);
+        unlink($uploads);
+        $this->assertTrue(wp_mkdir_p($uploads));
+        $unsafe_legacy_path = trailingslashit($uploads) . LL_TOOLS_DICTIONARY_STATIC_CACHE_DIRNAME;
+        file_put_contents($unsafe_legacy_path, 'leave untouched');
+        $upload_dir = static function (array $paths) use ($uploads): array {
+            $paths['basedir'] = $uploads;
+            return $paths;
+        };
+        $schema = LL_TOOLS_DICTIONARY_STATIC_CACHE_SCHEMA_OPTION;
+        $retired = LL_TOOLS_DICTIONARY_STATIC_CACHE_RETIRED_UPLOADS_OPTION;
+        $retry = 'll_tools_dictionary_static_cache_retry_after';
+        $previous = [];
+        foreach ([$schema, $retired, $retry] as $option) {
+            $previous[$option] = get_option($option, false);
+            delete_option($option);
+        }
+        $file = '';
+        add_filter('upload_dir', $upload_dir);
+
+        try {
+            ll_tools_dictionary_static_cache_maybe_purge_legacy_schema();
+
+            $this->assertSame(LL_TOOLS_DICTIONARY_STATIC_CACHE_SCHEMA, (int) get_option($schema));
+            $this->assertFalse(get_option($retired));
+            $this->assertSame('leave untouched', file_get_contents($unsafe_legacy_path));
+
+            $generation = ll_tools_dictionary_static_cache_generation();
+            $key = ll_tools_dictionary_static_cache_key(['page_id' => 73, 'path' => '/dictionary/'], [], 'en_US', $generation);
+            $file = ll_tools_dictionary_static_cache_file_path($key);
+            $this->assertTrue(ll_tools_dictionary_static_cache_acquire_rebuild_lock($key));
+            $this->storeDictionaryStaticCacheCapture($key, $file, $generation, ll_tools_dictionary_static_cache_get_rebuild_lease_value($key));
+            $this->assertStringContainsString('captured dictionary body', (string) ll_tools_dictionary_static_cache_read_prepared_file($file, $generation));
+
+            unlink($unsafe_legacy_path);
+            delete_option($retry);
+            ll_tools_dictionary_static_cache_maybe_purge_legacy_schema();
+
+            $this->assertTrue((bool) get_option($retired));
+            $this->assertSame($generation, ll_tools_dictionary_static_cache_generation());
+            $this->assertFileExists($file);
+        } finally {
+            remove_filter('upload_dir', $upload_dir);
+            if ($file !== '') {
+                @unlink($file);
+            }
+            @unlink($unsafe_legacy_path);
+            rmdir($uploads);
+            foreach ($previous as $option => $value) {
+                if ($value === false) {
+                    delete_option($option);
+                } else {
+                    update_option($option, $value, false);
+                }
+            }
+        }
+    }
+
+    private function storeDictionaryStaticCacheCapture(string $key, string $file, string $generation, string $lease): void
+    {
+        $_SERVER['REQUEST_METHOD'] = 'GET';
+        $_GET = [];
+        $buffer_level = ob_get_level();
+        $GLOBALS['ll_tools_dictionary_static_cache_request'] = [
+            'active' => true,
+            'key' => $key,
+            'file' => $file,
+            'lock_acquired' => true,
+            'generation' => $generation,
+            'lease_value' => $lease,
+            'buffer_level' => $buffer_level,
+        ];
+        ob_start();
+        try {
+            echo '<!doctype html><html><body>' . str_repeat('captured dictionary body ', 40) . '</body></html>';
+            ll_tools_store_dictionary_static_cache();
+        } finally {
+            while (ob_get_level() > $buffer_level) {
+                ob_end_clean();
+            }
+            unset($GLOBALS['ll_tools_dictionary_static_cache_request']);
+        }
     }
 
     public function test_dictionary_public_navigation_drops_nonce_auth_and_tracking_noise(): void
@@ -1065,9 +1239,12 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
 
         file_put_contents($second_file, '<!doctype html><html><body>second</body></html>');
         $this->assertFileExists($second_file);
+        $generation = ll_tools_dictionary_static_cache_generation();
 
         ll_tools_bump_dictionary_browser_cache_version();
         $this->assertFileExists($second_file);
+        $this->assertNotSame($generation, ll_tools_dictionary_static_cache_generation());
+        $this->assertNull(ll_tools_dictionary_static_cache_read_prepared_file($second_file, $generation));
 
         if (function_exists('ll_tools_reset_dictionary_static_cache_purge_once_state')) {
             ll_tools_reset_dictionary_static_cache_purge_once_state();

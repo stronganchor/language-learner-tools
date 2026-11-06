@@ -23288,22 +23288,22 @@ msgstr "Eşleşen corpus text yazısı bulunamadı."
 msgid "The matching content lesson is not a corpus text."
 msgstr "Eşleşen içerik dersi bir corpus text değil."
 
-#: includes/lib/public-static-cache.php:2721
+#: includes/lib/public-static-cache.php:2730
 msgid "Clear LL cache"
 msgstr "LL önbelleğini temizle"
 
 #. translators: %d: number of deleted cache files
-#: includes/lib/public-static-cache.php:2726
+#: includes/lib/public-static-cache.php:2735
 #, php-format
 msgid "LL cache cleared (%d)"
 msgstr "LL önbelleği temizlendi (%d)"
 
-#: includes/lib/public-static-cache.php:2745
+#: includes/lib/public-static-cache.php:2754
 msgid "You are not allowed to clear LL Tools caches."
 msgstr "LL Tools önbelleklerini temizleme iznin yok."
 
 #. translators: %d: number of deleted cache files
-#: includes/lib/public-static-cache.php:2781
+#: includes/lib/public-static-cache.php:2790
 #, php-format
 msgid "Cleared LL Tools static caches. %d cache file was removed."
 msgid_plural "Cleared LL Tools static caches. %d cache files were removed."
@@ -28586,7 +28586,7 @@ msgstr "Saklanan değeri güvenli olmadığından, %2$d numaralı gönderideki \
 
 #: includes/lib/ai-crawler-support.php:394
 #: includes/lib/dictionary-browser.php:192
-#: includes/lib/dictionary-static-cache.php:1060
+#: includes/lib/dictionary-static-cache.php:1225
 #: includes/shortcodes/dictionary-shortcode.php:2539
 #: includes/shortcodes/dictionary-shortcode.php:3052
 #: includes/shortcodes/dictionary-shortcode.php:3487
@@ -30530,8 +30530,8 @@ msgstr "Özel kategoriler yalnızca yöneticilere ve erişim izni verilen kullan
 msgid "This category inherits private visibility from its source category."
 msgstr "Bu kategori, kaynak kategorisinin özel görünürlüğünü devralır."
 
-#: includes/lib/dictionary-static-cache.php:1059
-#: includes/lib/public-static-cache.php:528
+#: includes/lib/dictionary-static-cache.php:1224
+#: includes/lib/public-static-cache.php:525
 msgid "Too many requests. Please wait a moment and try again."
 msgstr "Çok fazla istek gönderildi. Lütfen biraz bekleyip tekrar dene."
 
@@ -30810,7 +30810,11 @@ msgstr "Metin güvenli biçimde okunamadı. Lütfen tekrar dene."
 msgid "This activity is currently unavailable."
 msgstr "Bu etkinlik şu anda kullanılamıyor."
 
-#: includes/admin/admin-dashboard-menu.php:168 includes/admin/admin-dashboard-menu.php:578 includes/admin/category-video-export.php:9 includes/admin/category-video-export.php:10 includes/admin/category-video-export.php:94
+#: includes/admin/admin-dashboard-menu.php:168
+#: includes/admin/admin-dashboard-menu.php:578
+#: includes/admin/category-video-export.php:9
+#: includes/admin/category-video-export.php:10
+#: includes/admin/category-video-export.php:94
 msgid "Category Video"
 msgstr "Kategori Videosu"
 
@@ -31150,7 +31154,10 @@ msgstr "Yeni kelime hâlâ hazırlanıyor. Birazdan yeniden dene."
 msgid "The original new word request must be checked before changing it."
 msgstr "Yeni kelimeye ait ilk isteği değiştirmeden önce kontrol etmen gerekir."
 
-#: includes/lib/recorder-mutations.php:138 includes/shortcodes/audio-recording-shortcode.php:1652 includes/shortcodes/audio-recording-shortcode.php:5074 includes/shortcodes/audio-recording-shortcode.php:5312
+#: includes/lib/recorder-mutations.php:138
+#: includes/shortcodes/audio-recording-shortcode.php:1652
+#: includes/shortcodes/audio-recording-shortcode.php:5074
+#: includes/shortcodes/audio-recording-shortcode.php:5312
 msgid "New word creation could not be confirmed. Check for an existing draft before recording this word again."
 msgstr "Yeni kelimenin oluşturulduğu doğrulanamadı. Bu kelimeyi yeniden kaydetmeden önce mevcut bir taslak olup olmadığını kontrol et."
 
@@ -31162,7 +31169,8 @@ msgstr "Hazırlamayı yeniden dene"
 msgid "Checking new word..."
 msgstr "Yeni kelime kontrol ediliyor..."
 
-#: includes/shortcodes/audio-recording-shortcode.php:1656 includes/shortcodes/audio-recording-shortcode.php:5634
+#: includes/shortcodes/audio-recording-shortcode.php:1656
+#: includes/shortcodes/audio-recording-shortcode.php:5634
 msgid "This word changed elsewhere. Review the saved text before choosing which changes to keep."
 msgstr "Bu kelime başka bir yerde değiştirildi. Hangi değişiklikleri koruyacağını seçmeden önce kaydedilmiş metni gözden geçir."
 

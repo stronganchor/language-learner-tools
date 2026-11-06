@@ -210,6 +210,45 @@ final class PublicStaticCacheTest extends LL_Tools_TestCase
         );
     }
 
+    public function test_public_cache_uses_private_storage_and_allows_rendering_when_it_is_unavailable(): void
+    {
+        $private = ll_tools_public_static_cache_dir();
+        $uploads = wp_upload_dir(null, false, false);
+        $this->assertNotSame('', $private);
+        $this->assertFalse(ll_tools_static_cache_path_is_within($private, (string) $uploads['basedir']));
+        $this->assertFalse(ll_tools_static_cache_path_is_within($private, ABSPATH));
+
+        $wordset = wp_insert_term('Static Cache Private Storage Fallback', 'wordset');
+        $this->assertIsArray($wordset);
+        $term = get_term((int) $wordset['term_id'], 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $term);
+        wp_set_current_user(0);
+        $_SERVER['REQUEST_METHOD'] = 'GET';
+        $_SERVER['REQUEST_URI'] = '/' . $term->slug . '/';
+        $_GET = [];
+        set_query_var('ll_wordset_page', $term->slug);
+        set_query_var('ll_wordset_view', '');
+        $this->clear404Flag();
+        $this->assertIsArray(ll_tools_public_static_cache_request_identity());
+
+        $document_root = $_SERVER['DOCUMENT_ROOT'] ?? null;
+        $_SERVER['DOCUMENT_ROOT'] = dirname(dirname($private));
+        $level = ob_get_level();
+        try {
+            $this->assertSame('', ll_tools_public_static_cache_dir());
+            $this->assertFalse(ll_tools_is_cacheable_public_static_request());
+            ll_tools_serve_public_static_cache();
+            $this->assertSame($level, ob_get_level());
+            $this->assertArrayNotHasKey('ll_tools_public_static_cache_request', $GLOBALS);
+        } finally {
+            if ($document_root === null) {
+                unset($_SERVER['DOCUMENT_ROOT']);
+            } else {
+                $_SERVER['DOCUMENT_ROOT'] = $document_root;
+            }
+        }
+    }
+
     public function test_public_static_cache_never_reads_or_captures_frontend_auth_requests(): void
     {
         $term = wp_insert_term('Public Static Cache Auth Bypass', 'wordset');

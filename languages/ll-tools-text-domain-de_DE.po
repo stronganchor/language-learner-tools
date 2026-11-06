@@ -23276,22 +23276,22 @@ msgstr "Es wurde kein passender Korpustext-Beitrag gefunden."
 msgid "The matching content lesson is not a corpus text."
 msgstr "Die passende Inhaltslektion ist kein Korpustext."
 
-#: includes/lib/public-static-cache.php:2721
+#: includes/lib/public-static-cache.php:2730
 msgid "Clear LL cache"
 msgstr "LL-Cache leeren"
 
 #. translators: %d: number of deleted cache files
-#: includes/lib/public-static-cache.php:2726
+#: includes/lib/public-static-cache.php:2735
 #, php-format
 msgid "LL cache cleared (%d)"
 msgstr "LL-Cache geleert (%d)"
 
-#: includes/lib/public-static-cache.php:2745
+#: includes/lib/public-static-cache.php:2754
 msgid "You are not allowed to clear LL Tools caches."
 msgstr "Du darfst die LL Tools-Caches nicht leeren."
 
 #. translators: %d: number of deleted cache files
-#: includes/lib/public-static-cache.php:2781
+#: includes/lib/public-static-cache.php:2790
 #, php-format
 msgid "Cleared LL Tools static caches. %d cache file was removed."
 msgid_plural "Cleared LL Tools static caches. %d cache files were removed."
@@ -28590,7 +28590,7 @@ msgstr "Der Metadatenschlüssel \"%1$s\" von Beitrag %2$d wurde beim Rückgängi
 
 #: includes/lib/ai-crawler-support.php:394
 #: includes/lib/dictionary-browser.php:192
-#: includes/lib/dictionary-static-cache.php:1060
+#: includes/lib/dictionary-static-cache.php:1225
 #: includes/shortcodes/dictionary-shortcode.php:2539
 #: includes/shortcodes/dictionary-shortcode.php:3052
 #: includes/shortcodes/dictionary-shortcode.php:3487
@@ -30529,8 +30529,8 @@ msgstr "Private Kategorien sind nur für Administratoren und zugewiesene Benutze
 msgid "This category inherits private visibility from its source category."
 msgstr "Diese Kategorie übernimmt die private Sichtbarkeit ihrer Quellkategorie."
 
-#: includes/lib/dictionary-static-cache.php:1059
-#: includes/lib/public-static-cache.php:528
+#: includes/lib/dictionary-static-cache.php:1224
+#: includes/lib/public-static-cache.php:525
 msgid "Too many requests. Please wait a moment and try again."
 msgstr ""
 "Zu viele Anfragen. Bitte warten Sie einen Moment und versuchen Sie es "
@@ -30813,7 +30813,11 @@ msgstr "Der Text konnte nicht sicher gelesen werden. Bitte versuchen Sie es erne
 msgid "This activity is currently unavailable."
 msgstr "Diese Aktivität ist derzeit nicht verfügbar."
 
-#: includes/admin/admin-dashboard-menu.php:168 includes/admin/admin-dashboard-menu.php:578 includes/admin/category-video-export.php:9 includes/admin/category-video-export.php:10 includes/admin/category-video-export.php:94
+#: includes/admin/admin-dashboard-menu.php:168
+#: includes/admin/admin-dashboard-menu.php:578
+#: includes/admin/category-video-export.php:9
+#: includes/admin/category-video-export.php:10
+#: includes/admin/category-video-export.php:94
 msgid "Category Video"
 msgstr "Kategorie-Video"
 
@@ -31153,7 +31157,10 @@ msgstr "Die neue Vokabel wird noch vorbereitet. Versuche es gleich erneut."
 msgid "The original new word request must be checked before changing it."
 msgstr "Die ursprüngliche Anfrage für die neue Vokabel muss geprüft werden, bevor sie geändert wird."
 
-#: includes/lib/recorder-mutations.php:138 includes/shortcodes/audio-recording-shortcode.php:1652 includes/shortcodes/audio-recording-shortcode.php:5074 includes/shortcodes/audio-recording-shortcode.php:5312
+#: includes/lib/recorder-mutations.php:138
+#: includes/shortcodes/audio-recording-shortcode.php:1652
+#: includes/shortcodes/audio-recording-shortcode.php:5074
+#: includes/shortcodes/audio-recording-shortcode.php:5312
 msgid "New word creation could not be confirmed. Check for an existing draft before recording this word again."
 msgstr "Es konnte nicht bestätigt werden, ob die neue Vokabel angelegt wurde. Prüfe, ob bereits ein Entwurf vorhanden ist, bevor du diese Vokabel erneut aufnimmst."
 
@@ -31165,7 +31172,8 @@ msgstr "Vorbereitung erneut versuchen"
 msgid "Checking new word..."
 msgstr "Neue Vokabel wird geprüft..."
 
-#: includes/shortcodes/audio-recording-shortcode.php:1656 includes/shortcodes/audio-recording-shortcode.php:5634
+#: includes/shortcodes/audio-recording-shortcode.php:1656
+#: includes/shortcodes/audio-recording-shortcode.php:5634
 msgid "This word changed elsewhere. Review the saved text before choosing which changes to keep."
 msgstr "Diese Vokabel wurde an anderer Stelle geändert. Prüfe den gespeicherten Text, bevor du auswählst, welche Änderungen du behalten möchtest."
 

@@ -41,6 +41,82 @@ final class PublicStaticCacheLifecycleTest extends LL_Tools_TestCase
         parent::tearDown();
     }
 
+    public function test_schema_maintenance_retires_legacy_upload_html_and_sidecars_without_adopting_them(): void
+    {
+        $base = trailingslashit(sys_get_temp_dir()) . 'll-tools-legacy-' . wp_generate_uuid4();
+        $legacy = trailingslashit($base) . LL_TOOLS_PUBLIC_STATIC_CACHE_DIRNAME;
+        $shard = trailingslashit($legacy) . 'files/ab';
+        $this->assertTrue(wp_mkdir_p($shard));
+        $this->ownedDirectories = [$shard, dirname($shard), $legacy, $base];
+        $key = 'ab' . str_repeat('c', 30);
+        $files = [
+            trailingslashit($legacy) . 'public-' . $key . '.html',
+            trailingslashit($shard) . 'public-' . $key . '.html',
+            trailingslashit($shard) . 'public-' . $key . '.meta.json',
+            trailingslashit($shard) . 'public-' . $key . '.html.tmp-probe',
+        ];
+        $unrelated = trailingslashit($shard) . 'preserve.txt';
+        $this->ownedFiles = array_merge($files, [$unrelated]);
+        foreach ($this->ownedFiles as $file) {
+            $this->assertNotFalse(file_put_contents($file, 'legacy fixture'));
+        }
+        $uploads = static function (array $paths) use ($base): array {
+            $paths['basedir'] = $base;
+            return $paths;
+        };
+        add_filter('upload_dir', $uploads);
+        update_option(LL_TOOLS_PUBLIC_STATIC_CACHE_SCHEMA_OPTION, LL_TOOLS_PUBLIC_STATIC_CACHE_SCHEMA - 1, false);
+        delete_option(LL_TOOLS_PUBLIC_STATIC_CACHE_UPLOADS_RETIRED_OPTION);
+        delete_option('ll_tools_public_static_cache_retry_after');
+        try {
+            $this->assertNull(ll_tools_public_static_cache_read_prepared_file($files[0], $this->identity(1)));
+            ll_tools_public_static_cache_maybe_purge_legacy_schema();
+            foreach ($files as $file) {
+                $this->assertFileDoesNotExist($file);
+            }
+            $this->assertFileExists($unrelated);
+            $this->assertFileDoesNotExist(ll_tools_public_static_cache_file_path($key));
+            $this->assertSame(LL_TOOLS_PUBLIC_STATIC_CACHE_SCHEMA, (int) get_option(LL_TOOLS_PUBLIC_STATIC_CACHE_SCHEMA_OPTION));
+            $this->assertTrue((bool) get_option(LL_TOOLS_PUBLIC_STATIC_CACHE_UPLOADS_RETIRED_OPTION, false));
+        } finally {
+            remove_filter('upload_dir', $uploads);
+        }
+    }
+
+    public function test_unsafe_legacy_uploads_remain_pending_while_private_cache_can_publish(): void
+    {
+        $base = trailingslashit(sys_get_temp_dir()) . 'll-tools-unsafe-legacy-' . wp_generate_uuid4();
+        $legacy = trailingslashit($base) . LL_TOOLS_PUBLIC_STATIC_CACHE_DIRNAME;
+        $this->assertTrue(wp_mkdir_p($base));
+        $this->ownedDirectories[] = $base;
+        $this->ownedFiles[] = $legacy;
+        $this->assertNotFalse(file_put_contents($legacy, 'not a cache directory'));
+        $uploads = static function (array $paths) use ($base): array {
+            $paths['basedir'] = $base;
+            return $paths;
+        };
+        add_filter('upload_dir', $uploads);
+        update_option(LL_TOOLS_PUBLIC_STATIC_CACHE_SCHEMA_OPTION, LL_TOOLS_PUBLIC_STATIC_CACHE_SCHEMA - 1, false);
+        delete_option(LL_TOOLS_PUBLIC_STATIC_CACHE_UPLOADS_RETIRED_OPTION);
+        delete_option('ll_tools_public_static_cache_retry_after');
+        wp_clear_scheduled_hook(LL_TOOLS_SCHEMA_MAINTENANCE_HOOK, ['public_static_cache']);
+        try {
+            ll_tools_public_static_cache_maybe_purge_legacy_schema();
+            $this->assertSame(LL_TOOLS_PUBLIC_STATIC_CACHE_SCHEMA, (int) get_option(LL_TOOLS_PUBLIC_STATIC_CACHE_SCHEMA_OPTION));
+            $this->assertFalse((bool) get_option(LL_TOOLS_PUBLIC_STATIC_CACHE_UPLOADS_RETIRED_OPTION, false));
+            $this->assertNotFalse(wp_next_scheduled(LL_TOOLS_SCHEMA_MAINTENANCE_HOOK, ['public_static_cache']));
+            $this->assertSame('not a cache directory', file_get_contents($legacy));
+
+            $identity = $this->identity(1);
+            $key = ll_tools_public_static_cache_key($identity, [], 'en_US');
+            $file = $this->publish($identity, $key);
+            $this->assertFileExists($file);
+            $this->assertIsString(ll_tools_public_static_cache_read_prepared_file($file, $identity));
+        } finally {
+            remove_filter('upload_dir', $uploads);
+        }
+    }
+
     public function test_production_md5_key_publication_is_inventoried_and_uses_sharded_storage(): void
     {
         $identity = $this->identity(1);

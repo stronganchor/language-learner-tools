@@ -39,11 +39,15 @@ if (!defined('LL_TOOLS_PUBLIC_STATIC_CACHE_GENERATION_OPTION')) {
 }
 
 if (!defined('LL_TOOLS_PUBLIC_STATIC_CACHE_SCHEMA')) {
-    define('LL_TOOLS_PUBLIC_STATIC_CACHE_SCHEMA', 3);
+    define('LL_TOOLS_PUBLIC_STATIC_CACHE_SCHEMA', 4);
 }
 
 if (!defined('LL_TOOLS_PUBLIC_STATIC_CACHE_SCHEMA_OPTION')) {
     define('LL_TOOLS_PUBLIC_STATIC_CACHE_SCHEMA_OPTION', 'll_tools_public_static_cache_schema');
+}
+
+if (!defined('LL_TOOLS_PUBLIC_STATIC_CACHE_UPLOADS_RETIRED_OPTION')) {
+    define('LL_TOOLS_PUBLIC_STATIC_CACHE_UPLOADS_RETIRED_OPTION', 'll_tools_public_static_cache_uploads_retired');
 }
 
 if (!defined('LL_TOOLS_PUBLIC_STATIC_CACHE_GENERATION_SCOPE_PREFIX')) {
@@ -106,16 +110,9 @@ function ll_tools_public_static_cache_max_bytes(?array $identity = null): int {
     return max(0, (int) apply_filters('ll_tools_public_static_cache_max_bytes', $max_bytes, $identity));
 }
 
-/**
- * Return the uploads-backed public static-cache directory.
- */
+/** Return the public HTML cache directory outside web storage. */
 function ll_tools_public_static_cache_dir(): string {
-    $uploads = wp_upload_dir(null, false, false);
-    if (!empty($uploads['error']) || empty($uploads['basedir'])) {
-        return '';
-    }
-
-    return trailingslashit((string) $uploads['basedir']) . LL_TOOLS_PUBLIC_STATIC_CACHE_DIRNAME;
+    return ll_tools_static_cache_private_dir(LL_TOOLS_PUBLIC_STATIC_CACHE_DIRNAME);
 }
 
 /**
@@ -777,7 +774,7 @@ function ll_tools_is_cacheable_public_static_request(): bool {
         return false;
     }
 
-    if (!ll_tools_public_static_cache_has_supported_display_args()) {
+    if (!ll_tools_public_static_cache_has_supported_display_args() || ll_tools_public_static_cache_dir() === '') {
         return false;
     }
 
@@ -2074,32 +2071,44 @@ function ll_tools_purge_public_static_cache(array $criteria = []): int {
 }
 
 /**
- * Remove only generated public-cache files from older security schemas.
+ * Confirm the private schema and retire old uploads as independent tasks.
  */
 function ll_tools_public_static_cache_maybe_purge_legacy_schema(): void {
-    ll_tools_maybe_run_static_cache_maintenance('public_static_cache', static function (): bool {
+    $private_is_current = static function (): bool {
         return (int) get_option(LL_TOOLS_PUBLIC_STATIC_CACHE_SCHEMA_OPTION, 0) >= LL_TOOLS_PUBLIC_STATIC_CACHE_SCHEMA
             && !ll_tools_public_static_cache_is_quarantined();
-    }, static function (): bool {
-        ll_tools_purge_public_static_cache();
-        $dir = ll_tools_public_static_cache_dir();
-        if ($dir === '') {
-            return false;
+    };
+    $uploads_retired = static function (): bool {
+        return (bool) get_option(LL_TOOLS_PUBLIC_STATIC_CACHE_UPLOADS_RETIRED_OPTION, false);
+    };
+    ll_tools_maybe_run_static_cache_maintenance('public_static_cache', static function () use ($private_is_current, $uploads_retired): bool {
+        return $private_is_current() && $uploads_retired();
+    }, static function () use ($private_is_current, $uploads_retired): bool {
+        if (!$private_is_current() && ll_tools_public_static_cache_prepare_private_schema()) {
+            update_option(LL_TOOLS_PUBLIC_STATIC_CACHE_SCHEMA_OPTION, LL_TOOLS_PUBLIC_STATIC_CACHE_SCHEMA, false);
         }
-        if (is_dir($dir)) {
-            foreach (['public-*.html', 'public-*.html.tmp-*', 'public-*.meta.json', 'public-*.meta.json.tmp-*'] as $pattern) {
-                $remaining = ll_tools_public_static_cache_generated_files(trailingslashit($dir) . $pattern);
-                if ($remaining === false || !empty($remaining)) {
-                    return false;
-                }
-            }
+        if (!$uploads_retired() && ll_tools_static_cache_retire_legacy_files(LL_TOOLS_PUBLIC_STATIC_CACHE_DIRNAME, 'public', true)) {
+            update_option(LL_TOOLS_PUBLIC_STATIC_CACHE_UPLOADS_RETIRED_OPTION, true, false);
         }
-        if (ll_tools_public_static_cache_is_quarantined()) {
-            return false;
-        }
-        update_option(LL_TOOLS_PUBLIC_STATIC_CACHE_SCHEMA_OPTION, LL_TOOLS_PUBLIC_STATIC_CACHE_SCHEMA, false);
-        return (int) get_option(LL_TOOLS_PUBLIC_STATIC_CACHE_SCHEMA_OPTION, 0) >= LL_TOOLS_PUBLIC_STATIC_CACHE_SCHEMA;
+        return $private_is_current() && $uploads_retired();
     });
+}
+
+/** Verify that a full private purge succeeded before advancing the schema. */
+function ll_tools_public_static_cache_prepare_private_schema(): bool {
+    $dir = ll_tools_public_static_cache_dir();
+    if ($dir === '') {
+        return false;
+    }
+    // The full purge rotates the database generation and fences old writers.
+    ll_tools_purge_public_static_cache();
+    foreach (['public-*.html', 'public-*.html.tmp-*', 'public-*.meta.json', 'public-*.meta.json.tmp-*'] as $pattern) {
+        $remaining = ll_tools_public_static_cache_generated_files(trailingslashit($dir) . $pattern);
+        if ($remaining === false || !empty($remaining)) {
+            return false;
+        }
+    }
+    return !ll_tools_public_static_cache_is_quarantined();
 }
 add_action('init', 'll_tools_public_static_cache_maybe_purge_legacy_schema', 2);
 

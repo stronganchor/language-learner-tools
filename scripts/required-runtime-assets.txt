@@ -2,7 +2,10 @@
 # This release safety check covers required modules and enqueued assets.
 language-learner-tools.php
 includes/lib/complete-source-reads.php
+includes/lib/static-cache-maintenance.php
+includes/lib/public-static-cache.php
 includes/lib/public-static-cache-lifecycle.php
+includes/lib/dictionary-static-cache.php
 includes/lib/recorder-mutations.php
 includes/admin/category-video-export.php
 includes/lib/category-video-data.php
