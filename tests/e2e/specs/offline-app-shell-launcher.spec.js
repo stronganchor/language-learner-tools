@@ -356,6 +356,9 @@ async function mountOfflineLauncher(page, options = {}) {
       Object.assign(window.llToolsOfflineData.flashcards.offlineCategoryData[name][0], audioFields);
     });
   }, options);
+  if (!(await page.evaluate(() => typeof window.jQuery === 'function'))) {
+    await page.addScriptTag({ path: require.resolve('jquery') });
+  }
   await page.addScriptTag({ content: offlineAppSource });
   const cardCount = await page.locator('#ll-offline-category-grid .ll-wordset-card').count();
   if (cardCount === 0 && errors.length) {

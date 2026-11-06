@@ -25,7 +25,7 @@ function pageFixture() {
   ].join(' ');
   try {
     const php = process.env.LL_E2E_PHP_BIN || 'php';
-    return JSON.parse(execFileSync(php, ['-r', render, plugin], { encoding: 'utf8' }));
+    return JSON.parse(execFileSync(php, ['-n', '-r', render, plugin], { encoding: 'utf8' }));
   } catch (error) {
     test.skip(error.code === 'ENOENT', 'PHP CLI is required to render the standalone Category Video controller fixture.');
     throw error;

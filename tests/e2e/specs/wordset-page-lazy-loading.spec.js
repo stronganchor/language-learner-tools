@@ -35,6 +35,7 @@ const allCategories = [
     name: 'Animals',
     count: 3,
     url: '#',
+    listening_supported: false,
     aspect_bucket: 'ratio:1_1',
     preview_deferred: true,
     preview_requires_images: true,
@@ -52,6 +53,7 @@ const allCategories = [
     prompt_type: 'audio',
     option_type: 'image',
     learning_supported: true,
+    listening_supported: true,
     gender_supported: false,
     aspect_bucket: 'ratio:1_1',
     hidden: false,
@@ -689,7 +691,9 @@ test('lazy cards auto-load on scroll without rendering a load button', async ({ 
   await expect(lazyPlaceholder.locator('.ll-wordset-card__title')).toHaveText('Animals');
   await expect(page.locator('.ll-wordset-card--lazy-placeholder[data-cat-id]')).toHaveCount(0);
   await expect(page.locator('.ll-wordset-card--lazy-placeholder .ll-wordset-preview-item--lazy-skeleton')).toHaveCount(2);
-  await expect(page.locator('.ll-wordset-card--lazy-placeholder .ll-wordset-card__quiz-btn--loading-preview')).toHaveCount(4);
+  await expect.poll(() => lazyPlaceholder.locator('.ll-wordset-card__quiz-btn--loading-preview').evaluateAll(
+    (buttons) => buttons.map((button) => button.dataset.mode)
+  )).toEqual(['learning', 'practice', 'self-check']);
   await expect(page.locator('[data-ll-wordset-main-grid] > .ll-wordset-card--lazy-placeholder')).toHaveCount(1);
   await expect(page.locator('[data-ll-wordset-load-more-placeholders] > .ll-wordset-card--lazy-placeholder')).toHaveCount(0);
   const initialMainGridOrder = await page.locator('[data-ll-wordset-main-grid] > .ll-wordset-card').evaluateAll((cards) => cards.map((card) => (
@@ -717,7 +721,9 @@ test('client-rendered deferred category cards show useful shells before previews
   await expect(animalsCard.locator('.ll-wordset-card__title')).toHaveText('Animals');
   await expect(animalsCard.locator('.ll-wordset-preview-item--lazy-skeleton')).toHaveCount(2);
   await expect(animalsCard.locator('.ll-wordset-preview-item--empty')).toHaveCount(0);
-  await expect(animalsCard.locator('.ll-wordset-card__quiz-btn')).toHaveCount(4);
+  await expect.poll(() => animalsCard.locator('.ll-wordset-card__quiz-btn').evaluateAll(
+    (buttons) => buttons.map((button) => button.dataset.mode)
+  )).toEqual(['learning', 'practice', 'self-check']);
   await expect(animalsCard).not.toHaveAttribute('data-ll-wordset-inline-placeholder', 'true');
 });
 
@@ -949,7 +955,9 @@ test('wordset search hydrates matching unloaded categories with real previews', 
   await expect(temporarySearchCard.locator('.ll-wordset-card__title')).toHaveText('Travel');
   await expect(temporarySearchCard.locator('.ll-wordset-preview-item--lazy-skeleton')).toHaveCount(2);
   await expect(temporarySearchCard.locator('.ll-wordset-preview-item--empty')).toHaveCount(0);
-  await expect(temporarySearchCard.locator('.ll-wordset-card__quiz-btn')).toHaveCount(4);
+  await expect.poll(() => temporarySearchCard.locator('.ll-wordset-card__quiz-btn').evaluateAll(
+    (buttons) => buttons.map((button) => button.dataset.mode)
+  )).toEqual(['learning', 'practice', 'listening', 'self-check']);
 
   await expect.poll(async () => {
     return page.evaluate(() => window.__llLazyAjaxCalls.map((call) => String(call.category_ids || '')));
