@@ -29,8 +29,25 @@
   - `ll_tools_cloudflare_static_cache_api_token`
   - `ll_tools_cloudflare_static_cache_purge_urls`
 
+- Anonymous free-text dictionary renders share an atomic per-client and site
+  budget and skip static HTML files, including searches on the front page.
+  The browser and CDN receive no-store headers. Canonical landing, letter, and
+  detail pages retain their cache paths. A cold same-key dictionary request
+  waits briefly for the existing builder before returning a retryable 503.
+  Public wordset auth and category-search recovery loads use the ordinary
+  public cold-render budget and retain their private no-store behavior.
+- Public static HTML uses hash-sharded storage and bounded background cleanup
+  with durable inventory and publication journals. The soft targets are
+  256 MiB and 10,000 entries, with seven-day obsolete retention and one-hour
+  abandoned-temp retention. Cleanup preserves usable current-generation
+  fallback, fences publication, and backs off individual failed rows while
+  continuing the inventory sweep.
+
 ## Future Work
 
+- Plan host-level protection of generated files, dictionary publication fencing,
+  and resumable explicit public-cache purges separately. Ordinary cache hits
+  and canonical crawler routes must keep working during rollout.
 - Add bounded prewarming after explicit cache purges or dictionary content changes. Start with canonical dictionary landing and letter pages, not arbitrary search/result combinations.
 - Add LL-owned static caching for public blog/article pages that contain LL shortcodes. These pages are intentionally excluded from generic page caches today, but a plugin-owned cache could safely refresh LL nonce placeholders while avoiding full PHP renders for mostly static article content.
 - Add an admin cache diagnostic panel that shows current LL cache status, page-cache bypass reason, cache directory size, and last purge/prewarm time.

@@ -761,6 +761,17 @@ function ll_tools_dictionary_static_cache_maybe_redirect_canonical_request(): vo
 }
 add_action('template_redirect', 'll_tools_dictionary_static_cache_maybe_redirect_canonical_request', 0);
 
+/** Test the input independently of detail URL canonicalization. */
+function ll_tools_dictionary_static_cache_has_free_text(): bool {
+    $args = ['ll_dictionary_q' => $_GET['ll_dictionary_q'] ?? ''];
+    if (function_exists('ll_tools_dictionary_public_filter_bounded_request')) {
+        $args = ll_tools_dictionary_public_filter_bounded_request($args);
+    }
+    $query = $args['ll_dictionary_q'] ?? '';
+    return is_scalar($query) && strlen((string) $query) <= 1024
+        && trim((string) wp_unslash($query)) !== '';
+}
+
 /**
  * Determine whether the current request can use the anonymous dictionary static cache.
  */
@@ -780,7 +791,8 @@ function ll_tools_is_cacheable_dictionary_request(): bool {
         return false;
     }
 
-    return ll_tools_dictionary_static_cache_request_identity() !== null;
+    return ll_tools_dictionary_static_cache_request_identity() !== null
+        && !ll_tools_dictionary_static_cache_has_free_text();
 }
 
 /**
@@ -1022,7 +1034,7 @@ function ll_tools_dictionary_static_cache_send_headers(string $cache_status, boo
 /**
  * Send no-store headers for non-default anonymous dictionary locale variants.
  */
-function ll_tools_dictionary_static_cache_send_locale_bypass_headers(string $reason): void {
+function ll_tools_dictionary_static_cache_send_bypass_headers(string $reason): void {
     if (headers_sent()) {
         return;
     }
@@ -1035,11 +1047,25 @@ function ll_tools_dictionary_static_cache_send_locale_bypass_headers(string $rea
     header('Vary: Accept-Language, Cookie', false);
 }
 
+function ll_tools_dictionary_static_cache_send_retry(int $status, int $retry_after): void {
+    if (!headers_sent()) {
+        header('Retry-After: ' . max(1, $retry_after));
+        header('Cache-Control: ' . ll_tools_dictionary_static_cache_bypass_cache_control_value());
+        header('CDN-Cache-Control: no-store');
+        header('Cloudflare-CDN-Cache-Control: no-store');
+        header('X-LL-Dictionary-Cache: ' . ($status === 429 ? 'RATE_LIMITED' : 'WARMING'));
+    }
+    $message = $status === 429
+        ? __('Too many requests. Please wait a moment and try again.', 'll-tools-text-domain')
+        : __('Dictionary data is temporarily unavailable. Please try again in a moment.', 'll-tools-text-domain');
+    wp_die($message, '', ['response' => $status]);
+}
+
 /**
  * Serve or start capturing one anonymous public dictionary page request.
  */
 function ll_tools_serve_dictionary_static_cache(): void {
-    if (!ll_tools_dictionary_static_cache_has_safe_request_shape()) {
+    if (!ll_tools_dictionary_static_cache_has_safe_canonical_request_shape()) {
         return;
     }
 
@@ -1053,8 +1079,28 @@ function ll_tools_serve_dictionary_static_cache(): void {
     }
 
     $locale_bypass_reason = ll_tools_dictionary_static_cache_locale_bypass_reason();
+    $front_page = is_front_page() || is_home();
+    if (ll_tools_dictionary_static_cache_has_free_text()) {
+        if (!$front_page && $locale_bypass_reason === '') {
+            ll_tools_dictionary_static_cache_maybe_redirect_canonical($identity);
+        }
+        // Free-text input has unbounded cardinality. Keep its HTML off disk
+        // and charge expensive origin renders even on the dictionary homepage.
+        $defaults = ['window' => MINUTE_IN_SECONDS, 'ip_limit' => 30, 'site_limit' => 120];
+        $config = apply_filters('ll_tools_dictionary_static_search_throttle', $defaults);
+        $reservation = ll_tools_reserve_static_render_budget('ll_dict_static_search_', is_array($config) ? $config + $defaults : $defaults);
+        if (!$reservation['allowed']) {
+            ll_tools_dictionary_static_cache_send_retry(429, $reservation['retry_after']);
+            return;
+        }
+        ll_tools_dictionary_static_cache_send_bypass_headers('free-text-search');
+        return;
+    }
+    if ($front_page) {
+        return;
+    }
     if ($locale_bypass_reason !== '') {
-        ll_tools_dictionary_static_cache_send_locale_bypass_headers($locale_bypass_reason);
+        ll_tools_dictionary_static_cache_send_bypass_headers($locale_bypass_reason);
         ll_tools_dictionary_static_cache_debug_log('locale_bypass', [
             'reason' => $locale_bypass_reason,
             'current_locale' => ll_tools_dictionary_static_cache_current_public_locale(),
@@ -1094,6 +1140,19 @@ function ll_tools_serve_dictionary_static_cache(): void {
                 ]);
                 ll_tools_dictionary_static_cache_send_prepared_file_response($output_html, 'STALE', false, $method);
             }
+        }
+        if (!$lock_acquired) {
+            $wait_ms = max(0, min(300, (int) apply_filters('ll_tools_dictionary_static_cache_wait_ms', 150)));
+            $output_html = ll_tools_public_ajax_wait_for_value(static function () use ($file, $ttl): ?string {
+                clearstatcache(true, $file);
+                return ll_tools_dictionary_static_cache_file_is_fresh($file, $ttl)
+                    ? ll_tools_dictionary_static_cache_read_prepared_file($file) : null;
+            }, $wait_ms, 50);
+            if (is_string($output_html)) {
+                ll_tools_dictionary_static_cache_send_prepared_file_response($output_html, 'HIT', true, $method);
+            }
+            ll_tools_dictionary_static_cache_send_retry(503, 1);
+            return;
         }
     }
 
@@ -1163,7 +1222,8 @@ function ll_tools_store_dictionary_static_cache(): void {
     $release_lock = !empty($context['lock_acquired']) && !empty($context['key']);
 
     try {
-        if ((int) get_option(LL_TOOLS_DICTIONARY_STATIC_CACHE_SCHEMA_OPTION, 0) < LL_TOOLS_DICTIONARY_STATIC_CACHE_SCHEMA) {
+        if ((int) get_option(LL_TOOLS_DICTIONARY_STATIC_CACHE_SCHEMA_OPTION, 0) < LL_TOOLS_DICTIONARY_STATIC_CACHE_SCHEMA
+            || ll_tools_dictionary_static_cache_has_free_text()) {
             return;
         }
         $status = ll_tools_dictionary_static_cache_current_status_code();

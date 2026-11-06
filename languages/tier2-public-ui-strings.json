@@ -122,16 +122,16 @@
             "references": [
                 "includes/content-lesson-cloze.php:108",
                 "includes/pages/wordset-pages.php:13566",
-                "includes/shortcodes/wordset-buttons-shortcode.php:2529",
-                "includes/shortcodes/wordset-buttons-shortcode.php:2566",
-                "includes/shortcodes/wordset-buttons-shortcode.php:2580"
+                "includes/shortcodes/wordset-buttons-shortcode.php:2634",
+                "includes/shortcodes/wordset-buttons-shortcode.php:2671",
+                "includes/shortcodes/wordset-buttons-shortcode.php:2685"
             ],
             "public_references": [
                 "includes/content-lesson-cloze.php:108",
                 "includes/pages/wordset-pages.php:13566",
-                "includes/shortcodes/wordset-buttons-shortcode.php:2529",
-                "includes/shortcodes/wordset-buttons-shortcode.php:2566",
-                "includes/shortcodes/wordset-buttons-shortcode.php:2580"
+                "includes/shortcodes/wordset-buttons-shortcode.php:2634",
+                "includes/shortcodes/wordset-buttons-shortcode.php:2671",
+                "includes/shortcodes/wordset-buttons-shortcode.php:2685"
             ]
         },
         {
@@ -340,10 +340,10 @@
             "msgid": "Before this lesson",
             "msgid_plural": null,
             "references": [
-                "includes/content-lesson-progress.php:269"
+                "includes/content-lesson-progress.php:313"
             ],
             "public_references": [
-                "includes/content-lesson-progress.php:269"
+                "includes/content-lesson-progress.php:313"
             ]
         },
         {
@@ -356,17 +356,17 @@
                 "includes/admin/dictionary-import-admin.php:2615",
                 "includes/admin/export-import.php:1644",
                 "includes/admin/export-import.php:3828",
-                "includes/content-lesson-progress.php:278",
-                "includes/content-lesson-progress.php:391",
-                "includes/content-lesson-progress.php:419",
+                "includes/content-lesson-progress.php:325",
+                "includes/content-lesson-progress.php:446",
+                "includes/content-lesson-progress.php:474",
                 "includes/pages/content-lesson-pages.php:1302",
                 "includes/shortcodes/content-lesson-index-shortcode.php:386",
                 "includes/shortcodes/content-lesson-index-shortcode.php:621"
             ],
             "public_references": [
-                "includes/content-lesson-progress.php:278",
-                "includes/content-lesson-progress.php:391",
-                "includes/content-lesson-progress.php:419",
+                "includes/content-lesson-progress.php:325",
+                "includes/content-lesson-progress.php:446",
+                "includes/content-lesson-progress.php:474",
                 "includes/shortcodes/content-lesson-index-shortcode.php:386",
                 "includes/shortcodes/content-lesson-index-shortcode.php:621"
             ]
@@ -377,13 +377,13 @@
             "msgid": "Not completed",
             "msgid_plural": null,
             "references": [
-                "includes/content-lesson-progress.php:279",
-                "includes/content-lesson-progress.php:392",
+                "includes/content-lesson-progress.php:326",
+                "includes/content-lesson-progress.php:447",
                 "includes/shortcodes/content-lesson-index-shortcode.php:669"
             ],
             "public_references": [
-                "includes/content-lesson-progress.php:279",
-                "includes/content-lesson-progress.php:392",
+                "includes/content-lesson-progress.php:326",
+                "includes/content-lesson-progress.php:447",
                 "includes/shortcodes/content-lesson-index-shortcode.php:669"
             ]
         },
@@ -393,10 +393,10 @@
             "msgid": "Continue learning",
             "msgid_plural": null,
             "references": [
-                "includes/content-lesson-progress.php:373"
+                "includes/content-lesson-progress.php:428"
             ],
             "public_references": [
-                "includes/content-lesson-progress.php:373"
+                "includes/content-lesson-progress.php:428"
             ]
         },
         {
@@ -405,10 +405,10 @@
             "msgid": "Log in to save lesson progress",
             "msgid_plural": null,
             "references": [
-                "includes/content-lesson-progress.php:414"
+                "includes/content-lesson-progress.php:469"
             ],
             "public_references": [
-                "includes/content-lesson-progress.php:414"
+                "includes/content-lesson-progress.php:469"
             ]
         },
         {
@@ -417,12 +417,12 @@
             "msgid": "Mark complete",
             "msgid_plural": null,
             "references": [
-                "includes/content-lesson-progress.php:420",
+                "includes/content-lesson-progress.php:475",
                 "includes/pages/content-lesson-pages.php:1303",
                 "includes/shortcodes/content-lesson-index-shortcode.php:387"
             ],
             "public_references": [
-                "includes/content-lesson-progress.php:420",
+                "includes/content-lesson-progress.php:475",
                 "includes/shortcodes/content-lesson-index-shortcode.php:387"
             ]
         },
@@ -432,12 +432,12 @@
             "msgid": "Log in to save lesson progress.",
             "msgid_plural": null,
             "references": [
-                "includes/content-lesson-progress.php:455",
-                "includes/content-lesson-progress.php:520"
+                "includes/content-lesson-progress.php:510",
+                "includes/content-lesson-progress.php:575"
             ],
             "public_references": [
-                "includes/content-lesson-progress.php:455",
-                "includes/content-lesson-progress.php:520"
+                "includes/content-lesson-progress.php:510",
+                "includes/content-lesson-progress.php:575"
             ]
         },
         {
@@ -446,10 +446,10 @@
             "msgid": "Select a valid published lesson.",
             "msgid_plural": null,
             "references": [
-                "includes/content-lesson-progress.php:464"
+                "includes/content-lesson-progress.php:519"
             ],
             "public_references": [
-                "includes/content-lesson-progress.php:464"
+                "includes/content-lesson-progress.php:519"
             ]
         },
         {
@@ -458,10 +458,10 @@
             "msgid": "You cannot update progress for this lesson.",
             "msgid_plural": null,
             "references": [
-                "includes/content-lesson-progress.php:480"
+                "includes/content-lesson-progress.php:535"
             ],
             "public_references": [
-                "includes/content-lesson-progress.php:480"
+                "includes/content-lesson-progress.php:535"
             ]
         },
         {
@@ -470,10 +470,10 @@
             "msgid": "Complete the fill-in-the-blank activity to save progress.",
             "msgid_plural": null,
             "references": [
-                "includes/content-lesson-progress.php:485"
+                "includes/content-lesson-progress.php:540"
             ],
             "public_references": [
-                "includes/content-lesson-progress.php:485"
+                "includes/content-lesson-progress.php:540"
             ]
         },
         {
@@ -482,8 +482,8 @@
             "msgid": "Lesson progress could not be saved.",
             "msgid_plural": null,
             "references": [
-                "includes/content-lesson-progress.php:491",
-                "includes/content-lesson-progress.php:502",
+                "includes/content-lesson-progress.php:546",
+                "includes/content-lesson-progress.php:557",
                 "includes/pages/content-lesson-pages.php:1306",
                 "includes/shortcodes/content-lesson-index-shortcode.php:390",
                 "includes/user-progress.php:3815",
@@ -491,8 +491,8 @@
                 "includes/user-progress.php:4087"
             ],
             "public_references": [
-                "includes/content-lesson-progress.php:491",
-                "includes/content-lesson-progress.php:502",
+                "includes/content-lesson-progress.php:546",
+                "includes/content-lesson-progress.php:557",
                 "includes/shortcodes/content-lesson-index-shortcode.php:390"
             ]
         },
@@ -502,10 +502,10 @@
             "msgid": "The progress request could not be verified.",
             "msgid_plural": null,
             "references": [
-                "includes/content-lesson-progress.php:527"
+                "includes/content-lesson-progress.php:582"
             ],
             "public_references": [
-                "includes/content-lesson-progress.php:527"
+                "includes/content-lesson-progress.php:582"
             ]
         },
         {
@@ -2121,10 +2121,10 @@
             "msgid": "Clear LL cache",
             "msgid_plural": null,
             "references": [
-                "includes/lib/public-static-cache.php:2715"
+                "includes/lib/public-static-cache.php:2721"
             ],
             "public_references": [
-                "includes/lib/public-static-cache.php:2715"
+                "includes/lib/public-static-cache.php:2721"
             ]
         },
         {
@@ -2133,10 +2133,10 @@
             "msgid": "LL cache cleared (%d)",
             "msgid_plural": null,
             "references": [
-                "includes/lib/public-static-cache.php:2720"
+                "includes/lib/public-static-cache.php:2726"
             ],
             "public_references": [
-                "includes/lib/public-static-cache.php:2720"
+                "includes/lib/public-static-cache.php:2726"
             ]
         },
         {
@@ -2145,10 +2145,10 @@
             "msgid": "You are not allowed to clear LL Tools caches.",
             "msgid_plural": null,
             "references": [
-                "includes/lib/public-static-cache.php:2739"
+                "includes/lib/public-static-cache.php:2745"
             ],
             "public_references": [
-                "includes/lib/public-static-cache.php:2739"
+                "includes/lib/public-static-cache.php:2745"
             ]
         },
         {
@@ -2157,10 +2157,10 @@
             "msgid": "Cleared LL Tools static caches. %d cache file was removed.",
             "msgid_plural": "Cleared LL Tools static caches. %d cache files were removed.",
             "references": [
-                "includes/lib/public-static-cache.php:2775"
+                "includes/lib/public-static-cache.php:2781"
             ],
             "public_references": [
-                "includes/lib/public-static-cache.php:2775"
+                "includes/lib/public-static-cache.php:2781"
             ]
         },
         {
@@ -2169,10 +2169,11 @@
             "msgid": "Too many requests. Please wait a moment and try again.",
             "msgid_plural": null,
             "references": [
-                "includes/lib/public-static-cache.php:545"
+                "includes/lib/dictionary-static-cache.php:1059",
+                "includes/lib/public-static-cache.php:528"
             ],
             "public_references": [
-                "includes/lib/public-static-cache.php:545"
+                "includes/lib/public-static-cache.php:528"
             ]
         },
         {
@@ -2649,8 +2650,8 @@
             "references": [
                 "includes/login-window.php:2646",
                 "includes/login-window.php:2654",
-                "includes/shortcodes/audio-recording-shortcode.php:1261",
-                "includes/shortcodes/audio-recording-shortcode.php:1263"
+                "includes/shortcodes/audio-recording-shortcode.php:1263",
+                "includes/shortcodes/audio-recording-shortcode.php:1265"
             ],
             "public_references": [
                 "includes/login-window.php:2646",
@@ -3241,8 +3242,8 @@
                 "includes/pages/wordset-pages.php:28021",
                 "includes/pages/wordset-pages.php:28530",
                 "includes/pages/wordset-pages.php:29611",
-                "includes/shortcodes/audio-recording-shortcode.php:1644",
-                "includes/shortcodes/audio-recording-shortcode.php:1863",
+                "includes/shortcodes/audio-recording-shortcode.php:1646",
+                "includes/shortcodes/audio-recording-shortcode.php:1877",
                 "includes/shortcodes/dictionary-shortcode.php:345",
                 "includes/shortcodes/flashcard-widget.php:780",
                 "includes/shortcodes/quiz-pages-shortcodes.php:2403",
@@ -3335,8 +3336,8 @@
                 "includes/pages/quiz-pages.php:2068",
                 "includes/pages/vocab-lesson-pages.php:4828",
                 "includes/pages/wordset-pages.php:13565",
-                "includes/shortcodes/audio-recording-shortcode.php:1882",
-                "includes/shortcodes/audio-recording-shortcode.php:1907"
+                "includes/shortcodes/audio-recording-shortcode.php:1896",
+                "includes/shortcodes/audio-recording-shortcode.php:1921"
             ],
             "public_references": [
                 "includes/pages/quiz-pages.php:2068",
@@ -4195,13 +4196,13 @@
             "references": [
                 "includes/pages/wordset-games.php:6648",
                 "includes/pages/wordset-games.php:6921",
-                "includes/user-progress.php:11475",
-                "includes/user-progress.php:11537",
-                "includes/user-progress.php:11582",
-                "includes/user-progress.php:11738",
-                "includes/user-progress.php:11807",
-                "includes/user-progress.php:13534",
-                "includes/user-progress.php:13620",
+                "includes/user-progress.php:11493",
+                "includes/user-progress.php:11555",
+                "includes/user-progress.php:11600",
+                "includes/user-progress.php:11756",
+                "includes/user-progress.php:11825",
+                "includes/user-progress.php:13552",
+                "includes/user-progress.php:13638",
                 "includes/user-study.php:1377",
                 "includes/user-study.php:1415",
                 "includes/user-study.php:1529"
@@ -4242,7 +4243,7 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/wordset-games.php:6726",
-                "includes/shortcodes/audio-recording-shortcode.php:5806"
+                "includes/shortcodes/audio-recording-shortcode.php:5936"
             ],
             "public_references": [
                 "includes/pages/wordset-games.php:6726"
@@ -4256,9 +4257,9 @@
             "references": [
                 "includes/admin/audio-processor-admin.php:1707",
                 "includes/pages/wordset-games.php:6734",
-                "includes/shortcodes/audio-recording-shortcode.php:462",
-                "includes/shortcodes/audio-recording-shortcode.php:5814",
-                "includes/shortcodes/audio-recording-shortcode.php:9710",
+                "includes/shortcodes/audio-recording-shortcode.php:464",
+                "includes/shortcodes/audio-recording-shortcode.php:5944",
+                "includes/shortcodes/audio-recording-shortcode.php:9840",
                 "includes/shortcodes/word-grid-shortcode.php:8204"
             ],
             "public_references": [
@@ -5081,7 +5082,7 @@
             "references": [
                 "includes/pages/wordset-pages.php:13550",
                 "includes/pages/wordset-pages.php:29483",
-                "includes/shortcodes/audio-recording-shortcode.php:2091",
+                "includes/shortcodes/audio-recording-shortcode.php:2105",
                 "includes/shortcodes/editor-hub-shortcode.php:1073",
                 "includes/shortcodes/editor-hub-shortcode.php:1146",
                 "templates/audio-image-matcher-template.php:52"
@@ -5208,7 +5209,7 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/wordset-pages.php:13561",
-                "includes/shortcodes/audio-recording-shortcode.php:1654",
+                "includes/shortcodes/audio-recording-shortcode.php:1668",
                 "includes/shortcodes/word-grid-shortcode.php:4193"
             ],
             "public_references": [
@@ -6456,7 +6457,7 @@
                 "includes/pages/wordset-pages.php:27349",
                 "includes/pages/wordset-pages.php:27546",
                 "includes/pages/wordset-pages.php:29382",
-                "includes/shortcodes/audio-recording-shortcode.php:1258",
+                "includes/shortcodes/audio-recording-shortcode.php:1260",
                 "includes/shortcodes/editor-hub-shortcode.php:1007",
                 "includes/shortcodes/site-tools-shortcode.php:950",
                 "templates/vocab-lesson-template.php:735"
@@ -6746,6 +6747,7 @@
                 "includes/pages/content-lesson-pages.php:1304",
                 "includes/pages/wordset-pages.php:27376",
                 "includes/pages/wordset-pages.php:27489",
+                "includes/shortcodes/audio-recording-shortcode.php:1662",
                 "includes/shortcodes/content-lesson-index-shortcode.php:388",
                 "includes/shortcodes/dictionary-shortcode.php:342",
                 "includes/shortcodes/word-grid-shortcode.php:4106",
@@ -6763,7 +6765,8 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/wordset-pages.php:27377",
-                "includes/pages/wordset-transcription-review.php:284"
+                "includes/pages/wordset-transcription-review.php:284",
+                "includes/shortcodes/audio-recording-shortcode.php:1663"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:27377"
@@ -6776,7 +6779,7 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/wordset-pages.php:27379",
-                "includes/user-progress.php:13104"
+                "includes/user-progress.php:13122"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:27379"
@@ -6789,13 +6792,13 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/wordset-pages.php:27380",
-                "includes/user-progress.php:12305",
-                "includes/user-progress.php:12715",
-                "includes/user-progress.php:13119",
-                "includes/user-progress.php:13148",
-                "includes/user-progress.php:13177",
-                "includes/user-progress.php:13386",
-                "includes/user-progress.php:13467"
+                "includes/user-progress.php:12323",
+                "includes/user-progress.php:12733",
+                "includes/user-progress.php:13137",
+                "includes/user-progress.php:13166",
+                "includes/user-progress.php:13195",
+                "includes/user-progress.php:13404",
+                "includes/user-progress.php:13485"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:27380"
@@ -6884,17 +6887,17 @@
                 "includes/pages/wordset-pages.php:27387",
                 "includes/shortcodes/flashcard-widget.php:779",
                 "includes/shortcodes/quiz-pages-shortcodes.php:1871",
-                "includes/user-progress.php:11563",
-                "includes/user-progress.php:11719",
-                "includes/user-progress.php:11769",
-                "includes/user-progress.php:13135",
-                "includes/user-progress.php:13161",
-                "includes/user-progress.php:13234",
-                "includes/user-progress.php:13310",
-                "includes/user-progress.php:13375",
-                "includes/user-progress.php:13399",
-                "includes/user-progress.php:13516",
-                "includes/user-progress.php:13688",
+                "includes/user-progress.php:11581",
+                "includes/user-progress.php:11737",
+                "includes/user-progress.php:11787",
+                "includes/user-progress.php:13153",
+                "includes/user-progress.php:13179",
+                "includes/user-progress.php:13252",
+                "includes/user-progress.php:13328",
+                "includes/user-progress.php:13393",
+                "includes/user-progress.php:13417",
+                "includes/user-progress.php:13534",
+                "includes/user-progress.php:13706",
                 "includes/user-study.php:1489"
             ],
             "public_references": [
@@ -7008,6 +7011,7 @@
             "msgid_plural": null,
             "references": [
                 "includes/admin/bulk-translation-admin.php:151",
+                "includes/admin/category-video-export.php:102",
                 "includes/admin/image-webp-optimizer-admin.php:1796",
                 "includes/admin/user-progress-report.php:1118",
                 "includes/admin/word-option-rules-admin.php:1888",
@@ -7021,7 +7025,7 @@
                 "includes/privacy.php:1019",
                 "includes/privacy.php:848",
                 "includes/privacy.php:937",
-                "includes/shortcodes/audio-recording-shortcode.php:1925",
+                "includes/shortcodes/audio-recording-shortcode.php:1939",
                 "includes/shortcodes/editor-hub-shortcode.php:1077",
                 "includes/shortcodes/editor-hub-shortcode.php:1109",
                 "includes/shortcodes/image-copyright-grid-shortcode.php:222",
@@ -7141,9 +7145,9 @@
             "msgid": "Words",
             "msgid_plural": null,
             "references": [
-                "includes/admin/admin-dashboard-menu.php:354",
-                "includes/admin/admin-dashboard-menu.php:812",
-                "includes/admin/admin-dashboard-menu.php:813",
+                "includes/admin/admin-dashboard-menu.php:356",
+                "includes/admin/admin-dashboard-menu.php:824",
+                "includes/admin/admin-dashboard-menu.php:825",
                 "includes/admin/audio-processor-admin.php:2888",
                 "includes/admin/bulk-translation-admin.php:147",
                 "includes/admin/image-aspect-normalizer-admin.php:111",
@@ -7510,6 +7514,7 @@
             "msgid": "Load more words",
             "msgid_plural": null,
             "references": [
+                "includes/admin/category-video-export.php:116",
                 "includes/pages/wordset-pages.php:27456",
                 "includes/pages/wordset-pages.php:28013"
             ],
@@ -8116,6 +8121,7 @@
             "msgid": "Clear selection",
             "msgid_plural": null,
             "references": [
+                "includes/admin/category-video-export.php:111",
                 "includes/admin/ipa-keyboard-admin.php:587",
                 "includes/pages/wordset-pages.php:28036",
                 "includes/pages/wordset-pages.php:28572",
@@ -8736,6 +8742,7 @@
             "msgid": "Speaker",
             "msgid_plural": null,
             "references": [
+                "includes/admin/category-video-export.php:103",
                 "includes/post-types/word-audio-post-type.php:116",
                 "includes/shortcodes/audio-credit-grid-shortcode.php:373"
             ],
@@ -9261,6 +9268,7 @@
             "references": [
                 "includes/lib/ai-crawler-support.php:394",
                 "includes/lib/dictionary-browser.php:192",
+                "includes/lib/dictionary-static-cache.php:1060",
                 "includes/shortcodes/dictionary-shortcode.php:2539",
                 "includes/shortcodes/dictionary-shortcode.php:3052",
                 "includes/shortcodes/dictionary-shortcode.php:3487",
@@ -9615,7 +9623,7 @@
             "msgid": "Lesson words are still being prepared. Please try again in a moment.",
             "msgid_plural": null,
             "references": [
-                "includes/pages/vocab-lesson-pages.php:9020",
+                "includes/pages/vocab-lesson-pages.php:9030",
                 "includes/shortcodes/flashcard-widget.php:2055"
             ],
             "public_references": [
@@ -9731,11 +9739,11 @@
                 "includes/pages/vocab-lesson-pages.php:6351",
                 "includes/pages/vocab-lesson-pages.php:6403",
                 "includes/pages/vocab-lesson-pages.php:6518",
-                "includes/pages/vocab-lesson-pages.php:8676",
-                "includes/pages/vocab-lesson-pages.php:8681",
-                "includes/pages/vocab-lesson-pages.php:8687",
-                "includes/pages/vocab-lesson-pages.php:8804",
-                "includes/pages/vocab-lesson-pages.php:8870",
+                "includes/pages/vocab-lesson-pages.php:8686",
+                "includes/pages/vocab-lesson-pages.php:8691",
+                "includes/pages/vocab-lesson-pages.php:8697",
+                "includes/pages/vocab-lesson-pages.php:8814",
+                "includes/pages/vocab-lesson-pages.php:8880",
                 "includes/pages/wordset-transcription-review.php:106",
                 "includes/pages/wordset-transcription-review.php:167",
                 "includes/pages/wordset-transcription-review.php:237",
@@ -9762,12 +9770,12 @@
                 "includes/taxonomies/word-category-taxonomy.php:4095",
                 "includes/taxonomies/word-category-taxonomy.php:4109",
                 "includes/taxonomies/word-category-taxonomy.php:774",
-                "includes/user-progress.php:13084",
-                "includes/user-progress.php:13543",
-                "includes/user-progress.php:13553",
-                "includes/user-progress.php:13575",
-                "includes/user-progress.php:13584",
-                "includes/user-progress.php:13587",
+                "includes/user-progress.php:13102",
+                "includes/user-progress.php:13561",
+                "includes/user-progress.php:13571",
+                "includes/user-progress.php:13593",
+                "includes/user-progress.php:13602",
+                "includes/user-progress.php:13605",
                 "includes/user-progress.php:1815"
             ],
             "public_references": [
@@ -10200,7 +10208,7 @@
             "references": [
                 "includes/admin/export-import.php:592",
                 "includes/admin/uploads/audio-upload-form.php:428",
-                "includes/shortcodes/audio-recording-shortcode.php:29",
+                "includes/shortcodes/audio-recording-shortcode.php:31",
                 "includes/shortcodes/editor-hub-shortcode.php:302",
                 "includes/shortcodes/flashcard-widget.php:741",
                 "includes/shortcodes/word-grid-shortcode.php:5375",
@@ -10222,7 +10230,7 @@
             "msgid_plural": null,
             "references": [
                 "includes/admin/export-import.php:593",
-                "includes/shortcodes/audio-recording-shortcode.php:31",
+                "includes/shortcodes/audio-recording-shortcode.php:33",
                 "includes/shortcodes/editor-hub-shortcode.php:303",
                 "includes/shortcodes/flashcard-widget.php:742",
                 "includes/shortcodes/word-grid-shortcode.php:5376",
@@ -10485,18 +10493,18 @@
                 "includes/shortcodes/flashcard-widget.php:778",
                 "includes/shortcodes/flashcard-widget.php:783",
                 "includes/shortcodes/flashcard-widget.php:785",
-                "includes/shortcodes/wordset-buttons-shortcode.php:2528",
-                "includes/shortcodes/wordset-buttons-shortcode.php:2565",
-                "includes/shortcodes/wordset-buttons-shortcode.php:2579"
+                "includes/shortcodes/wordset-buttons-shortcode.php:2633",
+                "includes/shortcodes/wordset-buttons-shortcode.php:2670",
+                "includes/shortcodes/wordset-buttons-shortcode.php:2684"
             ],
             "public_references": [
                 "includes/shortcodes/flashcard-widget.php:777",
                 "includes/shortcodes/flashcard-widget.php:778",
                 "includes/shortcodes/flashcard-widget.php:783",
                 "includes/shortcodes/flashcard-widget.php:785",
-                "includes/shortcodes/wordset-buttons-shortcode.php:2528",
-                "includes/shortcodes/wordset-buttons-shortcode.php:2565",
-                "includes/shortcodes/wordset-buttons-shortcode.php:2579"
+                "includes/shortcodes/wordset-buttons-shortcode.php:2633",
+                "includes/shortcodes/wordset-buttons-shortcode.php:2670",
+                "includes/shortcodes/wordset-buttons-shortcode.php:2684"
             ]
         },
         {
@@ -10509,13 +10517,13 @@
                 "includes/admin/image-aspect-normalizer-admin.php:85",
                 "includes/admin/offline-app-export.php:920",
                 "includes/shortcodes/flashcard-widget.php:782",
-                "includes/shortcodes/wordset-buttons-shortcode.php:2178",
-                "includes/shortcodes/wordset-buttons-shortcode.php:2198"
+                "includes/shortcodes/wordset-buttons-shortcode.php:2262",
+                "includes/shortcodes/wordset-buttons-shortcode.php:2282"
             ],
             "public_references": [
                 "includes/shortcodes/flashcard-widget.php:782",
-                "includes/shortcodes/wordset-buttons-shortcode.php:2178",
-                "includes/shortcodes/wordset-buttons-shortcode.php:2198"
+                "includes/shortcodes/wordset-buttons-shortcode.php:2262",
+                "includes/shortcodes/wordset-buttons-shortcode.php:2282"
             ]
         },
         {
@@ -10646,6 +10654,7 @@
             "msgid": "Word set",
             "msgid_plural": null,
             "references": [
+                "includes/admin/category-video-export.php:101",
                 "includes/admin/export-import.php:4319",
                 "includes/admin/export-import.php:4415",
                 "includes/admin/ipa-keyboard-admin.php:625",
@@ -10657,7 +10666,7 @@
                 "includes/privacy.php:470",
                 "includes/privacy.php:850",
                 "includes/privacy.php:939",
-                "includes/shortcodes/audio-recording-shortcode.php:1727",
+                "includes/shortcodes/audio-recording-shortcode.php:1741",
                 "includes/shortcodes/image-copyright-grid-shortcode.php:207",
                 "templates/content-lesson-template.php:137",
                 "templates/content-lesson-template.php:143",
@@ -11117,7 +11126,7 @@
             "msgid_plural": null,
             "references": [
                 "includes/admin/export-import.php:591",
-                "includes/shortcodes/audio-recording-shortcode.php:30",
+                "includes/shortcodes/audio-recording-shortcode.php:32",
                 "includes/shortcodes/editor-hub-shortcode.php:301",
                 "includes/shortcodes/word-grid-shortcode.php:5374",
                 "includes/shortcodes/word-grid-shortcode.php:5859",
@@ -11259,10 +11268,10 @@
             "msgid": "%d lesson",
             "msgid_plural": "%d lessons",
             "references": [
-                "includes/shortcodes/wordset-buttons-shortcode.php:2031"
+                "includes/shortcodes/wordset-buttons-shortcode.php:2115"
             ],
             "public_references": [
-                "includes/shortcodes/wordset-buttons-shortcode.php:2031"
+                "includes/shortcodes/wordset-buttons-shortcode.php:2115"
             ]
         },
         {
@@ -11271,10 +11280,10 @@
             "msgid": "Private word set",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/wordset-buttons-shortcode.php:2034"
+                "includes/shortcodes/wordset-buttons-shortcode.php:2118"
             ],
             "public_references": [
-                "includes/shortcodes/wordset-buttons-shortcode.php:2034"
+                "includes/shortcodes/wordset-buttons-shortcode.php:2118"
             ]
         },
         {
@@ -11283,12 +11292,12 @@
             "msgid": "%1$s, %2$s",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/wordset-buttons-shortcode.php:2039",
-                "includes/shortcodes/wordset-buttons-shortcode.php:2054"
+                "includes/shortcodes/wordset-buttons-shortcode.php:2123",
+                "includes/shortcodes/wordset-buttons-shortcode.php:2138"
             ],
             "public_references": [
-                "includes/shortcodes/wordset-buttons-shortcode.php:2039",
-                "includes/shortcodes/wordset-buttons-shortcode.php:2054"
+                "includes/shortcodes/wordset-buttons-shortcode.php:2123",
+                "includes/shortcodes/wordset-buttons-shortcode.php:2138"
             ]
         },
         {
@@ -11297,10 +11306,10 @@
             "msgid": "%1$s, private word set, %2$s",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/wordset-buttons-shortcode.php:2048"
+                "includes/shortcodes/wordset-buttons-shortcode.php:2132"
             ],
             "public_references": [
-                "includes/shortcodes/wordset-buttons-shortcode.php:2048"
+                "includes/shortcodes/wordset-buttons-shortcode.php:2132"
             ]
         },
         {
@@ -11362,12 +11371,12 @@
                 "includes/pages/vocab-lesson-pages.php:5293",
                 "includes/pages/vocab-lesson-pages.php:5505",
                 "includes/pages/vocab-lesson-pages.php:6540",
-                "includes/pages/vocab-lesson-pages.php:8533",
-                "includes/pages/vocab-lesson-pages.php:8875",
-                "includes/pages/vocab-lesson-pages.php:8880",
-                "includes/pages/vocab-lesson-pages.php:8889",
-                "includes/pages/vocab-lesson-pages.php:8892",
-                "includes/pages/vocab-lesson-pages.php:8895",
+                "includes/pages/vocab-lesson-pages.php:8543",
+                "includes/pages/vocab-lesson-pages.php:8885",
+                "includes/pages/vocab-lesson-pages.php:8890",
+                "includes/pages/vocab-lesson-pages.php:8899",
+                "includes/pages/vocab-lesson-pages.php:8902",
+                "includes/pages/vocab-lesson-pages.php:8905",
                 "includes/taxonomies/word-category-taxonomy.php:4114",
                 "templates/content-lesson-template.php:32",
                 "templates/content-lesson-template.php:40",
@@ -11626,19 +11635,19 @@
             "msgid": "Unable to load this lesson right now.",
             "msgid_plural": null,
             "references": [
-                "includes/pages/vocab-lesson-pages.php:8172",
-                "includes/pages/vocab-lesson-pages.php:8178",
-                "includes/pages/vocab-lesson-pages.php:8225",
-                "includes/pages/vocab-lesson-pages.php:8239",
-                "includes/pages/vocab-lesson-pages.php:8246",
-                "includes/pages/vocab-lesson-pages.php:8277",
-                "includes/pages/vocab-lesson-pages.php:8330",
-                "includes/pages/vocab-lesson-pages.php:8363",
-                "includes/pages/vocab-lesson-pages.php:8632",
-                "includes/pages/vocab-lesson-pages.php:8646",
-                "includes/pages/vocab-lesson-pages.php:8830",
-                "includes/pages/vocab-lesson-pages.php:8924",
-                "includes/pages/vocab-lesson-pages.php:9070",
+                "includes/pages/vocab-lesson-pages.php:8182",
+                "includes/pages/vocab-lesson-pages.php:8188",
+                "includes/pages/vocab-lesson-pages.php:8235",
+                "includes/pages/vocab-lesson-pages.php:8249",
+                "includes/pages/vocab-lesson-pages.php:8256",
+                "includes/pages/vocab-lesson-pages.php:8287",
+                "includes/pages/vocab-lesson-pages.php:8340",
+                "includes/pages/vocab-lesson-pages.php:8373",
+                "includes/pages/vocab-lesson-pages.php:8642",
+                "includes/pages/vocab-lesson-pages.php:8656",
+                "includes/pages/vocab-lesson-pages.php:8840",
+                "includes/pages/vocab-lesson-pages.php:8934",
+                "includes/pages/vocab-lesson-pages.php:9080",
                 "templates/vocab-lesson-template.php:446"
             ],
             "public_references": [

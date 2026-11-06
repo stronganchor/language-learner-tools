@@ -586,6 +586,106 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_distinct_free_text_searches_share_budget_and_never_capture_html_on_dictionary_front_page(): void
+    {
+        $page_id = self::factory()->post->create([
+            'post_type' => 'page', 'post_status' => 'publish', 'post_content' => '[ll_dictionary]',
+        ]);
+        $old_show_on_front = get_option('show_on_front');
+        $old_page_on_front = get_option('page_on_front');
+        $old_ip = $_SERVER['REMOTE_ADDR'] ?? null;
+        $ip = '203.0.113.81';
+        $config = static fn(): array => ['window' => 3600, 'ip_limit' => 1, 'site_limit' => 0];
+        $die = static fn() => static function ($message, $title, $args): void {
+            throw new RuntimeException('response-' . (int) $args['response']);
+        };
+        add_filter('ll_tools_dictionary_static_search_throttle', $config);
+        add_filter('wp_die_handler', $die, PHP_INT_MAX);
+        try {
+            update_option('show_on_front', 'page');
+            update_option('page_on_front', $page_id);
+            wp_set_current_user(0);
+            $this->go_to(home_url('/'));
+            $_SERVER['REQUEST_METHOD'] = 'GET';
+            $_SERVER['REMOTE_ADDR'] = $ip;
+            $this->assertTrue(is_front_page());
+
+            $_GET = ['ll_dictionary_q' => 'first query'];
+            $_SERVER['REQUEST_URI'] = '/?ll_dictionary_q=first+query';
+            ll_tools_serve_dictionary_static_cache();
+            $this->assertArrayNotHasKey('ll_tools_dictionary_static_cache_request', $GLOBALS);
+            $first_key = ll_tools_dictionary_static_cache_key();
+            $this->assertFileDoesNotExist(ll_tools_dictionary_static_cache_file_path($first_key));
+
+            $_GET = ['ll_dictionary_q' => 'different query', 'll_dictionary_entry' => '999999999'];
+            $_SERVER['REQUEST_URI'] = '/?' . http_build_query($_GET);
+            $this->assertNotSame($first_key, ll_tools_dictionary_static_cache_key());
+            try {
+                ll_tools_serve_dictionary_static_cache();
+                $this->fail('Distinct queries must share a bounded render budget.');
+            } catch (RuntimeException $error) {
+                $this->assertSame('response-429', $error->getMessage());
+            }
+            $this->assertArrayNotHasKey('ll_tools_dictionary_static_cache_request', $GLOBALS);
+
+            $_GET = ['ll_dictionary_letter' => 'A'];
+            $_SERVER['REQUEST_URI'] = '/?ll_dictionary_letter=A';
+            ll_tools_serve_dictionary_static_cache();
+            $this->assertArrayNotHasKey('ll_tools_dictionary_static_cache_request', $GLOBALS);
+        } finally {
+            remove_filter('ll_tools_dictionary_static_search_throttle', $config);
+            remove_filter('wp_die_handler', $die, PHP_INT_MAX);
+            ll_tools_public_ajax_reset_counter('ll_dict_static_search_ip_', $ip);
+            update_option('show_on_front', $old_show_on_front);
+            update_option('page_on_front', $old_page_on_front);
+            if ($old_ip === null) {
+                unset($_SERVER['REMOTE_ADDR']);
+            } else {
+                $_SERVER['REMOTE_ADDR'] = $old_ip;
+            }
+            $_GET = [];
+        }
+    }
+
+    public function test_cold_dictionary_cache_lock_loser_defers_without_releasing_the_owner(): void
+    {
+        $page_id = self::factory()->post->create([
+            'post_type' => 'page', 'post_status' => 'publish', 'post_content' => '[ll_dictionary]',
+        ]);
+        wp_set_current_user(0);
+        $this->go_to((string) get_permalink($page_id));
+        $_SERVER['REQUEST_METHOD'] = 'GET';
+        $_SERVER['REQUEST_URI'] = '/cold-dictionary-cache/';
+        $_GET = ['ll_dictionary_letter' => 'A'];
+        $_SERVER['REQUEST_URI'] .= '?ll_dictionary_letter=A';
+        $key = ll_tools_dictionary_static_cache_key();
+        $lock = ll_tools_dictionary_static_cache_rebuild_lock_option($key);
+        $this->assertFileDoesNotExist(ll_tools_dictionary_static_cache_file_path($key));
+        $this->assertTrue(ll_tools_dictionary_static_cache_acquire_rebuild_lock($key));
+        $expiry = get_option($lock);
+        $disable_wait = static fn(): int => 0;
+        $die = static fn() => static function ($message, $title, $args): void {
+            throw new RuntimeException('response-' . (int) $args['response']);
+        };
+        add_filter('ll_tools_dictionary_static_cache_wait_ms', $disable_wait);
+        add_filter('wp_die_handler', $die, PHP_INT_MAX);
+        try {
+            try {
+                ll_tools_serve_dictionary_static_cache();
+                $this->fail('A cold lock loser must not start another origin render.');
+            } catch (RuntimeException $error) {
+                $this->assertSame('response-503', $error->getMessage());
+            }
+            $this->assertSame($expiry, get_option($lock));
+            $this->assertArrayNotHasKey('ll_tools_dictionary_static_cache_request', $GLOBALS);
+        } finally {
+            ll_tools_dictionary_static_cache_release_rebuild_lock($key);
+            remove_filter('ll_tools_dictionary_static_cache_wait_ms', $disable_wait);
+            remove_filter('wp_die_handler', $die, PHP_INT_MAX);
+            $_GET = [];
+        }
+    }
+
     public function test_dictionary_static_cache_debug_logging_is_filterable(): void
     {
         $disabled = static function (): bool {

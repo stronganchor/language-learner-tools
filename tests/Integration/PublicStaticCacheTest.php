@@ -266,6 +266,55 @@ final class PublicStaticCacheTest extends LL_Tools_TestCase
         $this->assertTrue(ll_tools_is_cacheable_public_static_request());
     }
 
+    public function test_public_wordset_auth_and_recovery_loads_share_the_anonymous_cold_budget(): void
+    {
+        $term = wp_insert_term('Public Static Cache Bypass Budget', 'wordset');
+        $this->assertIsArray($term);
+        $wordset = get_term((int) $term['term_id'], 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset);
+
+        wp_set_current_user(0);
+        set_query_var('ll_wordset_page', (string) $wordset->slug);
+        set_query_var('ll_wordset_view', '');
+        $this->clear404Flag();
+        $old_ip = $_SERVER['REMOTE_ADDR'] ?? null;
+        $ip = '203.0.113.210';
+        $_SERVER['REQUEST_METHOD'] = 'GET';
+        $_SERVER['REMOTE_ADDR'] = $ip;
+        $config = static fn(): array => ['window' => 3600, 'ip_limit' => 2, 'site_limit' => 0];
+        $die = static fn() => static function ($message, $title, $args): void {
+            throw new RuntimeException('response-' . (int) $args['response']);
+        };
+        add_filter('ll_tools_public_static_cache_miss_throttle', $config);
+        add_filter('wp_die_handler', $die, PHP_INT_MAX);
+        try {
+            foreach ([['ll_tools_auth' => 'login'], ['ll_category_search_recovery' => '1']] as $args) {
+                $_GET = $args;
+                $_SERVER['REQUEST_URI'] = '/' . $wordset->slug . '/?' . http_build_query($args);
+                ll_tools_serve_public_static_cache();
+                $this->assertArrayNotHasKey('ll_tools_public_static_cache_request', $GLOBALS);
+            }
+            $_GET = ['ll_tools_auth' => 'malformed', 'preview_nonce' => 'fake'];
+            $_SERVER['REQUEST_URI'] = '/' . $wordset->slug . '/?' . http_build_query($_GET);
+            try {
+                ll_tools_serve_public_static_cache();
+                $this->fail('Untrusted auth and preview noise must not evade the shared cold budget.');
+            } catch (RuntimeException $error) {
+                $this->assertSame('response-429', $error->getMessage());
+            }
+            $this->assertArrayNotHasKey('ll_tools_public_static_cache_request', $GLOBALS);
+        } finally {
+            remove_filter('ll_tools_public_static_cache_miss_throttle', $config);
+            remove_filter('wp_die_handler', $die, PHP_INT_MAX);
+            ll_tools_public_ajax_reset_counter('ll_public_static_miss_ip_', $ip);
+            if ($old_ip === null) {
+                unset($_SERVER['REMOTE_ADDR']);
+            } else {
+                $_SERVER['REMOTE_ADDR'] = $old_ip;
+            }
+        }
+    }
+
     public function test_public_static_cache_shutdown_refuses_auth_content_even_with_an_active_capture(): void
     {
         $dir = ll_tools_public_static_cache_dir();
@@ -935,7 +984,7 @@ final class PublicStaticCacheTest extends LL_Tools_TestCase
         $collision = [];
         for ($index = 0; $index <= 256; $index++) {
             $file = trailingslashit($dir) . 'public-stripe-' . $index . '.html';
-            $stripe = substr(hash('sha256', wp_normalize_path($file)), 0, 2);
+            $stripe = substr(hash('sha256', basename($file)), 0, 2);
             if (isset($file_by_stripe[$stripe])) {
                 $collision = [$file_by_stripe[$stripe], $file];
                 break;
@@ -1033,10 +1082,11 @@ final class PublicStaticCacheTest extends LL_Tools_TestCase
         $this->assertNotSame('', $dir);
         $this->assertTrue(wp_mkdir_p($dir));
 
-        $file = trailingslashit($dir) . 'public-store-test.html';
+        $key = md5('public-store-test');
+        $file = ll_tools_public_static_cache_file_path($key);
+        $this->assertTrue(wp_mkdir_p(dirname($file)));
         @unlink($file);
 
-        $key = md5('public-store-test');
         $lock_option = ll_tools_public_static_cache_rebuild_lock_option($key);
         delete_option($lock_option);
         $this->assertTrue(ll_tools_public_static_cache_acquire_rebuild_lock($key));
@@ -1087,9 +1137,10 @@ final class PublicStaticCacheTest extends LL_Tools_TestCase
         $this->assertNotSame('', $dir);
         $this->assertTrue(wp_mkdir_p($dir));
 
-        $file = trailingslashit($dir) . 'public-generation-fence-test.html';
-        @unlink($file);
         $key = md5('public-generation-fence-test');
+        $file = ll_tools_public_static_cache_file_path($key);
+        $this->assertTrue(wp_mkdir_p(dirname($file)));
+        @unlink($file);
         $this->assertTrue(ll_tools_public_static_cache_acquire_rebuild_lock($key));
 
         $_SERVER['REQUEST_METHOD'] = 'GET';
@@ -1137,9 +1188,10 @@ final class PublicStaticCacheTest extends LL_Tools_TestCase
         $this->assertNotSame('', $dir);
         $this->assertTrue(wp_mkdir_p($dir));
 
-        $file = trailingslashit($dir) . 'public-successor-publication-test.html';
-        @unlink($file);
         $key = md5('public-successor-publication-test');
+        $file = ll_tools_public_static_cache_file_path($key);
+        $this->assertTrue(wp_mkdir_p(dirname($file)));
+        @unlink($file);
         $identity = [
             'type' => 'wordset_main',
             'id' => 42,
@@ -1195,9 +1247,10 @@ final class PublicStaticCacheTest extends LL_Tools_TestCase
         $this->assertNotSame('', $dir);
         $this->assertTrue(wp_mkdir_p($dir));
 
-        $file = trailingslashit($dir) . 'public-mid-publish-lease-turnover-test.html';
-        @unlink($file);
         $key = md5('public-mid-publish-lease-turnover-test');
+        $file = ll_tools_public_static_cache_file_path($key);
+        $this->assertTrue(wp_mkdir_p(dirname($file)));
+        @unlink($file);
         $identity = [
             'type' => 'wordset_main',
             'id' => 43,

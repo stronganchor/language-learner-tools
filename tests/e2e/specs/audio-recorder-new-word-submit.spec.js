@@ -208,6 +208,12 @@ async function mountRecorder(page, options = {}) {
 
     window.__llTestState = {
       prepareRequests: 0,
+      preparedWordCount: 0,
+      preparePayloads: [],
+      prepareReceipts: {},
+      textReadRequests: 0,
+      textPayloads: [],
+      textServer: { target: '', translation: '', revision: 0 },
       updateTextRequests: 0,
       transcribeRequests: 0,
       uploadRequests: 0,
@@ -218,9 +224,9 @@ async function mountRecorder(page, options = {}) {
       uploadRemainingTypesSequence
     };
 
-    const makeJsonResponse = (payload) => ({
-      ok: true,
-      status: 200,
+    const makeJsonResponse = (payload, status = 200) => ({
+      ok: status >= 200 && status < 300,
+      status,
       statusText: 'OK',
       headers: {
         get(name) {
@@ -228,7 +234,7 @@ async function mountRecorder(page, options = {}) {
         }
       },
       async json() {
-        return payload;
+        return JSON.parse(JSON.stringify(payload));
       },
       async text() {
         return JSON.stringify(payload);
@@ -259,18 +265,40 @@ async function mountRecorder(page, options = {}) {
         }));
       }
 
+      const currentText = () => ({
+        word_id: 501,
+        word_text_target: window.__llTestState.textServer.target,
+        word_translation: window.__llTestState.textServer.translation,
+        post_title: window.__llTestState.textServer.target,
+        store_in_title: true,
+        text_revision: 'revision-' + window.__llTestState.textServer.revision
+      });
       if (action === 'll_prepare_new_word_recording') {
         window.__llTestState.prepareRequests += 1;
+        window.__llTestState.preparePayloads.push(Array.from(body.entries()));
+        if (mountOptions.preparationProtocolError) {
+          return Promise.resolve(makeJsonResponse({ success: false, data: {
+            code: mountOptions.preparationProtocolError, message: 'Server preparation needs review'
+          } }, 409));
+        }
+        const preparationId = String(body.get('preparation_id') || '');
+        if (window.__llTestState.prepareReceipts[preparationId]) {
+          return Promise.resolve(makeJsonResponse(window.__llTestState.prepareReceipts[preparationId]));
+        }
+        if (window.__llTestState.prepareRequests === 1 && mountOptions.firstPrepareError) {
+          return Promise.resolve(makeJsonResponse({ success: false, data: mountOptions.firstPrepareError, safe_to_retry: true }));
+        }
+        window.__llTestState.preparedWordCount += 1;
         const targetText = String(body.get('word_text_target') || '').trim();
         const translationText = String(body.get('word_text_translation') || '').trim();
         const categoryName = String(body.get('new_category_name') || 'Uncategorized').trim() || 'Uncategorized';
         const selectedTypes = body.getAll('new_category_types[]');
         const recordingTypes = selectedTypes.length ? selectedTypes : ['isolation', 'introduction'];
-
-        const response = makeJsonResponse({
+        window.__llTestState.textServer = { target: targetText || 'Placeholder', translation: translationText, revision: 1 };
+        const payload = {
           success: true,
           data: {
-            word: {
+            word: Object.assign({
               id: 0,
               title: targetText || 'Placeholder',
               image_url: '',
@@ -285,37 +313,56 @@ async function mountRecorder(page, options = {}) {
               prompt_types: recordingTypes,
               my_existing_types: [],
               is_text_only: true
-            },
+            }, currentText()),
             recording_types: recordingTypes.map((slug) => ({
               slug,
               name: slug === 'introduction' ? 'Introduction' : 'Isolation',
               label: slug === 'introduction' ? 'Introduction' : 'Isolation',
               icon: ''
             })),
-            category: {
-              slug: 'debug-category',
-              name: categoryName,
-              term_id: 91
-            }
+            category: { slug: 'debug-category', name: categoryName, term_id: 91 }
           }
-        });
+        };
+        if (mountOptions.legacyPrepare) delete payload.data.word.text_revision;
+        window.__llTestState.prepareReceipts[preparationId] = JSON.parse(JSON.stringify(payload));
+        if (mountOptions.mutateAfterPrepare) {
+          Object.assign(window.__llTestState.textServer, mountOptions.mutateAfterPrepare);
+          window.__llTestState.textServer.revision += 1;
+        }
+        if (window.__llTestState.prepareRequests === 1 && mountOptions.firstPrepareFailure === 'transport') {
+          return Promise.reject(new TypeError('Failed to fetch'));
+        }
+        if (window.__llTestState.prepareRequests === 1 && mountOptions.firstPrepareFailure === 'json') {
+          const response = makeJsonResponse({});
+          response.json = async () => { throw new SyntaxError('Unexpected token in JSON'); };
+          return Promise.resolve(response);
+        }
+        if (window.__llTestState.prepareRequests === 1 && mountOptions.firstPrepareFailure === 'malformed') {
+          return Promise.resolve(makeJsonResponse({ success: true, data: { word: {}, recording_types: [] } }));
+        }
+        if (window.__llTestState.prepareRequests === 1 && mountOptions.firstPrepareFailure === 'boolean_id') {
+          return Promise.resolve(makeJsonResponse({ success: true, data: { word: { word_id: true }, recording_types: [] } }));
+        }
         const delayMs = Number(mountOptions.prepareDelayMs || 0);
-        return delayMs > 0
-          ? new Promise((resolve) => setTimeout(() => resolve(response), delayMs))
-          : Promise.resolve(response);
+        const response = makeJsonResponse(payload);
+        return delayMs > 0 ? new Promise(resolve => setTimeout(() => resolve(response), delayMs)) : Promise.resolve(response);
       }
-
+      if (action === 'll_get_new_word_text') {
+        window.__llTestState.textReadRequests += 1;
+        return Promise.resolve(makeJsonResponse({ success: true, data: currentText() }));
+      }
       if (action === 'll_update_new_word_text') {
         window.__llTestState.updateTextRequests += 1;
-        return Promise.resolve(makeJsonResponse({
-          success: true,
-          data: {
-            word_id: 501,
-            post_title: String(body.get('word_text_target') || ''),
-            word_translation: String(body.get('word_text_translation') || ''),
-            store_in_title: true
-          }
-        }));
+        window.__llTestState.textPayloads.push(Object.fromEntries(body.entries()));
+        if (String(body.get('expected_text_revision') || '') !== currentText().text_revision) {
+          return Promise.resolve(makeJsonResponse({ success: false, data: {
+            code: 'recorder_text_conflict', message: 'Word text changed elsewhere', current: currentText()
+          } }, 409));
+        }
+        window.__llTestState.textServer.target = String(body.get('word_text_target') || '').trim() || window.__llTestState.textServer.target;
+        window.__llTestState.textServer.translation = String(body.get('word_text_translation') || '').trim();
+        window.__llTestState.textServer.revision += 1;
+        return Promise.resolve(makeJsonResponse({ success: true, data: currentText() }));
       }
 
       if (action === 'll_transcribe_recording') {
@@ -428,6 +475,13 @@ async function mountRecorder(page, options = {}) {
         }
 
         window.__llTestState.uploadRequests += 1;
+        if (window.__llTestState.uploadRequests === 1 && mountOptions.firstUploadError) {
+          this.status = 400;
+          this.statusText = 'Bad Request';
+          this.responseText = JSON.stringify({ success: false, data: mountOptions.firstUploadError });
+          this.dispatch('load');
+          return;
+        }
         const recordingType = String(formData.get('recording_type') || 'isolation');
         const uploadPayload = {};
         if (formData && typeof formData.entries === 'function') {
@@ -594,8 +648,8 @@ async function mountRecorder(page, options = {}) {
         default: ''
       },
       allow_new_words: true,
-      assembly_enabled: true,
-      deepl_enabled: false,
+      assembly_enabled: mountOptions.assemblyEnabled !== false,
+      deepl_enabled: mountOptions.deeplEnabled === true,
       user_display_name: 'Recorder Tester',
       require_all_types: true,
       initial_category: 'uncategorized',
@@ -609,7 +663,7 @@ async function mountRecorder(page, options = {}) {
       current_user_id: 10,
       hidden_words: [],
       hidden_count: 0,
-      i18n: {
+      i18n: Object.assign({
         category: 'Category:',
         uncategorized: 'Uncategorized',
         transcribing: 'Transcribing...',
@@ -618,8 +672,20 @@ async function mountRecorder(page, options = {}) {
         recording_prompt_label: 'Say:',
         success: 'Success! Recording will be processed later.',
         new_word_prepare_failed: 'Failed to prepare new word',
-        new_word_update_text_failed: 'Failed to update word text'
-      }
+        new_word_update_text_failed: 'Failed to update word text',
+        new_word_prepare_unknown: 'New word creation could not be confirmed. Check for an existing draft before recording this word again.',
+        new_word_saving: 'Saving...',
+        new_word_saved: 'Saved',
+        new_word_prepare_retry: 'Retry preparation',
+        new_word_download_recording: 'Download recording',
+        new_word_prepare_recovering: 'Checking new word...',
+        new_word_text_conflict: 'This word changed elsewhere. Review the saved text before choosing which changes to keep.',
+        new_word_saved_text: 'Current saved text',
+        new_word_use_saved_text: 'Use saved text',
+        new_word_save_my_changes: 'Save my changes',
+        new_word_check_saved_text: 'Check saved text',
+        new_word_text_read_failed: 'The saved word text could not be checked. Please try again.'
+      }, mountOptions.i18n || {})
     };
   }, options);
 
@@ -639,6 +705,497 @@ async function recordAndSubmitCurrentType(page) {
   await expect(page.locator('#ll-submit-btn')).toBeVisible();
 
   await page.locator('#ll-submit-btn').click();
+}
+
+async function recordNewWord(page) {
+  await page.locator('#ll-new-word-toggle').click();
+  await page.locator('#ll-new-word-text-target').fill('Initial word');
+  await page.locator('#ll-new-word-text-translation').fill('Initial translation');
+  const record = page.locator('#ll-new-word-record-btn');
+  await record.click();
+  await expect(record).toHaveClass(/recording/);
+  await record.click();
+  await expect(page.locator('#ll-new-word-start')).toBeVisible();
+  await expect(page.locator('#ll-new-word-start')).toBeEnabled();
+}
+
+async function prepareRetainedNewWord(page, options = {}) {
+  await mountRecorder(page, Object.assign({ assemblyEnabled: false, stopDelayMs: 100, firstUploadError: 'Upload rejected' }, options));
+  await recordNewWord(page);
+  await page.locator('#ll-new-word-start').click();
+  await expect(page.locator('#ll-new-word-status')).toContainText('Upload rejected');
+  await expect(page.locator('#ll-new-word-start')).toBeEnabled();
+}
+
+async function deferPreparedTextWrites(page) {
+  await page.evaluate(() => {
+    const originalFetch = window.fetch;
+    window.__llPendingTextWrites = [];
+    window.fetch = (url, options = {}) => {
+      if (options.body?.get('action') !== 'll_update_new_word_text') return originalFetch(url, options);
+      const target = String(options.body.get('word_text_target') || '');
+      const translation = String(options.body.get('word_text_translation') || '');
+      const revision = String(options.body.get('expected_text_revision') || '');
+      return new Promise((resolve, reject) => {
+        window.__llPendingTextWrites.push({
+          target,
+          translation,
+          revision,
+          reject,
+          resolve(overrides = {}) {
+            resolve({ ok: true, json: async () => ({ success: true, data: Object.assign({
+              word_id: 501,
+              post_title: target,
+              word_text_target: target,
+              word_translation: translation,
+              store_in_title: true,
+              text_revision: revision + '-next'
+            }, overrides) }) });
+          }
+        });
+      });
+    };
+  });
+}
+
+test('prepared-word autosaves coalesce newer edits and Save waits for the latest acknowledgement', async ({ page }) => {
+  await prepareRetainedNewWord(page);
+  await deferPreparedTextWrites(page);
+  const target = page.locator('#ll-new-word-text-target');
+  await target.fill('Older');
+  await target.blur();
+  await expect.poll(() => page.evaluate(() => window.__llPendingTextWrites.length)).toBe(1);
+  await target.fill('Intermediate');
+  await target.blur();
+  await target.fill('Newest');
+  await target.blur();
+  await page.waitForTimeout(300);
+  expect(await page.evaluate(() => window.__llPendingTextWrites.length)).toBe(1);
+  await expect(page.locator('#ll-new-word-status')).toHaveText('Saving...');
+
+  await page.locator('#ll-new-word-start').click();
+  expect(await page.evaluate(() => window.__llTestState.uploadRequests)).toBe(1);
+  await page.evaluate(() => window.__llPendingTextWrites[0].resolve());
+  await expect.poll(() => page.evaluate(() => window.__llPendingTextWrites.length)).toBe(2);
+  await expect(target).toHaveValue('Newest');
+  expect(await page.evaluate(() => window.ll_recorder_data.images[0].word_title)).toBe('Initial word');
+  expect(await page.evaluate(() => window.__llPendingTextWrites[1].target)).toBe('Newest');
+  expect(await page.evaluate(() => window.__llTestState.uploadRequests)).toBe(1);
+  await page.evaluate(() => window.__llPendingTextWrites[1].resolve());
+  await expect.poll(() => page.evaluate(() => window.__llTestState.uploadRequests)).toBe(2);
+  expect(await page.evaluate(() => window.__llTestState.prepareRequests)).toBe(1);
+  expect(await page.evaluate(() => window.ll_recorder_data.images[0].word_title)).toBe('Newest');
+});
+
+test('prepared-word translation clearing reconciles canonical acknowledgements without a save loop', async ({ page }) => {
+  await prepareRetainedNewWord(page);
+  await deferPreparedTextWrites(page);
+  const translation = page.locator('#ll-new-word-text-translation');
+  await translation.fill('');
+  await translation.blur();
+  await expect.poll(() => page.evaluate(() => window.__llPendingTextWrites.length)).toBe(1);
+  await page.evaluate(() => window.__llPendingTextWrites[0].resolve({ word_text_target: 'Normalized target', post_title: 'Normalized target' }));
+  await expect(page.locator('#ll-new-word-text-target')).toHaveValue('Normalized target');
+  await expect(translation).toHaveValue('');
+  await expect(page.locator('#ll-new-word-status')).toHaveText('Saved');
+  expect(await page.evaluate(() => window.ll_recorder_data.images[0].word_translation)).toBe('');
+  await translation.focus();
+  await translation.blur();
+  await page.waitForTimeout(300);
+  expect(await page.evaluate(() => window.__llPendingTextWrites.length)).toBe(1);
+});
+
+test('an upload locks prepared text fields until its response settles', async ({ page }) => {
+  await prepareRetainedNewWord(page);
+  await expect(page.locator('#ll-new-word-text-target')).toBeEnabled();
+  await expect(page.locator('#ll-new-word-text-translation')).toBeEnabled();
+  await page.evaluate(() => {
+    const originalSend = XMLHttpRequest.prototype.send;
+    XMLHttpRequest.prototype.send = function (formData) {
+      window.__llReleaseHeldUpload = () => originalSend.call(this, formData);
+    };
+  });
+  await page.locator('#ll-new-word-start').click();
+  await expect.poll(() => page.evaluate(() => typeof window.__llReleaseHeldUpload)).toBe('function');
+  await expect(page.locator('#ll-new-word-text-target')).toBeDisabled();
+  await expect(page.locator('#ll-new-word-text-translation')).toBeDisabled();
+  await page.evaluate(() => window.__llReleaseHeldUpload());
+  await expect.poll(() => page.evaluate(() => window.__llTestState.uploadRequests)).toBe(2);
+  await expect(page.locator('#ll-new-word-text-target')).toBeEnabled();
+  await expect(page.locator('#ll-new-word-text-translation')).toBeEnabled();
+});
+
+test('a final successful upload keeps edits and capture locked until the next form opens', async ({ page }) => {
+  await mountRecorder(page, { assemblyEnabled: false, stopDelayMs: 100, uploadRemainingTypes: [] });
+  await recordNewWord(page);
+  await page.clock.install();
+  await page.clock.pauseAt(new Date(Date.now() + 1000));
+  await page.locator('#ll-new-word-start').click();
+  await page.clock.runFor(20);
+  await expect(page.locator('#ll-new-word-status')).toContainText('Success!');
+  await expect(page.locator('#ll-new-word-text-target')).toBeDisabled();
+  await expect(page.locator('#ll-new-word-text-translation')).toBeDisabled();
+  await expect(page.locator('#ll-new-word-record-btn')).toBeDisabled();
+  await expect(page.locator('#ll-new-word-back')).toBeDisabled();
+  await page.clock.runFor(800);
+  await expect(page.locator('#ll-new-word-text-target')).toBeEnabled();
+  await expect(page.locator('#ll-new-word-text-target')).toHaveValue('');
+  await expect(page.locator('#ll-new-word-record-btn')).toBeEnabled();
+  expect(await page.evaluate(() => window.__llTestState.prepareRequests)).toBe(1);
+});
+
+test('an old prepared-word acknowledgement cannot mutate a newly opened draft', async ({ page }) => {
+  await prepareRetainedNewWord(page);
+  await deferPreparedTextWrites(page);
+  await page.locator('#ll-new-word-text-target').fill('Retired word');
+  await page.locator('#ll-new-word-text-target').blur();
+  await expect.poll(() => page.evaluate(() => window.__llPendingTextWrites.length)).toBe(1);
+  await page.locator('#ll-new-word-redo-btn').click();
+  await page.locator('#ll-new-word-back').click();
+  await page.locator('#ll-new-word-toggle').click();
+  await page.locator('#ll-new-word-text-target').fill('New draft');
+  await page.evaluate(() => window.__llPendingTextWrites[0].resolve());
+  await page.waitForTimeout(300);
+  await expect(page.locator('#ll-new-word-text-target')).toHaveValue('New draft');
+  await expect(page.locator('#ll-new-word-status')).toBeHidden();
+  expect(await page.evaluate(() => window.__llPendingTextWrites.length)).toBe(1);
+});
+
+test('prepared-word native save failures require a read and explicit revision review before retry', async ({ page }) => {
+  await prepareRetainedNewWord(page, { i18n: { new_word_update_text_failed: 'Kelime metni güncellenemedi' } });
+  await deferPreparedTextWrites(page);
+  await page.locator('#ll-new-word-text-target').fill('Retained edit');
+  await page.locator('#ll-new-word-text-target').blur();
+  await expect.poll(() => page.evaluate(() => window.__llPendingTextWrites.length)).toBe(1);
+  await page.evaluate(() => window.__llPendingTextWrites[0].reject(new TypeError('Failed to fetch')));
+  await expect(page.locator('#ll-new-word-status')).toHaveText('Kelime metni güncellenemedi');
+  await expect(page.locator('#ll-new-word-text-target')).toHaveValue('Retained edit');
+  await page.waitForTimeout(300);
+  expect(await page.evaluate(() => window.__llPendingTextWrites.length)).toBe(1);
+  await expect(page.locator('#ll-new-word-start')).toBeDisabled();
+  await page.locator('[data-ll-new-word-check-saved]').click();
+  await expect(page.locator('.ll-new-word-recovery-text')).toContainText('Initial word');
+  await expect(page.locator('#ll-new-word-text-target')).toHaveValue('Retained edit');
+  await page.locator('[data-ll-new-word-save-local]').click();
+  await expect.poll(() => page.evaluate(() => window.__llPendingTextWrites.length)).toBe(2);
+  await page.evaluate(() => window.__llPendingTextWrites[1].resolve());
+  await expect(page.locator('#ll-new-word-status')).toHaveText('Saved');
+  expect(await page.evaluate(() => window.__llTestState.uploadRequests)).toBe(1);
+});
+
+test('a precreation rejection can retry the retained recording without creating duplicate drafts', async ({ page }) => {
+  await mountRecorder(page, { assemblyEnabled: false, stopDelayMs: 100, firstPrepareError: 'Choose another category' });
+  await recordNewWord(page);
+  const audio = page.locator('#ll-new-word-playback-audio');
+  const recordingUrl = await audio.getAttribute('src');
+  await page.locator('#ll-new-word-start').click();
+  await expect(page.locator('#ll-new-word-status')).toHaveText('Choose another category');
+  await expect(page.locator('#ll-new-word-start')).toBeEnabled();
+  await expect(audio).toHaveAttribute('src', recordingUrl);
+  await page.locator('#ll-new-word-start').click();
+  await expect.poll(() => page.evaluate(() => window.__llTestState.uploadRequests)).toBe(1);
+  expect(await page.evaluate(() => ({ requests: window.__llTestState.prepareRequests, created: window.__llTestState.preparedWordCount }))).toEqual({ requests: 2, created: 1 });
+});
+
+test('preparation fails closed without cryptographic operation IDs and retains the recording', async ({ page }) => {
+  await mountRecorder(page, { assemblyEnabled: false, stopDelayMs: 100 });
+  await recordNewWord(page);
+  const recordingUrl = await page.locator('#ll-new-word-playback-audio').getAttribute('src');
+  await page.evaluate(() => Object.defineProperty(window.crypto, 'getRandomValues', { configurable: true, value: undefined }));
+  await page.locator('#ll-new-word-start').click();
+  await expect(page.locator('#ll-new-word-status')).toHaveText('Failed to prepare new word');
+  expect(await page.evaluate(() => window.__llTestState.prepareRequests)).toBe(0);
+  await expect(page.locator('#ll-new-word-playback-audio')).toHaveAttribute('src', recordingUrl);
+});
+
+test('concurrent word edits require explicit review and every overwrite remains conditional', async ({ page }) => {
+  await prepareRetainedNewWord(page);
+  const recordingUrl = await page.locator('#ll-new-word-playback-audio').getAttribute('src');
+  await page.evaluate(() => {
+    Object.assign(window.__llTestState.textServer, { target: 'Other tab text', translation: 'Other tab translation' });
+    window.__llTestState.textServer.revision += 1;
+  });
+  await page.locator('#ll-new-word-text-target').fill('My retained edit');
+  await page.locator('#ll-new-word-text-target').blur();
+  await expect(page.locator('.ll-new-word-recovery-text')).toContainText('Other tab text');
+  await expect(page.locator('#ll-new-word-text-target')).toHaveValue('My retained edit');
+  await expect(page.locator('#ll-new-word-start')).toBeDisabled();
+  await expect(page.locator('#ll-new-word-playback-audio')).toHaveAttribute('src', recordingUrl);
+  await page.waitForTimeout(300);
+  expect(await page.evaluate(() => window.__llTestState.updateTextRequests)).toBe(2);
+
+  await page.evaluate(() => {
+    window.__llTestState.textServer.target = 'Newer other tab text';
+    window.__llTestState.textServer.revision += 1;
+  });
+  await page.locator('[data-ll-new-word-save-local]').click();
+  await expect(page.locator('.ll-new-word-recovery-text')).toContainText('Newer other tab text');
+  await expect(page.locator('#ll-new-word-text-target')).toHaveValue('My retained edit');
+  expect(await page.evaluate(() => window.__llTestState.textServer.target)).toBe('Newer other tab text');
+  await page.locator('[data-ll-new-word-save-local]').click();
+  await expect(page.locator('#ll-new-word-status')).toHaveText('Saved');
+  expect(await page.evaluate(() => window.__llTestState.textServer.target)).toBe('My retained edit');
+  expect(await page.evaluate(() => window.__llTestState.textPayloads.map(payload => payload.expected_text_revision)))
+    .toEqual(['revision-1', 'revision-2', 'revision-3', 'revision-4']);
+  await expect(page.locator('#ll-new-word-playback-audio')).toHaveAttribute('src', recordingUrl);
+  expect(await page.evaluate(() => window.__llTestState.uploadRequests)).toBe(1);
+});
+
+for (const failure of ['transport', 'body']) {
+  test(`a committed text save with a lost ${failure} response is acknowledged by a bounded read without replay`, async ({ page }) => {
+    await prepareRetainedNewWord(page, { requestTimeoutMs: 75 });
+    const recordingUrl = await page.locator('#ll-new-word-playback-audio').getAttribute('src');
+    await page.evaluate(({ failure }) => {
+      const originalFetch = window.fetch;
+      let failed = false;
+      window.fetch = async (url, options = {}) => {
+        const response = await originalFetch(url, options);
+        if (options.body?.get('action') !== 'll_update_new_word_text' || failed) return response;
+        failed = true;
+        if (failure === 'transport') throw new TypeError('Failed to fetch');
+        return Object.assign({}, response, { json: () => new Promise(() => {}) });
+      };
+    }, { failure });
+    await page.locator('#ll-new-word-text-target').fill('Committed edit');
+    await page.locator('#ll-new-word-text-target').blur();
+    await expect(page.locator('[data-ll-new-word-check-saved]')).toBeEnabled();
+    await expect(page.locator('#ll-new-word-text-target')).toHaveValue('Committed edit');
+    expect(await page.evaluate(() => window.__llTestState.updateTextRequests)).toBe(2);
+    await page.locator('[data-ll-new-word-check-saved]').click();
+    await expect(page.locator('#ll-new-word-status')).toHaveText('Saved');
+    expect(await page.evaluate(() => window.__llTestState.updateTextRequests)).toBe(2);
+    expect(await page.evaluate(() => window.__llTestState.textReadRequests)).toBe(1);
+    await expect(page.locator('#ll-new-word-playback-audio')).toHaveAttribute('src', recordingUrl);
+    await page.locator('#ll-new-word-start').click();
+    await expect.poll(() => page.evaluate(() => window.__llTestState.uploadRequests)).toBe(2);
+    expect(await page.evaluate(() => window.__llTestState.textPayloads.at(-1).expected_text_revision)).toBe('revision-3');
+    expect(await page.evaluate(() => window.__llTestState.prepareRequests)).toBe(1);
+  });
+}
+
+test('legacy preparation bootstraps a revision only while its original text baseline still matches', async ({ page }) => {
+  await prepareRetainedNewWord(page, { legacyPrepare: true });
+  expect(await page.evaluate(() => window.__llTestState.textReadRequests)).toBe(1);
+  expect(await page.evaluate(() => window.__llTestState.textPayloads[0].expected_text_revision)).toBe('revision-1');
+});
+
+test('legacy revision bootstrap preserves the local draft when another writer changed the saved text', async ({ page }) => {
+  await mountRecorder(page, { assemblyEnabled: false, stopDelayMs: 100, legacyPrepare: true,
+    mutateAfterPrepare: { target: 'Other tab baseline', translation: 'Other translation' } });
+  await recordNewWord(page);
+  const recordingUrl = await page.locator('#ll-new-word-playback-audio').getAttribute('src');
+  await page.locator('#ll-new-word-start').click();
+  await expect(page.locator('.ll-new-word-recovery-text')).toContainText('Other tab baseline');
+  await expect(page.locator('#ll-new-word-text-target')).toHaveValue('Initial word');
+  expect(await page.evaluate(() => window.__llTestState.updateTextRequests)).toBe(0);
+  expect(await page.evaluate(() => window.__llTestState.uploadRequests)).toBe(0);
+  await page.locator('[data-ll-new-word-use-saved]').click();
+  await expect(page.locator('#ll-new-word-text-target')).toHaveValue('Other tab baseline');
+  await expect(page.locator('#ll-new-word-playback-audio')).toHaveAttribute('src', recordingUrl);
+  await page.locator('#ll-new-word-start').click();
+  await expect.poll(() => page.evaluate(() => window.__llTestState.uploadRequests)).toBe(1);
+  expect(await page.evaluate(() => window.__llTestState.textPayloads[0].expected_text_revision)).toBe('revision-2');
+});
+
+test('a replayed creation receipt checks its original revision before uploading even unchanged text', async ({ page }) => {
+  await mountRecorder(page, { assemblyEnabled: false, stopDelayMs: 100, firstPrepareFailure: 'transport',
+    mutateAfterPrepare: { target: 'Other tab after creation', translation: 'Other translation' } });
+  await recordNewWord(page);
+  await page.locator('#ll-new-word-start').click();
+  await page.locator('[data-ll-new-word-retry-prepare]').click();
+  await expect(page.locator('.ll-new-word-recovery-text')).toContainText('Other tab after creation');
+  await expect(page.locator('#ll-new-word-text-target')).toHaveValue('Initial word');
+  expect(await page.evaluate(() => window.__llTestState.uploadRequests)).toBe(0);
+  expect(await page.evaluate(() => window.__llTestState.textPayloads[0].expected_text_revision)).toBe('revision-1');
+  expect(await page.evaluate(() => window.__llTestState.preparedWordCount)).toBe(1);
+});
+
+test('a later recording type opens visible conflict review without discarding its captured audio', async ({ page }) => {
+  await mountRecorder(page, { assemblyEnabled: false, stopDelayMs: 100 });
+  await recordNewWord(page);
+  await page.locator('#ll-new-word-start').click();
+  await expect(page.locator('.ll-recording-main')).toBeVisible();
+  await expect(page.locator('#ll-recording-type')).toHaveValue('introduction');
+  await page.locator('#ll-record-btn').click();
+  await expect(page.locator('#ll-record-btn')).toHaveClass(/recording/);
+  await page.locator('#ll-record-btn').click();
+  await expect(page.locator('#ll-submit-btn')).toBeVisible();
+  await page.evaluate(() => {
+    window.__llTestState.textServer.target = 'Other tab during next type';
+    window.__llTestState.textServer.revision += 1;
+  });
+  await page.locator('#ll-submit-btn').click();
+  await expect(page.locator('#ll-new-word-panel')).toBeVisible();
+  await expect(page.locator('.ll-new-word-recovery-text')).toContainText('Other tab during next type');
+  await expect(page.locator('#ll-new-word-text-target')).toHaveValue('Initial word');
+  await expect(page.locator('#ll-new-word-playback-audio')).toHaveAttribute('src', /^blob:/);
+  expect(await page.evaluate(() => window.__llTestState.uploadRequests)).toBe(1);
+  await page.locator('[data-ll-new-word-save-local]').click();
+  await expect(page.locator('#ll-new-word-status')).toHaveText('Saved');
+  await page.locator('#ll-new-word-start').click();
+  await expect.poll(() => page.evaluate(() => window.__llTestState.uploadRequests)).toBe(2);
+  expect(await page.evaluate(() => window.__llTestState.prepareRequests)).toBe(1);
+});
+
+for (const code of ['recorder_preparation_expired', 'recorder_preparation_incomplete', 'recorder_preparation_mismatch']) {
+  test(`${code} retains audio without inviting a new operation or automatic retries`, async ({ page }) => {
+    await mountRecorder(page, { assemblyEnabled: false, stopDelayMs: 100, preparationProtocolError: code });
+    await recordNewWord(page);
+    const recordingUrl = await page.locator('#ll-new-word-playback-audio').getAttribute('src');
+    await page.locator('#ll-new-word-start').click();
+    await expect(page.locator('#ll-new-word-status')).toHaveText('Server preparation needs review');
+    await expect(page.locator('[data-ll-new-word-retry-prepare]')).toHaveCount(0);
+    await expect(page.locator('#ll-new-word-start')).toBeDisabled();
+    await expect(page.locator('#ll-new-word-playback-audio')).toHaveAttribute('src', recordingUrl);
+    const [download] = await Promise.all([
+      page.waitForEvent('download'),
+      page.getByRole('link', { name: 'Download recording' }).click()
+    ]);
+    expect(download.suggestedFilename()).toMatch(/^recording\.(?:webm|wav|ogg|mp4)$/);
+    const chunks = [];
+    for await (const chunk of await download.createReadStream()) {
+      chunks.push(chunk);
+    }
+    expect(Buffer.concat(chunks).toString()).toBe('fake-audio');
+    await expect(page.locator('#ll-new-word-playback-audio')).toHaveAttribute('src', recordingUrl);
+    await page.waitForTimeout(300);
+    const requests = await page.evaluate(() => ({
+      preparation: window.__llTestState.prepareRequests,
+      uploads: window.__llTestState.uploadRequests
+    }));
+    expect(requests).toEqual({ preparation: 1, uploads: 0 });
+  });
+}
+
+test('a busy creation receipt retries only on demand and keeps the same operation payload', async ({ page }) => {
+  await mountRecorder(page, { assemblyEnabled: false, stopDelayMs: 100, preparationProtocolError: 'recorder_preparation_busy' });
+  await recordNewWord(page);
+  await page.locator('#ll-new-word-start').click();
+  await expect(page.locator('[data-ll-new-word-retry-prepare]')).toBeEnabled();
+  await page.waitForTimeout(300);
+  expect(await page.evaluate(() => window.__llTestState.prepareRequests)).toBe(1);
+  await page.locator('[data-ll-new-word-retry-prepare]').click();
+  await expect.poll(() => page.evaluate(() => window.__llTestState.prepareRequests)).toBe(2);
+  const payloads = await page.evaluate(() => window.__llTestState.preparePayloads);
+  expect(payloads[1]).toEqual(payloads[0]);
+});
+
+test('a late read-only recovery response cannot replace a newer draft', async ({ page }) => {
+  await prepareRetainedNewWord(page);
+  await deferPreparedTextWrites(page);
+  await page.locator('#ll-new-word-text-target').fill('Retained before redo');
+  await page.locator('#ll-new-word-text-target').blur();
+  await expect.poll(() => page.evaluate(() => window.__llPendingTextWrites.length)).toBe(1);
+  await page.evaluate(() => window.__llPendingTextWrites[0].reject(new TypeError('Failed to fetch')));
+  await page.evaluate(() => {
+    const originalFetch = window.fetch;
+    window.fetch = (url, options = {}) => {
+      if (options.body?.get('action') !== 'll_get_new_word_text') return originalFetch(url, options);
+      return new Promise(resolve => {
+        window.__llResolveOldTextRead = () => resolve({ ok: true, json: async () => ({ success: true, data: {
+          word_id: 501, word_text_target: 'Retired text', word_translation: 'Retired translation', text_revision: 'retired-revision'
+        } }) });
+      });
+    };
+  });
+  await page.locator('[data-ll-new-word-check-saved]').click();
+  await expect.poll(() => page.evaluate(() => typeof window.__llResolveOldTextRead)).toBe('function');
+  await page.locator('#ll-new-word-redo-btn').click();
+  await expect(page.locator('#ll-new-word-text-target')).toHaveValue('Retained before redo');
+  await page.locator('#ll-new-word-back').click();
+  await page.locator('#ll-new-word-toggle').click();
+  await page.locator('#ll-new-word-text-target').fill('New draft');
+  await page.evaluate(() => window.__llResolveOldTextRead());
+  await page.waitForTimeout(300);
+  await expect(page.locator('#ll-new-word-text-target')).toHaveValue('New draft');
+  await expect(page.locator('[data-ll-new-word-recovery]')).toHaveCount(0);
+});
+
+test('a recovery read body deadline preserves the local draft and exposes one manual retry', async ({ page }) => {
+  await prepareRetainedNewWord(page, { requestTimeoutMs: 75 });
+  await deferPreparedTextWrites(page);
+  await page.locator('#ll-new-word-text-target').fill('Read failure draft');
+  await page.locator('#ll-new-word-text-target').blur();
+  await expect.poll(() => page.evaluate(() => window.__llPendingTextWrites.length)).toBe(1);
+  await page.evaluate(() => window.__llPendingTextWrites[0].reject(new TypeError('Failed to fetch')));
+  await page.evaluate(() => {
+    const originalFetch = window.fetch;
+    window.fetch = async (url, options = {}) => {
+      const response = await originalFetch(url, options);
+      return options.body?.get('action') === 'll_get_new_word_text'
+        ? Object.assign({}, response, { json: () => new Promise(() => {}) }) : response;
+    };
+  });
+  await page.locator('[data-ll-new-word-check-saved]').click();
+  await expect(page.locator('#ll-new-word-status')).toHaveText('The saved word text could not be checked. Please try again.');
+  await expect(page.locator('[data-ll-new-word-check-saved]')).toBeEnabled();
+  await expect(page.locator('#ll-new-word-text-target')).toHaveValue('Read failure draft');
+  await page.waitForTimeout(300);
+  expect(await page.evaluate(() => window.__llTestState.textReadRequests)).toBe(1);
+});
+
+for (const failure of ['transport', 'json', 'malformed', 'boolean_id']) {
+  test(`ambiguous ${failure} preparation failure replays the frozen receipt only after explicit recovery`, async ({ page }) => {
+    await mountRecorder(page, { assemblyEnabled: false, stopDelayMs: 100, firstPrepareFailure: failure,
+      i18n: { new_word_prepare_unknown: 'Taslak oluşturma doğrulanamadı' } });
+    await recordNewWord(page);
+    const recordingUrl = await page.locator('#ll-new-word-playback-audio').getAttribute('src');
+    await page.locator('#ll-new-word-start').click();
+    await expect(page.locator('#ll-new-word-status')).toHaveText('Taslak oluşturma doğrulanamadı');
+    await expect(page.locator('#ll-new-word-start')).toBeDisabled();
+    await expect(page.locator('#ll-new-word-playback-audio')).toHaveAttribute('src', recordingUrl);
+    await page.waitForTimeout(300);
+    expect(await page.evaluate(() => window.__llTestState.prepareRequests)).toBe(1);
+    expect(await page.evaluate(() => window.__llTestState.preparedWordCount)).toBe(1);
+    expect(await page.evaluate(() => window.__llTestState.uploadRequests)).toBe(0);
+    await page.locator('#ll-new-word-text-target').fill('Edited while recovering');
+    await page.locator('[data-ll-new-word-retry-prepare]').click();
+    await expect.poll(() => page.evaluate(() => window.__llTestState.uploadRequests)).toBe(1);
+    const state = await page.evaluate(() => ({
+      payloads: window.__llTestState.preparePayloads,
+      created: window.__llTestState.preparedWordCount,
+      target: window.__llTestState.textServer.target,
+      expected: window.__llTestState.textPayloads[0].expected_text_revision
+    }));
+    expect(state.payloads).toHaveLength(2);
+    expect(state.payloads[1]).toEqual(state.payloads[0]);
+    expect(Object.fromEntries(state.payloads[0]).preparation_id).toMatch(/^\d+-[a-f0-9]{32}$/);
+    expect(state.created).toBe(1);
+    expect(state.target).toBe('Edited while recovering');
+    expect(state.expected).toBe('revision-1');
+  });
+
+  if (!['transport', 'json'].includes(failure)) continue;
+  for (const provider of ['translation', 'transcription']) {
+    test(`new-word ${provider} ${failure} errors use localized feedback and retain entered text`, async ({ page }) => {
+      const message = provider === 'translation' ? 'Çeviri yapılamadı' : 'Transkripsiyon yapılamadı';
+      await mountRecorder(page, {
+        assemblyEnabled: provider === 'transcription',
+        deeplEnabled: provider === 'translation',
+        stopDelayMs: 100,
+        i18n: { [`${provider}_request_failed`]: message }
+      });
+      await page.evaluate(({ provider, failure }) => {
+        const originalFetch = window.fetch;
+        const action = provider === 'translation' ? 'll_translate_recording_text' : 'll_transcribe_recording';
+        window.fetch = (url, options = {}) => {
+          if (options.body?.get('action') !== action) return originalFetch(url, options);
+          if (failure === 'transport') return Promise.reject(new TypeError('Failed to fetch'));
+          return Promise.resolve({ ok: true, json: async () => { throw new SyntaxError('Unexpected token in JSON'); } });
+        };
+      }, { provider, failure });
+      if (provider === 'transcription') {
+        await recordNewWord(page);
+      } else {
+        await page.locator('#ll-new-word-toggle').click();
+        await page.locator('#ll-new-word-text-target').fill('Initial word');
+        await page.locator('#ll-new-word-text-target').blur();
+      }
+      await expect(page.locator('#ll-new-word-status')).toHaveText(message);
+      await expect(page.locator('#ll-new-word-text-target')).toHaveValue('Initial word');
+      await expect(page.locator('#ll-new-word-text-target')).toBeEnabled();
+    });
+  }
 }
 
 test('new-word category type preflight includes the selected wordset scope', async ({ page }) => {
@@ -888,7 +1445,7 @@ test('pending new-word transcription does not block save and advances to the int
   await expect(page.locator('#ll-new-word-overlay')).toHaveAttribute('hidden', 'hidden');
 });
 
-test('slow draft creation is not abandoned at the generic read deadline', async ({ page }) => {
+test('slow idempotent creation has a bounded deadline and reuses its receipt on explicit recovery', async ({ page }) => {
   await mountRecorder(page, {
     prepareDelayMs: 150,
     requestTimeoutMs: 50
@@ -909,6 +1466,8 @@ test('slow draft creation is not abandoned at the generic read deadline', async 
   await expect.poll(async () => page.evaluate(() => window.__llTestState.prepareRequests)).toBe(1);
   await page.waitForTimeout(100);
   expect(await page.evaluate(() => window.__llTestState.prepareRequests)).toBe(1);
+  expect(await page.evaluate(() => window.__llTestState.uploadRequests)).toBe(0);
+  await page.locator('[data-ll-new-word-retry-prepare]').click();
 
   await expect.poll(async () => page.evaluate(() => window.__llTestState.uploadRequests)).toBe(1);
   expect(await page.evaluate(() => ({
@@ -916,7 +1475,7 @@ test('slow draft creation is not abandoned at the generic read deadline', async 
     updateTextRequests: window.__llTestState.updateTextRequests,
     uploadRequests: window.__llTestState.uploadRequests
   }))).toEqual({
-    prepareRequests: 1,
+    prepareRequests: 2,
     updateTextRequests: 1,
     uploadRequests: 1
   });

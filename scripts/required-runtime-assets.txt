@@ -1,7 +1,11 @@
 # Runtime assets that must be present in any installable plugin archive.
-# Keep this list focused on broadly enqueued public/admin assets; it is a
-# release safety tripwire, not a complete file manifest.
+# This release safety check covers required modules and enqueued assets.
 language-learner-tools.php
+includes/lib/complete-source-reads.php
+includes/lib/public-static-cache-lifecycle.php
+includes/lib/recorder-mutations.php
+includes/admin/category-video-export.php
+includes/lib/category-video-data.php
 css/language-learner-tools.css
 css/login-window.css
 css/frontend-utility-menu.css
@@ -11,6 +15,8 @@ css/wordset-pages.css
 css/word-copy-dialog.css
 css/wordset-transcription-review.css
 css/recording-history.css
+css/recording-interface.css
+css/category-video-export.css
 css/vocab-lesson-pages.css
 css/content-lesson-pages.css
 css/content-lesson-cloze.css
@@ -31,6 +37,9 @@ js/wordset-pages.js
 js/word-copy-dialog.js
 js/wordset-transcription-review.js
 js/recording-history.js
+js/audio-recorder.js
+js/category-video-export.js
+js/category-video-renderer.js
 js/vocab-lesson-page.js
 js/content-lesson-cloze.js
 js/content-lesson-cloze-admin.js

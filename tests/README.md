@@ -98,6 +98,14 @@ for these WordPress-dependent guards. Client recovery fixtures are
 `e2e/specs/word-copy-popup.spec.js`; they use isolated markup and mocked transport
 and can run directly through the installed Playwright CLI.
 
+For public HTML cleanup and cold-work admission, run
+`Integration/PublicStaticCacheLifecycleTest.php`, `Integration/PublicStaticCacheTest.php`
+and `Integration/DictionaryFeatureTest.php`. The Category Video data and AJAX
+contracts live in `Integration/CategoryVideoDataTest.php`. The recorder revision
+and preparation contracts live in `Integration/RecorderMutationProtocolTest.php`.
+The isolated browser renderer and recorder regressions can run directly with the
+installed Playwright CLI. The Category Video admin browser fixture needs Local.
+
 ### Documentation and source review without WordPress
 
 From the plugin root, with local dependencies already installed:

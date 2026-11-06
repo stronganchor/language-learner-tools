@@ -129,6 +129,7 @@ if (ll_tools_should_load_admin_modules()) {
     require_once(__DIR__ . '/admin/dictionary-sources-admin.php');
     require_once(__DIR__ . '/admin/export-import.php');
     require_once(__DIR__ . '/admin/offline-app-export.php');
+    require_once(__DIR__ . '/admin/category-video-export.php');
     require_once(__DIR__ . '/admin/user-progress-report.php');
     require_once(__DIR__ . '/admin/teacher-classes-page.php');
     require_once(__DIR__ . '/admin/google-classroom-integration.php');

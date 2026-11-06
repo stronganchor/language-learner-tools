@@ -12,6 +12,28 @@ function ll_tools_static_cache_generated_files(string $pattern) {
     return is_array($files) ? $files : false;
 }
 
+/** Reserve both client and site capacity without retaining a partial charge. */
+function ll_tools_reserve_static_render_budget(string $prefix, array $config): array {
+    $window = max(1, min(HOUR_IN_SECONDS, (int) $config['window']));
+    $ip = isset($_SERVER['REMOTE_ADDR']) && is_scalar($_SERVER['REMOTE_ADDR'])
+        ? trim((string) $_SERVER['REMOTE_ADDR']) : '';
+    $ip = filter_var($ip, FILTER_VALIDATE_IP) ? $ip : 'unknown';
+    $reservations = [];
+    foreach ([['ip', $ip, (int) $config['ip_limit']], ['site', 'site', (int) $config['site_limit']]] as $target) {
+        $reservation = ll_tools_public_ajax_reserve_counter($prefix . $target[0] . '_', $target[1], max(0, $target[2]), $window);
+        if (empty($reservation['allowed'])) {
+            foreach ($reservations as $previous) {
+                ll_tools_public_ajax_refund_counter($previous);
+            }
+            return ['allowed' => false, 'retry_after' => max(1, (int) ($reservation['retry_after'] ?? $window))];
+        }
+        if (!empty($reservation['reserved'])) {
+            $reservations[] = $reservation;
+        }
+    }
+    return ['allowed' => true, 'retry_after' => 0];
+}
+
 /**
  * Admit static-cache cleanup only at a maintenance boundary, with a durable
  * cooldown even after an interrupted attempt. Public readers only schedule it.

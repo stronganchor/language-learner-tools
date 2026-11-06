@@ -45,12 +45,15 @@ if (!defined('LL_TOOLS_MEDIA_PROXY_CACHE_MAINTENANCE_CONTINUATION_HOOK')) {
  */
 function ll_tools_expired_transient_maintenance_direct_db_namespaces(): array {
     return [
+        'recorder-prepare-receipt' => 'll_recorder_prepare_',
         'ai-export-build-lock' => 'll_ai_export_build_',
         'ai-export-client-inflight' => 'll_ai_export_inflight_',
         'ai-export-rate-limit' => 'll_ai_export_miss_',
         'audio-delete-lock' => 'll_ap_delete_',
         'dictionary-client-inflight' => 'll_dict_live_search_inflight_',
         'dictionary-rate-limit' => 'll_dict_live_search_rl_',
+        'dictionary-static-search-rate-limit' => 'll_dict_static_search_',
+        'public-static-cache-rate-limit' => 'll_public_static_miss_',
         'flashcard-ajax-client-inflight' => 'll_fc_ajax_inflight_',
         'flashcard-ajax-build-lock' => 'll_fc_ajax_build_',
         'flashcard-ajax-rate-limit' => 'll_fc_ajax_throttle_',

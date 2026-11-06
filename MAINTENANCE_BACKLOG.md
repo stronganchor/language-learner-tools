@@ -1,6 +1,6 @@
 # Maintenance Backlog
 
-Updated October 9, 2026 during the authorized maintenance follow-up.
+Updated November 6, 2026 during the authorized maintenance follow-up.
 The original September 18 evidence and line numbers below refer to
 `ed4405812767784e1d4e3eb688fc9ebbf632a41b` (6.7.39); current status notes identify
 the implemented follow-up without erasing that history. This maintenance pass
@@ -8,6 +8,22 @@ does not deploy the changes or authorize provider/live-site testing.
 
 This file is for worthwhile work that should be planned deliberately instead of
 being folded into a small opportunistic fix.
+
+## November 6 maintenance follow-up
+
+- Dictionary free-text requests and public-page recovery paths share bounded
+  cold-work admission. Canonical dictionary pages and completed cache hits
+  remain available to crawlers.
+- Public HTML cleanup advances past blocked entries and retries them with
+  backoff. Active generations and publication leases retain their protection.
+- Category Video uses scoped, consistent speaker attribution and retries
+  incomplete reads at the same cursor. The browser retains its last completed
+  export through a failed replacement and limits audio decoding.
+- Recorder text saves check the current revision before a no-op response.
+  Terminal preparation failures let the recorder download retained audio locally.
+- Dictionary publication fencing and direct cache-file access still need
+  protocol and hosting review. The unpublished legacy route fixture from the
+  audit also needs separate compatibility review.
 
 ## October 9 maintenance follow-up (6.7.46)
 

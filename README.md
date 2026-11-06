@@ -52,6 +52,7 @@ when changing those requirements.
   - **Recording Interface**: `[audio_recording_interface]` shortcode provides a browser-based recording interface.
   - **My recordings**: Private, paginated playback history inside the recording interface, scoped to the speaker and selected wordset.
   - **Audio Processor**: Admin tool to batch-process uploaded audio files and attach them to words.
+  - **[Category Video](docs/CATEGORY_VIDEO.md)** creates a vocabulary slideshow with existing images and recordings in the browser.
   - **Audio-Image Matcher**: Admin tool to quickly match audio and images where needed.
   - **Recording Types**: Categorize audio as introduction, isolation, question, or sentence for contextual playback.
 

@@ -6,6 +6,8 @@
 
 if (!defined('WPINC')) { die; }
 
+require_once dirname(__DIR__) . '/lib/recorder-mutations.php';
+
 /**
  * Get translatable name for a recording type by slug
  */
@@ -1647,6 +1649,18 @@ function ll_audio_recording_interface_shortcode($atts) {
             'new_word_failed'     => __('New word setup failed:', 'll-tools-text-domain'),
             'new_word_update_text_failed' => __('Failed to update word text', 'll-tools-text-domain'),
             'new_word_prepare_failed' => __('Failed to prepare new word', 'll-tools-text-domain'),
+            'new_word_prepare_unknown' => __('New word creation could not be confirmed. Check for an existing draft before recording this word again.', 'll-tools-text-domain'),
+            'new_word_prepare_retry' => __('Retry preparation', 'll-tools-text-domain'),
+            'new_word_download_recording' => __('Download recording', 'll-tools-text-domain'),
+            'new_word_prepare_recovering' => __('Checking new word...', 'll-tools-text-domain'),
+            'new_word_text_conflict' => __('This word changed elsewhere. Review the saved text before choosing which changes to keep.', 'll-tools-text-domain'),
+            'new_word_saved_text' => __('Current saved text', 'll-tools-text-domain'),
+            'new_word_use_saved_text' => __('Use saved text', 'll-tools-text-domain'),
+            'new_word_save_my_changes' => __('Save my changes', 'll-tools-text-domain'),
+            'new_word_check_saved_text' => __('Check saved text', 'll-tools-text-domain'),
+            'new_word_text_read_failed' => __('The saved word text could not be checked. Please try again.', 'll-tools-text-domain'),
+            'new_word_saving' => __('Saving...', 'll-tools-text-domain'),
+            'new_word_saved' => __('Saved', 'll-tools-text-domain'),
             'new_word_missing_data' => __('Missing word data', 'll-tools-text-domain'),
             'new_word_label'      => __('New word', 'll-tools-text-domain'),
             'new_word_missing_category' => __('Enter a category name or disable "Create new category".', 'll-tools-text-domain'),
@@ -5018,22 +5032,70 @@ function ll_get_recording_types_for_category_handler() {
 // AJAX: prepare a new word (and optional category) for recording
 add_action('wp_ajax_ll_prepare_new_word_recording', 'll_prepare_new_word_recording_handler');
 
+/**
+ * Reject preparation before a draft exists without changing legacy error data.
+ *
+ * Category setup may have happened already; the marker authorizes only an
+ * explicit retry of draft preparation, never automatic mutation replay.
+ */
+function ll_tools_recorder_send_prepare_error($data, $status_code = null): void {
+    wp_send_json([
+        'success' => false,
+        'data' => $data,
+        'safe_to_retry' => true,
+    ], $status_code);
+}
+
 function ll_prepare_new_word_recording_handler() {
+    check_ajax_referer('ll_upload_recording', 'nonce');
+    ll_tools_recorder_apply_ajax_locale();
+    if (!is_user_logged_in() || !ll_tools_user_can_record()) {
+        ll_tools_recorder_send_prepare_error(__('Forbidden.', 'll-tools-text-domain'), 403);
+    }
+    $config = ll_get_user_recording_config(get_current_user_id());
+    if (empty($config['allow_new_words']) && !current_user_can('manage_options')) {
+        ll_tools_recorder_send_prepare_error(__('New word recording is not enabled for your account.', 'll-tools-text-domain'), 403);
+    }
+    $context = ll_tools_recorder_prepare_begin($_POST);
+    if (is_wp_error($context)) {
+        ll_tools_recorder_send_protocol_error($context);
+    }
+    try {
+        if (isset($context['response'])) {
+            wp_send_json_success($context['response']);
+        }
+        $response = ll_tools_recorder_prepare_new_word_payload();
+        if ($context) {
+            $receipt = $context['receipt'];
+            $receipt['state'] = 'complete';
+            $receipt['response'] = $response;
+            if (!ll_tools_recorder_prepare_receipt_write($context['key'], $receipt, $context['receipt'])) {
+                ll_tools_recorder_send_protocol_error(ll_tools_recorder_protocol_error('recorder_receipt_unavailable',
+                    __('New word creation could not be confirmed. Check for an existing draft before recording this word again.', 'll-tools-text-domain')));
+            }
+        }
+        wp_send_json_success($response);
+    } finally {
+        ll_tools_recorder_mutation_unlock((string) ($context['lock'] ?? ''));
+    }
+}
+
+function ll_tools_recorder_prepare_new_word_payload(): array {
     check_ajax_referer('ll_upload_recording', 'nonce');
     ll_tools_recorder_apply_ajax_locale();
 
     if (!is_user_logged_in()) {
-        wp_send_json_error(__('You must be logged in.', 'll-tools-text-domain'));
+        ll_tools_recorder_send_prepare_error(__('You must be logged in.', 'll-tools-text-domain'));
     }
 
     if (!ll_tools_user_can_record()) {
-        wp_send_json_error(__('You do not have permission to record audio.', 'll-tools-text-domain'));
+        ll_tools_recorder_send_prepare_error(__('You do not have permission to record audio.', 'll-tools-text-domain'));
     }
 
     $config = function_exists('ll_get_user_recording_config') ? ll_get_user_recording_config(get_current_user_id()) : [];
     $allow_new = is_array($config) && !empty($config['allow_new_words']);
     if (!$allow_new && !current_user_can('manage_options')) {
-        wp_send_json_error(__('New word recording is not enabled for your account.', 'll-tools-text-domain'));
+        ll_tools_recorder_send_prepare_error(__('New word recording is not enabled for your account.', 'll-tools-text-domain'));
     }
 
     $target_text_raw = sanitize_text_field($_POST['word_text_target'] ?? '');
@@ -5050,7 +5112,7 @@ function ll_prepare_new_word_recording_handler() {
     $type_filters = ll_tools_get_recording_type_filters_from_request();
     $all_types = $type_filters['all_types'];
     if (empty($all_types)) {
-        wp_send_json_error(__('No recording types are configured.', 'll-tools-text-domain'));
+        ll_tools_recorder_send_prepare_error(__('No recording types are configured.', 'll-tools-text-domain'));
     }
 
     $category_term = null;
@@ -5061,13 +5123,13 @@ function ll_prepare_new_word_recording_handler() {
 
     if ($create_category) {
         if ($new_category_name === '') {
-            wp_send_json_error(__('Missing new category name.', 'll-tools-text-domain'));
+            ll_tools_recorder_send_prepare_error(__('Missing new category name.', 'll-tools-text-domain'));
         }
         $target_wordset_id = (int) ($posted_ids[0] ?? 0);
         if (function_exists('ll_tools_create_or_get_wordset_category')) {
             $created = ll_tools_create_or_get_wordset_category($new_category_name, $target_wordset_id);
             if (is_wp_error($created)) {
-                wp_send_json_error(sprintf(
+                ll_tools_recorder_send_prepare_error(sprintf(
                     /* translators: %s: category creation error message */
                     __('Failed to create category: %s', 'll-tools-text-domain'),
                     $created->get_error_message()
@@ -5084,7 +5146,7 @@ function ll_prepare_new_word_recording_handler() {
             } else {
                 $created = wp_insert_term($new_category_name, 'word-category');
                 if (is_wp_error($created)) {
-                    wp_send_json_error(sprintf(
+                    ll_tools_recorder_send_prepare_error(sprintf(
                         /* translators: %s: category creation error message */
                         __('Failed to create category: %s', 'll-tools-text-domain'),
                         $created->get_error_message()
@@ -5097,7 +5159,7 @@ function ll_prepare_new_word_recording_handler() {
 
         if (!$created_category && $category_term_id > 0 && function_exists('ll_tools_user_can_view_category')) {
             if (!ll_tools_user_can_view_category($category_term_id, get_current_user_id())) {
-                wp_send_json_error(__('You do not have access to that category.', 'll-tools-text-domain'), 403);
+                ll_tools_recorder_send_prepare_error(__('You do not have access to that category.', 'll-tools-text-domain'), 403);
             }
         }
 
@@ -5128,7 +5190,7 @@ function ll_prepare_new_word_recording_handler() {
         if (is_wp_error($settings_result)) {
             $error_data = $settings_result->get_error_data();
             $status = is_array($error_data) ? (int) ($error_data['status'] ?? 503) : 503;
-            wp_send_json_error([
+            ll_tools_recorder_send_prepare_error([
                 'message' => $settings_result->get_error_message(),
                 'error' => ll_tools_get_vocab_lesson_category_settings_error_code($settings_result),
             ], max(400, min(599, $status)));
@@ -5152,12 +5214,12 @@ function ll_prepare_new_word_recording_handler() {
 
     if ($category_term_id > 0 && function_exists('ll_tools_user_can_view_category')) {
         if (!ll_tools_user_can_view_category($category_term_id, get_current_user_id())) {
-            wp_send_json_error(__('You do not have access to that category.', 'll-tools-text-domain'), 403);
+            ll_tools_recorder_send_prepare_error(__('You do not have access to that category.', 'll-tools-text-domain'), 403);
         }
     }
 
     if ($category_term_id && function_exists('ll_tools_is_category_recording_disabled') && ll_tools_is_category_recording_disabled($category_term_id)) {
-        wp_send_json_error(__('Recording is disabled for this category.', 'll-tools-text-domain'));
+        ll_tools_recorder_send_prepare_error(__('Recording is disabled for this category.', 'll-tools-text-domain'));
     }
 
     $desired_types = [];
@@ -5171,7 +5233,7 @@ function ll_prepare_new_word_recording_handler() {
     $filtered_types = ll_sort_recording_type_slugs(array_values(array_intersect($desired_types, $type_filters['filtered_types'])));
 
     if (empty($filtered_types)) {
-        wp_send_json_error(__('No recording types are available for this category.', 'll-tools-text-domain'));
+        ll_tools_recorder_send_prepare_error(__('No recording types are available for this category.', 'll-tools-text-domain'));
     }
 
     $placeholder = sprintf(
@@ -5188,7 +5250,7 @@ function ll_prepare_new_word_recording_handler() {
 
     if (is_wp_error($word_id) || !$word_id) {
         $err = is_wp_error($word_id) ? $word_id->get_error_message() : 'Unknown error';
-        wp_send_json_error(sprintf(
+        ll_tools_recorder_send_prepare_error(sprintf(
             /* translators: %s: word creation error */
             __('Failed to create word: %s', 'll-tools-text-domain'),
             $err
@@ -5235,7 +5297,25 @@ function ll_prepare_new_word_recording_handler() {
         'is_text_only'     => true,
     ];
 
-    wp_send_json_success([
+    $snapshot = ll_tools_recorder_word_text_snapshot((int) $word_id);
+    if (is_wp_error($snapshot)) {
+        ll_tools_recorder_send_protocol_error($snapshot);
+    }
+    $saved_categories = wp_get_object_terms((int) $word_id, 'word-category', ['fields' => 'ids']);
+    $saved_wordsets = wp_get_object_terms((int) $word_id, 'wordset', ['fields' => 'ids']);
+    if (is_wp_error($saved_categories) || is_wp_error($saved_wordsets)
+        || ($category_term_id && !in_array($category_term_id, array_map('intval', $saved_categories), true))
+        || array_diff(array_map('intval', $posted_ids), array_map('intval', $saved_wordsets))
+        || ($target_text !== '' && $snapshot['word_text_target'] !== ll_tools_sanitize_word_target_text($target_text))
+        || $snapshot['word_translation'] !== ll_tools_sanitize_word_translation_text($translation_text)) {
+        ll_tools_recorder_send_protocol_error(ll_tools_recorder_protocol_error('recorder_preparation_incomplete',
+            __('New word creation could not be confirmed. Check for an existing draft before recording this word again.', 'll-tools-text-domain')));
+    }
+    $item['word_text_target'] = $snapshot['word_text_target'];
+    $item['word_translation'] = $snapshot['word_translation'];
+    $item['text_revision'] = $snapshot['text_revision'];
+
+    return [
         'word' => $item,
         'recording_types' => $dropdown_types,
         'category' => [
@@ -5243,7 +5323,7 @@ function ll_prepare_new_word_recording_handler() {
             'name' => $category_name,
             'term_id' => $category_term_id,
         ],
-    ]);
+    ];
 }
 
 /**
@@ -5537,12 +5617,52 @@ function ll_update_new_word_text_handler() {
         wp_send_json_error(__('Forbidden.', 'll-tools-text-domain'), 403);
     }
 
+    $lock = ll_tools_recorder_mutation_lock('word:' . $word_id);
+    if ($lock === '') {
+        ll_tools_recorder_send_protocol_error(ll_tools_recorder_protocol_error('recorder_text_busy', __('Failed to update word text', 'll-tools-text-domain')));
+    }
+    try {
+        $before = ll_tools_recorder_word_text_snapshot($word_id);
+        if (is_wp_error($before)) {
+            ll_tools_recorder_send_protocol_error($before);
+        }
+        if (array_key_exists('expected_text_revision', $_POST)
+            && (!is_string($_POST['expected_text_revision'])
+                || !hash_equals($before['text_revision'], $_POST['expected_text_revision']))) {
+            wp_send_json_error([
+                'code' => 'recorder_text_conflict',
+                'message' => __('This word changed elsewhere. Review the saved text before choosing which changes to keep.', 'll-tools-text-domain'),
+                'current' => $before,
+            ], 409);
+        }
+        ll_tools_recorder_update_new_word_text_payload($word_id, $word_post, $before);
+    } finally {
+        ll_tools_recorder_mutation_unlock($lock);
+    }
+}
+
+function ll_tools_recorder_update_new_word_text_payload(int $word_id, WP_Post $word_post, array $before): void {
     $target_text_raw = sanitize_text_field($_POST['word_text_target'] ?? '');
     $target_text = ll_sanitize_word_title_text($target_text_raw);
     $translation_text = sanitize_text_field($_POST['word_text_translation'] ?? '');
     $translation_text = trim($translation_text);
+    $expected_target = ll_tools_sanitize_word_target_text($target_text);
+    $expected_translation = ll_tools_sanitize_word_translation_text($translation_text);
 
-    if ($target_text !== '') {
+    // The revision has already been checked under the word lock. Compare
+    // stored values too, so matching display text does not skip legacy repair.
+    $write_target = $target_text !== '' && ($before['word_text_target'] !== $expected_target
+        || get_post_field('post_title', $word_id, 'raw') !== $expected_target
+        || get_post_meta($word_id, LL_TOOLS_WORD_TARGET_TEXT_META_KEY, true) !== $expected_target);
+    $has_translation = array_key_exists('word_text_translation', $_POST);
+    $write_translation = $has_translation && ($write_target
+        || $before['word_translation'] !== $expected_translation
+        || !ll_tools_recorder_default_translation_matches_storage($word_id, $expected_translation));
+    if (!$write_target && !$write_translation) {
+        wp_send_json_success($before);
+    }
+
+    if ($write_target) {
         if (function_exists('ll_tools_update_word_target_text')) {
             ll_tools_update_word_target_text($word_id, $target_text, true);
         } elseif ($target_text !== $word_post->post_title) {
@@ -5553,9 +5673,11 @@ function ll_update_new_word_text_handler() {
         }
     }
 
-    if ($translation_text !== '') {
+    if ($write_translation) {
         if (function_exists('ll_tools_update_word_default_translation_text')) {
             ll_tools_update_word_default_translation_text($word_id, $translation_text, true);
+        } elseif ($translation_text === '') {
+            delete_post_meta($word_id, 'word_translation');
         } else {
             update_post_meta($word_id, 'word_translation', $translation_text);
         }
@@ -5569,12 +5691,20 @@ function ll_update_new_word_text_handler() {
             'store_in_title' => true,
         ];
 
-    wp_send_json_success([
-        'word_id'         => $word_id,
-        'post_title'      => (string) get_the_title($word_id),
-        'word_translation'=> (string) ($display_values['translation_text'] ?? ''),
-        'store_in_title'  => (bool) ($display_values['store_in_title'] ?? true),
-    ]);
+    if (($target_text !== '' && (string) ($display_values['word_text'] ?? '') !== $expected_target)
+        || ($has_translation && (string) ($display_values['translation_text'] ?? '') !== $expected_translation)) {
+        wp_send_json_error(__('Failed to update word text', 'll-tools-text-domain'), 503);
+    }
+
+    $snapshot = ll_tools_recorder_word_text_snapshot($word_id);
+    if (is_wp_error($snapshot)) {
+        ll_tools_recorder_send_protocol_error($snapshot);
+    }
+    if (($target_text !== '' && $snapshot['word_text_target'] !== $expected_target)
+        || ($has_translation && $snapshot['word_translation'] !== $expected_translation)) {
+        wp_send_json_error(__('Failed to update word text', 'll-tools-text-domain'), 503);
+    }
+    wp_send_json_success($snapshot);
 }
 
 /**

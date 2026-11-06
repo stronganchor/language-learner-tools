@@ -273,6 +273,7 @@ module list.
 - includes/admin/dictionary-sources-admin.php
 - includes/admin/export-import.php
 - includes/admin/offline-app-export.php
+- includes/admin/category-video-export.php
 - includes/admin/user-progress-report.php
 - includes/admin/teacher-classes-page.php
 - includes/admin/google-classroom-integration.php
@@ -364,6 +365,7 @@ includes/
     dictionary-sources.php    # Dictionary source metadata/import attribution
     dictionary-static-cache.php # Public dictionary cache helpers
     public-static-cache.php   # Anonymous public-page cache helpers
+    public-static-cache-lifecycle.php # Bounded public HTML inventory and cleanup
     dictionary-search-index.php # Dictionary normalized search index helpers
     dictionary-browser.php    # Dictionary import/search helpers
     dictionary-snapshot.php   # Dictionary export/snapshot helpers
@@ -892,6 +894,7 @@ wordset can opt into it.
 - Duplicate Category Words: `includes/admin/duplicate-category-words-admin.php`.
 - Image Aspect Normalizer: `includes/admin/image-aspect-normalizer-admin.php`.
 - Image WebP Optimizer: `includes/admin/image-webp-optimizer-admin.php`.
+- Category Video resolves exact, capability- and nonce-checked sources through `includes/admin/category-video-export.php` and `includes/lib/category-video-data.php`. Browser preparation and export are documented in [Category Video](docs/CATEGORY_VIDEO.md).
 - IPA Keyboard admin: `includes/admin/ipa-keyboard-admin.php`.
   - Search, paging, tab changes, and wordset changes must wait for text/IPA, review-state, and internal-note drafts to settle in their original scope. Retain only the latest requested destination; a failed save keeps the draft visible and cancels deferred navigation. Deferred blur handlers must not replay an already settled save. Search reads use bounded deadlines, explicit read retry, and request/view ownership so a late response cannot replace newer results or keyboard state. Reopening a clean loaded tab retains its existing DOM. Canonical browser coverage: `transcription-manager-review-filter-regression.spec.js`.
   - Transcription Manager search/save responses stay bounded to their requested recording window, but their keyboard configuration must merge that window with the compact wordset symbol inventory and current aggregate recording counts so ordinary keys do not disappear between result pages. A dirty search row still saves before the detached word editor fetch begins, while the modal loading shell opens synchronously in the initiating click. That prepared shell has a bounded timeout which cancels only the modal token and restores access to the manager; it must not abort, retry, or duplicate the ambiguous save mutation. Text/IPA autosaves and review-state writes for one recording must not replace a row concurrently: accept an autosave response as the new saved baseline, preserve newer field values across review-driven row replacement, and serialize follow-up work. Word-level internal review-note saves are latest-value-wins across duplicate rows; callbacks attached to a replaced row must never erase newer visible note text or report a stale value as saved.
@@ -902,6 +905,7 @@ wordset can opt into it.
 - Recording UI: `[audio_recording_interface]` uses MediaRecorder and category recording type targets.
   Recorder AJAX requests that depend on category configuration must carry the current wordset scope; strict preflight paths reject an omitted or inaccessible scope rather than substituting the default wordset.
 - Bulk upload: `[audio_upload_form]` and `[image_upload_form]` allow admin uploads. Shared target-scope controls live in `includes/admin/uploads/upload-scope.php`; keep both forms on that renderer rather than duplicating wordset/category scope markup.
+- New-word preparation receipts and text revisions live in `includes/lib/recorder-mutations.php`. Explicit recovery can replay a completed preparation response; ambiguous creation stays blocked and the browser can download retained audio locally. Check revisions before accepting unchanged or edited text.
 - Processing: Audio Processor runs in browser, uses `lamejs` from CDN for MP3 encoding.
 - Storage: `word_audio` posts store `audio_file_path` and `recording_type` terms; parent word published only when audio exists.
 

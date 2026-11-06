@@ -1,5 +1,6 @@
 <?php
 if (!defined('WPINC')) { die; }
+require_once __DIR__ . '/public-static-cache-lifecycle.php';
 
 if (!defined('LL_TOOLS_PUBLIC_STATIC_CACHE_DIRNAME')) {
     define('LL_TOOLS_PUBLIC_STATIC_CACHE_DIRNAME', 'll-public-static-cache');
@@ -394,8 +395,8 @@ function ll_tools_public_static_cache_has_category_search_recovery_arg(?array $r
         return false;
     }
 
-    $value = wp_unslash($raw_args['ll_category_search_recovery']);
-    return is_scalar($value) && (string) $value === '1';
+    $value = $raw_args['ll_category_search_recovery'];
+    return is_scalar($value) && (string) wp_unslash($value) === '1';
 }
 
 /**
@@ -503,25 +504,7 @@ function ll_tools_public_static_cache_has_supported_display_args(?array $raw_arg
 function ll_tools_public_static_cache_reserve_miss(): array {
     $defaults = ['window' => MINUTE_IN_SECONDS, 'ip_limit' => 30, 'site_limit' => 120];
     $config = apply_filters('ll_tools_public_static_cache_miss_throttle', $defaults);
-    $config = is_array($config) ? array_merge($defaults, $config) : $defaults;
-    $window = max(1, min(HOUR_IN_SECONDS, (int) $config['window']));
-    $ip = isset($_SERVER['REMOTE_ADDR']) && is_scalar($_SERVER['REMOTE_ADDR'])
-        ? trim((string) $_SERVER['REMOTE_ADDR']) : '';
-    $ip = filter_var($ip, FILTER_VALIDATE_IP) ? $ip : 'unknown';
-    $reservations = [];
-    foreach ([['ip', $ip, (int) $config['ip_limit']], ['site', 'site', (int) $config['site_limit']]] as $target) {
-        $reservation = ll_tools_public_ajax_reserve_counter('ll_public_static_miss_' . $target[0] . '_', $target[1], max(0, $target[2]), $window);
-        if (empty($reservation['allowed'])) {
-            foreach ($reservations as $previous) {
-                ll_tools_public_ajax_refund_counter($previous);
-            }
-            return ['allowed' => false, 'retry_after' => max(1, (int) ($reservation['retry_after'] ?? $window))];
-        }
-        if (!empty($reservation['reserved'])) {
-            $reservations[] = $reservation;
-        }
-    }
-    return ['allowed' => true, 'retry_after' => 0];
+    return ll_tools_reserve_static_render_budget('ll_public_static_miss_', is_array($config) ? $config + $defaults : $defaults);
 }
 
 function ll_tools_public_static_cache_admit_cold_request(string $key = '', ?array $identity = null): void {
@@ -531,7 +514,7 @@ function ll_tools_public_static_cache_admit_cold_request(string $key = '', ?arra
     }
     if ($key !== '') {
         ll_tools_public_static_cache_release_rebuild_lock($key);
-        $cached = ll_tools_public_static_cache_read_prepared_file(ll_tools_public_static_cache_file_path($key), $identity);
+        $cached = ll_tools_public_static_cache_read_prepared_file(ll_tools_public_static_cache_existing_file_path($key), $identity);
         if (is_string($cached)) {
             $method = isset($_SERVER['REQUEST_METHOD']) ? strtoupper((string) $_SERVER['REQUEST_METHOD']) : 'GET';
             ll_tools_public_static_cache_send_prepared_file_response($cached, 'STALE', 'cold-budget', false, $method);
@@ -631,7 +614,7 @@ function ll_tools_public_static_cache_miss_reason(string $file, int $ttl): strin
 /**
  * Determine whether a request is a baseline cacheable anonymous HTML request.
  */
-function ll_tools_public_static_cache_has_safe_request_shape(): bool {
+function ll_tools_public_static_cache_has_safe_request_shape(bool $allow_dynamic_bypass = false): bool {
     $method = isset($_SERVER['REQUEST_METHOD']) ? strtoupper((string) $_SERVER['REQUEST_METHOD']) : '';
     if (!in_array($method, ['GET', 'HEAD'], true)) {
         return false;
@@ -651,10 +634,8 @@ function ll_tools_public_static_cache_has_safe_request_shape(): bool {
     if (is_user_logged_in()) {
         return false;
     }
-    if (ll_tools_public_static_cache_has_frontend_auth_args()) {
-        return false;
-    }
-    if (ll_tools_public_static_cache_has_category_search_recovery_arg()) {
+    if (!$allow_dynamic_bypass && (ll_tools_public_static_cache_has_frontend_auth_args()
+        || ll_tools_public_static_cache_has_category_search_recovery_arg())) {
         return false;
     }
     $is_wordset_page_request = function_exists('ll_tools_is_wordset_page_context') && ll_tools_is_wordset_page_context();
@@ -665,9 +646,11 @@ function ll_tools_public_static_cache_has_safe_request_shape(): bool {
         return false;
     }
 
-    foreach (['preview', 'preview_id', 'preview_nonce', 'customize_changeset_uuid', 'customize_theme', 'customize_messenger_channel'] as $key) {
-        if (isset($_GET[$key])) {
-            return false;
+    if (!$allow_dynamic_bypass) {
+        foreach (['preview', 'preview_id', 'preview_nonce', 'customize_changeset_uuid', 'customize_theme', 'customize_messenger_channel'] as $key) {
+            if (isset($_GET[$key])) {
+                return false;
+            }
         }
     }
 
@@ -851,7 +834,7 @@ function ll_tools_public_static_cache_file_path(string $key): string {
         return '';
     }
 
-    return trailingslashit($dir) . 'public-' . $key . '.html';
+    return trailingslashit($dir) . 'files/' . substr($key, 0, 2) . '/public-' . $key . '.html';
 }
 
 /**
@@ -870,7 +853,9 @@ function ll_tools_public_static_cache_open_publication_lock(string $file, int $o
     }
 
     $operation = $operation === LOCK_SH ? LOCK_SH : LOCK_EX;
-    $stripe = substr(hash('sha256', wp_normalize_path($file)), 0, 2);
+    // One identity owns the same stripe before/after legacy-path adoption.
+    $lock_identity = preg_replace('/\.(?:html|meta\.json)(?:\.tmp-[a-zA-Z0-9]+)?$/D', '.html', basename($file));
+    $stripe = substr(hash('sha256', (string) $lock_identity), 0, 2);
     $lock_file = trailingslashit($dir) . '.ll-tools-public-static-publish-' . $stripe . '.lock';
     $handle = @fopen($lock_file, 'c+');
     if (!is_resource($handle)) {
@@ -1259,7 +1244,7 @@ function ll_tools_public_static_cache_file_is_stale(string $file, int $ttl): boo
  * Return an exact signature for the file observed by a rebuild owner.
  */
 function ll_tools_public_static_cache_file_signature(string $file): string {
-    if ($file === '' || !is_readable($file)) {
+    if ($file === '' || !ll_tools_public_static_cache_gc_path_is_safe($file) || !is_readable($file)) {
         return '';
     }
 
@@ -1352,7 +1337,7 @@ function ll_tools_public_static_cache_normalize_purge_criteria(array $criteria =
 
 function ll_tools_public_static_cache_read_meta(string $file): ?array {
     $meta_file = ll_tools_public_static_cache_meta_file_path($file);
-    if ($meta_file === '' || !is_readable($meta_file)) {
+    if ($meta_file === '' || !ll_tools_public_static_cache_gc_path_is_safe($meta_file) || !is_readable($meta_file)) {
         return null;
     }
 
@@ -1408,7 +1393,7 @@ function ll_tools_public_static_cache_meta_matches_criteria(?array $meta, array 
 
 function ll_tools_public_static_cache_write_meta(string $file, string $key, ?array $identity): void {
     $meta_file = ll_tools_public_static_cache_meta_file_path($file);
-    if ($meta_file === '') {
+    if ($meta_file === '' || !ll_tools_public_static_cache_gc_path_is_safe($meta_file)) {
         return;
     }
 
@@ -1429,15 +1414,19 @@ function ll_tools_public_static_cache_write_meta(string $file, string $key, ?arr
     ];
 
     $tmp = $meta_file . '.tmp-' . wp_generate_password(12, false, false);
-    $written = @file_put_contents($tmp, wp_json_encode($payload), LOCK_EX);
-    if ($written === false) {
-        @unlink($tmp);
-        return;
-    }
-
-    @chmod($tmp, 0644);
-    if (!@rename($tmp, $meta_file)) {
-        @unlink($tmp);
+    $inventory = ll_tools_public_static_cache_gc_record_temporary($tmp, $key, $safe_identity);
+    $inventory_required = preg_match('/^(?:[a-f0-9]{32}|[a-f0-9]{64})$/D', $key) === 1;
+    if ($inventory_required && $inventory === '') { return; }
+    try {
+        $written = @file_put_contents($tmp, wp_json_encode($payload), LOCK_EX);
+        if ($written === false) {
+            @unlink($tmp);
+            return;
+        }
+        @chmod($tmp, 0644);
+        if (!@rename($tmp, $meta_file)) { @unlink($tmp); }
+    } finally {
+        if ($inventory !== '' && !file_exists($tmp)) { delete_option($inventory); }
     }
 }
 
@@ -1517,7 +1506,8 @@ function ll_tools_public_static_cache_prepare_html_for_output(string $html, ?arr
 }
 
 function ll_tools_public_static_cache_read_prepared_file_unlocked(string $file, ?array $identity = null): ?string {
-    if (ll_tools_public_static_cache_is_quarantined() || $file === '' || !is_readable($file)) {
+    if (ll_tools_public_static_cache_is_quarantined() || $file === '' || !is_readable($file)
+        || !ll_tools_public_static_cache_gc_path_is_safe($file)) {
         return null;
     }
 
@@ -1636,12 +1626,19 @@ function ll_tools_serve_public_static_cache(): void {
         nocache_headers();
         return;
     }
-    if (ll_tools_public_static_cache_has_category_search_recovery_arg()) {
-        ll_tools_public_static_cache_send_category_search_recovery_bypass_headers();
-        return;
-    }
-    if (ll_tools_public_static_cache_has_frontend_auth_args()) {
-        ll_tools_public_static_cache_send_auth_bypass_headers();
+    $recovery = ll_tools_public_static_cache_has_category_search_recovery_arg();
+    if ($recovery || ll_tools_public_static_cache_has_frontend_auth_args()) {
+        if (ll_tools_public_static_cache_has_safe_request_shape(true)
+            && ll_tools_public_static_cache_request_identity() !== null) {
+            // Each bypass renders afresh and must share the ordinary cold budget.
+            // A refusal must not fall back to cached HTML for this request.
+            ll_tools_public_static_cache_admit_cold_request();
+        }
+        if ($recovery) {
+            ll_tools_public_static_cache_send_category_search_recovery_bypass_headers();
+        } else {
+            ll_tools_public_static_cache_send_auth_bypass_headers();
+        }
         return;
     }
 
@@ -1666,7 +1663,7 @@ function ll_tools_serve_public_static_cache(): void {
     }
 
     $key = ll_tools_public_static_cache_key($identity);
-    $file = ll_tools_public_static_cache_file_path($key);
+    $file = ll_tools_public_static_cache_existing_file_path($key);
     $ttl = ll_tools_public_static_cache_ttl();
     $method = isset($_SERVER['REQUEST_METHOD']) ? strtoupper((string) $_SERVER['REQUEST_METHOD']) : 'GET';
 
@@ -1736,12 +1733,12 @@ function ll_tools_serve_public_static_cache(): void {
     $GLOBALS['ll_tools_public_static_cache_request'] = [
         'active' => true,
         'key' => $key,
-        'file' => $file,
+        'file' => ll_tools_public_static_cache_file_path($key),
         'identity' => $identity,
         'lock_acquired' => true,
         'lease_value' => ll_tools_public_static_cache_get_rebuild_lease_value($key),
         'generation' => ll_tools_public_static_cache_generation($identity),
-        'original_file_signature' => ll_tools_public_static_cache_file_signature($file),
+        'original_file_signature' => ll_tools_public_static_cache_file_signature(ll_tools_public_static_cache_file_path($key)),
         'buffer_level' => ob_get_level(),
     ];
 
@@ -1863,7 +1860,7 @@ function ll_tools_store_public_static_cache(): void {
             ll_tools_public_static_cache_debug_log('skip_stale_publication');
             return;
         }
-        if (!wp_mkdir_p($dir) || !is_dir($dir) || !is_writable($dir)) {
+        if (!ll_tools_public_static_cache_gc_prepare_directory($file) || !is_writable($dir)) {
             ll_tools_public_static_cache_debug_log('skip_unwritable_dir', [
                 'dir' => basename($dir),
             ]);
@@ -1876,6 +1873,11 @@ function ll_tools_store_public_static_cache(): void {
         }
 
         $tmp = $file . '.tmp-' . wp_generate_password(12, false, false);
+        $temporary_inventory = ll_tools_public_static_cache_gc_record_temporary($tmp, (string) $context['key'], $identity);
+        if ($temporary_inventory === '') {
+            ll_tools_public_static_cache_debug_log('skip_inventory_unavailable');
+            return;
+        }
         $written = @file_put_contents($tmp, $stored_html, LOCK_EX);
         if ($written === false) {
             @unlink($tmp);
@@ -1938,6 +1940,7 @@ function ll_tools_store_public_static_cache(): void {
                     header('Cache-Control: ' . ll_tools_public_static_cache_cache_control_value(true));
                 }
                 ll_tools_public_static_cache_write_meta($file, (string) ($context['key'] ?? ''), $identity);
+                $retain_temporary_inventory = !ll_tools_public_static_cache_gc_record($file, (string) $context['key'], $identity);
                 ll_tools_public_static_cache_debug_log('stored', [
                     'file' => basename($file),
                     'bytes' => (int) $written,
@@ -1953,6 +1956,8 @@ function ll_tools_store_public_static_cache(): void {
         if ($release_lock) {
             ll_tools_public_static_cache_release_rebuild_lock((string) $context['key']);
         }
+        if (!empty($temporary_inventory) && empty($retain_temporary_inventory)
+            && (empty($tmp) || !file_exists($tmp))) { delete_option($temporary_inventory); }
     }
 }
 add_action('shutdown', 'll_tools_store_public_static_cache', 0);
@@ -1981,9 +1986,10 @@ function ll_tools_purge_public_static_cache(array $criteria = []): int {
     ll_tools_public_static_cache_delete_rebuild_locks();
 
     if ($dir !== '' && is_dir($dir)) {
-        $files = ll_tools_static_cache_generated_files(trailingslashit($dir) . 'public-*.html');
+        $files = ll_tools_public_static_cache_generated_files(trailingslashit($dir) . 'public-*.html');
         $purge_failed = $purge_failed || $files === false;
         foreach ($files ?: [] as $file) {
+            if (!ll_tools_public_static_cache_gc_path_is_safe($file)) { $purge_failed = true; continue; }
             if (!is_file($file)) {
                 continue;
             }
@@ -2001,29 +2007,29 @@ function ll_tools_purge_public_static_cache(array $criteria = []): int {
 
             $meta_file = ll_tools_public_static_cache_meta_file_path($file);
             if ($meta_file !== '' && is_file($meta_file)) {
-                if (!@unlink($meta_file)) {
+                if (!ll_tools_public_static_cache_gc_path_is_safe($meta_file) || !@unlink($meta_file)) {
                     $purge_failed = true;
                 }
             }
         }
 
         if (empty($criteria)) {
-            $files = ll_tools_static_cache_generated_files(trailingslashit($dir) . 'public-*.meta.json');
+            $files = ll_tools_public_static_cache_generated_files(trailingslashit($dir) . 'public-*.meta.json');
             $purge_failed = $purge_failed || $files === false;
             foreach ($files ?: [] as $meta_file) {
                 if (is_file($meta_file)) {
-                    if (!@unlink($meta_file)) {
+                    if (!ll_tools_public_static_cache_gc_path_is_safe($meta_file) || !@unlink($meta_file)) {
                         $purge_failed = true;
                     }
                 }
             }
         }
 
-        $files = ll_tools_static_cache_generated_files(trailingslashit($dir) . 'public-*.html.tmp-*');
+        $files = ll_tools_public_static_cache_generated_files(trailingslashit($dir) . 'public-*.html.tmp-*');
         $purge_failed = $purge_failed || $files === false;
         foreach ($files ?: [] as $tmp_file) {
             if (is_file($tmp_file)) {
-                if (@unlink($tmp_file)) {
+                if (ll_tools_public_static_cache_gc_path_is_safe($tmp_file) && @unlink($tmp_file)) {
                     $deleted++;
                 } else {
                     $purge_failed = true;
@@ -2031,11 +2037,11 @@ function ll_tools_purge_public_static_cache(array $criteria = []): int {
             }
         }
 
-        $files = ll_tools_static_cache_generated_files(trailingslashit($dir) . 'public-*.meta.json.tmp-*');
+        $files = ll_tools_public_static_cache_generated_files(trailingslashit($dir) . 'public-*.meta.json.tmp-*');
         $purge_failed = $purge_failed || $files === false;
         foreach ($files ?: [] as $tmp_file) {
             if (is_file($tmp_file)) {
-                if (!@unlink($tmp_file)) {
+                if (!ll_tools_public_static_cache_gc_path_is_safe($tmp_file) || !@unlink($tmp_file)) {
                     $purge_failed = true;
                 }
             }
@@ -2082,7 +2088,7 @@ function ll_tools_public_static_cache_maybe_purge_legacy_schema(): void {
         }
         if (is_dir($dir)) {
             foreach (['public-*.html', 'public-*.html.tmp-*', 'public-*.meta.json', 'public-*.meta.json.tmp-*'] as $pattern) {
-                $remaining = ll_tools_static_cache_generated_files(trailingslashit($dir) . $pattern);
+                $remaining = ll_tools_public_static_cache_generated_files(trailingslashit($dir) . $pattern);
                 if ($remaining === false || !empty($remaining)) {
                     return false;
                 }

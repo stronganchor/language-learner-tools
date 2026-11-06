@@ -548,6 +548,7 @@ function ll_tools_context_pack_definitions(): array
                 'optimizer queue cache',
             ],
             'invariants' => [
+                'New-word preparation receipts scope exact replays to the original request. Terminal recovery may download retained audio locally. Verify the revision before skipping an unchanged canonical text write.',
                 'Initial admin loads should be paged/lazy; validation can be deeper but must be explicit.',
                 'Audio Processor tab totals use scoped SQL aggregates without recording hydration; paged responses must not replace exact badges with page sizes or lower bounds.',
                 'Publishing words may be blocked without published word_audio depending on category config.',
@@ -564,6 +565,7 @@ function ll_tools_context_pack_definitions(): array
             ],
             'sources' => [
                 'includes/shortcodes/audio-recording-shortcode.php',
+                'includes/lib/recorder-mutations.php',
                 'includes/admin/uploads/*.php',
                 'includes/admin/audio-*.php',
                 'includes/admin/recording-types-admin.php',
@@ -611,6 +613,8 @@ function ll_tools_context_pack_definitions(): array
             'description' => 'Automation REST control plane, imports/exports, CLI helpers, site sync, and bulk jobs.',
             'load_when' => 'A change touches REST automation, import previews, metadata plans, site sync snapshots, remote apply flows, CLI resume files, or server-side job ownership and recovery.',
             'signals' => [
+                'Category Video',
+                'vocabulary slideshow',
                 'automation rest',
                 'rest authentication',
                 'basic auth',
@@ -647,6 +651,12 @@ function ll_tools_context_pack_definitions(): array
             ],
             'sources' => [
                 'includes/api/automation-rest.php',
+                'includes/admin/category-video-export.php',
+                'includes/lib/category-video-data.php',
+                'includes/lib/complete-source-reads.php',
+                'js/category-video-*.js',
+                'css/category-video-export.css',
+                'docs/CATEGORY_VIDEO.md',
                 'includes/api/word-metadata-plan-rest.php',
                 'includes/lib/site-sync.php',
                 'includes/lib/mutation-job-state.php',
@@ -665,6 +675,8 @@ function ll_tools_context_pack_definitions(): array
             ],
             'tests' => [
                 'tests/Integration/AutomationRest*Test.php',
+                'tests/Integration/CategoryVideoDataTest.php',
+                'tests/e2e/specs/category-video-*.spec.js',
                 'tests/Integration/RestPasswordAuthAdmissionTest.php',
                 'tests/Integration/SiteSyncTest.php',
                 'tests/Integration/BulkWordImportAdminTest.php',
@@ -729,6 +741,7 @@ function ll_tools_context_pack_definitions(): array
                 'includes/lib/public-aggregate-worker.php',
                 'docs/PUBLIC_AGGREGATE_MAINTENANCE.md',
                 'includes/lib/public-static-cache.php',
+                'includes/lib/public-static-cache-lifecycle.php',
                 'includes/lib/static-cache-maintenance.php',
                 'includes/lib/schema-maintenance.php',
                 'includes/lib/public-ajax-resource-guards.php',
@@ -758,6 +771,7 @@ function ll_tools_context_pack_definitions(): array
                 'tests/Integration/LocalePreferenceTest.php',
                 'tests/Integration/PublicAjaxResourceGuardTest.php',
                 'tests/Integration/PublicStaticCacheTest.php',
+                'tests/Integration/PublicStaticCacheLifecycleTest.php',
                 'tests/Integration/PublicUiTranslationManifestTest.php',
                 'tests/e2e/specs/dictionary-*.spec.js',
                 'tests/e2e/specs/maintenance-doc-contracts.spec.js',

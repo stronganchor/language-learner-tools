@@ -2,14 +2,14 @@
 # This file is distributed under the same license as the Language Learner Tools plugin.
 msgid ""
 msgstr ""
-"Project-Id-Version: Language Learner Tools 6.7.56\n"
+"Project-Id-Version: Language Learner Tools 6.7.64\n"
 "Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/language-learner-tools\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-10-19T12:06:57+00:00\n"
+"POT-Creation-Date: 2026-11-06T06:53:57+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.10.0\n"
 "X-Domain: ll-tools-text-domain\n"
@@ -46,160 +46,168 @@ msgid "LL Tools"
 msgstr ""
 
 #: includes/admin/admin-dashboard-menu.php:43
-#: includes/admin/admin-dashboard-menu.php:154
-#: includes/admin/admin-dashboard-menu.php:768
-#: includes/admin/admin-dashboard-menu.php:853
-#: includes/admin/admin-dashboard-menu.php:946
+#: includes/admin/admin-dashboard-menu.php:155
+#: includes/admin/admin-dashboard-menu.php:780
+#: includes/admin/admin-dashboard-menu.php:865
+#: includes/admin/admin-dashboard-menu.php:958
 msgid "LL Tools Utilities"
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:153
-#: includes/admin/admin-dashboard-menu.php:322
-#: includes/admin/admin-dashboard-menu.php:412
-#: includes/admin/admin-dashboard-menu.php:758
+#: includes/admin/admin-dashboard-menu.php:154
+#: includes/admin/admin-dashboard-menu.php:324
+#: includes/admin/admin-dashboard-menu.php:414
+#: includes/admin/admin-dashboard-menu.php:770
 #: includes/admin/settings.php:26
 msgid "Language Learning Tools"
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:155
-#: includes/admin/admin-dashboard-menu.php:844
+#: includes/admin/admin-dashboard-menu.php:156
+#: includes/admin/admin-dashboard-menu.php:856
 #: includes/admin/settings.php:25
 #: includes/admin/settings.php:348
 msgid "Language Learning Tools Settings"
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:156
-#: includes/admin/admin-dashboard-menu.php:468
+#: includes/admin/admin-dashboard-menu.php:157
+#: includes/admin/admin-dashboard-menu.php:470
 #: includes/admin/audio-processor-admin.php:1456
 #: includes/admin/audio-processor-admin.php:2802
 msgid "Audio Processor"
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:157
-#: includes/admin/admin-dashboard-menu.php:477
+#: includes/admin/admin-dashboard-menu.php:158
+#: includes/admin/admin-dashboard-menu.php:479
 msgid "Audio/Image Matcher"
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:158
-#: includes/admin/admin-dashboard-menu.php:486
+#: includes/admin/admin-dashboard-menu.php:159
+#: includes/admin/admin-dashboard-menu.php:488
 msgid "Missing Audio"
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:159
-#: includes/admin/admin-dashboard-menu.php:495
+#: includes/admin/admin-dashboard-menu.php:160
+#: includes/admin/admin-dashboard-menu.php:497
 msgid "Bulk Word Import"
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:160
-#: includes/admin/admin-dashboard-menu.php:504
+#: includes/admin/admin-dashboard-menu.php:161
+#: includes/admin/admin-dashboard-menu.php:506
 msgid "Dictionary Manager"
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:161
-#: includes/admin/admin-dashboard-menu.php:513
+#: includes/admin/admin-dashboard-menu.php:162
+#: includes/admin/admin-dashboard-menu.php:515
 #: includes/admin/dictionary-import-admin.php:2921
 msgid "Dictionary Sources"
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:162
-#: includes/admin/admin-dashboard-menu.php:522
+#: includes/admin/admin-dashboard-menu.php:163
+#: includes/admin/admin-dashboard-menu.php:524
 msgid "Bulk Translations"
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:163
-#: includes/admin/admin-dashboard-menu.php:540
+#: includes/admin/admin-dashboard-menu.php:164
+#: includes/admin/admin-dashboard-menu.php:542
 #: includes/admin/export-import.php:4179
 #: includes/admin/word-option-rules-admin.php:2596
 msgid "Export"
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:164
-#: includes/admin/admin-dashboard-menu.php:549
+#: includes/admin/admin-dashboard-menu.php:165
+#: includes/admin/admin-dashboard-menu.php:551
 #: includes/admin/export-import.php:4478
 #: includes/admin/word-option-rules-admin.php:2608
 #: includes/pages/wordset-pages.php:14307
 msgid "Import"
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:165
-#: includes/admin/admin-dashboard-menu.php:558
+#: includes/admin/admin-dashboard-menu.php:166
+#: includes/admin/admin-dashboard-menu.php:560
 msgid "Site Sync"
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:166
-#: includes/admin/admin-dashboard-menu.php:567
+#: includes/admin/admin-dashboard-menu.php:167
+#: includes/admin/admin-dashboard-menu.php:569
 #: includes/pages/wordset-pages.php:14376
 msgid "Offline App Export"
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:167
-#: includes/admin/admin-dashboard-menu.php:576
+#: includes/admin/admin-dashboard-menu.php:168
+#: includes/admin/admin-dashboard-menu.php:578
+#: includes/admin/category-video-export.php:9
+#: includes/admin/category-video-export.php:10
+#: includes/admin/category-video-export.php:94
+msgid "Category Video"
+msgstr ""
+
+#: includes/admin/admin-dashboard-menu.php:169
+#: includes/admin/admin-dashboard-menu.php:587
 #: includes/admin/login-blocks-admin.php:40
 #: includes/admin/login-blocks-admin.php:41
 #: includes/admin/login-blocks-admin.php:181
 msgid "Login Blocks"
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:168
-#: includes/admin/admin-dashboard-menu.php:585
+#: includes/admin/admin-dashboard-menu.php:170
+#: includes/admin/admin-dashboard-menu.php:596
 #: includes/admin/ipa-keyboard-admin.php:13
 #: includes/admin/ipa-keyboard-admin.php:620
 msgid "Transcription Manager"
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:169
-#: includes/admin/admin-dashboard-menu.php:594
+#: includes/admin/admin-dashboard-menu.php:171
+#: includes/admin/admin-dashboard-menu.php:605
 #: includes/admin/word-option-rules-admin.php:9
 #: includes/admin/word-option-rules-admin.php:1828
 #: includes/admin/word-option-rules-admin.php:1840
 msgid "Word Option Rules"
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:170
+#: includes/admin/admin-dashboard-menu.php:172
 #: includes/admin/audio-processor-admin.php:2828
 #: includes/admin/image-aspect-normalizer-admin.php:129
 msgid "Image Aspect Normalizer"
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:171
+#: includes/admin/admin-dashboard-menu.php:173
 #: includes/admin/audio-processor-admin.php:2859
 #: includes/admin/image-webp-optimizer-admin.php:1778
 msgid "WebP Image Optimizer"
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:172
+#: includes/admin/admin-dashboard-menu.php:174
 #: includes/admin/orphan-media-admin.php:1242
 msgid "Orphaned Media"
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:173
-#: includes/admin/admin-dashboard-menu.php:621
+#: includes/admin/admin-dashboard-menu.php:175
+#: includes/admin/admin-dashboard-menu.php:632
 msgid "Fix Word Images"
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:174
-#: includes/admin/admin-dashboard-menu.php:668
+#: includes/admin/admin-dashboard-menu.php:176
+#: includes/admin/admin-dashboard-menu.php:679
 #: includes/admin/recording-types-admin.php:12
 msgid "LL Recording Types"
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:175
-#: includes/admin/admin-dashboard-menu.php:531
+#: includes/admin/admin-dashboard-menu.php:177
+#: includes/admin/admin-dashboard-menu.php:533
 #: includes/admin/user-progress-report.php:30
 #: includes/admin/user-progress-report.php:31
 #: includes/admin/user-progress-report.php:803
 msgid "Learner Progress"
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:176
+#: includes/admin/admin-dashboard-menu.php:178
 #: includes/admin/google-classroom-integration.php:46
 #: includes/admin/google-classroom-integration.php:47
 #: includes/admin/google-classroom-integration.php:246
 msgid "Google Classroom"
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:177
-#: includes/admin/admin-dashboard-menu.php:679
+#: includes/admin/admin-dashboard-menu.php:179
+#: includes/admin/admin-dashboard-menu.php:690
 #: includes/admin/api/deepl-api.php:23
 #: includes/admin/api/deepl-api.php:24
 #: includes/admin/api/deepl-api.php:50
@@ -208,22 +216,22 @@ msgstr ""
 msgid "DeepL API Key"
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:178
-#: includes/admin/admin-dashboard-menu.php:688
+#: includes/admin/admin-dashboard-menu.php:180
+#: includes/admin/admin-dashboard-menu.php:699
 #: includes/admin/api/assemblyai-api.php:19
 #: includes/admin/api/assemblyai-api.php:20
 #: includes/admin/api/assemblyai-api.php:46
 msgid "AssemblyAI API Key"
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:179
-#: includes/admin/admin-dashboard-menu.php:697
+#: includes/admin/admin-dashboard-menu.php:181
+#: includes/admin/admin-dashboard-menu.php:708
 #: includes/taxonomies/language-taxonomy.php:239
 msgid "LL Tools Languages"
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:183
-#: includes/admin/admin-dashboard-menu.php:385
+#: includes/admin/admin-dashboard-menu.php:185
+#: includes/admin/admin-dashboard-menu.php:387
 #: includes/admin/teacher-classes-page.php:36
 #: includes/admin/teacher-classes-page.php:37
 #: includes/admin/teacher-classes-page.php:674
@@ -235,12 +243,12 @@ msgstr ""
 msgid "Classes"
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:323
+#: includes/admin/admin-dashboard-menu.php:325
 msgid "Settings page is unavailable."
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:328
-#: includes/admin/admin-dashboard-menu.php:937
+#: includes/admin/admin-dashboard-menu.php:330
+#: includes/admin/admin-dashboard-menu.php:949
 #: includes/admin/duplicate-category-words-admin.php:733
 #: includes/admin/image-aspect-normalizer-admin.php:125
 #: includes/admin/image-webp-optimizer-admin.php:1762
@@ -251,9 +259,9 @@ msgstr ""
 msgid "You do not have permission to access this page."
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:333
-#: includes/admin/admin-dashboard-menu.php:788
-#: includes/admin/admin-dashboard-menu.php:789
+#: includes/admin/admin-dashboard-menu.php:335
+#: includes/admin/admin-dashboard-menu.php:800
+#: includes/admin/admin-dashboard-menu.php:801
 #: includes/admin/uploads/upload-scope.php:83
 #: includes/taxonomies/wordset-taxonomy.php:1454
 #: includes/taxonomies/wordset-taxonomy.php:1471
@@ -261,26 +269,26 @@ msgstr ""
 msgid "Word Sets"
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:334
+#: includes/admin/admin-dashboard-menu.php:336
 msgid "Manage the main set grouping for words and quiz filters."
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:340
-#: includes/admin/admin-dashboard-menu.php:796
-#: includes/admin/admin-dashboard-menu.php:797
+#: includes/admin/admin-dashboard-menu.php:342
+#: includes/admin/admin-dashboard-menu.php:808
+#: includes/admin/admin-dashboard-menu.php:809
 #: includes/taxonomies/word-category-taxonomy.php:997
 #: includes/taxonomies/word-category-taxonomy.php:1002
 msgid "Word Categories"
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:341
+#: includes/admin/admin-dashboard-menu.php:343
 msgid "Create and organize categories used to build quizzes and pages."
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:347
-#: includes/admin/admin-dashboard-menu.php:650
-#: includes/admin/admin-dashboard-menu.php:804
-#: includes/admin/admin-dashboard-menu.php:805
+#: includes/admin/admin-dashboard-menu.php:349
+#: includes/admin/admin-dashboard-menu.php:661
+#: includes/admin/admin-dashboard-menu.php:816
+#: includes/admin/admin-dashboard-menu.php:817
 #: includes/pages/quiz-pages.php:36
 #: includes/pages/quiz-pages.php:38
 #: includes/pages/quiz-pages.php:45
@@ -288,13 +296,13 @@ msgstr ""
 msgid "Quiz Pages"
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:348
+#: includes/admin/admin-dashboard-menu.php:350
 msgid "Review generated public quiz pages without mixing them into normal Pages."
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:354
-#: includes/admin/admin-dashboard-menu.php:812
-#: includes/admin/admin-dashboard-menu.php:813
+#: includes/admin/admin-dashboard-menu.php:356
+#: includes/admin/admin-dashboard-menu.php:824
+#: includes/admin/admin-dashboard-menu.php:825
 #: includes/admin/audio-processor-admin.php:2888
 #: includes/admin/bulk-translation-admin.php:147
 #: includes/admin/image-aspect-normalizer-admin.php:111
@@ -308,13 +316,13 @@ msgstr ""
 msgid "Words"
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:355
+#: includes/admin/admin-dashboard-menu.php:357
 msgid "Add and edit vocabulary entries, meanings, and metadata."
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:361
-#: includes/admin/admin-dashboard-menu.php:820
-#: includes/admin/admin-dashboard-menu.php:821
+#: includes/admin/admin-dashboard-menu.php:363
+#: includes/admin/admin-dashboard-menu.php:832
+#: includes/admin/admin-dashboard-menu.php:833
 #: includes/admin/bulk-translation-admin.php:148
 #: includes/admin/image-aspect-normalizer-admin.php:112
 #: includes/post-types/word-image-post-type.php:7
@@ -322,156 +330,160 @@ msgstr ""
 msgid "Word Images"
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:362
+#: includes/admin/admin-dashboard-menu.php:364
 msgid "Manage image records linked to vocabulary words."
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:368
-#: includes/admin/admin-dashboard-menu.php:828
-#: includes/admin/admin-dashboard-menu.php:829
+#: includes/admin/admin-dashboard-menu.php:370
+#: includes/admin/admin-dashboard-menu.php:840
+#: includes/admin/admin-dashboard-menu.php:841
 #: includes/admin/orphan-media-admin.php:853
 #: includes/post-types/word-audio-post-type.php:12
 msgid "Word Audio"
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:369
+#: includes/admin/admin-dashboard-menu.php:371
 msgid "Review and edit published audio posts used across the site."
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:375
-#: includes/admin/admin-dashboard-menu.php:836
-#: includes/admin/admin-dashboard-menu.php:837
+#: includes/admin/admin-dashboard-menu.php:377
+#: includes/admin/admin-dashboard-menu.php:848
+#: includes/admin/admin-dashboard-menu.php:849
 #: includes/post-types/dictionary-entry-post-type.php:703
 #: includes/post-types/dictionary-entry-post-type.php:712
 #: includes/post-types/dictionary-entry-post-type.php:716
 msgid "Dictionary Entries"
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:376
+#: includes/admin/admin-dashboard-menu.php:378
 msgid "Maintain dictionary-style reference entries and supporting details."
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:386
+#: includes/admin/admin-dashboard-menu.php:388
 msgid "Create teacher classes, invite learners, and review student progress."
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:397
+#: includes/admin/admin-dashboard-menu.php:399
 msgid "Open the utilities menu for import/export, processing, and maintenance workflows."
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:403
-#: includes/admin/admin-dashboard-menu.php:845
+#: includes/admin/admin-dashboard-menu.php:405
+#: includes/admin/admin-dashboard-menu.php:857
 #: includes/pages/wordset-pages.php:14334
 #: language-learner-tools.php:1169
 msgid "Settings"
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:404
+#: includes/admin/admin-dashboard-menu.php:406
 msgid "Configure global plugin behavior, languages, and operational defaults."
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:413
+#: includes/admin/admin-dashboard-menu.php:415
 msgid "Use this dashboard to jump to each main area of the plugin. Tools opens workflow utilities; Settings controls global behavior."
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:416
+#: includes/admin/admin-dashboard-menu.php:418
 #: includes/pages/wordset-editor.php:960
 msgid "Content"
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:417
+#: includes/admin/admin-dashboard-menu.php:419
 msgid "Primary content management pages for vocabulary, media, and dictionary data."
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:422
+#: includes/admin/admin-dashboard-menu.php:424
 msgid "Administration"
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:423
+#: includes/admin/admin-dashboard-menu.php:425
 msgid "Utility and configuration pages used less frequently."
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:469
+#: includes/admin/admin-dashboard-menu.php:471
 msgid "Review queued recordings, clean audio, and publish approved files."
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:478
+#: includes/admin/admin-dashboard-menu.php:480
 msgid "Match uploaded audio and images to the correct words and categories."
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:487
+#: includes/admin/admin-dashboard-menu.php:489
 msgid "Find words without audio and resolve gaps in recording coverage."
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:496
+#: includes/admin/admin-dashboard-menu.php:498
 msgid "Create many draft word posts at once from pasted text."
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:505
+#: includes/admin/admin-dashboard-menu.php:507
 msgid "Import TSV dictionaries or export and restore whole-site dictionary snapshots."
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:514
+#: includes/admin/admin-dashboard-menu.php:516
 msgid "Maintain reusable source labels, attribution text, source-page URLs, and default dialects used by dictionary entries."
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:523
+#: includes/admin/admin-dashboard-menu.php:525
 msgid "Generate translations in bulk using your configured translation services."
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:532
+#: includes/admin/admin-dashboard-menu.php:534
 msgid "Review learner activity and progress summaries by word set."
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:541
+#: includes/admin/admin-dashboard-menu.php:543
 msgid "Download category bundles and CSV text exports for transfer or backup."
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:550
+#: includes/admin/admin-dashboard-menu.php:552
 msgid "Preview and import zip bundles into local categories, words, and audio."
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:559
+#: includes/admin/admin-dashboard-menu.php:561
 msgid "Pull a live word set into staging, preview local transcription changes, and push clean updates back to live."
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:568
+#: includes/admin/admin-dashboard-menu.php:570
 msgid "Build a one-wordset offline quiz bundle that can be turned into an Android APK."
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:577
+#: includes/admin/admin-dashboard-menu.php:579
+msgid "Create vocabulary videos from category pictures and original recordings."
+msgstr ""
+
+#: includes/admin/admin-dashboard-menu.php:588
 msgid "Release frontend login and sign-up rate-limit blocks for a connection."
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:586
+#: includes/admin/admin-dashboard-menu.php:597
 msgid "Review transcriptions by word set, search recordings, and catch likely IPA issues."
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:595
+#: includes/admin/admin-dashboard-menu.php:606
 msgid "Control grouped options and blocked pairs for quiz wrong answers."
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:603
+#: includes/admin/admin-dashboard-menu.php:614
 msgid "Normalize Image Ratios"
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:604
+#: includes/admin/admin-dashboard-menu.php:615
 msgid "Detect category image ratio mismatches and apply guided fixed-ratio crops."
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:612
+#: includes/admin/admin-dashboard-menu.php:623
 msgid "Optimize Images (WebP)"
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:613
+#: includes/admin/admin-dashboard-menu.php:624
 msgid "Flag oversized or non-WebP word images and batch-optimize them with progress tracking."
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:622
+#: includes/admin/admin-dashboard-menu.php:633
 msgid "Repair legacy image links and recreate missing word image posts."
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:632
+#: includes/admin/admin-dashboard-menu.php:643
 #: includes/pages/wordset-pages.php:25710
 #: includes/post-types/content-lesson-post-type.php:65
 #: includes/post-types/content-lesson-post-type.php:74
@@ -479,11 +491,11 @@ msgstr ""
 msgid "Content Lessons"
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:633
+#: includes/admin/admin-dashboard-menu.php:644
 msgid "Edit main audio/video lessons and synced transcript content."
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:641
+#: includes/admin/admin-dashboard-menu.php:652
 #: includes/lib/ai-crawler-support.php:1530
 #: includes/post-types/vocab-lesson-post-type.php:10
 #: includes/post-types/vocab-lesson-post-type.php:19
@@ -491,80 +503,80 @@ msgstr ""
 msgid "Vocab Lessons"
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:642
+#: includes/admin/admin-dashboard-menu.php:653
 msgid "Edit lesson post content and ordering used for vocab lesson pages."
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:651
+#: includes/admin/admin-dashboard-menu.php:662
 msgid "Review generated quiz pages and open their public URLs without editing normal Pages."
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:659
+#: includes/admin/admin-dashboard-menu.php:670
 #: includes/taxonomies/part-of-speech-taxonomy.php:8
 msgid "Parts of Speech"
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:660
+#: includes/admin/admin-dashboard-menu.php:671
 msgid "Maintain part-of-speech taxonomy values used on word entries."
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:669
+#: includes/admin/admin-dashboard-menu.php:680
 msgid "Define recording type labels used by recording and export workflows."
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:680
+#: includes/admin/admin-dashboard-menu.php:691
 msgid "Set and update DeepL credentials for automated translation tasks."
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:689
+#: includes/admin/admin-dashboard-menu.php:700
 msgid "Set and update AssemblyAI credentials for transcription workflows."
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:698
+#: includes/admin/admin-dashboard-menu.php:709
 msgid "Manage language taxonomy options and plugin language metadata."
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:780
-#: includes/admin/admin-dashboard-menu.php:783
-#: includes/admin/admin-dashboard-menu.php:854
+#: includes/admin/admin-dashboard-menu.php:792
+#: includes/admin/admin-dashboard-menu.php:795
+#: includes/admin/admin-dashboard-menu.php:866
 msgid "Overview"
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:931
+#: includes/admin/admin-dashboard-menu.php:943
 msgid "No tools are available with your current permissions."
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:947
+#: includes/admin/admin-dashboard-menu.php:959
 msgid "Choose a tool below to run a workflow. Each card includes a quick summary to help you find the right utility at a glance."
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:950
+#: includes/admin/admin-dashboard-menu.php:962
 msgid "Workflows"
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:951
+#: includes/admin/admin-dashboard-menu.php:963
 msgid "Daily operational tools for processing content, media, and quiz behavior."
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:956
+#: includes/admin/admin-dashboard-menu.php:968
 msgid "Content Admin"
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:957
+#: includes/admin/admin-dashboard-menu.php:969
 msgid "Lower-frequency admin pages for lesson and taxonomy maintenance."
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:962
+#: includes/admin/admin-dashboard-menu.php:974
 #: includes/pages/wordset-pages.php:14304
 msgid "Advanced"
 msgstr ""
 
-#: includes/admin/admin-dashboard-menu.php:963
+#: includes/admin/admin-dashboard-menu.php:975
 msgid "Configuration and taxonomy pages used for setup and maintenance."
 msgstr ""
 
 #. translators: 1: Admin page title, 2: Site name
-#: includes/admin/admin-dashboard-menu.php:1158
+#: includes/admin/admin-dashboard-menu.php:1170
 msgid "%1$s ‹ %2$s — WordPress"
 msgstr ""
 
@@ -612,8 +624,8 @@ msgid "AssemblyAI transcript status check failed."
 msgstr ""
 
 #: includes/admin/api/assemblyai-api.php:296
-#: includes/shortcodes/audio-recording-shortcode.php:5850
-#: includes/shortcodes/audio-recording-shortcode.php:5909
+#: includes/shortcodes/audio-recording-shortcode.php:5980
+#: includes/shortcodes/audio-recording-shortcode.php:6039
 #: includes/shortcodes/word-grid-shortcode.php:11506
 msgid "AssemblyAI transcription failed."
 msgstr ""
@@ -656,6 +668,7 @@ msgid "Loading categories…"
 msgstr ""
 
 #: includes/admin/audio-image-matcher.php:59
+#: includes/admin/category-video-export.php:34
 #: includes/lib/word-copy.php:460
 #: includes/pages/wordset-transcription-review.php:283
 #: includes/shortcodes/editor-hub-shortcode.php:1066
@@ -761,8 +774,8 @@ msgstr ""
 #: includes/pages/wordset-pages.php:28021
 #: includes/pages/wordset-pages.php:28530
 #: includes/pages/wordset-pages.php:29611
-#: includes/shortcodes/audio-recording-shortcode.php:1644
-#: includes/shortcodes/audio-recording-shortcode.php:1863
+#: includes/shortcodes/audio-recording-shortcode.php:1646
+#: includes/shortcodes/audio-recording-shortcode.php:1877
 #: includes/shortcodes/dictionary-shortcode.php:345
 #: includes/shortcodes/flashcard-widget.php:780
 #: includes/shortcodes/quiz-pages-shortcodes.php:2403
@@ -895,6 +908,7 @@ msgstr ""
 #: includes/pages/content-lesson-pages.php:1304
 #: includes/pages/wordset-pages.php:27376
 #: includes/pages/wordset-pages.php:27489
+#: includes/shortcodes/audio-recording-shortcode.php:1662
 #: includes/shortcodes/content-lesson-index-shortcode.php:388
 #: includes/shortcodes/dictionary-shortcode.php:342
 #: includes/shortcodes/word-grid-shortcode.php:4106
@@ -1113,7 +1127,7 @@ msgstr ""
 #: includes/admin/settings.php:647
 #: includes/pages/default-shortcode-page-helper.php:358
 #: includes/pages/default-shortcode-page-helper.php:362
-#: includes/shortcodes/audio-recording-shortcode.php:1614
+#: includes/shortcodes/audio-recording-shortcode.php:1616
 msgid "Error:"
 msgstr ""
 
@@ -1152,7 +1166,7 @@ msgstr ""
 
 #: includes/admin/audio-processor-admin.php:194
 #: includes/admin/uploads/audio-upload-form.php:414
-#: includes/shortcodes/audio-recording-shortcode.php:2058
+#: includes/shortcodes/audio-recording-shortcode.php:2072
 #: includes/taxonomies/recording-type-taxonomy.php:11
 msgid "Recording Type"
 msgstr ""
@@ -1327,7 +1341,7 @@ msgid "Wordset:"
 msgstr ""
 
 #: includes/admin/audio-processor-admin.php:222
-#: includes/shortcodes/audio-recording-shortcode.php:1620
+#: includes/shortcodes/audio-recording-shortcode.php:1622
 #: templates/audio-image-matcher-template.php:31
 msgid "Category:"
 msgstr ""
@@ -1427,7 +1441,7 @@ msgid "Process Selected"
 msgstr ""
 
 #: includes/admin/audio-processor-admin.php:1490
-#: includes/shortcodes/audio-recording-shortcode.php:1689
+#: includes/shortcodes/audio-recording-shortcode.php:1703
 msgid "Processing..."
 msgstr ""
 
@@ -1452,7 +1466,7 @@ msgid "Reprocess"
 msgstr ""
 
 #: includes/admin/audio-processor-admin.php:1555
-#: includes/shortcodes/audio-recording-shortcode.php:2142
+#: includes/shortcodes/audio-recording-shortcode.php:2156
 msgid "Review Processed Audio"
 msgstr ""
 
@@ -1490,9 +1504,9 @@ msgstr ""
 
 #: includes/admin/audio-processor-admin.php:1707
 #: includes/pages/wordset-games.php:6734
-#: includes/shortcodes/audio-recording-shortcode.php:462
-#: includes/shortcodes/audio-recording-shortcode.php:5814
-#: includes/shortcodes/audio-recording-shortcode.php:9710
+#: includes/shortcodes/audio-recording-shortcode.php:464
+#: includes/shortcodes/audio-recording-shortcode.php:5944
+#: includes/shortcodes/audio-recording-shortcode.php:9840
 #: includes/shortcodes/word-grid-shortcode.php:8204
 msgid "Invalid audio upload."
 msgstr ""
@@ -1504,15 +1518,15 @@ msgstr ""
 
 #. translators: %s: upload subsystem error message
 #: includes/admin/audio-processor-admin.php:1755
-#: includes/shortcodes/audio-recording-shortcode.php:8894
-#: includes/shortcodes/audio-recording-shortcode.php:9920
+#: includes/shortcodes/audio-recording-shortcode.php:9024
+#: includes/shortcodes/audio-recording-shortcode.php:10050
 #: includes/shortcodes/word-grid-shortcode.php:8263
 msgid "Failed to save file: %s"
 msgstr ""
 
 #: includes/admin/audio-processor-admin.php:1761
-#: includes/shortcodes/audio-recording-shortcode.php:8897
-#: includes/shortcodes/audio-recording-shortcode.php:9926
+#: includes/shortcodes/audio-recording-shortcode.php:9027
+#: includes/shortcodes/audio-recording-shortcode.php:10056
 msgid "Failed to save file"
 msgstr ""
 
@@ -1682,6 +1696,7 @@ msgid "Words + Images"
 msgstr ""
 
 #: includes/admin/bulk-translation-admin.php:151
+#: includes/admin/category-video-export.php:102
 #: includes/admin/image-webp-optimizer-admin.php:1796
 #: includes/admin/user-progress-report.php:1118
 #: includes/admin/word-option-rules-admin.php:1888
@@ -1695,7 +1710,7 @@ msgstr ""
 #: includes/privacy.php:848
 #: includes/privacy.php:937
 #: includes/privacy.php:1019
-#: includes/shortcodes/audio-recording-shortcode.php:1925
+#: includes/shortcodes/audio-recording-shortcode.php:1939
 #: includes/shortcodes/editor-hub-shortcode.php:1077
 #: includes/shortcodes/editor-hub-shortcode.php:1109
 #: includes/shortcodes/image-copyright-grid-shortcode.php:222
@@ -2080,6 +2095,357 @@ msgstr ""
 msgid "Import words"
 msgstr ""
 
+#: includes/admin/category-video-export.php:31
+msgid "Choose a word set"
+msgstr ""
+
+#: includes/admin/category-video-export.php:32
+msgid "Choose a category"
+msgstr ""
+
+#: includes/admin/category-video-export.php:33
+msgid "Any speaker"
+msgstr ""
+
+#: includes/admin/category-video-export.php:35
+msgid "Choose words, then prepare your preview."
+msgstr ""
+
+#: includes/admin/category-video-export.php:36
+msgid "%1$d of %2$d words selected"
+msgstr ""
+
+#: includes/admin/category-video-export.php:37
+msgid "Select up to 30 words per video. Make another video for the remaining words."
+msgstr ""
+
+#: includes/admin/category-video-export.php:38
+msgid "No usable words were found in this batch. Check the skipped words or load the next batch."
+msgstr ""
+
+#: includes/admin/category-video-export.php:39
+msgid "All words in this category have been checked."
+msgstr ""
+
+#: includes/admin/category-video-export.php:40
+msgid "More words are available. Load the next batch to include them."
+msgstr ""
+
+#: includes/admin/category-video-export.php:41
+msgid "Preparing media: %1$d / %2$d"
+msgstr ""
+
+#: includes/admin/category-video-export.php:42
+msgid "Ready · %1$d words · %2$s"
+msgstr ""
+
+#: includes/admin/category-video-export.php:43
+msgid "Previewing · %1$s / %2$s"
+msgstr ""
+
+#: includes/admin/category-video-export.php:44
+msgid "Creating video · %1$s / %2$s"
+msgstr ""
+
+#: includes/admin/category-video-export.php:45
+msgid "Your video is ready. Watch it below, then download it."
+msgstr ""
+
+#: includes/admin/category-video-export.php:46
+msgid "Download %s"
+msgstr ""
+
+#: includes/admin/category-video-export.php:47
+msgid "Stopped. You can prepare or play the video again."
+msgstr ""
+
+#: includes/admin/category-video-export.php:48
+msgid "Settings changed. Prepare a new preview to apply them."
+msgstr ""
+
+#: includes/admin/category-video-export.php:49
+msgid "Could not load this category. Please try again."
+msgstr ""
+
+#: includes/admin/category-video-export.php:50
+msgid "This source list is too large to load at once."
+msgstr ""
+
+#: includes/admin/category-video-export.php:51
+msgid "Move up"
+msgstr ""
+
+#: includes/admin/category-video-export.php:52
+msgid "Move down"
+msgstr ""
+
+#: includes/admin/category-video-export.php:53
+msgid "Skipped words (%d)"
+msgstr ""
+
+#: includes/admin/category-video-export.php:55
+msgid "No usable image"
+msgstr ""
+
+#: includes/admin/category-video-export.php:56
+msgid "No published isolation recording for this speaker"
+msgstr ""
+
+#: includes/admin/category-video-export.php:57
+msgid "Recording text needs review"
+msgstr ""
+
+#: includes/admin/category-video-export.php:58
+msgid "Too many recordings to choose safely; narrow the speaker selection"
+msgstr ""
+
+#: includes/admin/category-video-export.php:59
+msgid "No target-language label"
+msgstr ""
+
+#: includes/admin/category-video-export.php:60
+msgid "Media or label unavailable"
+msgstr ""
+
+#: includes/admin/category-video-export.php:63
+msgid "This browser cannot create videos. Try a current desktop Chrome or Edge browser."
+msgstr ""
+
+#: includes/admin/category-video-export.php:64
+msgid "Choose between 1 and 30 words with pictures and audio."
+msgstr ""
+
+#: includes/admin/category-video-export.php:65
+msgid "Check the video settings and try again."
+msgstr ""
+
+#: includes/admin/category-video-export.php:66
+msgid "A media file could not be loaded. Check its URL and cross-origin permissions, then retry."
+msgstr ""
+
+#: includes/admin/category-video-export.php:67
+msgid "A media file is too large for this browser video."
+msgstr ""
+
+#: includes/admin/category-video-export.php:68
+msgid "A picture could not be opened."
+msgstr ""
+
+#: includes/admin/category-video-export.php:69
+msgid "An audio recording could not be opened."
+msgstr ""
+
+#: includes/admin/category-video-export.php:70
+msgid "Use recordings shorter than 30 seconds for this tool."
+msgstr ""
+
+#: includes/admin/category-video-export.php:71
+msgid "Keep each video under 10 minutes. Choose fewer words or repetitions."
+msgstr ""
+
+#: includes/admin/category-video-export.php:72
+msgid "These media files need too much memory. Choose fewer words."
+msgstr ""
+
+#: includes/admin/category-video-export.php:73
+msgid "Video creation failed. Please try again or use another browser."
+msgstr ""
+
+#: includes/admin/category-video-export.php:74
+msgid "The browser returned an empty video. Please try again."
+msgstr ""
+
+#: includes/admin/category-video-export.php:75
+msgid "Video creation timed out. Please try a shorter video."
+msgstr ""
+
+#: includes/admin/category-video-export.php:76
+msgid "Video creation stopped because this tab was hidden. Keep this tab visible while creating a video."
+msgstr ""
+
+#: includes/admin/category-video-export.php:77
+msgid "Audio playback was interrupted. Keep this tab active and try again."
+msgstr ""
+
+#: includes/admin/category-video-export.php:78
+msgid "Prepare the preview first."
+msgstr ""
+
+#: includes/admin/category-video-export.php:79
+msgid "Wait for the current operation or stop it first."
+msgstr ""
+
+#: includes/admin/category-video-export.php:80
+msgid "Prepare a new preview and try again."
+msgstr ""
+
+#: includes/admin/category-video-export.php:81
+msgid "Stopped."
+msgstr ""
+
+#: includes/admin/category-video-export.php:90
+msgid "You do not have permission to create category videos."
+msgstr ""
+
+#: includes/admin/category-video-export.php:95
+msgid "Turn vocabulary pictures and original recordings into a short learning video."
+msgstr ""
+
+#: includes/admin/category-video-export.php:99
+msgid "1. Choose your words"
+msgstr ""
+
+#: includes/admin/category-video-export.php:101
+#: includes/admin/export-import.php:4319
+#: includes/admin/export-import.php:4415
+#: includes/admin/ipa-keyboard-admin.php:625
+#: includes/admin/teacher-classes-page.php:743
+#: includes/admin/word-option-rules-admin.php:1876
+#: includes/pages/wordset-pages.php:12970
+#: includes/post-types/content-lesson-post-type.php:1932
+#: includes/privacy.php:470
+#: includes/privacy.php:850
+#: includes/privacy.php:939
+#: includes/privacy.php:1021
+#: includes/shortcodes/audio-recording-shortcode.php:1741
+#: includes/shortcodes/image-copyright-grid-shortcode.php:207
+#: templates/content-lesson-template.php:137
+#: templates/content-lesson-template.php:143
+#: templates/vocab-lesson-template.php:600
+#: templates/vocab-lesson-template.php:606
+msgid "Word set"
+msgstr ""
+
+#: includes/admin/category-video-export.php:103
+#: includes/post-types/word-audio-post-type.php:116
+#: includes/shortcodes/audio-credit-grid-shortcode.php:373
+msgid "Speaker"
+msgstr ""
+
+#: includes/admin/category-video-export.php:106
+#: includes/admin/word-option-rules-admin.php:1899
+msgid "Load words"
+msgstr ""
+
+#: includes/admin/category-video-export.php:107
+msgid "Reload choices"
+msgstr ""
+
+#: includes/admin/category-video-export.php:109
+msgid "Uses published words with pictures and isolation recordings. Recordings with text awaiting review are excluded."
+msgstr ""
+
+#: includes/admin/category-video-export.php:111
+msgid "Select first 30"
+msgstr ""
+
+#: includes/admin/category-video-export.php:111
+#: includes/admin/ipa-keyboard-admin.php:587
+#: includes/pages/wordset-pages.php:28036
+#: includes/pages/wordset-pages.php:28572
+#: includes/shortcodes/flashcard-widget.php:791
+#: templates/offline-app-shell-template.php:832
+msgid "Clear selection"
+msgstr ""
+
+#: includes/admin/category-video-export.php:116
+#: includes/pages/wordset-pages.php:27456
+#: includes/pages/wordset-pages.php:28013
+msgid "Load more words"
+msgstr ""
+
+#: includes/admin/category-video-export.php:121
+msgid "2. Set the pace"
+msgstr ""
+
+#: includes/admin/category-video-export.php:124
+msgid "Video title"
+msgstr ""
+
+#: includes/admin/category-video-export.php:125
+msgid "Shape"
+msgstr ""
+
+#: includes/admin/category-video-export.php:125
+msgid "Portrait · 9:16"
+msgstr ""
+
+#: includes/admin/category-video-export.php:125
+msgid "Landscape · 16:9"
+msgstr ""
+
+#: includes/admin/category-video-export.php:125
+msgid "Square · 1:1"
+msgstr ""
+
+#: includes/admin/category-video-export.php:126
+msgid "Play each word"
+msgstr ""
+
+#: includes/admin/category-video-export.php:126
+msgid "Once"
+msgstr ""
+
+#: includes/admin/category-video-export.php:126
+msgid "Twice"
+msgstr ""
+
+#: includes/admin/category-video-export.php:126
+msgid "Three times"
+msgstr ""
+
+#: includes/admin/category-video-export.php:127
+msgid "Pause after audio (seconds)"
+msgstr ""
+
+#: includes/admin/category-video-export.php:128
+msgid "Thinking time before answer (seconds)"
+msgstr ""
+
+#: includes/admin/category-video-export.php:130
+msgid "Show the written word with the answer"
+msgstr ""
+
+#: includes/admin/category-video-export.php:132
+msgid "Thinking time shows the picture before revealing the word and playing its recording."
+msgstr ""
+
+#: includes/admin/category-video-export.php:136
+msgid "3. Preview and create"
+msgstr ""
+
+#: includes/admin/category-video-export.php:137
+msgid "Vocabulary video preview"
+msgstr ""
+
+#: includes/admin/category-video-export.php:139
+msgid "Prepare preview"
+msgstr ""
+
+#: includes/admin/category-video-export.php:140
+msgid "Play preview"
+msgstr ""
+
+#: includes/admin/category-video-export.php:141
+msgid "Create video"
+msgstr ""
+
+#: includes/admin/category-video-export.php:142
+msgid "Stop"
+msgstr ""
+
+#: includes/admin/category-video-export.php:146
+msgid "Keep this tab visible during video creation. It takes about as long as the video. The file stays on your device; nothing is published."
+msgstr ""
+
+#: includes/admin/category-video-export.php:147
+msgid "MP4 is used when your browser supports it; otherwise the download is WebM."
+msgstr ""
+
+#: includes/admin/category-video-export.php:151
+msgid "Enable JavaScript to create category videos."
+msgstr ""
+
 #: includes/admin/dictionary-import-admin.php:92
 #: includes/admin/dictionary-import-admin.php:93
 #: includes/admin/dictionary-import-admin.php:2915
@@ -2453,9 +2819,9 @@ msgstr ""
 #: includes/admin/dictionary-import-admin.php:2615
 #: includes/admin/export-import.php:1644
 #: includes/admin/export-import.php:3828
-#: includes/content-lesson-progress.php:278
-#: includes/content-lesson-progress.php:391
-#: includes/content-lesson-progress.php:419
+#: includes/content-lesson-progress.php:325
+#: includes/content-lesson-progress.php:446
+#: includes/content-lesson-progress.php:474
 #: includes/pages/content-lesson-pages.php:1302
 #: includes/shortcodes/content-lesson-index-shortcode.php:386
 #: includes/shortcodes/content-lesson-index-shortcode.php:621
@@ -2643,7 +3009,7 @@ msgstr ""
 #: includes/admin/export-import.php:12496
 #: includes/admin/export-import.php:12717
 #: includes/admin/export-import.php:12742
-#: includes/api/automation-rest.php:10277
+#: includes/api/automation-rest.php:10299
 msgid "The requested import job could not be found."
 msgstr ""
 
@@ -2982,6 +3348,7 @@ msgstr ""
 #: includes/admin/export-import.php:17669
 #: includes/admin/export-import.php:19291
 #: includes/admin/uploads/image-upload-form.php:1175
+#: includes/lib/vocab-lesson-activities.php:37
 #: includes/pages/vocab-lesson-pages.php:5691
 #: includes/pages/vocab-lesson-pages.php:5985
 #: includes/pages/vocab-lesson-pages.php:6030
@@ -3007,13 +3374,13 @@ msgstr ""
 #: includes/pages/vocab-lesson-pages.php:6824
 #: includes/pages/vocab-lesson-pages.php:6838
 #: includes/pages/vocab-lesson-pages.php:6885
-#: includes/pages/vocab-lesson-pages.php:6909
-#: includes/pages/vocab-lesson-pages.php:6982
-#: includes/pages/vocab-lesson-pages.php:6997
-#: includes/pages/vocab-lesson-pages.php:7006
+#: includes/pages/vocab-lesson-pages.php:6919
+#: includes/pages/vocab-lesson-pages.php:6992
+#: includes/pages/vocab-lesson-pages.php:7007
+#: includes/pages/vocab-lesson-pages.php:7016
 #: includes/pages/wordset-editor.php:424
 #: includes/pages/wordset-pages.php:10293
-#: includes/shortcodes/audio-recording-shortcode.php:5120
+#: includes/shortcodes/audio-recording-shortcode.php:5182
 #: includes/taxonomies/word-category-taxonomy.php:782
 #: includes/taxonomies/word-category-taxonomy.php:796
 #: includes/taxonomies/word-category-taxonomy.php:815
@@ -3424,7 +3791,7 @@ msgid "The export may still fail if the server times out while preparing the zip
 msgstr ""
 
 #: includes/admin/export-import.php:591
-#: includes/shortcodes/audio-recording-shortcode.php:30
+#: includes/shortcodes/audio-recording-shortcode.php:32
 #: includes/shortcodes/editor-hub-shortcode.php:301
 #: includes/shortcodes/word-grid-shortcode.php:5374
 #: includes/shortcodes/word-grid-shortcode.php:5859
@@ -3435,7 +3802,7 @@ msgstr ""
 
 #: includes/admin/export-import.php:592
 #: includes/admin/uploads/audio-upload-form.php:428
-#: includes/shortcodes/audio-recording-shortcode.php:29
+#: includes/shortcodes/audio-recording-shortcode.php:31
 #: includes/shortcodes/editor-hub-shortcode.php:302
 #: includes/shortcodes/flashcard-widget.php:741
 #: includes/shortcodes/word-grid-shortcode.php:5375
@@ -3446,7 +3813,7 @@ msgid "Isolation"
 msgstr ""
 
 #: includes/admin/export-import.php:593
-#: includes/shortcodes/audio-recording-shortcode.php:31
+#: includes/shortcodes/audio-recording-shortcode.php:33
 #: includes/shortcodes/editor-hub-shortcode.php:303
 #: includes/shortcodes/flashcard-widget.php:742
 #: includes/shortcodes/word-grid-shortcode.php:5376
@@ -3777,7 +4144,7 @@ msgstr ""
 #: includes/admin/export-import.php:14898
 #: includes/admin/offline-app-export.php:1722
 #: includes/admin/orphan-media-admin.php:1483
-#: includes/api/automation-rest.php:10216
+#: includes/api/automation-rest.php:10238
 #: includes/pages/wordset-pages.php:9400
 #: includes/pages/wordset-pages.php:9764
 msgid "ZipArchive is not available on this server."
@@ -4386,26 +4753,6 @@ msgstr ""
 msgid "All supported word and recording text fields are selected by default for the chosen word set. Uncheck anything you do not want to include."
 msgstr ""
 
-#: includes/admin/export-import.php:4319
-#: includes/admin/export-import.php:4415
-#: includes/admin/ipa-keyboard-admin.php:625
-#: includes/admin/teacher-classes-page.php:743
-#: includes/admin/word-option-rules-admin.php:1876
-#: includes/pages/wordset-pages.php:12970
-#: includes/post-types/content-lesson-post-type.php:1932
-#: includes/privacy.php:470
-#: includes/privacy.php:850
-#: includes/privacy.php:939
-#: includes/privacy.php:1021
-#: includes/shortcodes/audio-recording-shortcode.php:1727
-#: includes/shortcodes/image-copyright-grid-shortcode.php:207
-#: templates/content-lesson-template.php:137
-#: templates/content-lesson-template.php:143
-#: templates/vocab-lesson-template.php:600
-#: templates/vocab-lesson-template.php:606
-msgid "Word set"
-msgstr ""
-
 #: includes/admin/export-import.php:4331
 msgid "Exports words assigned to the selected word set."
 msgstr ""
@@ -4892,7 +5239,7 @@ msgid "Import failed: please choose a zip file to import."
 msgstr ""
 
 #: includes/admin/export-import.php:5361
-#: includes/api/automation-rest.php:10155
+#: includes/api/automation-rest.php:10177
 msgid "Import failed: server import folder is not available."
 msgstr ""
 
@@ -5558,7 +5905,7 @@ msgid "Could not create the import extraction directory."
 msgstr ""
 
 #: includes/admin/export-import.php:12655
-#: includes/api/automation-rest.php:10297
+#: includes/api/automation-rest.php:10319
 msgid "Another import job is already active. Resume or finish it before starting a new one."
 msgstr ""
 
@@ -6174,8 +6521,8 @@ msgstr ""
 #: includes/admin/image-aspect-normalizer-admin.php:138
 #: includes/admin/offline-app-export.php:920
 #: includes/shortcodes/flashcard-widget.php:782
-#: includes/shortcodes/wordset-buttons-shortcode.php:2178
-#: includes/shortcodes/wordset-buttons-shortcode.php:2198
+#: includes/shortcodes/wordset-buttons-shortcode.php:2262
+#: includes/shortcodes/wordset-buttons-shortcode.php:2282
 msgid "Loading categories..."
 msgstr ""
 
@@ -6878,17 +7225,17 @@ msgstr ""
 #: includes/pages/wordset-pages.php:27387
 #: includes/shortcodes/flashcard-widget.php:779
 #: includes/shortcodes/quiz-pages-shortcodes.php:1871
-#: includes/user-progress.php:11563
-#: includes/user-progress.php:11719
-#: includes/user-progress.php:11769
-#: includes/user-progress.php:13135
-#: includes/user-progress.php:13161
-#: includes/user-progress.php:13234
-#: includes/user-progress.php:13310
-#: includes/user-progress.php:13375
-#: includes/user-progress.php:13399
-#: includes/user-progress.php:13516
-#: includes/user-progress.php:13688
+#: includes/user-progress.php:11581
+#: includes/user-progress.php:11737
+#: includes/user-progress.php:11787
+#: includes/user-progress.php:13153
+#: includes/user-progress.php:13179
+#: includes/user-progress.php:13252
+#: includes/user-progress.php:13328
+#: includes/user-progress.php:13393
+#: includes/user-progress.php:13417
+#: includes/user-progress.php:13534
+#: includes/user-progress.php:13706
 #: includes/user-study.php:1489
 msgid "Something went wrong. Please try again."
 msgstr ""
@@ -7045,7 +7392,7 @@ msgid "Blocked mappings"
 msgstr ""
 
 #: includes/admin/ipa-keyboard-admin.php:436
-#: includes/pages/vocab-lesson-pages.php:9182
+#: includes/pages/vocab-lesson-pages.php:9192
 #: includes/pages/wordset-editor.php:5162
 #: templates/vocab-lesson-template.php:737
 msgid "Undo"
@@ -7081,6 +7428,7 @@ msgid "Play recording"
 msgstr ""
 
 #: includes/admin/ipa-keyboard-admin.php:444
+#: includes/shortcodes/audio-recording-shortcode.php:1654
 msgid "Download recording"
 msgstr ""
 
@@ -7648,14 +7996,6 @@ msgstr ""
 msgid "Select all"
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:587
-#: includes/pages/wordset-pages.php:28036
-#: includes/pages/wordset-pages.php:28572
-#: includes/shortcodes/flashcard-widget.php:791
-#: templates/offline-app-shell-template.php:832
-msgid "Clear selection"
-msgstr ""
-
 #: includes/admin/ipa-keyboard-admin.php:588
 msgid "Convert selected"
 msgstr ""
@@ -8178,7 +8518,7 @@ msgstr ""
 #: includes/admin/ipa-keyboard-admin.php:10557
 #: includes/admin/ipa-keyboard-admin.php:10597
 #: includes/admin/ipa-keyboard-admin.php:10718
-#: includes/shortcodes/audio-recording-shortcode.php:9702
+#: includes/shortcodes/audio-recording-shortcode.php:9832
 #: includes/shortcodes/word-grid-shortcode.php:11311
 msgid "Missing data"
 msgstr ""
@@ -8542,7 +8882,7 @@ msgstr ""
 #: includes/pages/wordset-pages.php:27349
 #: includes/pages/wordset-pages.php:27546
 #: includes/pages/wordset-pages.php:29382
-#: includes/shortcodes/audio-recording-shortcode.php:1258
+#: includes/shortcodes/audio-recording-shortcode.php:1260
 #: includes/shortcodes/editor-hub-shortcode.php:1007
 #: includes/shortcodes/site-tools-shortcode.php:950
 #: templates/vocab-lesson-template.php:735
@@ -10433,8 +10773,8 @@ msgid "Sync IDs"
 msgstr ""
 
 #: includes/admin/site-sync-admin.php:1062
-#: includes/shortcodes/audio-recording-shortcode.php:1999
-#: includes/shortcodes/audio-recording-shortcode.php:2088
+#: includes/shortcodes/audio-recording-shortcode.php:2013
+#: includes/shortcodes/audio-recording-shortcode.php:2102
 msgid "Record"
 msgstr ""
 
@@ -11409,7 +11749,7 @@ msgstr ""
 #: includes/admin/uploads/audio-upload-form.php:636
 #: includes/admin/uploads/image-upload-form.php:454
 #: includes/admin/uploads/image-upload-form.php:718
-#: includes/api/automation-rest.php:7758
+#: includes/api/automation-rest.php:7780
 msgid "You do not have permission to upload files."
 msgstr ""
 
@@ -11479,7 +11819,7 @@ msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:535
 #: includes/admin/uploads/image-upload-form.php:604
-#: includes/shortcodes/audio-recording-shortcode.php:1954
+#: includes/shortcodes/audio-recording-shortcode.php:1968
 msgid "New Category Name"
 msgstr ""
 
@@ -11614,7 +11954,7 @@ msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:577
 #: includes/admin/uploads/image-upload-form.php:646
-#: includes/shortcodes/audio-recording-shortcode.php:1958
+#: includes/shortcodes/audio-recording-shortcode.php:1972
 #: includes/taxonomies/word-category-taxonomy.php:4972
 #: includes/taxonomies/word-category-taxonomy.php:5015
 msgid "Desired Recording Types"
@@ -11656,7 +11996,7 @@ msgstr ""
 #: includes/admin/uploads/audio-upload-form.php:696
 #: includes/pages/wordset-pages.php:24059
 #: includes/post-types/content-lesson-post-type.php:951
-#: includes/shortcodes/audio-recording-shortcode.php:1694
+#: includes/shortcodes/audio-recording-shortcode.php:1708
 msgid "%1$s (%2$s)"
 msgstr ""
 
@@ -12250,10 +12590,6 @@ msgstr ""
 msgid "Unable to import word option settings."
 msgstr ""
 
-#: includes/admin/word-option-rules-admin.php:1899
-msgid "Load words"
-msgstr ""
-
 #: includes/admin/word-option-rules-admin.php:1905
 msgid "This lesson is missing its word set or category link."
 msgstr ""
@@ -12512,780 +12848,780 @@ msgstr ""
 msgid "Too many login attempts from this connection. Please try again in a few minutes."
 msgstr ""
 
-#: includes/api/automation-rest.php:569
+#: includes/api/automation-rest.php:591
 msgid "LL Tools password-based REST authentication requires HTTPS, except in local development."
 msgstr ""
 
-#: includes/api/automation-rest.php:588
-#: includes/api/automation-rest.php:603
+#: includes/api/automation-rest.php:610
+#: includes/api/automation-rest.php:625
 msgid "Unable to authenticate this REST request."
 msgstr ""
 
-#: includes/api/automation-rest.php:659
+#: includes/api/automation-rest.php:681
 msgid "You are not allowed to use LL Tools automation on this site."
 msgstr ""
 
-#: includes/api/automation-rest.php:666
+#: includes/api/automation-rest.php:688
 msgid "Authenticate with a WordPress login, application password, or LL Tools basic password access before calling this endpoint."
 msgstr ""
 
-#: includes/api/automation-rest.php:706
+#: includes/api/automation-rest.php:728
 msgid "You cannot manage automation for this word set."
 msgstr ""
 
-#: includes/api/automation-rest.php:729
+#: includes/api/automation-rest.php:751
 msgid "You cannot view internal review notes for this word set."
 msgstr ""
 
-#: includes/api/automation-rest.php:740
+#: includes/api/automation-rest.php:762
 msgid "You cannot manage internal review notes for this word set."
 msgstr ""
 
-#: includes/api/automation-rest.php:767
+#: includes/api/automation-rest.php:789
 msgid "You cannot view interlinear data for this word set."
 msgstr ""
 
-#: includes/api/automation-rest.php:775
+#: includes/api/automation-rest.php:797
 msgid "You cannot manage interlinear data for this word set."
 msgstr ""
 
-#: includes/api/automation-rest.php:792
+#: includes/api/automation-rest.php:814
 msgid "You cannot create word sets through LL Tools automation."
 msgstr ""
 
-#: includes/api/automation-rest.php:810
+#: includes/api/automation-rest.php:832
 msgid "You cannot import LL Tools bundles through automation."
 msgstr ""
 
-#: includes/api/automation-rest.php:827
+#: includes/api/automation-rest.php:849
 msgid "You are not allowed to clear LL Tools caches on this site."
 msgstr ""
 
-#: includes/api/automation-rest.php:844
+#: includes/api/automation-rest.php:866
 msgid "You are not allowed to update LL Tools on this site."
 msgstr ""
 
-#: includes/api/automation-rest.php:861
+#: includes/api/automation-rest.php:883
 msgid "You cannot manage the dictionary lookup index through LL Tools automation."
 msgstr ""
 
-#: includes/api/automation-rest.php:925
+#: includes/api/automation-rest.php:947
 msgid "Missing set.field in the REST update payload."
 msgstr ""
 
 #. translators: 1: field name, 2: comma-separated field list
-#: includes/api/automation-rest.php:935
+#: includes/api/automation-rest.php:957
 #: includes/cli/cli-support.php:130
 msgid "Unsupported update field \"%1$s\". Allowed fields: %2$s"
 msgstr ""
 
-#: includes/api/automation-rest.php:952
+#: includes/api/automation-rest.php:974
 msgid "Provide set as either \"field=value\" or an object with field/value."
 msgstr ""
 
-#: includes/api/automation-rest.php:1190
+#: includes/api/automation-rest.php:1212
 msgid "Offset is too large. Use an offset no greater than %d or narrow the filters."
 msgstr ""
 
-#: includes/api/automation-rest.php:1437
-#: includes/api/automation-rest.php:1457
+#: includes/api/automation-rest.php:1459
+#: includes/api/automation-rest.php:1479
 msgid "LL Tools automation is already processing a write request. Wait and retry this request instead of running parallel updates."
 msgstr ""
 
-#: includes/api/automation-rest.php:1943
-#: includes/api/automation-rest.php:2342
-#: includes/api/automation-rest.php:2454
+#: includes/api/automation-rest.php:1965
+#: includes/api/automation-rest.php:2364
+#: includes/api/automation-rest.php:2476
 #: includes/shortcodes/dictionary-shortcode.php:1055
 #: includes/shortcodes/dictionary-shortcode.php:3847
 msgid "Dictionary entry not found."
 msgstr ""
 
-#: includes/api/automation-rest.php:1951
-#: includes/api/automation-rest.php:2152
-#: includes/api/automation-rest.php:2364
-#: includes/api/automation-rest.php:2461
+#: includes/api/automation-rest.php:1973
+#: includes/api/automation-rest.php:2174
+#: includes/api/automation-rest.php:2386
+#: includes/api/automation-rest.php:2483
 msgid "You are not allowed to edit this dictionary entry."
 msgstr ""
 
-#: includes/api/automation-rest.php:1959
-#: includes/api/automation-rest.php:2279
-#: includes/api/automation-rest.php:3936
-#: includes/api/automation-rest.php:3959
-#: includes/api/automation-rest.php:4132
+#: includes/api/automation-rest.php:1981
+#: includes/api/automation-rest.php:2301
+#: includes/api/automation-rest.php:3958
+#: includes/api/automation-rest.php:3981
+#: includes/api/automation-rest.php:4154
 #: includes/api/word-metadata-plan-rest.php:572
 #: includes/cli/cli-support.php:879
 msgid "Dictionary entry helpers are not available."
 msgstr ""
 
-#: includes/api/automation-rest.php:1969
+#: includes/api/automation-rest.php:1991
 msgid "Provide the imported headword text to replace."
 msgstr ""
 
-#: includes/api/automation-rest.php:1976
+#: includes/api/automation-rest.php:1998
 msgid "Provide the replacement headword text."
 msgstr ""
 
-#: includes/api/automation-rest.php:1986
-#: includes/api/automation-rest.php:2391
-#: includes/api/automation-rest.php:2478
+#: includes/api/automation-rest.php:2008
+#: includes/api/automation-rest.php:2413
+#: includes/api/automation-rest.php:2500
 msgid "Expected dictionary entry title does not match live state."
 msgstr ""
 
-#: includes/api/automation-rest.php:2131
+#: includes/api/automation-rest.php:2153
 msgid "Old dictionary entry not found."
 msgstr ""
 
-#: includes/api/automation-rest.php:2138
+#: includes/api/automation-rest.php:2160
 msgid "Target dictionary entry not found."
 msgstr ""
 
-#: includes/api/automation-rest.php:2145
+#: includes/api/automation-rest.php:2167
 msgid "Old and target dictionary entries must be different."
 msgstr ""
 
-#: includes/api/automation-rest.php:2164
+#: includes/api/automation-rest.php:2186
 msgid "Expected old dictionary entry title does not match live state."
 msgstr ""
 
-#: includes/api/automation-rest.php:2176
+#: includes/api/automation-rest.php:2198
 msgid "Expected target dictionary entry title does not match live state."
 msgstr ""
 
-#: includes/api/automation-rest.php:2302
+#: includes/api/automation-rest.php:2324
 msgid "Provide one or more dictionary translation AI flag updates."
 msgstr ""
 
 #. translators: %d: maximum update count
-#: includes/api/automation-rest.php:2318
+#: includes/api/automation-rest.php:2340
 msgid "Too many dictionary translation AI flag updates in one request. Maximum is %d."
 msgstr ""
 
-#: includes/api/automation-rest.php:2353
+#: includes/api/automation-rest.php:2375
 msgid "Provide translation_is_ai as true or false."
 msgstr ""
 
-#: includes/api/automation-rest.php:2404
+#: includes/api/automation-rest.php:2426
 msgid "Expected dictionary entry translation does not match live state."
 msgstr ""
 
-#: includes/api/automation-rest.php:2468
+#: includes/api/automation-rest.php:2490
 msgid "Dictionary import helpers are not available."
 msgstr ""
 
-#: includes/api/automation-rest.php:2492
+#: includes/api/automation-rest.php:2514
 msgid "Provide a dictionary import row."
 msgstr ""
 
-#: includes/api/automation-rest.php:2515
+#: includes/api/automation-rest.php:2537
 msgid "Dictionary row entry is required."
 msgstr ""
 
-#: includes/api/automation-rest.php:2781
+#: includes/api/automation-rest.php:2803
 msgid "LL Tools automation updates currently support only the dev branch package."
 msgstr ""
 
-#: includes/api/automation-rest.php:2789
+#: includes/api/automation-rest.php:2811
 msgid "The LL Tools automation update package URL failed the built-in allowlist check."
 msgstr ""
 
-#: includes/api/automation-rest.php:2800
+#: includes/api/automation-rest.php:2822
 msgid "The installed LL Tools version does not match the expected current version, so the automation update was not started."
 msgstr ""
 
-#: includes/api/automation-rest.php:2817
+#: includes/api/automation-rest.php:2839
 msgid "Set confirm=true and dry_run=false to update LL Tools through automation."
 msgstr ""
 
-#: includes/api/automation-rest.php:2825
+#: includes/api/automation-rest.php:2847
 msgid "WordPress path constants are unavailable, so the plugin updater cannot run."
 msgstr ""
 
-#: includes/api/automation-rest.php:2872
+#: includes/api/automation-rest.php:2894
 msgid "LL Tools plugin update failed."
 msgstr ""
 
-#: includes/api/automation-rest.php:2887
+#: includes/api/automation-rest.php:2909
 msgid "LL Tools plugin files were updated, but the plugin could not be reactivated automatically."
 msgstr ""
 
-#: includes/api/automation-rest.php:2951
+#: includes/api/automation-rest.php:2973
 msgid "Use cache=all, cache=dictionary, or cache=public."
 msgstr ""
 
-#: includes/api/automation-rest.php:2980
+#: includes/api/automation-rest.php:3002
 msgid "Provide a name for the new word set."
 msgstr ""
 
 #. translators: %d: maximum update count
-#: includes/api/automation-rest.php:3341
+#: includes/api/automation-rest.php:3363
 msgid "Too many word updates in one request. Maximum is %d."
 msgstr ""
 
-#: includes/api/automation-rest.php:3367
+#: includes/api/automation-rest.php:3389
 #: includes/cli/cli-support.php:298
 msgid "Missing word identifier."
 msgstr ""
 
 #. translators: %s: field name
-#: includes/api/automation-rest.php:3377
+#: includes/api/automation-rest.php:3399
 #: includes/cli/cli-support.php:1066
 msgid "Unsupported update field: %s"
 msgstr ""
 
-#: includes/api/automation-rest.php:3401
+#: includes/api/automation-rest.php:3423
 #: includes/cli/cli-support.php:844
 msgid "Unable to load the current word state."
 msgstr ""
 
-#: includes/api/automation-rest.php:3507
-#: includes/api/automation-rest.php:3609
-#: includes/api/automation-rest.php:3897
-#: includes/api/automation-rest.php:4497
+#: includes/api/automation-rest.php:3529
+#: includes/api/automation-rest.php:3631
+#: includes/api/automation-rest.php:3919
+#: includes/api/automation-rest.php:4519
 #: includes/api/word-metadata-plan-rest.php:1747
-#: includes/shortcodes/audio-recording-shortcode.php:5525
+#: includes/shortcodes/audio-recording-shortcode.php:5605
 #: includes/shortcodes/word-grid-shortcode.php:9133
 msgid "Missing word ID."
 msgstr ""
 
-#: includes/api/automation-rest.php:3533
+#: includes/api/automation-rest.php:3555
 msgid "Failed to update the word title."
 msgstr ""
 
-#: includes/api/automation-rest.php:3585
+#: includes/api/automation-rest.php:3607
 msgid "Provide one or more word title updates."
 msgstr ""
 
 #. translators: %d: maximum update count
-#: includes/api/automation-rest.php:3594
+#: includes/api/automation-rest.php:3616
 msgid "Too many word title updates in one request. Maximum is %d."
 msgstr ""
 
-#: includes/api/automation-rest.php:3618
-#: includes/api/automation-rest.php:3906
-#: includes/api/automation-rest.php:4505
+#: includes/api/automation-rest.php:3640
+#: includes/api/automation-rest.php:3928
+#: includes/api/automation-rest.php:4527
 msgid "Duplicate word ID in this batch."
 msgstr ""
 
-#: includes/api/automation-rest.php:3631
+#: includes/api/automation-rest.php:3653
 msgid "Missing replacement title."
 msgstr ""
 
-#: includes/api/automation-rest.php:3790
+#: includes/api/automation-rest.php:3812
 msgid "Dictionary entry ID must be a positive integer, or 0 to unlink."
 msgstr ""
 
-#: includes/api/automation-rest.php:3798
+#: includes/api/automation-rest.php:3820
 msgid "Invalid dictionary entry ID."
 msgstr ""
 
-#: includes/api/automation-rest.php:3873
+#: includes/api/automation-rest.php:3895
 msgid "Provide one or more word helper translation updates."
 msgstr ""
 
 #. translators: %d: maximum update count
-#: includes/api/automation-rest.php:3882
+#: includes/api/automation-rest.php:3904
 msgid "Too many word helper translation updates in one request. Maximum is %d."
 msgstr ""
 
-#: includes/api/automation-rest.php:3950
+#: includes/api/automation-rest.php:3972
 msgid "Use field=word_translation or field=dictionary_entry_id with value. Legacy helper aliases are mapped to word_translation."
 msgstr ""
 
-#: includes/api/automation-rest.php:4006
+#: includes/api/automation-rest.php:4028
 msgid "Missing helper translation or dictionary entry value."
 msgstr ""
 
-#: includes/api/automation-rest.php:4391
+#: includes/api/automation-rest.php:4413
 msgid "Word category update helpers are not available."
 msgstr ""
 
-#: includes/api/automation-rest.php:4457
+#: includes/api/automation-rest.php:4479
 msgid "Choose add_category, remove_category, or move_category."
 msgstr ""
 
-#: includes/api/automation-rest.php:4465
+#: includes/api/automation-rest.php:4487
 msgid "Provide the target category ID."
 msgstr ""
 
-#: includes/api/automation-rest.php:4473
+#: includes/api/automation-rest.php:4495
 msgid "Provide one or more explicit word IDs."
 msgstr ""
 
 #. translators: %d: maximum word count
-#: includes/api/automation-rest.php:4483
+#: includes/api/automation-rest.php:4505
 msgid "Too many word category updates in one request. Maximum is %d."
 msgstr ""
 
-#: includes/api/automation-rest.php:4516
+#: includes/api/automation-rest.php:4538
 msgid "Fix word ID errors before retrying this category update."
 msgstr ""
 
-#: includes/api/automation-rest.php:4537
+#: includes/api/automation-rest.php:4559
 msgid "Select a category that belongs to this word set."
 msgstr ""
 
-#: includes/api/automation-rest.php:4559
+#: includes/api/automation-rest.php:4581
 msgid "Word ID does not refer to a word post."
 msgstr ""
 
-#: includes/api/automation-rest.php:4572
+#: includes/api/automation-rest.php:4594
 #: includes/api/word-metadata-plan-rest.php:1797
 msgid "Word is not assigned to this word set."
 msgstr ""
 
-#: includes/api/automation-rest.php:4593
+#: includes/api/automation-rest.php:4615
 #: includes/api/word-metadata-plan-rest.php:917
 msgid "Refusing to remove the final category for this word."
 msgstr ""
 
-#: includes/api/automation-rest.php:4613
+#: includes/api/automation-rest.php:4635
 msgid "Category update preflight failed. No words were changed."
 msgstr ""
 
-#: includes/api/automation-rest.php:4701
+#: includes/api/automation-rest.php:4723
 msgid "One or more category updates failed."
 msgstr ""
 
-#: includes/api/automation-rest.php:4836
+#: includes/api/automation-rest.php:4858
 msgid "Prerequisite target category does not belong to this word set."
 msgstr ""
 
-#: includes/api/automation-rest.php:4843
+#: includes/api/automation-rest.php:4865
 msgid "Prerequisite categories must belong to the requested word set and cannot include the target category."
 msgstr ""
 
-#: includes/api/automation-rest.php:4862
+#: includes/api/automation-rest.php:4884
 msgid "The requested prerequisites would create a cycle."
 msgstr ""
 
-#: includes/api/automation-rest.php:4921
+#: includes/api/automation-rest.php:4943
 msgid "Provide one or more explicit category actions."
 msgstr ""
 
 #. translators: %d: maximum category action count
-#: includes/api/automation-rest.php:4930
+#: includes/api/automation-rest.php:4952
 msgid "Too many category actions in one request. Maximum is %d."
 msgstr ""
 
-#: includes/api/automation-rest.php:4941
+#: includes/api/automation-rest.php:4963
 msgid "No categories are available for this word set."
 msgstr ""
 
-#: includes/api/automation-rest.php:4961
+#: includes/api/automation-rest.php:4983
 msgid "Choose create_category, rename_category, set_prerequisites, or delete_empty_category."
 msgstr ""
 
-#: includes/api/automation-rest.php:4973
+#: includes/api/automation-rest.php:4995
 msgid "Category name is required."
 msgstr ""
 
-#: includes/api/automation-rest.php:4986
+#: includes/api/automation-rest.php:5008
 msgid "A category with that slug exists outside this word set."
 msgstr ""
 
-#: includes/api/automation-rest.php:5018
+#: includes/api/automation-rest.php:5040
 msgid "Could not create category."
 msgstr ""
 
-#: includes/api/automation-rest.php:5061
+#: includes/api/automation-rest.php:5083
 msgid "Category does not belong to this word set."
 msgstr ""
 
-#: includes/api/automation-rest.php:5072
+#: includes/api/automation-rest.php:5094
 msgid "Category was not found."
 msgstr ""
 
-#: includes/api/automation-rest.php:5082
+#: includes/api/automation-rest.php:5104
 msgid "Expected category name does not match live state."
 msgstr ""
 
-#: includes/api/automation-rest.php:5097
+#: includes/api/automation-rest.php:5119
 msgid "New category name is required."
 msgstr ""
 
-#: includes/api/automation-rest.php:5176
+#: includes/api/automation-rest.php:5198
 msgid "Expected prerequisite IDs do not match live state."
 msgstr ""
 
-#: includes/api/automation-rest.php:5230
+#: includes/api/automation-rest.php:5252
 msgid "Refusing to delete a category that still has word posts in this word set."
 msgstr ""
 
-#: includes/api/automation-rest.php:5250
+#: includes/api/automation-rest.php:5272
 msgid "Could not delete category."
 msgstr ""
 
-#: includes/api/automation-rest.php:5281
+#: includes/api/automation-rest.php:5303
 msgid "Category term action preflight failed. No later failed action was applied."
 msgstr ""
 
 #. translators: %d: maximum word image count
-#: includes/api/automation-rest.php:5370
+#: includes/api/automation-rest.php:5392
 msgid "The category has more than %d word images. Provide an explicit smaller image_ids list."
 msgstr ""
 
-#: includes/api/automation-rest.php:5471
+#: includes/api/automation-rest.php:5493
 msgid "Provide an existing word-category category_id or category_slug."
 msgstr ""
 
-#: includes/api/automation-rest.php:5494
+#: includes/api/automation-rest.php:5516
 msgid "Category slug does not match expected_category_slug."
 msgstr ""
 
-#: includes/api/automation-rest.php:5503
+#: includes/api/automation-rest.php:5525
 msgid "Category is already owned by another word set."
 msgstr ""
 
 #. translators: %d: maximum word image count
-#: includes/api/automation-rest.php:5526
+#: includes/api/automation-rest.php:5548
 msgid "Too many word images in one request. Maximum is %d."
 msgstr ""
 
-#: includes/api/automation-rest.php:5542
+#: includes/api/automation-rest.php:5564
 msgid "Image ID does not refer to a word_images post."
 msgstr ""
 
-#: includes/api/automation-rest.php:5556
+#: includes/api/automation-rest.php:5578
 msgid "Word image is not assigned to the requested category."
 msgstr ""
 
-#: includes/api/automation-rest.php:5571
+#: includes/api/automation-rest.php:5593
 msgid "Word image is also assigned to a category owned by another word set."
 msgstr ""
 
-#: includes/api/automation-rest.php:5584
+#: includes/api/automation-rest.php:5606
 msgid "Word image is already owned by another word set."
 msgstr ""
 
-#: includes/api/automation-rest.php:5614
+#: includes/api/automation-rest.php:5636
 msgid "Word image category ownership preflight failed. No ownership metadata was changed."
 msgstr ""
 
 #. translators: %d: maximum update count
-#: includes/api/automation-rest.php:5925
+#: includes/api/automation-rest.php:5947
 msgid "Too many transcription updates in one request. Maximum is %d."
 msgstr ""
 
-#: includes/api/automation-rest.php:5942
-#: includes/api/automation-rest.php:6157
+#: includes/api/automation-rest.php:5964
+#: includes/api/automation-rest.php:6179
 msgid "Recording not found in this word set."
 msgstr ""
 
 #. translators: %d: maximum update count
-#: includes/api/automation-rest.php:6140
+#: includes/api/automation-rest.php:6162
 msgid "Too many word audio speaker updates in one request. Maximum is %d."
 msgstr ""
 
-#: includes/api/automation-rest.php:6167
+#: includes/api/automation-rest.php:6189
 msgid "Speaker user not found."
 msgstr ""
 
-#: includes/api/automation-rest.php:6179
+#: includes/api/automation-rest.php:6201
 msgid "Speaker user precondition failed."
 msgstr ""
 
-#: includes/api/automation-rest.php:6190
+#: includes/api/automation-rest.php:6212
 msgid "Post author precondition failed."
 msgstr ""
 
-#: includes/api/automation-rest.php:6346
-#: includes/api/automation-rest.php:6406
+#: includes/api/automation-rest.php:6368
+#: includes/api/automation-rest.php:6428
 msgid "Invalid transcription validation job ID."
 msgstr ""
 
-#: includes/api/automation-rest.php:6355
+#: includes/api/automation-rest.php:6377
 msgid "Transcription validation job was not found."
 msgstr ""
 
-#: includes/api/automation-rest.php:6420
-#: includes/api/automation-rest.php:6445
+#: includes/api/automation-rest.php:6442
+#: includes/api/automation-rest.php:6467
 msgid "Transcription validation job is already processing."
 msgstr ""
 
-#: includes/api/automation-rest.php:6742
-#: includes/api/automation-rest.php:6881
+#: includes/api/automation-rest.php:6764
+#: includes/api/automation-rest.php:6903
 msgid "Transcription validation job belongs to a different word set."
 msgstr ""
 
-#: includes/api/automation-rest.php:7189
+#: includes/api/automation-rest.php:7211
 #: includes/cli/cli-support.php:351
 #: includes/cli/cli-support.php:388
 msgid "Missing word set ID."
 msgstr ""
 
-#: includes/api/automation-rest.php:7208
+#: includes/api/automation-rest.php:7230
 #: includes/cli/cli-support.php:439
 msgid "Unable to resolve the requested word category."
 msgstr ""
 
-#: includes/api/automation-rest.php:7257
-#: includes/api/automation-rest.php:7278
-#: includes/api/automation-rest.php:7339
+#: includes/api/automation-rest.php:7279
+#: includes/api/automation-rest.php:7300
+#: includes/api/automation-rest.php:7361
 msgid "Unable to calculate the word set report summary."
 msgstr ""
 
-#: includes/api/automation-rest.php:7397
+#: includes/api/automation-rest.php:7419
 msgid "Provide category, category_id, or category_slug for the word-option rules update."
 msgstr ""
 
 #. translators: %s: category identifier
-#: includes/api/automation-rest.php:7416
+#: includes/api/automation-rest.php:7438
 msgid "Unable to resolve word category: %s"
 msgstr ""
 
-#: includes/api/automation-rest.php:7439
+#: includes/api/automation-rest.php:7461
 msgid "That word category belongs to a different word set."
 msgstr ""
 
-#: includes/api/automation-rest.php:7578
+#: includes/api/automation-rest.php:7600
 msgid "Groups must be an array."
 msgstr ""
 
-#: includes/api/automation-rest.php:7596
+#: includes/api/automation-rest.php:7618
 msgid "Every word-option group needs a label."
 msgstr ""
 
-#: includes/api/automation-rest.php:7611
+#: includes/api/automation-rest.php:7633
 msgid "Word-option groups must contain at least one resolved word."
 msgstr ""
 
-#: includes/api/automation-rest.php:7631
+#: includes/api/automation-rest.php:7653
 msgid "Word-option pairs must be an array."
 msgstr ""
 
-#: includes/api/automation-rest.php:7649
+#: includes/api/automation-rest.php:7671
 msgid "Word-option pairs must contain two resolved words."
 msgstr ""
 
 #. translators: %s: word set name.
-#: includes/api/automation-rest.php:7771
+#: includes/api/automation-rest.php:7793
 msgid "%s profile image"
 msgstr ""
 
-#: includes/api/automation-rest.php:7785
+#: includes/api/automation-rest.php:7807
 msgid "The uploaded file is not a valid image."
 msgstr ""
 
-#: includes/api/automation-rest.php:8065
+#: includes/api/automation-rest.php:8087
 msgid "Unable to resolve a word category for the translation item."
 msgstr ""
 
-#: includes/api/automation-rest.php:8083
+#: includes/api/automation-rest.php:8105
 msgid "That word category is not part of this word set."
 msgstr ""
 
-#: includes/api/automation-rest.php:8170
+#: includes/api/automation-rest.php:8192
 msgid "Unable to resolve a lesson for the translation item."
 msgstr ""
 
-#: includes/api/automation-rest.php:8178
+#: includes/api/automation-rest.php:8200
 msgid "That lesson is not part of this word set."
 msgstr ""
 
-#: includes/api/automation-rest.php:8286
+#: includes/api/automation-rest.php:8308
 msgid "Entity translation helpers are not available."
 msgstr ""
 
-#: includes/api/automation-rest.php:8295
+#: includes/api/automation-rest.php:8317
 msgid "Provide wordset, categories, lessons, or items to update translations."
 msgstr ""
 
-#: includes/api/automation-rest.php:8308
+#: includes/api/automation-rest.php:8330
 msgid "Translation items must include type wordset, category, or lesson."
 msgstr ""
 
-#: includes/api/automation-rest.php:8318
+#: includes/api/automation-rest.php:8340
 msgid "Translation item does not contain any supported translated fields."
 msgstr ""
 
-#: includes/api/automation-rest.php:8379
+#: includes/api/automation-rest.php:8401
 msgid "One or more translation items could not be applied."
 msgstr ""
 
-#: includes/api/automation-rest.php:8480
+#: includes/api/automation-rest.php:8502
 msgid "The profile image attachment must be an existing image attachment."
 msgstr ""
 
-#: includes/api/automation-rest.php:8621
+#: includes/api/automation-rest.php:8643
 msgid "Orthography conversion profiles are no longer supported. Configure wordset-level orthography settings instead."
 msgstr ""
 
-#: includes/api/automation-rest.php:8637
+#: includes/api/automation-rest.php:8659
 msgid "Manual orthography rules must be an object keyed by IPA segment."
 msgstr ""
 
-#: includes/api/automation-rest.php:8684
+#: includes/api/automation-rest.php:8706
 msgid "Orthography settings must be an object."
 msgstr ""
 
-#: includes/api/automation-rest.php:8756
+#: includes/api/automation-rest.php:8778
 msgid "Orthography exception word IDs must be an array."
 msgstr ""
 
-#: includes/api/automation-rest.php:8768
+#: includes/api/automation-rest.php:8790
 msgid "Orthography exception dictionary entry IDs must be an object keyed by word ID."
 msgstr ""
 
-#: includes/api/automation-rest.php:8930
+#: includes/api/automation-rest.php:8952
 msgid "Word-option rules were not saved because the payload did not validate. Review missing_words and errors in the response data."
 msgstr ""
 
-#: includes/api/automation-rest.php:8948
+#: includes/api/automation-rest.php:8970
 msgid "Word-option rules could not be saved for this word set and category."
 msgstr ""
 
-#: includes/api/automation-rest.php:9033
+#: includes/api/automation-rest.php:9055
 msgid "Prompt-card category references cannot be empty."
 msgstr ""
 
 #. translators: %s: category identifier
-#: includes/api/automation-rest.php:9057
+#: includes/api/automation-rest.php:9079
 msgid "Unable to resolve prompt-card category: %s"
 msgstr ""
 
-#: includes/api/automation-rest.php:9079
+#: includes/api/automation-rest.php:9101
 msgid "That prompt-card category belongs to a different word set."
 msgstr ""
 
-#: includes/api/automation-rest.php:9103
+#: includes/api/automation-rest.php:9125
 msgid "Provide at least one word-category assignment for the prompt card."
 msgstr ""
 
-#: includes/api/automation-rest.php:9116
+#: includes/api/automation-rest.php:9138
 msgid "Prompt-card word set references cannot be empty."
 msgstr ""
 
 #. translators: %s: word set identifier
-#: includes/api/automation-rest.php:9136
+#: includes/api/automation-rest.php:9158
 msgid "Unable to resolve prompt-card word set: %s"
 msgstr ""
 
-#: includes/api/automation-rest.php:9161
+#: includes/api/automation-rest.php:9183
 msgid "Provide at least one word set assignment for the prompt card."
 msgstr ""
 
-#: includes/api/automation-rest.php:9168
+#: includes/api/automation-rest.php:9190
 msgid "Prompt-card word set assignments must include the route word set."
 msgstr ""
 
-#: includes/api/automation-rest.php:9219
+#: includes/api/automation-rest.php:9241
 msgid "Provide prompt_card_id, object_id, or id for the prompt card to update."
 msgstr ""
 
-#: includes/api/automation-rest.php:9228
+#: includes/api/automation-rest.php:9250
 msgid "That prompt card was not found."
 msgstr ""
 
-#: includes/api/automation-rest.php:9236
+#: includes/api/automation-rest.php:9258
 msgid "That prompt card does not belong to the selected word set."
 msgstr ""
 
-#: includes/api/automation-rest.php:9403
+#: includes/api/automation-rest.php:9425
 msgid "Provide a note value. Send an empty string to clear the note."
 msgstr ""
 
-#: includes/api/automation-rest.php:9410
+#: includes/api/automation-rest.php:9432
 msgid "Provide the word or prompt card object_id to update."
 msgstr ""
 
-#: includes/api/automation-rest.php:9421
+#: includes/api/automation-rest.php:9443
 #: includes/lib/internal-review-notes.php:369
 msgid "This item cannot store an internal review note."
 msgstr ""
 
-#: includes/api/automation-rest.php:9428
+#: includes/api/automation-rest.php:9450
 #: includes/lib/internal-review-notes.php:381
 msgid "This item does not belong to the selected word set."
 msgstr ""
 
-#: includes/api/automation-rest.php:9888
-#: includes/api/automation-rest.php:9994
+#: includes/api/automation-rest.php:9910
+#: includes/api/automation-rest.php:10016
 msgid "Could not find a matching content or vocab lesson in this word set."
 msgstr ""
 
-#: includes/api/automation-rest.php:9915
+#: includes/api/automation-rest.php:9937
 msgid "Provide an interlinear payload object, or send delete=true to clear one."
 msgstr ""
 
-#: includes/api/automation-rest.php:10058
+#: includes/api/automation-rest.php:10080
 msgid "Each interlinear import item must be an object."
 msgstr ""
 
-#: includes/api/automation-rest.php:10150
+#: includes/api/automation-rest.php:10172
 msgid "Import failed: provide an uploaded zip file or a server import filename."
 msgstr ""
 
-#: includes/api/automation-rest.php:10268
+#: includes/api/automation-rest.php:10290
 msgid "The requested import job could not be identified."
 msgstr ""
 
-#: includes/api/automation-rest.php:10479
-#: includes/api/automation-rest.php:10523
+#: includes/api/automation-rest.php:10501
+#: includes/api/automation-rest.php:10545
 msgid "Corpus text payload is larger than the allowed automation import limit."
 msgstr ""
 
-#: includes/api/automation-rest.php:10488
+#: includes/api/automation-rest.php:10510
 msgid "Corpus text payload is too deeply nested for automation import."
 msgstr ""
 
-#: includes/api/automation-rest.php:10496
+#: includes/api/automation-rest.php:10518
 msgid "Corpus text payload contains too many rows for automation import."
 msgstr ""
 
-#: includes/api/automation-rest.php:10531
+#: includes/api/automation-rest.php:10553
 msgid "Corpus text payload must be a valid JSON object."
 msgstr ""
 
-#: includes/api/automation-rest.php:10543
+#: includes/api/automation-rest.php:10565
 msgid "Provide a corpus text payload object."
 msgstr ""
 
-#: includes/api/automation-rest.php:10567
+#: includes/api/automation-rest.php:10589
 msgid "Historical Zazaki text with source witnesses, interlinear analysis, and translations."
 msgstr ""
 
-#: includes/api/automation-rest.php:10574
+#: includes/api/automation-rest.php:10596
 msgid "You cannot upload corpus text assets."
 msgstr ""
 
-#: includes/api/automation-rest.php:10583
+#: includes/api/automation-rest.php:10605
 msgid "Provide a source key for the corpus text asset."
 msgstr ""
 
-#: includes/api/automation-rest.php:10610
+#: includes/api/automation-rest.php:10632
 msgid "Provide a corpus text asset file."
 msgstr ""
 
-#: includes/api/automation-rest.php:10623
+#: includes/api/automation-rest.php:10645
 msgid "Corpus text asset file is larger than the allowed automation import limit."
 msgstr ""
 
-#: includes/api/automation-rest.php:10635
+#: includes/api/automation-rest.php:10657
 msgid "Corpus text asset image dimensions exceed the allowed automation import limit."
 msgstr ""
 
-#: includes/api/automation-rest.php:10656
+#: includes/api/automation-rest.php:10678
 msgid "The corpus text asset could not be uploaded."
 msgstr ""
 
-#: includes/api/automation-rest.php:10675
+#: includes/api/automation-rest.php:10697
 msgid "The corpus text asset could not be added to the media library."
 msgstr ""
 
-#: includes/api/automation-rest.php:10711
+#: includes/api/automation-rest.php:10733
 msgid "Provide a corpus text post slug."
 msgstr ""
 
-#: includes/api/automation-rest.php:10733
-#: includes/api/automation-rest.php:10808
+#: includes/api/automation-rest.php:10755
+#: includes/api/automation-rest.php:10830
 msgid "The matching content lesson is not a corpus text."
 msgstr ""
 
-#: includes/api/automation-rest.php:10760
+#: includes/api/automation-rest.php:10782
 msgid "The corpus text post could not be created or updated."
 msgstr ""
 
-#: includes/api/automation-rest.php:10797
+#: includes/api/automation-rest.php:10819
 msgid "Could not find a matching corpus text post."
 msgstr ""
 
@@ -13571,17 +13907,17 @@ msgstr ""
 #: includes/pages/wordset-pages.php:24055
 #: includes/pages/wordset-pages.php:24182
 #: includes/post-types/words-post-type.php:2239
-#: includes/shortcodes/audio-recording-shortcode.php:1392
-#: includes/shortcodes/audio-recording-shortcode.php:1431
-#: includes/shortcodes/audio-recording-shortcode.php:1621
-#: includes/shortcodes/audio-recording-shortcode.php:1928
-#: includes/shortcodes/audio-recording-shortcode.php:2183
-#: includes/shortcodes/audio-recording-shortcode.php:3627
-#: includes/shortcodes/audio-recording-shortcode.php:5057
-#: includes/shortcodes/audio-recording-shortcode.php:6182
-#: includes/shortcodes/audio-recording-shortcode.php:6543
-#: includes/shortcodes/audio-recording-shortcode.php:6786
-#: includes/shortcodes/audio-recording-shortcode.php:7177
+#: includes/shortcodes/audio-recording-shortcode.php:1394
+#: includes/shortcodes/audio-recording-shortcode.php:1433
+#: includes/shortcodes/audio-recording-shortcode.php:1623
+#: includes/shortcodes/audio-recording-shortcode.php:1942
+#: includes/shortcodes/audio-recording-shortcode.php:2197
+#: includes/shortcodes/audio-recording-shortcode.php:3641
+#: includes/shortcodes/audio-recording-shortcode.php:5119
+#: includes/shortcodes/audio-recording-shortcode.php:6312
+#: includes/shortcodes/audio-recording-shortcode.php:6673
+#: includes/shortcodes/audio-recording-shortcode.php:6916
+#: includes/shortcodes/audio-recording-shortcode.php:7307
 #: includes/shortcodes/editor-hub-shortcode.php:199
 #: includes/shortcodes/editor-hub-shortcode.php:742
 #: includes/shortcodes/editor-hub-shortcode.php:776
@@ -13724,9 +14060,9 @@ msgstr ""
 
 #: includes/content-lesson-cloze.php:108
 #: includes/pages/wordset-pages.php:13566
-#: includes/shortcodes/wordset-buttons-shortcode.php:2529
-#: includes/shortcodes/wordset-buttons-shortcode.php:2566
-#: includes/shortcodes/wordset-buttons-shortcode.php:2580
+#: includes/shortcodes/wordset-buttons-shortcode.php:2634
+#: includes/shortcodes/wordset-buttons-shortcode.php:2671
+#: includes/shortcodes/wordset-buttons-shortcode.php:2685
 msgid "Try again"
 msgstr ""
 
@@ -13802,49 +14138,49 @@ msgstr ""
 msgid "Use 1-60 matching [[word]] markers without empty, nested, or multiline answers."
 msgstr ""
 
-#: includes/content-lesson-progress.php:269
+#: includes/content-lesson-progress.php:313
 msgid "Before this lesson"
 msgstr ""
 
-#: includes/content-lesson-progress.php:279
-#: includes/content-lesson-progress.php:392
+#: includes/content-lesson-progress.php:326
+#: includes/content-lesson-progress.php:447
 #: includes/shortcodes/content-lesson-index-shortcode.php:669
 msgid "Not completed"
 msgstr ""
 
-#: includes/content-lesson-progress.php:373
+#: includes/content-lesson-progress.php:428
 msgid "Continue learning"
 msgstr ""
 
-#: includes/content-lesson-progress.php:414
+#: includes/content-lesson-progress.php:469
 msgid "Log in to save lesson progress"
 msgstr ""
 
-#: includes/content-lesson-progress.php:420
+#: includes/content-lesson-progress.php:475
 #: includes/pages/content-lesson-pages.php:1303
 #: includes/shortcodes/content-lesson-index-shortcode.php:387
 msgid "Mark complete"
 msgstr ""
 
-#: includes/content-lesson-progress.php:455
-#: includes/content-lesson-progress.php:520
+#: includes/content-lesson-progress.php:510
+#: includes/content-lesson-progress.php:575
 msgid "Log in to save lesson progress."
 msgstr ""
 
-#: includes/content-lesson-progress.php:464
+#: includes/content-lesson-progress.php:519
 msgid "Select a valid published lesson."
 msgstr ""
 
-#: includes/content-lesson-progress.php:480
+#: includes/content-lesson-progress.php:535
 msgid "You cannot update progress for this lesson."
 msgstr ""
 
-#: includes/content-lesson-progress.php:485
+#: includes/content-lesson-progress.php:540
 msgid "Complete the fill-in-the-blank activity to save progress."
 msgstr ""
 
-#: includes/content-lesson-progress.php:491
-#: includes/content-lesson-progress.php:502
+#: includes/content-lesson-progress.php:546
+#: includes/content-lesson-progress.php:557
 #: includes/pages/content-lesson-pages.php:1306
 #: includes/shortcodes/content-lesson-index-shortcode.php:390
 #: includes/user-progress.php:3815
@@ -13853,7 +14189,7 @@ msgstr ""
 msgid "Lesson progress could not be saved."
 msgstr ""
 
-#: includes/content-lesson-progress.php:527
+#: includes/content-lesson-progress.php:582
 msgid "The progress request could not be verified."
 msgstr ""
 
@@ -13954,8 +14290,8 @@ msgstr ""
 #: includes/pages/quiz-pages.php:2068
 #: includes/pages/vocab-lesson-pages.php:4828
 #: includes/pages/wordset-pages.php:13565
-#: includes/shortcodes/audio-recording-shortcode.php:1882
-#: includes/shortcodes/audio-recording-shortcode.php:1907
+#: includes/shortcodes/audio-recording-shortcode.php:1896
+#: includes/shortcodes/audio-recording-shortcode.php:1921
 msgid "Close"
 msgstr ""
 
@@ -13966,7 +14302,7 @@ msgid "Quiz"
 msgstr ""
 
 #: includes/flashcard-shell.php:105
-#: includes/shortcodes/audio-recording-shortcode.php:1688
+#: includes/shortcodes/audio-recording-shortcode.php:1702
 msgid "Play"
 msgstr ""
 
@@ -14012,6 +14348,7 @@ msgstr ""
 
 #: includes/lib/ai-crawler-support.php:394
 #: includes/lib/dictionary-browser.php:192
+#: includes/lib/dictionary-static-cache.php:1060
 #: includes/shortcodes/dictionary-shortcode.php:2539
 #: includes/shortcodes/dictionary-shortcode.php:3052
 #: includes/shortcodes/dictionary-shortcode.php:3487
@@ -14357,6 +14694,22 @@ msgstr ""
 msgid "Treat robots.txt and response headers as the authority for crawl and training policy where the site defines them."
 msgstr ""
 
+#: includes/lib/category-video-data.php:9
+msgid "You do not have permission to create vocabulary videos."
+msgstr ""
+
+#: includes/lib/category-video-data.php:10
+msgid "Select a valid word set and category."
+msgstr ""
+
+#: includes/lib/category-video-data.php:11
+msgid "Could not load vocabulary video sources. Please retry."
+msgstr ""
+
+#: includes/lib/category-video-data.php:116
+msgid "Speaker %d"
+msgstr ""
+
 #: includes/lib/custom-stt-endpoint.php:186
 msgid "STT endpoint URL is not configured."
 msgstr ""
@@ -14368,7 +14721,7 @@ msgstr ""
 #. translators: %s: max upload size
 #: includes/lib/custom-stt-endpoint.php:215
 #: includes/lib/custom-stt-endpoint.php:237
-#: includes/shortcodes/audio-recording-shortcode.php:511
+#: includes/shortcodes/audio-recording-shortcode.php:513
 msgid "Audio file is too large. Maximum allowed size is %s."
 msgstr ""
 
@@ -14583,6 +14936,11 @@ msgstr ""
 
 #: includes/lib/dictionary-snapshot.php:634
 msgid "Unable to save the dictionary snapshot entry."
+msgstr ""
+
+#: includes/lib/dictionary-static-cache.php:1059
+#: includes/lib/public-static-cache.php:528
+msgid "Too many requests. Please wait a moment and try again."
 msgstr ""
 
 #: includes/lib/flashcard-payload-materializer.php:701
@@ -15109,25 +15467,21 @@ msgstr ""
 msgid "An earlier job step did not finish checkpointing. Review its applied changes and saved state before recovery; automatic replay is blocked."
 msgstr ""
 
-#: includes/lib/public-static-cache.php:545
-msgid "Too many requests. Please wait a moment and try again."
-msgstr ""
-
-#: includes/lib/public-static-cache.php:2715
+#: includes/lib/public-static-cache.php:2721
 msgid "Clear LL cache"
 msgstr ""
 
 #. translators: %d: number of deleted cache files
-#: includes/lib/public-static-cache.php:2720
+#: includes/lib/public-static-cache.php:2726
 msgid "LL cache cleared (%d)"
 msgstr ""
 
-#: includes/lib/public-static-cache.php:2739
+#: includes/lib/public-static-cache.php:2745
 msgid "You are not allowed to clear LL Tools caches."
 msgstr ""
 
 #. translators: %d: number of deleted cache files
-#: includes/lib/public-static-cache.php:2775
+#: includes/lib/public-static-cache.php:2781
 msgid "Cleared LL Tools static caches. %d cache file was removed."
 msgid_plural "Cleared LL Tools static caches. %d cache files were removed."
 msgstr[0] ""
@@ -15150,11 +15504,11 @@ msgstr ""
 #: includes/pages/vocab-lesson-pages.php:6351
 #: includes/pages/vocab-lesson-pages.php:6403
 #: includes/pages/vocab-lesson-pages.php:6518
-#: includes/pages/vocab-lesson-pages.php:8676
-#: includes/pages/vocab-lesson-pages.php:8681
-#: includes/pages/vocab-lesson-pages.php:8687
-#: includes/pages/vocab-lesson-pages.php:8804
-#: includes/pages/vocab-lesson-pages.php:8870
+#: includes/pages/vocab-lesson-pages.php:8686
+#: includes/pages/vocab-lesson-pages.php:8691
+#: includes/pages/vocab-lesson-pages.php:8697
+#: includes/pages/vocab-lesson-pages.php:8814
+#: includes/pages/vocab-lesson-pages.php:8880
 #: includes/pages/wordset-transcription-review.php:106
 #: includes/pages/wordset-transcription-review.php:167
 #: includes/pages/wordset-transcription-review.php:237
@@ -15182,12 +15536,12 @@ msgstr ""
 #: includes/taxonomies/word-category-taxonomy.php:11670
 #: includes/taxonomies/word-category-taxonomy.php:11680
 #: includes/user-progress.php:1815
-#: includes/user-progress.php:13084
-#: includes/user-progress.php:13543
-#: includes/user-progress.php:13553
-#: includes/user-progress.php:13575
-#: includes/user-progress.php:13584
-#: includes/user-progress.php:13587
+#: includes/user-progress.php:13102
+#: includes/user-progress.php:13561
+#: includes/user-progress.php:13571
+#: includes/user-progress.php:13593
+#: includes/user-progress.php:13602
+#: includes/user-progress.php:13605
 msgid "Invalid request."
 msgstr ""
 
@@ -15209,6 +15563,65 @@ msgstr ""
 
 #: includes/lib/quiz-sampling.php:58
 msgid "Choose a fresh random set for each Practice attempt. Missed questions are repeated for practice."
+msgstr ""
+
+#: includes/lib/recorder-mutations.php:66
+#: includes/lib/recorder-mutations.php:73
+#: includes/lib/recorder-mutations.php:153
+#: includes/shortcodes/audio-recording-shortcode.php:1651
+msgid "Failed to prepare new word"
+msgstr ""
+
+#: includes/lib/recorder-mutations.php:114
+msgid "This recording session has expired. Keep your recording and check for an existing draft before starting again."
+msgstr ""
+
+#: includes/lib/recorder-mutations.php:120
+msgid "New word preparation is still running. Please try again shortly."
+msgstr ""
+
+#: includes/lib/recorder-mutations.php:133
+msgid "The original new word request must be checked before changing it."
+msgstr ""
+
+#: includes/lib/recorder-mutations.php:138
+#: includes/shortcodes/audio-recording-shortcode.php:1652
+#: includes/shortcodes/audio-recording-shortcode.php:5074
+#: includes/shortcodes/audio-recording-shortcode.php:5312
+msgid "New word creation could not be confirmed. Check for an existing draft before recording this word again."
+msgstr ""
+
+#: includes/lib/recorder-mutations.php:146
+#: includes/lib/recorder-mutations.php:189
+#: includes/lib/word-translations.php:206
+#: includes/post-types/dictionary-entry-post-type.php:1023
+#: includes/shortcodes/audio-recording-shortcode.php:5610
+#: includes/shortcodes/audio-recording-shortcode.php:6169
+#: includes/shortcodes/audio-recording-shortcode.php:9173
+msgid "Invalid word ID."
+msgstr ""
+
+#: includes/lib/recorder-mutations.php:192
+#: includes/lib/recorder-mutations.php:207
+#: includes/lib/recorder-mutations.php:230
+#: includes/shortcodes/audio-recording-shortcode.php:5053
+#: includes/shortcodes/audio-recording-shortcode.php:5600
+#: includes/shortcodes/audio-recording-shortcode.php:5617
+#: includes/shortcodes/audio-recording-shortcode.php:5932
+#: includes/shortcodes/audio-recording-shortcode.php:6006
+#: includes/shortcodes/audio-recording-shortcode.php:6065
+msgid "Forbidden."
+msgstr ""
+
+#: includes/lib/recorder-mutations.php:198
+#: includes/lib/recorder-mutations.php:204
+#: includes/lib/recorder-mutations.php:212
+#: includes/lib/recorder-mutations.php:235
+#: includes/shortcodes/audio-recording-shortcode.php:1650
+#: includes/shortcodes/audio-recording-shortcode.php:5622
+#: includes/shortcodes/audio-recording-shortcode.php:5696
+#: includes/shortcodes/audio-recording-shortcode.php:5705
+msgid "Failed to update word text"
 msgstr ""
 
 #: includes/lib/recording-history.php:6
@@ -15962,12 +16375,12 @@ msgstr ""
 msgid "Other symbols"
 msgstr ""
 
-#: includes/lib/vocab-lesson-activities.php:78
-#: includes/lib/vocab-lesson-activities.php:82
+#: includes/lib/vocab-lesson-activities.php:106
+#: includes/lib/vocab-lesson-activities.php:110
 msgid "Choose valid lesson activities."
 msgstr ""
 
-#: includes/lib/vocab-lesson-activities.php:87
+#: includes/lib/vocab-lesson-activities.php:115
 msgid "Choose at least one activity and enable the activity that opens on this lesson."
 msgstr ""
 
@@ -16141,15 +16554,15 @@ msgid "The rollback was applied, but its progress could not be saved. Reload to 
 msgstr ""
 
 #: includes/lib/word-grid-bulk-operations.php:1111
-#: includes/shortcodes/audio-recording-shortcode.php:4686
-#: includes/shortcodes/audio-recording-shortcode.php:4864
-#: includes/shortcodes/audio-recording-shortcode.php:4922
-#: includes/shortcodes/audio-recording-shortcode.php:4955
-#: includes/shortcodes/audio-recording-shortcode.php:5026
-#: includes/shortcodes/audio-recording-shortcode.php:5516
-#: includes/shortcodes/audio-recording-shortcode.php:5798
-#: includes/shortcodes/audio-recording-shortcode.php:5872
-#: includes/shortcodes/audio-recording-shortcode.php:5931
+#: includes/shortcodes/audio-recording-shortcode.php:4700
+#: includes/shortcodes/audio-recording-shortcode.php:4878
+#: includes/shortcodes/audio-recording-shortcode.php:4936
+#: includes/shortcodes/audio-recording-shortcode.php:4969
+#: includes/shortcodes/audio-recording-shortcode.php:5088
+#: includes/shortcodes/audio-recording-shortcode.php:5596
+#: includes/shortcodes/audio-recording-shortcode.php:5928
+#: includes/shortcodes/audio-recording-shortcode.php:6002
+#: includes/shortcodes/audio-recording-shortcode.php:6061
 msgid "You must be logged in."
 msgstr ""
 
@@ -16157,14 +16570,6 @@ msgstr ""
 #: includes/shortcodes/word-grid-shortcode.php:9539
 #: includes/shortcodes/word-grid-shortcode.php:10489
 msgid "Missing word set or category."
-msgstr ""
-
-#: includes/lib/word-translations.php:206
-#: includes/post-types/dictionary-entry-post-type.php:1023
-#: includes/shortcodes/audio-recording-shortcode.php:5530
-#: includes/shortcodes/audio-recording-shortcode.php:6039
-#: includes/shortcodes/audio-recording-shortcode.php:9043
-msgid "Invalid word ID."
 msgstr ""
 
 #: includes/lib/wordset-language-settings.php:134
@@ -17482,8 +17887,8 @@ msgstr ""
 
 #: includes/login-window.php:2646
 #: includes/login-window.php:2654
-#: includes/shortcodes/audio-recording-shortcode.php:1261
 #: includes/shortcodes/audio-recording-shortcode.php:1263
+#: includes/shortcodes/audio-recording-shortcode.php:1265
 msgid "Create recorder account"
 msgstr ""
 
@@ -18001,7 +18406,7 @@ msgid "Creating page..."
 msgstr ""
 
 #: includes/pages/default-shortcode-page-helper.php:357
-#: includes/pages/vocab-lesson-pages.php:9438
+#: includes/pages/vocab-lesson-pages.php:9448
 #: includes/wordset-isolation.php:5492
 msgid "Unknown error."
 msgstr ""
@@ -18467,12 +18872,12 @@ msgstr ""
 #: includes/pages/vocab-lesson-pages.php:5293
 #: includes/pages/vocab-lesson-pages.php:5505
 #: includes/pages/vocab-lesson-pages.php:6540
-#: includes/pages/vocab-lesson-pages.php:8533
-#: includes/pages/vocab-lesson-pages.php:8875
-#: includes/pages/vocab-lesson-pages.php:8880
-#: includes/pages/vocab-lesson-pages.php:8889
-#: includes/pages/vocab-lesson-pages.php:8892
-#: includes/pages/vocab-lesson-pages.php:8895
+#: includes/pages/vocab-lesson-pages.php:8543
+#: includes/pages/vocab-lesson-pages.php:8885
+#: includes/pages/vocab-lesson-pages.php:8890
+#: includes/pages/vocab-lesson-pages.php:8899
+#: includes/pages/vocab-lesson-pages.php:8902
+#: includes/pages/vocab-lesson-pages.php:8905
 #: includes/taxonomies/word-category-taxonomy.php:4114
 #: templates/content-lesson-template.php:32
 #: templates/content-lesson-template.php:40
@@ -18543,7 +18948,7 @@ msgid "Restore one or more words to print this lesson."
 msgstr ""
 
 #: includes/pages/vocab-lesson-pages.php:5492
-#: includes/pages/vocab-lesson-pages.php:8867
+#: includes/pages/vocab-lesson-pages.php:8877
 msgid "Missing lesson."
 msgstr ""
 
@@ -18592,142 +18997,142 @@ msgstr ""
 msgid "Unable to validate the Line-Up sequence."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:6900
+#: includes/pages/vocab-lesson-pages.php:6910
 msgid "Lesson activities cannot be saved until the post metadata table supports transactions."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:7054
-#: includes/pages/vocab-lesson-pages.php:7239
+#: includes/pages/vocab-lesson-pages.php:7064
+#: includes/pages/vocab-lesson-pages.php:7249
 #: templates/vocab-lesson-template.php:479
 msgid "Changes saved."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:8172
-#: includes/pages/vocab-lesson-pages.php:8178
-#: includes/pages/vocab-lesson-pages.php:8225
-#: includes/pages/vocab-lesson-pages.php:8239
-#: includes/pages/vocab-lesson-pages.php:8246
-#: includes/pages/vocab-lesson-pages.php:8277
-#: includes/pages/vocab-lesson-pages.php:8330
-#: includes/pages/vocab-lesson-pages.php:8363
-#: includes/pages/vocab-lesson-pages.php:8632
-#: includes/pages/vocab-lesson-pages.php:8646
-#: includes/pages/vocab-lesson-pages.php:8830
-#: includes/pages/vocab-lesson-pages.php:8924
-#: includes/pages/vocab-lesson-pages.php:9070
+#: includes/pages/vocab-lesson-pages.php:8182
+#: includes/pages/vocab-lesson-pages.php:8188
+#: includes/pages/vocab-lesson-pages.php:8235
+#: includes/pages/vocab-lesson-pages.php:8249
+#: includes/pages/vocab-lesson-pages.php:8256
+#: includes/pages/vocab-lesson-pages.php:8287
+#: includes/pages/vocab-lesson-pages.php:8340
+#: includes/pages/vocab-lesson-pages.php:8373
+#: includes/pages/vocab-lesson-pages.php:8642
+#: includes/pages/vocab-lesson-pages.php:8656
+#: includes/pages/vocab-lesson-pages.php:8840
+#: includes/pages/vocab-lesson-pages.php:8934
+#: includes/pages/vocab-lesson-pages.php:9080
 #: templates/vocab-lesson-template.php:446
 msgid "Unable to load this lesson right now."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:8186
-#: includes/pages/vocab-lesson-pages.php:8901
+#: includes/pages/vocab-lesson-pages.php:8196
+#: includes/pages/vocab-lesson-pages.php:8911
 #: includes/shortcodes/word-grid-shortcode.php:8346
 #: includes/shortcodes/word-grid-shortcode.php:8358
 msgid "Lesson terms are missing."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:8759
-#: includes/pages/vocab-lesson-pages.php:9000
+#: includes/pages/vocab-lesson-pages.php:8769
+#: includes/pages/vocab-lesson-pages.php:9010
 msgid "Too many lesson grid requests. Please wait a few minutes and try again."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:8886
+#: includes/pages/vocab-lesson-pages.php:8896
 msgid "Lesson metadata is missing."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:9020
+#: includes/pages/vocab-lesson-pages.php:9030
 #: includes/shortcodes/flashcard-widget.php:2055
 msgid "Lesson words are still being prepared. Please try again in a moment."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:9135
+#: includes/pages/vocab-lesson-pages.php:9145
 msgid "%d vocab lesson page was restored."
 msgid_plural "%d vocab lesson pages were restored."
 msgstr[0] ""
 msgstr[1] ""
 
 #. translators: 1: restored lesson page count, 2: failed lesson page count
-#: includes/pages/vocab-lesson-pages.php:9146
+#: includes/pages/vocab-lesson-pages.php:9156
 msgid "Restored %1$d vocab lesson pages. %2$d could not be restored."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:9151
+#: includes/pages/vocab-lesson-pages.php:9161
 msgid "No trashed vocab lesson pages were waiting to be restored."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:9153
+#: includes/pages/vocab-lesson-pages.php:9163
 msgid "Vocab lesson pages could not be restored right now."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:9184
+#: includes/pages/vocab-lesson-pages.php:9194
 msgid "View Trash"
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:9189
+#: includes/pages/vocab-lesson-pages.php:9199
 msgid "Dismiss"
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:9199
+#: includes/pages/vocab-lesson-pages.php:9209
 msgid "You do not have permission to restore vocab lesson pages."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:9266
+#: includes/pages/vocab-lesson-pages.php:9276
 msgid "You do not have permission to dismiss vocab lesson page notices."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:9358
+#: includes/pages/vocab-lesson-pages.php:9368
 msgid "You do not have permission to update vocab lesson settings."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:9362
+#: includes/pages/vocab-lesson-pages.php:9372
 msgid "Invalid vocab lesson settings request."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:9408
+#: includes/pages/vocab-lesson-pages.php:9418
 msgid "Vocab lesson sync completed. %d created, %d updated, %d removed."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:9420
+#: includes/pages/vocab-lesson-pages.php:9430
 msgid "checking existing pages"
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:9421
+#: includes/pages/vocab-lesson-pages.php:9431
 msgid "creating and refreshing lesson pages"
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:9427
+#: includes/pages/vocab-lesson-pages.php:9437
 msgid "Vocab lesson sync is running in bounded background batches. Phase: %1$s. %2$d items checked, %3$d created, %4$d updated, %5$d removed. Reload this screen to refresh progress."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:9443
+#: includes/pages/vocab-lesson-pages.php:9453
 msgid "Vocab lesson sync failed: %s"
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:9456
+#: includes/pages/vocab-lesson-pages.php:9466
 msgid "Vocab Lesson Settings"
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:9457
+#: includes/pages/vocab-lesson-pages.php:9467
 msgid "Choose which word sets should get vocab lesson pages at /{wordset}/{category} (and a wordset landing page at /{wordset}). Saving will sync pages automatically."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:9472
+#: includes/pages/vocab-lesson-pages.php:9482
 msgid "No word sets found yet."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:9476
+#: includes/pages/vocab-lesson-pages.php:9486
 msgid "No word sets are enabled yet, so no vocab lesson pages will be generated."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:9480
+#: includes/pages/vocab-lesson-pages.php:9490
 msgid "Save Settings & Sync"
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:9482
+#: includes/pages/vocab-lesson-pages.php:9492
 msgid "Retry Sync"
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:9483
+#: includes/pages/vocab-lesson-pages.php:9493
 msgid "Sync Now"
 msgstr ""
 
@@ -18773,7 +19178,7 @@ msgstr ""
 
 #: includes/pages/wordset-editor.php:148
 #: includes/pages/wordset-editor.php:153
-#: includes/shortcodes/audio-recording-shortcode.php:9558
+#: includes/shortcodes/audio-recording-shortcode.php:9688
 msgid "Unknown user"
 msgstr ""
 
@@ -19669,13 +20074,13 @@ msgstr ""
 
 #: includes/pages/wordset-games.php:6648
 #: includes/pages/wordset-games.php:6921
-#: includes/user-progress.php:11475
-#: includes/user-progress.php:11537
-#: includes/user-progress.php:11582
-#: includes/user-progress.php:11738
-#: includes/user-progress.php:11807
-#: includes/user-progress.php:13534
-#: includes/user-progress.php:13620
+#: includes/user-progress.php:11493
+#: includes/user-progress.php:11555
+#: includes/user-progress.php:11600
+#: includes/user-progress.php:11756
+#: includes/user-progress.php:11825
+#: includes/user-progress.php:13552
+#: includes/user-progress.php:13638
 #: includes/user-study.php:1377
 #: includes/user-study.php:1415
 #: includes/user-study.php:1529
@@ -19691,7 +20096,7 @@ msgid "This speaking set is not configured for server-side transcription."
 msgstr ""
 
 #: includes/pages/wordset-games.php:6726
-#: includes/shortcodes/audio-recording-shortcode.php:5806
+#: includes/shortcodes/audio-recording-shortcode.php:5936
 msgid "Missing audio file."
 msgstr ""
 
@@ -20577,7 +20982,7 @@ msgid "You do not have permission to view this recorder queue."
 msgstr ""
 
 #: includes/pages/wordset-pages.php:12490
-#: includes/shortcodes/audio-recording-shortcode.php:4809
+#: includes/shortcodes/audio-recording-shortcode.php:4823
 msgid "No queue categories were requested."
 msgstr ""
 
@@ -20916,7 +21321,7 @@ msgstr ""
 
 #: includes/pages/wordset-pages.php:13550
 #: includes/pages/wordset-pages.php:29483
-#: includes/shortcodes/audio-recording-shortcode.php:2091
+#: includes/shortcodes/audio-recording-shortcode.php:2105
 #: includes/shortcodes/editor-hub-shortcode.php:1073
 #: includes/shortcodes/editor-hub-shortcode.php:1146
 #: templates/audio-image-matcher-template.php:52
@@ -20961,7 +21366,7 @@ msgid "Listening..."
 msgstr ""
 
 #: includes/pages/wordset-pages.php:13561
-#: includes/shortcodes/audio-recording-shortcode.php:1654
+#: includes/shortcodes/audio-recording-shortcode.php:1668
 #: includes/shortcodes/word-grid-shortcode.php:4193
 msgid "Transcribing..."
 msgstr ""
@@ -22141,7 +22546,7 @@ msgid "No category (optional)"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:18063
-#: includes/shortcodes/audio-recording-shortcode.php:1779
+#: includes/shortcodes/audio-recording-shortcode.php:1793
 #: includes/shortcodes/word-grid-shortcode.php:6453
 msgid "Hidden"
 msgstr ""
@@ -22235,7 +22640,7 @@ msgid "Recorder processes audio"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:23538
-#: includes/shortcodes/audio-recording-shortcode.php:1683
+#: includes/shortcodes/audio-recording-shortcode.php:1697
 msgid "Unhide"
 msgstr ""
 
@@ -22411,8 +22816,8 @@ msgid "Open Recorder Access"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:24777
-#: includes/shortcodes/audio-recording-shortcode.php:1709
-#: includes/shortcodes/audio-recording-shortcode.php:1715
+#: includes/shortcodes/audio-recording-shortcode.php:1723
+#: includes/shortcodes/audio-recording-shortcode.php:1729
 msgid "Back to categories"
 msgstr ""
 
@@ -22925,22 +23330,23 @@ msgstr ""
 
 #: includes/pages/wordset-pages.php:27377
 #: includes/pages/wordset-transcription-review.php:284
+#: includes/shortcodes/audio-recording-shortcode.php:1663
 msgid "Saved"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:27379
-#: includes/user-progress.php:13104
+#: includes/user-progress.php:13122
 msgid "Select at least one category."
 msgstr ""
 
 #: includes/pages/wordset-pages.php:27380
-#: includes/user-progress.php:12305
-#: includes/user-progress.php:12715
-#: includes/user-progress.php:13119
-#: includes/user-progress.php:13148
-#: includes/user-progress.php:13177
-#: includes/user-progress.php:13386
-#: includes/user-progress.php:13467
+#: includes/user-progress.php:12323
+#: includes/user-progress.php:12733
+#: includes/user-progress.php:13137
+#: includes/user-progress.php:13166
+#: includes/user-progress.php:13195
+#: includes/user-progress.php:13404
+#: includes/user-progress.php:13485
 msgid "No quiz words are available for this selection."
 msgstr ""
 
@@ -23139,11 +23545,6 @@ msgstr ""
 
 #: includes/pages/wordset-pages.php:27455
 msgid "Showing %1$d of %2$d matching words"
-msgstr ""
-
-#: includes/pages/wordset-pages.php:27456
-#: includes/pages/wordset-pages.php:28013
-msgid "Load more words"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:27457
@@ -24228,11 +24629,6 @@ msgstr ""
 msgid "Describe any edits you made to the sourced recording before publishing it here, such as loudness normalization or silence trimming."
 msgstr ""
 
-#: includes/post-types/word-audio-post-type.php:116
-#: includes/shortcodes/audio-credit-grid-shortcode.php:373
-msgid "Speaker"
-msgstr ""
-
 #: includes/post-types/word-audio-post-type.php:118
 msgid "Audio File"
 msgstr ""
@@ -25001,844 +25397,862 @@ msgstr ""
 msgid "No audio recordings found with public credit information."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:32
+#: includes/shortcodes/audio-recording-shortcode.php:34
 #: includes/taxonomies/recording-type-taxonomy.php:44
 msgid "In Sentence"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:472
+#: includes/shortcodes/audio-recording-shortcode.php:474
 msgid "Audio file is too large."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:477
+#: includes/shortcodes/audio-recording-shortcode.php:479
 msgid "No audio file was uploaded."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:481
+#: includes/shortcodes/audio-recording-shortcode.php:483
 msgid "Audio upload failed. Please try again."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:487
+#: includes/shortcodes/audio-recording-shortcode.php:489
 msgid "Uploaded audio file is missing or unreadable."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:492
+#: includes/shortcodes/audio-recording-shortcode.php:494
 msgid "Upload source is invalid."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:500
+#: includes/shortcodes/audio-recording-shortcode.php:502
 msgid "Uploaded audio file is empty."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:571
+#: includes/shortcodes/audio-recording-shortcode.php:573
 msgid "Uploaded file type is not allowed."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:582
+#: includes/shortcodes/audio-recording-shortcode.php:584
 msgid "Uploaded file is not a valid audio recording."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1256
+#: includes/shortcodes/audio-recording-shortcode.php:1258
 msgid "Sign in to record"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1257
+#: includes/shortcodes/audio-recording-shortcode.php:1259
 msgid "Use an account with recording access to continue."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1262
+#: includes/shortcodes/audio-recording-shortcode.php:1264
 msgid "This invite can create a recorder account for this word set or connect an existing account with the invited email address."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1269
+#: includes/shortcodes/audio-recording-shortcode.php:1271
 msgid "You do not have permission to record audio. If you think this is a mistake, ask for the \"Audio Recorder\" user role to be added to your user account."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1318
+#: includes/shortcodes/audio-recording-shortcode.php:1320
 msgid "No recording word set is assigned for this account. Ask the word set manager to assign a private word set."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1610
+#: includes/shortcodes/audio-recording-shortcode.php:1612
 msgid "Uploading..."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1611
+#: includes/shortcodes/audio-recording-shortcode.php:1613
 msgid "Checking upload..."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1612
+#: includes/shortcodes/audio-recording-shortcode.php:1614
 msgid "Success! Recording will be processed later."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1613
+#: includes/shortcodes/audio-recording-shortcode.php:1615
 msgid "Success! Recording published."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1615
+#: includes/shortcodes/audio-recording-shortcode.php:1617
 msgid "Upload failed:"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1616
+#: includes/shortcodes/audio-recording-shortcode.php:1618
 msgid "Saved. Next type selected."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1617
+#: includes/shortcodes/audio-recording-shortcode.php:1619
 msgid "Skipped this type. Next type selected."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1618
+#: includes/shortcodes/audio-recording-shortcode.php:1620
 msgid "Word skipped. Moving to next item."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1619
+#: includes/shortcodes/audio-recording-shortcode.php:1621
 msgid "All recordings completed for the selected set. Thank you!"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1622
+#: includes/shortcodes/audio-recording-shortcode.php:1624
 msgid "No audio blob to submit"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1623
+#: includes/shortcodes/audio-recording-shortcode.php:1625
 msgid "Error: Could not access microphone"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1624
+#: includes/shortcodes/audio-recording-shortcode.php:1626
 msgid "Starting..."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1625
+#: includes/shortcodes/audio-recording-shortcode.php:1627
 #: includes/shortcodes/word-grid-shortcode.php:4111
 msgid "Processing audio..."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1626
+#: includes/shortcodes/audio-recording-shortcode.php:1628
 msgid "Review the processed audio below."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1627
+#: includes/shortcodes/audio-recording-shortcode.php:1629
 msgid "Audio processing failed. You can upload the raw recording instead."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1628
+#: includes/shortcodes/audio-recording-shortcode.php:1630
 msgid "Starting upload for image:"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1629
+#: includes/shortcodes/audio-recording-shortcode.php:1631
 msgid "HTTP %d: %s"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1630
+#: includes/shortcodes/audio-recording-shortcode.php:1632
 msgid "Server returned invalid response format"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1631
+#: includes/shortcodes/audio-recording-shortcode.php:1633
 msgid "Request failed"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1632
+#: includes/shortcodes/audio-recording-shortcode.php:1634
 msgid "Switching category..."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1633
+#: includes/shortcodes/audio-recording-shortcode.php:1635
 msgid "Loading more words in this category..."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1634
+#: includes/shortcodes/audio-recording-shortcode.php:1636
 msgid "Unable to load words right now. Please try again."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1635
+#: includes/shortcodes/audio-recording-shortcode.php:1637
 msgid "Skipping..."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1636
+#: includes/shortcodes/audio-recording-shortcode.php:1638
 msgid "Skip failed:"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1637
+#: includes/shortcodes/audio-recording-shortcode.php:1639
 msgid "No images need audio in this category."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1638
+#: includes/shortcodes/audio-recording-shortcode.php:1640
 msgid "Category switched. Ready to record."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1639
+#: includes/shortcodes/audio-recording-shortcode.php:1641
 msgid "Switch failed:"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1640
+#: includes/shortcodes/audio-recording-shortcode.php:1642
 msgid "Switch failed"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1641
-#: includes/shortcodes/audio-recording-shortcode.php:1858
+#: includes/shortcodes/audio-recording-shortcode.php:1643
+#: includes/shortcodes/audio-recording-shortcode.php:1872
 msgid "Loading recording queues..."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1642
+#: includes/shortcodes/audio-recording-shortcode.php:1644
 msgid "Recording queues loaded."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1643
-#: includes/shortcodes/audio-recording-shortcode.php:1856
+#: includes/shortcodes/audio-recording-shortcode.php:1645
+#: includes/shortcodes/audio-recording-shortcode.php:1870
 msgid "Some recording queues could not be loaded."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1645
-#: includes/shortcodes/audio-recording-shortcode.php:1850
+#: includes/shortcodes/audio-recording-shortcode.php:1647
+#: includes/shortcodes/audio-recording-shortcode.php:1864
 msgid "No words currently need recordings."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1646
+#: includes/shortcodes/audio-recording-shortcode.php:1648
 msgid "Preparing new word..."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1647
+#: includes/shortcodes/audio-recording-shortcode.php:1649
 msgid "New word setup failed:"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1648
-msgid "Failed to update word text"
+#: includes/shortcodes/audio-recording-shortcode.php:1653
+msgid "Retry preparation"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1649
-msgid "Failed to prepare new word"
+#: includes/shortcodes/audio-recording-shortcode.php:1655
+msgid "Checking new word..."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1650
+#: includes/shortcodes/audio-recording-shortcode.php:1656
+#: includes/shortcodes/audio-recording-shortcode.php:5634
+msgid "This word changed elsewhere. Review the saved text before choosing which changes to keep."
+msgstr ""
+
+#: includes/shortcodes/audio-recording-shortcode.php:1657
+msgid "Current saved text"
+msgstr ""
+
+#: includes/shortcodes/audio-recording-shortcode.php:1658
+msgid "Use saved text"
+msgstr ""
+
+#: includes/shortcodes/audio-recording-shortcode.php:1659
+msgid "Save my changes"
+msgstr ""
+
+#: includes/shortcodes/audio-recording-shortcode.php:1660
+msgid "Check saved text"
+msgstr ""
+
+#: includes/shortcodes/audio-recording-shortcode.php:1661
+msgid "The saved word text could not be checked. Please try again."
+msgstr ""
+
+#: includes/shortcodes/audio-recording-shortcode.php:1664
 msgid "Missing word data"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1651
+#: includes/shortcodes/audio-recording-shortcode.php:1665
 #: includes/shortcodes/word-grid-shortcode.php:8364
 msgid "New word"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1652
+#: includes/shortcodes/audio-recording-shortcode.php:1666
 msgid "Enter a category name or disable \"Create new category\"."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1653
+#: includes/shortcodes/audio-recording-shortcode.php:1667
 msgid "Record audio before saving this word."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1655
+#: includes/shortcodes/audio-recording-shortcode.php:1669
 msgid "Translating..."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1656
+#: includes/shortcodes/audio-recording-shortcode.php:1670
 msgid "Transcription failed:"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1657
+#: includes/shortcodes/audio-recording-shortcode.php:1671
 msgid "Transcription failed"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1658
+#: includes/shortcodes/audio-recording-shortcode.php:1672
 msgid "Transcription is still processing. Please try again in a moment."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1659
+#: includes/shortcodes/audio-recording-shortcode.php:1673
 msgid "Speech-to-text is not available. Please enter the word manually."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1660
+#: includes/shortcodes/audio-recording-shortcode.php:1674
 msgid "Translation failed:"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1661
+#: includes/shortcodes/audio-recording-shortcode.php:1675
 msgid "Translation failed"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1662
+#: includes/shortcodes/audio-recording-shortcode.php:1676
 msgid "Translation ready."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1663
+#: includes/shortcodes/audio-recording-shortcode.php:1677
 msgid "Microphone requires a secure connection. Please use HTTPS or localhost."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1664
+#: includes/shortcodes/audio-recording-shortcode.php:1678
 msgid "Microphone permission is blocked for this site. Click the lock icon in the address bar → Site settings → allow Microphone, then reload."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1665
+#: includes/shortcodes/audio-recording-shortcode.php:1679
 msgid "No microphone input devices detected. Check Windows microphone privacy and Sound settings."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1666
+#: includes/shortcodes/audio-recording-shortcode.php:1680
 msgid "Microphone requires a secure connection. Open this page over HTTPS or localhost and try again."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1667
+#: includes/shortcodes/audio-recording-shortcode.php:1681
 msgid "Microphone permission is blocked for this site. Click the lock icon → Site settings → set Microphone to Allow, then reload the page."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1668
+#: includes/shortcodes/audio-recording-shortcode.php:1682
 msgid "Microphone access was not granted. If no browser prompt appears, open Site settings from the lock icon and allow Microphone for this site, then reload."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1669
+#: includes/shortcodes/audio-recording-shortcode.php:1683
 msgid "Microphone is in use by another app or blocked by the OS. Close apps that use the mic (Zoom/Teams/Discord), then try again."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1670
+#: includes/shortcodes/audio-recording-shortcode.php:1684
 msgid "No microphone found. Connect a microphone and check Windows Privacy & Sound settings."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1671
+#: includes/shortcodes/audio-recording-shortcode.php:1685
 msgid "The selected microphone doesn’t meet the requested constraints. Set your default input device in system settings and try again."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1672
+#: includes/shortcodes/audio-recording-shortcode.php:1686
 msgid "Browser blocked access due to security policy. Ensure you are on HTTPS and try again."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1673
+#: includes/shortcodes/audio-recording-shortcode.php:1687
 msgid "Audio capture aborted unexpectedly. Try again."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1674
+#: includes/shortcodes/audio-recording-shortcode.php:1688
 msgid "Windows/Chrome: Click the lock icon → Site settings → Microphone: Allow."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1675
+#: includes/shortcodes/audio-recording-shortcode.php:1689
 msgid "No input devices detected: Windows Settings → Privacy & Security → Microphone → allow apps and desktop apps; then check Sound settings for the default input."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1676
+#: includes/shortcodes/audio-recording-shortcode.php:1690
 msgid "Browser does not support required audio formats for recording"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1677
+#: includes/shortcodes/audio-recording-shortcode.php:1691
 msgid "Hiding..."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1678
+#: includes/shortcodes/audio-recording-shortcode.php:1692
 msgid "Hide failed:"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1679
+#: includes/shortcodes/audio-recording-shortcode.php:1693
 msgid "Word hidden. Moving to the next item."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1680
+#: includes/shortcodes/audio-recording-shortcode.php:1694
 msgid "Stop recording before hiding this word."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1681
-#: includes/shortcodes/audio-recording-shortcode.php:1770
-#: includes/shortcodes/audio-recording-shortcode.php:1881
+#: includes/shortcodes/audio-recording-shortcode.php:1695
+#: includes/shortcodes/audio-recording-shortcode.php:1784
+#: includes/shortcodes/audio-recording-shortcode.php:1895
 msgid "Hidden words"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1682
-#: includes/shortcodes/audio-recording-shortcode.php:1889
+#: includes/shortcodes/audio-recording-shortcode.php:1696
+#: includes/shortcodes/audio-recording-shortcode.php:1903
 msgid "No hidden words yet."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1684
+#: includes/shortcodes/audio-recording-shortcode.php:1698
 msgid "Unhide failed:"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1685
+#: includes/shortcodes/audio-recording-shortcode.php:1699
 msgid "Word unhidden."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1686
+#: includes/shortcodes/audio-recording-shortcode.php:1700
 msgid "HTTP 500 (no recording found)"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1687
+#: includes/shortcodes/audio-recording-shortcode.php:1701
 msgid "Verify failed"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1690
+#: includes/shortcodes/audio-recording-shortcode.php:1704
 msgid "Selected"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1691
+#: includes/shortcodes/audio-recording-shortcode.php:1705
 msgid "Recorded by you"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1692
+#: includes/shortcodes/audio-recording-shortcode.php:1706
 msgid "Needs recording"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1693
+#: includes/shortcodes/audio-recording-shortcode.php:1707
 msgid "Available"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1695
+#: includes/shortcodes/audio-recording-shortcode.php:1709
 msgid "Say:"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1726
+#: includes/shortcodes/audio-recording-shortcode.php:1740
 msgid "Set"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1742
+#: includes/shortcodes/audio-recording-shortcode.php:1756
 #: includes/shortcodes/editor-hub-shortcode.php:1076
 #: includes/shortcodes/editor-hub-shortcode.php:1129
 msgid "Set:"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1757
+#: includes/shortcodes/audio-recording-shortcode.php:1771
 msgid "Record New Word"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1900
+#: includes/shortcodes/audio-recording-shortcode.php:1914
 msgid "Record a New Word"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1905
+#: includes/shortcodes/audio-recording-shortcode.php:1919
 msgid "Cancel automatic transcription"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1920
+#: includes/shortcodes/audio-recording-shortcode.php:1934
 msgid "Create a new category for these words"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1955
+#: includes/shortcodes/audio-recording-shortcode.php:1969
 msgid "e.g., Food"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1978
+#: includes/shortcodes/audio-recording-shortcode.php:1992
 msgid "No recording types available."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1985
+#: includes/shortcodes/audio-recording-shortcode.php:1999
 msgid "Target Word (optional)"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1986
+#: includes/shortcodes/audio-recording-shortcode.php:2000
 msgid "Enter the word in the target language"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1989
+#: includes/shortcodes/audio-recording-shortcode.php:2003
 msgid "Translation (optional)"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1990
+#: includes/shortcodes/audio-recording-shortcode.php:2004
 msgid "Enter the translation"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:2023
-#: includes/shortcodes/audio-recording-shortcode.php:2125
-#: includes/shortcodes/audio-recording-shortcode.php:2145
+#: includes/shortcodes/audio-recording-shortcode.php:2037
+#: includes/shortcodes/audio-recording-shortcode.php:2139
+#: includes/shortcodes/audio-recording-shortcode.php:2159
 msgid "Record again"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:2024
-#: includes/shortcodes/audio-recording-shortcode.php:2127
-#: includes/shortcodes/audio-recording-shortcode.php:2146
+#: includes/shortcodes/audio-recording-shortcode.php:2038
+#: includes/shortcodes/audio-recording-shortcode.php:2141
+#: includes/shortcodes/audio-recording-shortcode.php:2160
 msgid "Save and continue"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:2097
+#: includes/shortcodes/audio-recording-shortcode.php:2111
 msgid "Hide this word"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:2157
+#: includes/shortcodes/audio-recording-shortcode.php:2171
 msgid "recordings completed"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:2273
+#: includes/shortcodes/audio-recording-shortcode.php:2287
 msgid "%1$s (%2$d)"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:4569
+#: includes/shortcodes/audio-recording-shortcode.php:4583
 msgid "No word images have been created yet. Please create some word images first."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:4573
+#: includes/shortcodes/audio-recording-shortcode.php:4587
 msgid "Create a word image"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:4596
+#: includes/shortcodes/audio-recording-shortcode.php:4610
 msgid "You have %d word image(s), but none have a featured image set."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:4599
+#: includes/shortcodes/audio-recording-shortcode.php:4613
 msgid "<strong>To fix this:</strong> Edit each word image and set a featured image using the \"Featured Image\" panel on the right side of the editor."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:4603
-#: includes/shortcodes/audio-recording-shortcode.php:4633
+#: includes/shortcodes/audio-recording-shortcode.php:4617
+#: includes/shortcodes/audio-recording-shortcode.php:4647
 msgid "Edit Word Images"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:4626
+#: includes/shortcodes/audio-recording-shortcode.php:4640
 msgid "You have %d word image(s) with featured images, but none are assigned to any word categories."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:4629
+#: includes/shortcodes/audio-recording-shortcode.php:4643
 msgid "<strong>To fix this:</strong> Edit each word image and assign it to at least one word category."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:4648
+#: includes/shortcodes/audio-recording-shortcode.php:4662
 msgid "No recording types are configured in your system."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:4652
+#: includes/shortcodes/audio-recording-shortcode.php:4666
 msgid "Set Up Recording Types"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:4659
+#: includes/shortcodes/audio-recording-shortcode.php:4673
 msgid "You have %d word image(s) with featured images in categories (%s), but all images in the selected wordset already have recordings."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:4667
+#: includes/shortcodes/audio-recording-shortcode.php:4681
 msgid "Current wordset filter: <strong>%s</strong>"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:4671
+#: includes/shortcodes/audio-recording-shortcode.php:4685
 msgid "This means all available images already have the required recording types. Great work!"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:4689
-#: includes/shortcodes/audio-recording-shortcode.php:4867
-#: includes/shortcodes/audio-recording-shortcode.php:4925
-#: includes/shortcodes/audio-recording-shortcode.php:4959
-#: includes/shortcodes/audio-recording-shortcode.php:5030
+#: includes/shortcodes/audio-recording-shortcode.php:4703
+#: includes/shortcodes/audio-recording-shortcode.php:4881
+#: includes/shortcodes/audio-recording-shortcode.php:4939
+#: includes/shortcodes/audio-recording-shortcode.php:4973
+#: includes/shortcodes/audio-recording-shortcode.php:5092
 msgid "You do not have permission to record audio."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:4693
+#: includes/shortcodes/audio-recording-shortcode.php:4707
 msgid "Missing parameters."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:4703
-#: includes/shortcodes/audio-recording-shortcode.php:4793
+#: includes/shortcodes/audio-recording-shortcode.php:4717
+#: includes/shortcodes/audio-recording-shortcode.php:4807
 msgid "No recording word set is assigned for this account."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:4778
+#: includes/shortcodes/audio-recording-shortcode.php:4792
 msgid "You do not have permission to view recording queues."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:4814
+#: includes/shortcodes/audio-recording-shortcode.php:4828
 msgid "Recording queues are not available right now."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:4883
-#: includes/shortcodes/audio-recording-shortcode.php:4936
+#: includes/shortcodes/audio-recording-shortcode.php:4897
+#: includes/shortcodes/audio-recording-shortcode.php:4950
 msgid "Missing hide key."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:4965
+#: includes/shortcodes/audio-recording-shortcode.php:4979
 msgid "No accessible recording word set was selected."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:4970
-#: includes/shortcodes/audio-recording-shortcode.php:5053
+#: includes/shortcodes/audio-recording-shortcode.php:4984
+#: includes/shortcodes/audio-recording-shortcode.php:5115
 msgid "No recording types are configured."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:4988
-#: includes/shortcodes/audio-recording-shortcode.php:5100
-#: includes/shortcodes/audio-recording-shortcode.php:5155
-#: includes/shortcodes/audio-recording-shortcode.php:9728
-#: includes/shortcodes/audio-recording-shortcode.php:9752
-#: includes/shortcodes/audio-recording-shortcode.php:9775
-#: includes/shortcodes/audio-recording-shortcode.php:9796
+#: includes/shortcodes/audio-recording-shortcode.php:5002
+#: includes/shortcodes/audio-recording-shortcode.php:5162
+#: includes/shortcodes/audio-recording-shortcode.php:5217
+#: includes/shortcodes/audio-recording-shortcode.php:9858
+#: includes/shortcodes/audio-recording-shortcode.php:9882
+#: includes/shortcodes/audio-recording-shortcode.php:9905
+#: includes/shortcodes/audio-recording-shortcode.php:9926
 msgid "You do not have access to that category."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:4993
-#: includes/shortcodes/audio-recording-shortcode.php:5160
+#: includes/shortcodes/audio-recording-shortcode.php:5007
+#: includes/shortcodes/audio-recording-shortcode.php:5222
 msgid "Recording is disabled for this category."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:5008
-#: includes/shortcodes/audio-recording-shortcode.php:5174
+#: includes/shortcodes/audio-recording-shortcode.php:5022
+#: includes/shortcodes/audio-recording-shortcode.php:5236
 msgid "No recording types are available for this category."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:5036
+#: includes/shortcodes/audio-recording-shortcode.php:5057
+#: includes/shortcodes/audio-recording-shortcode.php:5098
 msgid "New word recording is not enabled for your account."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:5064
+#: includes/shortcodes/audio-recording-shortcode.php:5126
 msgid "Missing new category name."
 msgstr ""
 
 #. translators: %s: category creation error message
-#: includes/shortcodes/audio-recording-shortcode.php:5072
-#: includes/shortcodes/audio-recording-shortcode.php:5089
+#: includes/shortcodes/audio-recording-shortcode.php:5134
+#: includes/shortcodes/audio-recording-shortcode.php:5151
 msgid "Failed to create category: %s"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:5178
+#: includes/shortcodes/audio-recording-shortcode.php:5240
 msgid "New word %s"
 msgstr ""
 
 #. translators: %s: word creation error
-#: includes/shortcodes/audio-recording-shortcode.php:5193
-#: includes/shortcodes/audio-recording-shortcode.php:6046
+#: includes/shortcodes/audio-recording-shortcode.php:5255
+#: includes/shortcodes/audio-recording-shortcode.php:6176
 msgid "Failed to create word: %s"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:5520
-#: includes/shortcodes/audio-recording-shortcode.php:5537
-#: includes/shortcodes/audio-recording-shortcode.php:5802
-#: includes/shortcodes/audio-recording-shortcode.php:5876
-#: includes/shortcodes/audio-recording-shortcode.php:5935
-msgid "Forbidden."
-msgstr ""
-
-#: includes/shortcodes/audio-recording-shortcode.php:5739
+#: includes/shortcodes/audio-recording-shortcode.php:5869
 msgid "Unknown recorder error."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:5759
+#: includes/shortcodes/audio-recording-shortcode.php:5889
 msgid "No transcript text returned."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:5823
-#: includes/shortcodes/audio-recording-shortcode.php:5885
+#: includes/shortcodes/audio-recording-shortcode.php:5953
+#: includes/shortcodes/audio-recording-shortcode.php:6015
 msgid "AssemblyAI integration not available."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:5881
+#: includes/shortcodes/audio-recording-shortcode.php:6011
 msgid "Missing transcript ID."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:5940
+#: includes/shortcodes/audio-recording-shortcode.php:6070
 msgid "Missing text."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:5947
+#: includes/shortcodes/audio-recording-shortcode.php:6077
 msgid "DeepL API key not configured."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:5955
+#: includes/shortcodes/audio-recording-shortcode.php:6085
 msgid "Translation language is not configured."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:5960
+#: includes/shortcodes/audio-recording-shortcode.php:6090
 msgid "Translation failed."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:5978
+#: includes/shortcodes/audio-recording-shortcode.php:6108
 msgid "You must be logged in to verify recordings."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:5981
+#: includes/shortcodes/audio-recording-shortcode.php:6111
 msgid "You do not have permission to verify recordings."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:5996
-#: includes/shortcodes/audio-recording-shortcode.php:8791
+#: includes/shortcodes/audio-recording-shortcode.php:6126
+#: includes/shortcodes/audio-recording-shortcode.php:8921
 msgid "You do not have access to that prompt card."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:6017
-#: includes/shortcodes/audio-recording-shortcode.php:9021
+#: includes/shortcodes/audio-recording-shortcode.php:6147
+#: includes/shortcodes/audio-recording-shortcode.php:9151
 msgid "Missing image_id or word_id."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:6024
-#: includes/shortcodes/audio-recording-shortcode.php:9028
+#: includes/shortcodes/audio-recording-shortcode.php:6154
+#: includes/shortcodes/audio-recording-shortcode.php:9158
 msgid "Invalid image ID."
 msgstr ""
 
 #. translators: %s: word creation error
-#: includes/shortcodes/audio-recording-shortcode.php:6030
+#: includes/shortcodes/audio-recording-shortcode.php:6160
 msgid "Failed to find/create word: %s"
 msgstr ""
 
 #. translators: %d: prompt card post ID
-#: includes/shortcodes/audio-recording-shortcode.php:6993
-#: includes/shortcodes/audio-recording-shortcode.php:8852
+#: includes/shortcodes/audio-recording-shortcode.php:7123
+#: includes/shortcodes/audio-recording-shortcode.php:8982
 msgid "Prompt card #%d"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:8841
-#: includes/shortcodes/audio-recording-shortcode.php:9820
+#: includes/shortcodes/audio-recording-shortcode.php:8971
+#: includes/shortcodes/audio-recording-shortcode.php:9950
 msgid "This recording is already uploading. Please wait a moment and try again."
 msgstr ""
 
 #. translators: %s: prompt text or prompt card title
-#: includes/shortcodes/audio-recording-shortcode.php:8912
+#: includes/shortcodes/audio-recording-shortcode.php:9042
 msgid "Prompt audio: %s"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:8931
+#: includes/shortcodes/audio-recording-shortcode.php:9061
 msgid "Unknown insert failure"
 msgstr ""
 
 #. translators: %s: attachment creation error
-#: includes/shortcodes/audio-recording-shortcode.php:8934
+#: includes/shortcodes/audio-recording-shortcode.php:9064
 msgid "Failed to create prompt audio attachment: %s"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:9005
+#: includes/shortcodes/audio-recording-shortcode.php:9135
 msgid "You must be logged in to skip recordings."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:9008
+#: includes/shortcodes/audio-recording-shortcode.php:9138
 msgid "You do not have permission to skip recordings."
 msgstr ""
 
 #. translators: %s: word creation error
-#: includes/shortcodes/audio-recording-shortcode.php:9034
-#: includes/shortcodes/audio-recording-shortcode.php:9760
+#: includes/shortcodes/audio-recording-shortcode.php:9164
+#: includes/shortcodes/audio-recording-shortcode.php:9890
 msgid "Failed to find/create word post: %s"
 msgstr ""
 
 #. translators: %s: word creation error
-#: includes/shortcodes/audio-recording-shortcode.php:9050
-#: includes/shortcodes/audio-recording-shortcode.php:9784
+#: includes/shortcodes/audio-recording-shortcode.php:9180
+#: includes/shortcodes/audio-recording-shortcode.php:9914
 msgid "Failed to create word post: %s"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:9206
+#: includes/shortcodes/audio-recording-shortcode.php:9336
 msgid "Admin Notification Email"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:9216
+#: includes/shortcodes/audio-recording-shortcode.php:9346
 msgid "Used for recording summaries and user registration alerts."
 msgstr ""
 
 #. translators: %s: admin email address
-#: includes/shortcodes/audio-recording-shortcode.php:9223
+#: includes/shortcodes/audio-recording-shortcode.php:9353
 msgid "Leave blank to use the site admin email (%s)."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:9227
+#: includes/shortcodes/audio-recording-shortcode.php:9357
 msgid "Leave blank to use the site admin email."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:9244
+#: includes/shortcodes/audio-recording-shortcode.php:9374
 msgid "Recording Notification First Email Delay (minutes)"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:9256
+#: includes/shortcodes/audio-recording-shortcode.php:9386
 msgid "For the first recording email sent each day, wait this many quiet minutes after the most recent upload."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:9259
+#: includes/shortcodes/audio-recording-shortcode.php:9389
 msgid "After the first email is sent that day, follow-up summaries wait about 2 hours after recording activity stops."
 msgstr ""
 
 #. translators: %d: term ID
-#: includes/shortcodes/audio-recording-shortcode.php:9306
+#: includes/shortcodes/audio-recording-shortcode.php:9436
 msgid "Category #%d"
 msgstr ""
 
 #. translators: 1: total distinct categories, 2: shown category names, 3: remaining category count
-#: includes/shortcodes/audio-recording-shortcode.php:9371
+#: includes/shortcodes/audio-recording-shortcode.php:9501
 msgid "Categories (%1$d total): %2$s (+%3$d more category)"
 msgid_plural "Categories (%1$d total): %2$s (+%3$d more categories)"
 msgstr[0] ""
 msgstr[1] ""
 
 #. translators: 1: total distinct categories, 2: category names
-#: includes/shortcodes/audio-recording-shortcode.php:9384
+#: includes/shortcodes/audio-recording-shortcode.php:9514
 msgid "Categories (%1$d total): %2$s"
 msgstr ""
 
 #. translators: %d: recording count
-#: includes/shortcodes/audio-recording-shortcode.php:9396
+#: includes/shortcodes/audio-recording-shortcode.php:9526
 msgid "Uncategorized recording: %d"
 msgid_plural "Uncategorized recordings: %d"
 msgstr[0] ""
 msgstr[1] ""
 
 #. translators: %d: user ID
-#: includes/shortcodes/audio-recording-shortcode.php:9469
+#: includes/shortcodes/audio-recording-shortcode.php:9599
 msgid "User #%d"
 msgstr ""
 
 #. translators: 1: site name, 2: number of recordings
-#: includes/shortcodes/audio-recording-shortcode.php:9527
+#: includes/shortcodes/audio-recording-shortcode.php:9657
 msgid "[%1$s] %2$d new recording is ready for processing"
 msgid_plural "[%1$s] %2$d new recordings are ready for processing"
 msgstr[0] ""
 msgstr[1] ""
 
 #. translators: %d: number of new recordings
-#: includes/shortcodes/audio-recording-shortcode.php:9545
+#: includes/shortcodes/audio-recording-shortcode.php:9675
 msgid "%d new audio recording was uploaded through the recording interface."
 msgid_plural "%d new audio recordings were uploaded through the recording interface."
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:9556
+#: includes/shortcodes/audio-recording-shortcode.php:9686
 msgid "Recorders:"
 msgstr ""
 
 #. translators: 1: display name, 2: recording count
-#: includes/shortcodes/audio-recording-shortcode.php:9562
+#: includes/shortcodes/audio-recording-shortcode.php:9692
 msgid "- %1$s (%2$d recording)"
 msgid_plural "- %1$s (%2$d recordings)"
 msgstr[0] ""
 msgstr[1] ""
 
 #. translators: %s: date/time
-#: includes/shortcodes/audio-recording-shortcode.php:9586
+#: includes/shortcodes/audio-recording-shortcode.php:9716
 msgid "Batch started: %s"
 msgstr ""
 
 #. translators: %s: date/time
-#: includes/shortcodes/audio-recording-shortcode.php:9593
+#: includes/shortcodes/audio-recording-shortcode.php:9723
 msgid "Most recent upload: %s"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:9598
+#: includes/shortcodes/audio-recording-shortcode.php:9728
 msgid "Review and process recordings:"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:9625
+#: includes/shortcodes/audio-recording-shortcode.php:9755
 msgid "Invalid original audio upload."
 msgstr ""
 
 #. translators: %s: upload subsystem error message
-#: includes/shortcodes/audio-recording-shortcode.php:9656
+#: includes/shortcodes/audio-recording-shortcode.php:9786
 msgid "Failed to save original audio: %s"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:9659
+#: includes/shortcodes/audio-recording-shortcode.php:9789
 msgid "Failed to save original audio."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:9683
+#: includes/shortcodes/audio-recording-shortcode.php:9813
 msgid "You must be logged in to upload recordings"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:9686
-#: includes/shortcodes/audio-recording-shortcode.php:9689
+#: includes/shortcodes/audio-recording-shortcode.php:9816
+#: includes/shortcodes/audio-recording-shortcode.php:9819
 msgid "You do not have permission to upload recordings"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:9739
+#: includes/shortcodes/audio-recording-shortcode.php:9869
 msgid "Missing image_id or word_id"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:9747
+#: includes/shortcodes/audio-recording-shortcode.php:9877
 msgid "Invalid image ID"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:9770
+#: includes/shortcodes/audio-recording-shortcode.php:9900
 #: includes/shortcodes/word-grid-shortcode.php:8454
 msgid "Invalid word ID"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:9866
+#: includes/shortcodes/audio-recording-shortcode.php:9996
 msgid "Original audio source was not included with the processed upload."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:9956
+#: includes/shortcodes/audio-recording-shortcode.php:10086
 msgid "Failed to create word_audio post: %s"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:10187
+#: includes/shortcodes/audio-recording-shortcode.php:10317
 msgid "Image has no attachment"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:10324
+#: includes/shortcodes/audio-recording-shortcode.php:10454
 msgid "Missing word title"
 msgstr ""
 
@@ -26421,9 +26835,9 @@ msgstr ""
 #: includes/shortcodes/flashcard-widget.php:778
 #: includes/shortcodes/flashcard-widget.php:783
 #: includes/shortcodes/flashcard-widget.php:785
-#: includes/shortcodes/wordset-buttons-shortcode.php:2528
-#: includes/shortcodes/wordset-buttons-shortcode.php:2565
-#: includes/shortcodes/wordset-buttons-shortcode.php:2579
+#: includes/shortcodes/wordset-buttons-shortcode.php:2633
+#: includes/shortcodes/wordset-buttons-shortcode.php:2670
+#: includes/shortcodes/wordset-buttons-shortcode.php:2684
 msgid "Something went wrong"
 msgstr ""
 
@@ -28130,25 +28544,25 @@ msgid "Transcription session mismatch"
 msgstr ""
 
 #. translators: %d: number of lesson pages in the word set.
-#: includes/shortcodes/wordset-buttons-shortcode.php:2031
+#: includes/shortcodes/wordset-buttons-shortcode.php:2115
 msgid "%d lesson"
 msgid_plural "%d lessons"
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/shortcodes/wordset-buttons-shortcode.php:2034
+#: includes/shortcodes/wordset-buttons-shortcode.php:2118
 msgid "Private word set"
 msgstr ""
 
 #. translators: 1: word set name, 2: word set privacy label.
 #. translators: 1: word set name, 2: lesson count label.
-#: includes/shortcodes/wordset-buttons-shortcode.php:2039
-#: includes/shortcodes/wordset-buttons-shortcode.php:2054
+#: includes/shortcodes/wordset-buttons-shortcode.php:2123
+#: includes/shortcodes/wordset-buttons-shortcode.php:2138
 msgid "%1$s, %2$s"
 msgstr ""
 
 #. translators: 1: word set name, 2: lesson count label.
-#: includes/shortcodes/wordset-buttons-shortcode.php:2048
+#: includes/shortcodes/wordset-buttons-shortcode.php:2132
 msgid "%1$s, private word set, %2$s"
 msgstr ""
 

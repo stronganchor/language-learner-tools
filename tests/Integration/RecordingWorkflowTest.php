@@ -3,6 +3,33 @@ declare(strict_types=1);
 
 final class RecordingWorkflowTest extends LL_Tools_TestCase
 {
+    public function test_new_word_preparation_marks_only_precreation_rejections_safe_to_retry(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($user_id);
+        $this->ensure_term('recording_type', 'Isolation', 'isolation');
+        $word_count_before = (int) wp_count_posts('words')->draft;
+        $_POST = [
+            'nonce' => wp_create_nonce('ll_upload_recording'),
+            'word_text_target' => 'Rejected recorder draft',
+            'create_category' => '1',
+            'new_category_name' => '',
+        ];
+        $_REQUEST = $_POST;
+        try {
+            $response = $this->run_json_endpoint(static function (): void {
+                ll_prepare_new_word_recording_handler();
+            });
+        } finally {
+            $_POST = [];
+            $_REQUEST = [];
+        }
+        $this->assertFalse($response['success']);
+        $this->assertTrue($response['safe_to_retry']);
+        $this->assertSame('Missing new category name.', $response['data']);
+        $this->assertSame($word_count_before, (int) wp_count_posts('words')->draft);
+    }
+
     public function test_prepare_new_word_recording_creates_word_and_category(): void
     {
         ll_tools_register_or_refresh_audio_recorder_role();
@@ -47,6 +74,7 @@ final class RecordingWorkflowTest extends LL_Tools_TestCase
         }
 
         $this->assertTrue($response['success']);
+        $this->assertArrayNotHasKey('safe_to_retry', $response);
         $this->assertIsArray($response['data']);
 
         $data = $response['data'];

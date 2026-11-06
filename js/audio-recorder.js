@@ -25,6 +25,16 @@
     let newWordCategoryTypeRequest = null;
     let newWordCategoryTypeRequestGeneration = 0;
     let newWordLastSaved = { target: '', translation: '' };
+    let newWordTextSavePromise = null;
+    let newWordTextSaveTimer = null;
+    let newWordTextSaveGeneration = 0;
+    let newWordPreparationUncertain = false;
+    let newWordSubmitInFlight = false;
+    let newWordUploadTransition = false;
+    let newWordPreparationRequest = null;
+    let newWordTextRevision = '';
+    let newWordTextConflict = null;
+    let newWordTextRecoveryBusy = false;
     let newWordDraftBeforeRecording = {
         target: '',
         translation: '',
@@ -403,7 +413,7 @@
         const { response, payload } = await fetchJsonWithDeadline(ajaxUrl, { method: 'POST', body: formData });
         if (!response.ok) {
             const error = new Error(`HTTP ${response.status}: ${response.statusText}`);
-            const message = getRecorderServerMessage(payload);
+            const message = getAjaxErrorMessage(payload);
             if (message) error.llToolsUserMessage = message;
             throw error;
         }
@@ -416,15 +426,18 @@
         return payload;
     }
 
-    function getRecorderServerMessage(payload) {
-        if (typeof payload?.data === 'string' && payload.data.trim()) return payload.data.trim();
-        if (typeof payload?.data?.message === 'string' && payload.data.message.trim()) return payload.data.message.trim();
-        if (typeof payload?.message === 'string' && payload.message.trim()) return payload.message.trim();
-        return '';
+    function recorderServerError(payload, fallback = '') {
+        const error = new Error('recorder_request_failed');
+        error.llToolsUserMessage = getAjaxErrorMessage(payload, fallback);
+        return error;
     }
 
     function getRecorderReadErrorMessage(error) {
         return error?.llToolsUserMessage || i18n.category_read_failed || i18n.switch_failed_message || i18n.request_failed || '';
+    }
+
+    function getRecorderMutationErrorMessage(error, fallback) {
+        return error?.llToolsUserMessage || fallback || i18n.request_failed || '';
     }
 
     function applyRecordingCategoryPagePayload(payload, category, replace) {
@@ -513,7 +526,7 @@
                 }
                 if (!data?.success) {
                     const error = new Error('recorder_category_read_failed');
-                    error.llToolsUserMessage = getRecorderServerMessage(data);
+                    error.llToolsUserMessage = getAjaxErrorMessage(data);
                     throw error;
                 }
 
@@ -1289,14 +1302,6 @@
                 stopRecordingNow(pending.controls);
             }, recordingStopDelayMs)
         };
-    }
-
-    function setNewWordActionState(disabled) {
-        const el = window.llRecorder;
-        if (el.newWordStartBtn) el.newWordStartBtn.disabled = !!disabled;
-        if (el.newWordBackBtn) el.newWordBackBtn.disabled = !!disabled;
-        if (el.newWordRecordBtn) el.newWordRecordBtn.disabled = !!disabled;
-        if (el.newWordRedoBtn) el.newWordRedoBtn.disabled = !!disabled;
     }
 
     function isCompactCategoryViewport() {
@@ -2102,6 +2107,7 @@
             el.newWordTextTarget.addEventListener('input', () => {
                 setNewWordFieldManualState(el.newWordTextTarget, true);
                 clearNewWordFieldError(el.newWordTextTarget);
+                scheduleNewWordTextSave();
             });
             el.newWordTextTarget.addEventListener('blur', handleTargetBlur);
         }
@@ -2109,6 +2115,7 @@
             el.newWordTextTranslation.addEventListener('input', () => {
                 setNewWordFieldManualState(el.newWordTextTranslation, true);
                 clearNewWordFieldError(el.newWordTextTranslation);
+                scheduleNewWordTextSave();
             });
             el.newWordTextTranslation.addEventListener('blur', handleTranslationBlur);
         }
@@ -2665,6 +2672,7 @@
         newWordStage = 'inactive';
         newWordUsingPanel = false;
         newWordPrepared = false;
+        resetNewWordTextSave();
         newWordTranscriptionDone = false;
         newWordTranscriptionInFlight = false;
         newWordTranslationInFlight = false;
@@ -2764,6 +2772,8 @@
 
     function resetNewWordForm() {
         const el = window.llRecorder;
+        resetNewWordTextSave();
+        newWordPreparationUncertain = false;
         newWordPrepared = false;
         newWordTranscriptionDone = false;
         newWordTranscriptionInFlight = false;
@@ -2912,8 +2922,9 @@
 
     function setNewWordTextFieldsDisabled(disabled) {
         const el = window.llRecorder;
-        if (el.newWordTextTarget) el.newWordTextTarget.disabled = !!disabled;
-        if (el.newWordTextTranslation) el.newWordTextTranslation.disabled = !!disabled;
+        const locked = !!disabled || !!uploadLockState || newWordSubmitInFlight || newWordUploadTransition;
+        if (el.newWordTextTarget) el.newWordTextTarget.disabled = locked;
+        if (el.newWordTextTranslation) el.newWordTextTranslation.disabled = locked;
     }
 
     function clearNewWordAutoTimer() {
@@ -3109,6 +3120,7 @@
     }
 
     async function handleNewWordRecordToggle() {
+        if (newWordUploadTransition || newWordSubmitInFlight || newWordPreparationUncertain) return;
         if (isRecordingStopPending()) {
             return;
         }
@@ -3193,61 +3205,330 @@
         }
     }
 
-    async function maybeUpdateNewWordText(force) {
-        if (!newWordPrepared) return true;
+    function resetNewWordTextSave() {
+        newWordTextSaveGeneration += 1;
+        newWordUploadTransition = false;
+        newWordPreparationRequest = null;
+        newWordTextRevision = '';
+        newWordTextConflict = null;
+        newWordTextRecoveryBusy = false;
+        removeNewWordRecoveryControls();
+        window.clearTimeout(newWordTextSaveTimer);
+        newWordTextSaveTimer = null;
+        // The server may still commit the old word. Its response must never
+        // update a newly opened word or the restored existing-word queue.
+        newWordTextSavePromise = null;
+    }
+
+    function scheduleNewWordTextSave() {
+        if (!newWordPrepared) return;
+        window.clearTimeout(newWordTextSaveTimer);
+        if (newWordTextConflict) {
+            newWordTextSaveTimer = null;
+            return;
+        }
+        showNewWordStatus(i18n.new_word_saving || '', 'info');
+        newWordTextSaveTimer = window.setTimeout(() => maybeUpdateNewWordText(), 250);
+    }
+
+    function syncNewWordSaveButton() {
         const el = window.llRecorder;
-        const targetText = (el.newWordTextTarget?.value || '').trim();
-        const translationText = (el.newWordTextTranslation?.value || '').trim();
-        if (!force && targetText === newWordLastSaved.target && translationText === newWordLastSaved.translation) {
-            return true;
+        if (isNewWordPanelActive() && el?.newWordStartBtn) {
+            el.newWordStartBtn.disabled = !currentBlob || !!uploadLockState
+                || newWordSubmitInFlight || newWordPreparationUncertain
+                || !!newWordTextConflict || newWordTextRecoveryBusy;
         }
+    }
 
-        const wordId = images[currentImageIndex]?.word_id || images[0]?.word_id || 0;
-        if (!wordId) {
-            flashNewWordAutoStatus('error', i18n.new_word_failed || 'New word setup failed:');
-            return false;
+    function getPositiveRecorderWordId(value) {
+        if (typeof value !== 'number' && !(typeof value === 'string' && /^[0-9]+$/.test(value))) return 0;
+        const id = Number(value);
+        return Number.isSafeInteger(id) && id > 0 ? id : 0;
+    }
+
+    function getNewWordTextDraft() {
+        const el = window.llRecorder;
+        return {
+            target: (el.newWordTextTarget?.value || '').trim(),
+            translation: (el.newWordTextTranslation?.value || '').trim()
+        };
+    }
+
+    function newWordTextMatches(left, right) {
+        return left.target === right.target && left.translation === right.translation;
+    }
+
+    function normalizeRecorderTextReceipt(payload, wordId) {
+        if (!payload || getPositiveRecorderWordId(payload.word_id) !== wordId
+            || typeof payload.word_text_target !== 'string' || typeof payload.word_translation !== 'string'
+            || typeof payload.text_revision !== 'string' || !payload.text_revision || payload.text_revision.length > 256) return null;
+        return {
+            word_id: wordId,
+            word_text_target: payload.word_text_target,
+            word_translation: payload.word_translation,
+            post_title: typeof payload.post_title === 'string' ? payload.post_title : payload.word_text_target,
+            store_in_title: payload.store_in_title !== false,
+            text_revision: payload.text_revision
+        };
+    }
+
+    function acknowledgeNewWordText(receipt, updateVisible) {
+        newWordTextRevision = receipt.text_revision;
+        newWordLastSaved = { target: receipt.word_text_target, translation: receipt.word_translation };
+        if (!updateVisible) return;
+        const el = window.llRecorder;
+        if (el.newWordTextTarget) el.newWordTextTarget.value = receipt.word_text_target;
+        if (el.newWordTextTranslation) el.newWordTextTranslation.value = receipt.word_translation;
+        applyNewWordTextToState({
+            targetText: receipt.word_text_target,
+            translationText: receipt.word_translation,
+            postTitle: receipt.post_title,
+            savedTranslation: receipt.word_translation,
+            storeInTitle: receipt.store_in_title
+        });
+        images[currentImageIndex].text_revision = receipt.text_revision;
+        refreshCurrentImageDisplay();
+    }
+
+    function removeNewWordRecoveryControls() {
+        const panel = window.llRecorder?.newWordPanel?.querySelector('[data-ll-new-word-recovery]');
+        const download = panel?.querySelector('[data-ll-new-word-download]');
+        if (download) URL.revokeObjectURL(download.href);
+        panel?.remove();
+    }
+
+    function renderNewWordRecoveryControls() {
+        removeNewWordRecoveryControls();
+        const el = window.llRecorder;
+        if (!el?.newWordPanel || (!newWordTextConflict && !newWordPreparationUncertain)) return;
+        const panel = document.createElement('div');
+        panel.className = 'll-new-word-recovery';
+        panel.dataset.llNewWordRecovery = '1';
+        panel.setAttribute('role', 'group');
+        const addButton = (key, attribute, callback, primary) => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'll-btn ll-new-word-recovery-action ' + (primary ? 'll-btn-primary' : 'll-btn-secondary');
+            button.textContent = i18n[key] || '';
+            button.setAttribute(attribute, '1');
+            button.disabled = newWordTextRecoveryBusy || newWordSubmitInFlight || !!newWordTextSavePromise;
+            button.addEventListener('click', callback);
+            panel.appendChild(button);
+        };
+        if (newWordPreparationUncertain) {
+            if (newWordPreparationRequest && newWordPreparationRequest.retryable !== false) {
+                addButton('new_word_prepare_retry', 'data-ll-new-word-retry-prepare', submitAndNext, true);
+            } else if (currentBlob?.size && i18n.new_word_download_recording) {
+                const download = document.createElement('a');
+                download.className = 'll-btn ll-btn-secondary ll-new-word-recovery-action';
+                download.dataset.llNewWordDownload = '1';
+                download.textContent = i18n.new_word_download_recording;
+                download.download = 'recording' + getBlobExtension(currentBlob.type);
+                download.href = URL.createObjectURL(currentBlob);
+                panel.appendChild(download);
+            }
+        } else if (newWordTextConflict.current) {
+            const current = newWordTextConflict.current;
+            const label = document.createElement('strong');
+            label.className = 'll-new-word-recovery-label';
+            label.textContent = i18n.new_word_saved_text || '';
+            panel.appendChild(label);
+            const preview = document.createElement('pre');
+            preview.className = 'll-new-word-recovery-text';
+            preview.textContent = current.word_text_target + '\n' + current.word_translation;
+            panel.appendChild(preview);
+            addButton('new_word_use_saved_text', 'data-ll-new-word-use-saved', () => {
+                if (newWordTextRecoveryBusy || newWordSubmitInFlight || newWordTextSavePromise) return;
+                newWordTextConflict = null;
+                acknowledgeNewWordText(current, true);
+                removeNewWordRecoveryControls();
+                showNewWordStatus(i18n.new_word_saved || '', 'success');
+                syncNewWordSaveButton();
+            });
+            addButton('new_word_save_my_changes', 'data-ll-new-word-save-local', () => {
+                if (newWordTextRecoveryBusy || newWordSubmitInFlight || newWordTextSavePromise) return;
+                // This revision is exactly the server text shown for review.
+                // A second writer still causes another conflict, never a force write.
+                newWordTextRevision = current.text_revision;
+                newWordTextConflict = null;
+                removeNewWordRecoveryControls();
+                maybeUpdateNewWordText(true);
+            }, true);
+        } else {
+            addButton('new_word_check_saved_text', 'data-ll-new-word-check-saved', checkCurrentNewWordText, true);
         }
+        if (!panel.children.length) return;
+        if (el.newWordStatus) el.newWordStatus.insertAdjacentElement('afterend', panel);
+        else el.newWordPanel.prepend(panel);
+    }
 
+    function requireNewWordTextReview(current, message) {
+        window.clearTimeout(newWordTextSaveTimer);
+        newWordTextSaveTimer = null;
+        newWordTextConflict = { current };
+        const el = window.llRecorder;
+        if (newWordMode && !newWordUsingPanel && el?.newWordPanel) {
+            // Later recording types use the main recorder. Bring the same
+            // prepared form back for review without resetting its audio or text.
+            newWordUsingPanel = true;
+            if (el.newWordOverlay) el.newWordOverlay.removeAttribute('hidden');
+            el.newWordPanel.style.display = 'block';
+            if (el.mainScreen) el.mainScreen.style.display = 'none';
+            if (el.newWordToggle) el.newWordToggle.setAttribute('aria-expanded', 'true');
+            activateRecorderDialog('new-word', el.newWordPanel, el.newWordToggle, el.newWordBackdrop, el.newWordBackBtn);
+            syncProcessingReviewSlot();
+            if (currentBlob && !processingState?.reviewReady) {
+                const controls = getActiveControls();
+                setAudioBlob(controls.playbackAudio, currentBlob);
+                if (controls.playbackControls) controls.playbackControls.style.display = 'block';
+                if (controls.recordBtn) controls.recordBtn.style.display = 'none';
+                activeRecordingControls = controls;
+            }
+            syncOverlayScrollLock();
+        }
+        flashNewWordAutoStatus('error', message || i18n.new_word_text_conflict || '');
+        syncNewWordSaveButton();
+        renderNewWordRecoveryControls();
+    }
+
+    async function fetchCurrentNewWordText(wordId) {
         const formData = new FormData();
-        formData.append('action', 'll_update_new_word_text');
+        formData.append('action', 'll_get_new_word_text');
         formData.append('nonce', nonce);
         appendRequestLocale(formData);
         formData.append('word_id', wordId);
-        formData.append('word_text_target', targetText);
-        formData.append('word_text_translation', translationText);
+        const { response, payload } = await fetchJsonWithDeadline(ajaxUrl, { method: 'POST', body: formData });
+        if (!response.ok || !payload?.success) throw recorderServerError(payload, i18n.new_word_text_read_failed);
+        const current = normalizeRecorderTextReceipt(payload.data, wordId);
+        if (!current) throw new Error('invalid_recorder_text_receipt');
+        return current;
+    }
 
+    async function checkCurrentNewWordText() {
+        if (newWordTextRecoveryBusy || newWordSubmitInFlight || newWordTextSavePromise || !newWordPrepared) return;
+        const generation = newWordTextSaveGeneration;
+        const wordId = getPositiveRecorderWordId(images[currentImageIndex]?.word_id);
+        const isCurrent = () => generation === newWordTextSaveGeneration && newWordPrepared
+            && getPositiveRecorderWordId(images[currentImageIndex]?.word_id) === wordId;
+        newWordTextRecoveryBusy = true;
+        showNewWordStatus(i18n.new_word_prepare_recovering || '', 'info');
+        renderNewWordRecoveryControls();
         try {
-            const response = await fetchCommitSensitiveRequest(ajaxUrl, { method: 'POST', body: formData });
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            const current = await fetchCurrentNewWordText(wordId);
+            if (!isCurrent()) return;
+            const saved = { target: current.word_text_target, translation: current.word_translation };
+            if (newWordTextMatches(saved, getNewWordTextDraft())) {
+                newWordTextConflict = null;
+                acknowledgeNewWordText(current, true);
+                showNewWordStatus(i18n.new_word_saved || '', 'success');
+            } else {
+                requireNewWordTextReview(current);
             }
-            const contentType = response.headers.get('content-type') || '';
-            if (!contentType.includes('application/json')) {
-                throw new Error(i18n.invalid_response || 'Server returned invalid response format');
+        } catch (error) {
+            if (isCurrent()) requireNewWordTextReview(null, getRecorderMutationErrorMessage(error, i18n.new_word_text_read_failed));
+        } finally {
+            if (isCurrent()) {
+                newWordTextRecoveryBusy = false;
+                syncNewWordSaveButton();
+                renderNewWordRecoveryControls();
             }
-            const data = await response.json();
-            if (!data.success) {
-                throw new Error(data.data || data.message || (i18n.new_word_update_text_failed || 'Failed to update word text'));
-            }
-            const responseData = data.data || {};
-            const postTitle = typeof responseData.post_title === 'string' ? responseData.post_title : '';
-            const savedTranslation = typeof responseData.word_translation === 'string' ? responseData.word_translation : '';
-            const storeInTitle = typeof responseData.store_in_title === 'boolean' ? responseData.store_in_title : null;
-
-            newWordLastSaved = { target: targetText, translation: translationText };
-            applyNewWordTextToState({
-                targetText,
-                translationText,
-                postTitle,
-                savedTranslation,
-                storeInTitle
-            });
-            refreshCurrentImageDisplay();
-            return true;
-        } catch (err) {
-            flashNewWordAutoStatus('error', (i18n.new_word_failed || 'New word setup failed:') + ' ' + (err.message || ''));
-            return false;
         }
+    }
+
+    function maybeUpdateNewWordText(force) {
+        window.clearTimeout(newWordTextSaveTimer);
+        newWordTextSaveTimer = null;
+        if (!newWordPrepared) return Promise.resolve(true);
+        if (newWordTextSavePromise) return newWordTextSavePromise;
+        if (newWordTextConflict) {
+            renderNewWordRecoveryControls();
+            return Promise.resolve(false);
+        }
+
+        const el = window.llRecorder;
+        const generation = newWordTextSaveGeneration;
+        const wordId = images[currentImageIndex]?.word_id || 0;
+        const isCurrentWord = () => generation === newWordTextSaveGeneration
+            && newWordMode && newWordPrepared && images[currentImageIndex]?.word_id === wordId;
+        if (!wordId) {
+            flashNewWordAutoStatus('error', i18n.new_word_failed || '');
+            return Promise.resolve(false);
+        }
+
+        const save = async () => {
+            if (!newWordTextRevision) {
+                // Legacy markup may not carry a revision. Only bootstrap from
+                // the known original baseline; never adopt a newer writer silently.
+                try {
+                    const current = await fetchCurrentNewWordText(wordId);
+                    if (!isCurrentWord()) return false;
+                    if (!newWordTextMatches(newWordLastSaved, { target: current.word_text_target, translation: current.word_translation })) {
+                        requireNewWordTextReview(current);
+                        return false;
+                    }
+                    newWordTextRevision = current.text_revision;
+                } catch (error) {
+                    if (isCurrentWord()) requireNewWordTextReview(null, getRecorderMutationErrorMessage(error, i18n.new_word_text_read_failed));
+                    return false;
+                }
+            }
+            let mustSave = !!force;
+            while (isCurrentWord()) {
+                const targetText = (el.newWordTextTarget?.value || '').trim();
+                const translationText = (el.newWordTextTranslation?.value || '').trim();
+                if (!mustSave && targetText === newWordLastSaved.target && translationText === newWordLastSaved.translation) {
+                    window.clearTimeout(newWordTextSaveTimer);
+                    newWordTextSaveTimer = null;
+                    showNewWordStatus(i18n.new_word_saved || '', 'success');
+                    return true;
+                }
+                mustSave = false;
+                showNewWordStatus(i18n.new_word_saving || '', 'info');
+                const formData = new FormData();
+                formData.append('action', 'll_update_new_word_text');
+                formData.append('nonce', nonce);
+                appendRequestLocale(formData);
+                formData.append('word_id', wordId);
+                formData.append('word_text_target', targetText);
+                formData.append('word_text_translation', translationText);
+                formData.append('expected_text_revision', newWordTextRevision);
+
+                try {
+                    const { response, payload: data } = await fetchJsonWithDeadline(ajaxUrl, { method: 'POST', body: formData });
+                    if (!response.ok || !data?.success) {
+                        const error = recorderServerError(data, i18n.new_word_update_text_failed);
+                        error.llToolsConflict = data?.data?.code === 'recorder_text_conflict';
+                        error.llToolsCurrent = data?.data?.current;
+                        throw error;
+                    }
+                    if (!isCurrentWord()) return false;
+                    const receipt = normalizeRecorderTextReceipt(data.data, wordId);
+                    if (!receipt) throw new Error('invalid_recorder_text_receipt');
+                    const draftUnchanged = (el.newWordTextTarget?.value || '').trim() === targetText
+                        && (el.newWordTextTranslation?.value || '').trim() === translationText;
+                    acknowledgeNewWordText(receipt, draftUnchanged);
+                    // Read the latest fields only after the prior write settled.
+                    // Save also awaits this loop, including a newer queued draft.
+                } catch (err) {
+                    if (!isCurrentWord()) return false;
+                    const current = normalizeRecorderTextReceipt(err?.llToolsCurrent, wordId);
+                    requireNewWordTextReview(current, err?.llToolsConflict
+                        ? (i18n.new_word_text_conflict || '')
+                        : getRecorderMutationErrorMessage(err, i18n.new_word_update_text_failed));
+                    return false;
+                }
+            }
+            return false;
+        };
+        const pending = save().finally(() => {
+            if (newWordTextSavePromise === pending) {
+                newWordTextSavePromise = null;
+                syncNewWordSaveButton();
+                renderNewWordRecoveryControls();
+            }
+        });
+        newWordTextSavePromise = pending;
+        return pending;
     }
 
     function applyNewWordTextToState(payload) {
@@ -3337,7 +3618,7 @@
 
     async function pollNewWordTranscription(transcriptId, wordsetIds, wordsetLegacy, signal) {
         if (!transcriptId) {
-            throw new Error(i18n.transcription_timeout || 'Transcription is still processing. Please try again in a moment.');
+            throw recorderServerError(null, i18n.transcription_timeout);
         }
 
         for (let attempt = 0; attempt < transcribePollAttempts; attempt++) {
@@ -3357,24 +3638,13 @@
             formData.append('wordset_ids', JSON.stringify(wordsetIds));
             formData.append('wordset', wordsetLegacy);
 
-            const response = await fetchWithDeadline(ajaxUrl, {
+            const { response, payload: data } = await fetchJsonWithDeadline(ajaxUrl, {
                 method: 'POST',
                 body: formData,
                 signal
             });
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
-
-            const contentType = response.headers.get('content-type') || '';
-            if (!contentType.includes('application/json')) {
-                throw new Error(i18n.invalid_response || 'Server returned invalid response format');
-            }
-
-            const data = await response.json();
-            if (!data.success) {
-                const message = data.data?.message || data.data || data.message || (i18n.transcription_request_failed || 'Transcription failed');
-                throw new Error(message);
+            if (!response.ok || !data?.success) {
+                throw recorderServerError(data, i18n.transcription_request_failed);
             }
 
             const payload = data.data || {};
@@ -3383,7 +3653,7 @@
             }
         }
 
-        throw new Error(i18n.transcription_timeout || 'Transcription is still processing. Please try again in a moment.');
+        throw recorderServerError(null, i18n.transcription_timeout);
     }
 
     async function maybeTranslateTargetText(text) {
@@ -3417,17 +3687,9 @@
                 body: formData,
                 signal: translateController.signal
             });
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
-            const contentType = response.headers.get('content-type') || '';
-            if (!contentType.includes('application/json')) {
-                throw new Error(i18n.invalid_response || 'Server returned invalid response format');
-            }
             const data = await response.json();
-            if (!data.success) {
-                const message = data.data?.message || data.data || data.message || (i18n.translation_request_failed || 'Translation failed');
-                throw new Error(message);
+            if (!response.ok || !data?.success) {
+                throw recorderServerError(data, i18n.translation_request_failed);
             }
 
             if (newWordAutoCancelled || translateController.signal.aborted) {
@@ -3449,7 +3711,7 @@
             if (err && err.name === 'AbortError') {
                 return;
             }
-            flashNewWordAutoStatus('error', (i18n.translation_failed || 'Translation failed:') + ' ' + (err.message || ''));
+            flashNewWordAutoStatus('error', getRecorderMutationErrorMessage(err, i18n.translation_request_failed));
         } finally {
             newWordTranslationInFlight = false;
             if (newWordTranslateAbort === translateController) {
@@ -3495,17 +3757,9 @@
                 body: formData,
                 signal: transcribeController.signal
             });
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
-            const contentType = response.headers.get('content-type') || '';
-            if (!contentType.includes('application/json')) {
-                throw new Error(i18n.invalid_response || 'Server returned invalid response format');
-            }
             const data = await response.json();
-            if (!data.success) {
-                const message = data.data?.message || data.data || data.message || (i18n.transcription_request_failed || 'Transcription failed');
-                throw new Error(message);
+            if (!response.ok || !data?.success) {
+                throw recorderServerError(data, i18n.transcription_request_failed);
             }
 
             let resultData = data.data || {};
@@ -3548,7 +3802,7 @@
             if (err && err.name === 'AbortError') {
                 return;
             }
-            flashNewWordAutoStatus('error', (i18n.transcription_failed || 'Transcription failed:') + ' ' + (err.message || ''));
+            flashNewWordAutoStatus('error', getRecorderMutationErrorMessage(err, i18n.transcription_request_failed));
         } finally {
             newWordTranscriptionInFlight = false;
             if (newWordTranscribeAbort === transcribeController) {
@@ -3970,15 +4224,27 @@
         setTypeForCurrentImage();
     }
 
+    function createNewWordPreparationId() {
+        if (!window.crypto || typeof window.crypto.getRandomValues !== 'function') return '';
+        const random = new Uint8Array(16);
+        try { window.crypto.getRandomValues(random); } catch (_) { return ''; }
+        return Math.floor(Date.now() / 1000) + '-'
+            + Array.from(random, value => value.toString(16).padStart(2, '0')).join('');
+    }
+
     async function prepareNewWordRecording(options = {}) {
         const { keepPanel = false, preserveCurrentRecording = false } = options;
         const el = window.llRecorder;
         if (!el.newWordPanel || !allowNewWords) return false;
         if (newWordPrepared) return true;
+        if (newWordPreparationUncertain && !newWordPreparationRequest) {
+            flashNewWordAutoStatus('error', i18n.new_word_prepare_unknown || i18n.new_word_prepare_failed || '');
+            return false;
+        }
 
         const createCategory = !!el.newWordCreateCategory?.checked;
         const newCategoryName = (el.newWordCategoryName?.value || '').trim();
-        if (createCategory && !newCategoryName) {
+        if (!newWordPreparationRequest && createCategory && !newCategoryName) {
             markNewWordFieldError(el.newWordCategoryName);
             flashNewWordAutoStatus('error', i18n.new_word_missing_category || 'Enter a category name or disable "Create new category".');
             return false;
@@ -3989,16 +4255,12 @@
         const category = el.newWordCategory?.value || 'uncategorized';
         lastNewWordCategory = category;
 
-        if (el.newWordStartBtn) el.newWordStartBtn.disabled = true;
-        if (el.newWordBackBtn) el.newWordBackBtn.disabled = true;
-        if (el.newWordRecordBtn) el.newWordRecordBtn.disabled = true;
-
         const wordsetIds = Array.isArray(window.ll_recorder_data?.wordset_ids) ? window.ll_recorder_data.wordset_ids : [];
         const wordsetLegacy = window.ll_recorder_data?.wordset || '';
         const includeTypes = window.ll_recorder_data?.include_types || '';
         const excludeTypes = window.ll_recorder_data?.exclude_types || '';
 
-        const formData = new FormData();
+        let formData = new FormData();
         formData.append('action', 'll_prepare_new_word_recording');
         formData.append('nonce', nonce);
         appendRequestLocale(formData);
@@ -4021,24 +4283,54 @@
             });
         }
 
+        const recovering = newWordPreparationUncertain;
+        if (newWordPreparationRequest) {
+            // The receipt is bound to this exact payload. New text typed while
+            // recovering is retained locally and saved conditionally afterward.
+            formData = new FormData();
+            newWordPreparationRequest.entries.forEach(([key, value]) => formData.append(key, value));
+        } else {
+            const preparationId = createNewWordPreparationId();
+            if (!preparationId) {
+                flashNewWordAutoStatus('error', i18n.request_failed || i18n.new_word_prepare_failed || '');
+                return false;
+            }
+            formData.append('preparation_id', preparationId);
+            newWordPreparationRequest = { entries: Array.from(formData.entries()), target: targetText, translation: translationText };
+        }
+        const generation = newWordTextSaveGeneration;
+        const request = newWordPreparationRequest;
+        const isCurrentPreparation = () => generation === newWordTextSaveGeneration && newWordMode;
+        if (el.newWordStartBtn) el.newWordStartBtn.disabled = true;
+        if (el.newWordBackBtn) el.newWordBackBtn.disabled = true;
+        if (el.newWordRecordBtn) el.newWordRecordBtn.disabled = true;
+        newWordPreparationUncertain = true;
+        showNewWordStatus(recovering ? (i18n.new_word_prepare_recovering || '') : (i18n.new_word_preparing || ''), 'info');
+        removeNewWordRecoveryControls();
         try {
-            const response = await fetchCommitSensitiveRequest(ajaxUrl, { method: 'POST', body: formData });
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
-            const contentType = response.headers.get('content-type') || '';
-            if (!contentType.includes('application/json')) {
-                throw new Error(i18n.invalid_response || 'Server returned invalid response format');
-            }
-            const data = await response.json();
-            if (!data.success) {
-                throw new Error(data.data || data.message || (i18n.new_word_prepare_failed || 'Failed to prepare new word'));
+            const { response, payload: data } = await fetchJsonWithDeadline(ajaxUrl, { method: 'POST', body: formData });
+            if (!isCurrentPreparation()) return false;
+            if (!data?.success || !response.ok) {
+                if (data?.success === false && data.safe_to_retry === true) {
+                    newWordPreparationUncertain = false;
+                    newWordPreparationRequest = null;
+                } else if (data?.data?.retryable === false) {
+                    request.retryable = false;
+                } else if (['recorder_preparation_expired', 'recorder_preparation_mismatch',
+                    'recorder_preparation_incomplete', 'recorder_preparation_unavailable',
+                    'recorder_receipt_invalid'].includes(data?.data?.code)) {
+                    request.retryable = false;
+                }
+                throw recorderServerError(data, i18n.new_word_prepare_failed);
             }
 
             const word = data.data?.word;
-            if (!word) {
+            const preparedWordId = getPositiveRecorderWordId(word?.word_id);
+            if (!word || typeof word !== 'object' || Array.isArray(word)
+                || !Number.isSafeInteger(preparedWordId) || preparedWordId <= 0) {
                 throw new Error(i18n.new_word_missing_data || 'Missing word data');
             }
+            word.word_id = preparedWordId;
             const recordingTypes = sortRecordingTypes(data.data?.recording_types || []);
             normalizeImageRecordingTypeState(word);
 
@@ -4066,11 +4358,16 @@
             syncLockedRecordingContextValues();
 
             newWordPrepared = true;
+            newWordPreparationUncertain = false;
+            newWordTextRevision = typeof word.text_revision === 'string' && word.text_revision.length <= 256 ? word.text_revision : '';
             newWordStage = 'recording';
             newWordUsingPanel = !!keepPanel;
             newWordTranscriptionDone = false;
             newWordTranscriptionInFlight = false;
-            newWordLastSaved = { target: targetText, translation: translationText };
+            newWordLastSaved = {
+                target: typeof word.word_text_target === 'string' ? word.word_text_target : request.target,
+                translation: typeof word.word_translation === 'string' ? word.word_translation : request.translation
+            };
 
             if (el.categorySelect) el.categorySelect.disabled = true;
             if (el.wordsetSelect) el.wordsetSelect.disabled = true;
@@ -4098,12 +4395,19 @@
             }
             return true;
         } catch (err) {
-            flashNewWordAutoStatus('error', (i18n.new_word_failed || 'New word setup failed:') + ' ' + (err.message || ''));
+            if (!isCurrentPreparation()) return false;
+            flashNewWordAutoStatus('error', newWordPreparationUncertain
+                ? (err?.llToolsUserMessage || i18n.new_word_prepare_unknown || i18n.new_word_prepare_failed || '')
+                : getRecorderMutationErrorMessage(err, i18n.new_word_prepare_failed));
             return false;
         } finally {
-            if (el.newWordStartBtn) el.newWordStartBtn.disabled = true;
-            if (el.newWordBackBtn) el.newWordBackBtn.disabled = false;
-            if (el.newWordRecordBtn) el.newWordRecordBtn.disabled = false;
+            if (isCurrentPreparation()) {
+                syncNewWordSaveButton();
+                if (el.newWordBackBtn) el.newWordBackBtn.disabled = newWordPreparationUncertain;
+                if (el.newWordRecordBtn) el.newWordRecordBtn.disabled = newWordPreparationUncertain;
+                if (el.newWordRedoBtn) el.newWordRedoBtn.disabled = newWordPreparationUncertain;
+                renderNewWordRecoveryControls();
+            }
         }
     }
 
@@ -4324,6 +4628,8 @@
             el.newWordBackBtn,
             el.newWordRecordBtn,
             el.newWordRedoBtn,
+            el.newWordTextTarget,
+            el.newWordTextTranslation,
         ].filter(Boolean);
 
         uploadLockState = controls.map(control => ({
@@ -4476,6 +4782,8 @@
         currentImage.missing_types = remainingTypes;
 
         if (requireAll && remainingTypes.length > 0) {
+            newWordUploadTransition = false;
+            setNewWordTextFieldsDisabled(false);
             if (isNewWordPanelActive() && recorderView !== 'overview' && el.mainScreen) {
                 newWordUsingPanel = false;
                 if (el.newWordOverlay) el.newWordOverlay.setAttribute('hidden', 'hidden');
@@ -4499,9 +4807,19 @@
         const successMessage = autoProcessed
             ? (i18n.success_processed || 'Success! Recording published.')
             : (i18n.success || 'Success! Recording will be processed later.');
+        newWordUploadTransition = newWordMode;
+        setNewWordTextFieldsDisabled(newWordUploadTransition);
+        const completedGeneration = newWordTextSaveGeneration;
         resetRecordingState();
         showStatus(successMessage, 'success');
-        setTimeout(() => loadImage(currentImageIndex + 1), 800);
+        if (newWordUploadTransition) {
+            [el.newWordRecordBtn, el.newWordRedoBtn, el.newWordBackBtn,
+                el.recordBtn, el.redoBtn, el.skipBtn, el.hideBtn].filter(Boolean).forEach(control => { control.disabled = true; });
+        }
+        setTimeout(() => {
+            if (completedGeneration !== newWordTextSaveGeneration || images[currentImageIndex] !== currentImage) return;
+            loadImage(currentImageIndex + 1);
+        }, 800);
         return false; // Signal that we're moving to next image
     }
 
@@ -4562,7 +4880,17 @@
         window.addEventListener('pagehide', event => {
             if (!event || event.persisted !== true) {
                 revokeRecorderBlobUrls();
+                removeNewWordRecoveryControls();
             }
+        });
+        window.addEventListener('beforeunload', event => {
+            if (!newWordPrepared && !newWordPreparationUncertain) return;
+            const el = window.llRecorder;
+            if (!newWordPreparationUncertain && !newWordTextConflict && !newWordTextSavePromise && !newWordTextSaveTimer
+                && (el.newWordTextTarget?.value || '').trim() === newWordLastSaved.target
+                && (el.newWordTextTranslation?.value || '').trim() === newWordLastSaved.translation) return;
+            event.preventDefault();
+            event.returnValue = '';
         });
     }
 
@@ -5366,7 +5694,7 @@
             controls.hideBtn.disabled = false;
         }
         if (isNewWordPanelActive() && el.newWordStartBtn) {
-            el.newWordStartBtn.disabled = false;
+            syncNewWordSaveButton();
         }
         if (isNewWordPanelActive() && el.newWordBackBtn && !isRecordingContextLocked()) {
             el.newWordBackBtn.disabled = false;
@@ -5541,7 +5869,9 @@
     }
 
     function redo() {
+        if (newWordMode && (newWordUploadTransition || newWordSubmitInFlight || newWordPreparationUncertain)) return;
         if (newWordMode) {
+            captureNewWordDraftBeforeRecording();
             newWordTranscriptionDone = false;
             newWordTranscriptionInFlight = false;
             newWordTranslationInFlight = false;
@@ -5702,6 +6032,26 @@
     }
 
     async function submitAndNext() {
+        if (uploadLockState || newWordSubmitInFlight) return;
+        const isNewWordSubmission = newWordMode;
+        if (isNewWordSubmission) {
+            newWordSubmitInFlight = true;
+            syncNewWordSaveButton();
+            setNewWordTextFieldsDisabled(false);
+        }
+        try {
+            await submitAndNextInternal();
+        } finally {
+            if (isNewWordSubmission) {
+                newWordSubmitInFlight = false;
+                syncNewWordSaveButton();
+                setNewWordTextFieldsDisabled(false);
+                renderNewWordRecoveryControls();
+            }
+        }
+    }
+
+    async function submitAndNextInternal() {
         if (uploadLockState) {
             return;
         }
@@ -5952,23 +6302,6 @@
         }
 
         return div;
-    }
-
-    function wireReviewEvents(container) {
-        const trim = container.querySelector('.ll-file-trim');
-        const noise = container.querySelector('.ll-file-noise');
-        const loudness = container.querySelector('.ll-file-loudness');
-
-        [trim, noise, loudness].forEach(control => {
-            if (control) {
-                control.addEventListener('change', () => updateProcessedAudio(container));
-            }
-        });
-
-        const reprocessBtn = container.querySelector('.ll-reprocess-btn');
-        if (reprocessBtn) {
-            reprocessBtn.addEventListener('click', () => reprocessCurrentRecording(container));
-        }
     }
 
     function getProcessingContext() {
@@ -6586,7 +6919,7 @@
 
                 showStatus(i18n.category_switched || 'Category switched. Ready to record.', 'success');
             } else {
-                const errorMsg = getRecorderServerMessage(data) || getRecorderReadErrorMessage(null);
+                const errorMsg = getAjaxErrorMessage(data) || getRecorderReadErrorMessage(null);
                 if (previousCategory) {
                     el.categorySelect.value = previousCategory;
                     syncCategorySelectorUi();
