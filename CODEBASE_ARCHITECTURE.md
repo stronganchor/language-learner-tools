@@ -585,6 +585,7 @@ vendor/
 - `ll_teacher_class` (hidden CPT)
   - Stores wordset-scoped class records with teacher ownership and learner membership.
   - Managed primarily through the wordset Classes view; invite and manual-assignment helpers live in `includes/teacher-classes.php`.
+  - Invite-only registration accepts a signed signup token for a published class from the invite request or the registration form's same-origin return URL. After signup, the authenticated visit to that URL validates the token again before enrolling the learner.
   - Both the frontend and legacy wp-admin Classes surfaces page class/account results and hydrate at most one learner-progress page. Keep class/account queries at `page_size + 1`, use `ID ASC` after title/display-name ordering so offset pages are deterministic, preserve the selected teacher outside the current account page, globally order admin progress before applying its bounded `number`/`offset`, reset empty class pages, clamp stale final learner-page requests, and label paged progress metrics as page-scoped rather than rebuilding full-class aggregates during an interactive request. Frontend sortable columns must toggle in both directions even when their default is descending, preserve focus/`aria-sort`, and keep unavailable values at the stable tail in either direction.
 - LMS assignment and delivery tables (custom InnoDB tables)
   - `ll_tools_lms_assignments` and `ll_tools_lms_assignment_revisions` bind an opaque assignment to one owned class/wordset and a bounded immutable closed-response manifest revision.

@@ -16318,7 +16318,7 @@ msgstr "Davetleri ve öğrenci ilerlemesini görmek için bir sınıf seç."
 
 #. translators: %s: teacher display name
 #: includes/pages/wordset-pages.php:13092
-#: includes/teacher-classes.php:2238
+#: includes/teacher-classes.php:2273
 #, php-format
 msgid "Teacher: %s"
 msgstr "Öğretmen: %s"
@@ -19940,73 +19940,73 @@ msgstr "Bu sınıf daveti bağlantısı geçersiz."
 msgid "This class invitation link has expired."
 msgstr "Bu sınıf daveti bağlantısının süresi doldu."
 
-#: includes/teacher-classes.php:2054
+#: includes/teacher-classes.php:2089
 msgid "Please sign in with a valid learner account."
 msgstr "Lütfen geçerli bir öğrenci hesabıyla oturum aç."
 
-#: includes/teacher-classes.php:2059
+#: includes/teacher-classes.php:2094
 msgid "This invitation is only for learner accounts."
 msgstr "Bu davetiye yalnızca öğrenci hesapları içindir."
 
-#: includes/teacher-classes.php:2064
+#: includes/teacher-classes.php:2099
 msgid "Please sign in with the invited learner email address."
 msgstr "Lütfen davet edilen öğrencinin e-posta adresiyle oturum aç."
 
-#: includes/teacher-classes.php:2204
+#: includes/teacher-classes.php:2239
 msgid "Enter the email address of an existing learner account."
 msgstr "Mevcut bir öğrenci hesabının e-posta adresini gir."
 
-#: includes/teacher-classes.php:2209
+#: includes/teacher-classes.php:2244
 msgid "The class invitation link could not be generated."
 msgstr "Sınıf daveti bağlantısı oluşturulamadı."
 
 #. translators: %s: class name
-#: includes/teacher-classes.php:2222
+#: includes/teacher-classes.php:2257
 #, php-format
 msgid "Invitation to join %s"
 msgstr "Katılım daveti: %s"
 
 #. translators: %1$s: site name, %2$s: class name
-#: includes/teacher-classes.php:2229
+#: includes/teacher-classes.php:2264
 #, php-format
 msgid "You have been invited on %1$s to join the class \"%2$s\"."
 msgstr "%1$s tarihinde \"%2$s\" sınıfına katılmaya davet edildiniz."
 
-#: includes/teacher-classes.php:2244
+#: includes/teacher-classes.php:2279
 msgid "Open this link and sign in with your learner account to join the class:"
 msgstr "Bu bağlantıyı aç ve sınıfa katılmak için öğrenci hesabınla oturum aç:"
 
-#: includes/teacher-classes.php:2263
+#: includes/teacher-classes.php:2298
 msgid "The invitation email could not be sent."
 msgstr "Davet e-postası gönderilemedi."
 
 #. translators: %s: class name
-#: includes/teacher-classes.php:2308
+#: includes/teacher-classes.php:2343
 #, php-format
 msgid "Create a learner account to join %s."
 msgstr "%s sınıfına katılmak için bir öğrenci hesabı oluştur."
 
-#: includes/teacher-classes.php:2309
-#: includes/teacher-classes.php:2314
-#: includes/teacher-classes.php:2334
-#: includes/teacher-classes.php:2339
+#: includes/teacher-classes.php:2344
+#: includes/teacher-classes.php:2349
+#: includes/teacher-classes.php:2369
+#: includes/teacher-classes.php:2374
 msgid "this class"
 msgstr "bu sınıf"
 
 #. translators: %s: class name
-#: includes/teacher-classes.php:2313
+#: includes/teacher-classes.php:2348
 #, php-format
 msgid "Sign in with the invited learner account to join %s."
 msgstr "%s sınıfına katılmak için davet edilen öğrenci hesabıyla oturum aç."
 
 #. translators: %s: class name
-#: includes/teacher-classes.php:2333
+#: includes/teacher-classes.php:2368
 #, php-format
 msgid "You are already a member of %s."
 msgstr "Zaten %s üyesisiniz."
 
 #. translators: %s: class name
-#: includes/teacher-classes.php:2338
+#: includes/teacher-classes.php:2373
 #, php-format
 msgid "You joined %s."
 msgstr "Katıldınız: %s."

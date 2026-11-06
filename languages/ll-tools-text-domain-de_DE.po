@@ -15095,7 +15095,7 @@ msgstr "Wähle eine Klasse aus, um Einladungen und Lernfortschritte zu sehen."
 
 #. translators: %s: teacher display name
 #: includes/pages/wordset-pages.php:13092
-#: includes/teacher-classes.php:2238
+#: includes/teacher-classes.php:2273
 #, php-format
 msgid "Teacher: %s"
 msgstr "Lehrkraft: %s"
@@ -22531,73 +22531,73 @@ msgstr "Dieser Link zur Klasseneinladung ist ungültig."
 msgid "This class invitation link has expired."
 msgstr "Der Link für diese Klasseneinladung ist abgelaufen."
 
-#: includes/teacher-classes.php:2054
+#: includes/teacher-classes.php:2089
 msgid "Please sign in with a valid learner account."
 msgstr "Bitte melde dich mit einem gültigen Lernenden-Konto an."
 
-#: includes/teacher-classes.php:2059
+#: includes/teacher-classes.php:2094
 msgid "This invitation is only for learner accounts."
 msgstr "Diese Einladung gilt nur für Konten von Lernenden."
 
-#: includes/teacher-classes.php:2064
+#: includes/teacher-classes.php:2099
 msgid "Please sign in with the invited learner email address."
 msgstr "Bitte melde dich mit der E-Mail-Adresse des eingeladenen Lernenden an."
 
-#: includes/teacher-classes.php:2204
+#: includes/teacher-classes.php:2239
 msgid "Enter the email address of an existing learner account."
 msgstr "Gib die E-Mail-Adresse eines bestehenden Kontos des Lernenden ein."
 
-#: includes/teacher-classes.php:2209
+#: includes/teacher-classes.php:2244
 msgid "The class invitation link could not be generated."
 msgstr "Der Link für die Klasseneinladung konnte nicht erstellt werden."
 
 #. translators: %s: class name
-#: includes/teacher-classes.php:2222
+#: includes/teacher-classes.php:2257
 #, php-format
 msgid "Invitation to join %s"
 msgstr "Einladung zum Beitritt %s"
 
 #. translators: %1$s: site name, %2$s: class name
-#: includes/teacher-classes.php:2229
+#: includes/teacher-classes.php:2264
 #, php-format
 msgid "You have been invited on %1$s to join the class \"%2$s\"."
 msgstr "Du wurdest auf %1$s eingeladen, der Klasse \"%2$s\" beizutreten."
 
-#: includes/teacher-classes.php:2244
+#: includes/teacher-classes.php:2279
 msgid "Open this link and sign in with your learner account to join the class:"
 msgstr "Öffne diesen Link und melde dich mit deinem Lernenden-Konto an, um der Klasse beizutreten:"
 
-#: includes/teacher-classes.php:2263
+#: includes/teacher-classes.php:2298
 msgid "The invitation email could not be sent."
 msgstr "Die Einladungs-E-Mail konnte nicht gesendet werden."
 
 #. translators: %s: class name
-#: includes/teacher-classes.php:2308
+#: includes/teacher-classes.php:2343
 #, php-format
 msgid "Create a learner account to join %s."
 msgstr "Erstelle ein Konto für Lernende, um %s beizutreten."
 
-#: includes/teacher-classes.php:2309
-#: includes/teacher-classes.php:2314
-#: includes/teacher-classes.php:2334
-#: includes/teacher-classes.php:2339
+#: includes/teacher-classes.php:2344
+#: includes/teacher-classes.php:2349
+#: includes/teacher-classes.php:2369
+#: includes/teacher-classes.php:2374
 msgid "this class"
 msgstr "diese Klasse"
 
 #. translators: %s: class name
-#: includes/teacher-classes.php:2313
+#: includes/teacher-classes.php:2348
 #, php-format
 msgid "Sign in with the invited learner account to join %s."
 msgstr "Melde dich mit dem Konto des eingeladenen Lernenden an, um %s beizutreten."
 
 #. translators: %s: class name
-#: includes/teacher-classes.php:2333
+#: includes/teacher-classes.php:2368
 #, php-format
 msgid "You are already a member of %s."
 msgstr "Du bist bereits ein Mitglied von %s."
 
 #. translators: %s: class name
-#: includes/teacher-classes.php:2338
+#: includes/teacher-classes.php:2373
 #, php-format
 msgid "You joined %s."
 msgstr "Du bist %s beigetreten."

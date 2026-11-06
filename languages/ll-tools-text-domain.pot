@@ -21034,7 +21034,7 @@ msgstr ""
 
 #. translators: %s: teacher display name
 #: includes/pages/wordset-pages.php:13092
-#: includes/teacher-classes.php:2238
+#: includes/teacher-classes.php:2273
 msgid "Teacher: %s"
 msgstr ""
 
@@ -29527,68 +29527,68 @@ msgstr ""
 msgid "This class invitation link has expired."
 msgstr ""
 
-#: includes/teacher-classes.php:2054
+#: includes/teacher-classes.php:2089
 msgid "Please sign in with a valid learner account."
 msgstr ""
 
-#: includes/teacher-classes.php:2059
+#: includes/teacher-classes.php:2094
 msgid "This invitation is only for learner accounts."
 msgstr ""
 
-#: includes/teacher-classes.php:2064
+#: includes/teacher-classes.php:2099
 msgid "Please sign in with the invited learner email address."
 msgstr ""
 
-#: includes/teacher-classes.php:2204
+#: includes/teacher-classes.php:2239
 msgid "Enter the email address of an existing learner account."
 msgstr ""
 
-#: includes/teacher-classes.php:2209
+#: includes/teacher-classes.php:2244
 msgid "The class invitation link could not be generated."
 msgstr ""
 
 #. translators: %s: class name
-#: includes/teacher-classes.php:2222
+#: includes/teacher-classes.php:2257
 msgid "Invitation to join %s"
 msgstr ""
 
 #. translators: %1$s: site name, %2$s: class name
-#: includes/teacher-classes.php:2229
+#: includes/teacher-classes.php:2264
 msgid "You have been invited on %1$s to join the class \"%2$s\"."
 msgstr ""
 
-#: includes/teacher-classes.php:2244
+#: includes/teacher-classes.php:2279
 msgid "Open this link and sign in with your learner account to join the class:"
 msgstr ""
 
-#: includes/teacher-classes.php:2263
+#: includes/teacher-classes.php:2298
 msgid "The invitation email could not be sent."
 msgstr ""
 
 #. translators: %s: class name
-#: includes/teacher-classes.php:2308
+#: includes/teacher-classes.php:2343
 msgid "Create a learner account to join %s."
 msgstr ""
 
-#: includes/teacher-classes.php:2309
-#: includes/teacher-classes.php:2314
-#: includes/teacher-classes.php:2334
-#: includes/teacher-classes.php:2339
+#: includes/teacher-classes.php:2344
+#: includes/teacher-classes.php:2349
+#: includes/teacher-classes.php:2369
+#: includes/teacher-classes.php:2374
 msgid "this class"
 msgstr ""
 
 #. translators: %s: class name
-#: includes/teacher-classes.php:2313
+#: includes/teacher-classes.php:2348
 msgid "Sign in with the invited learner account to join %s."
 msgstr ""
 
 #. translators: %s: class name
-#: includes/teacher-classes.php:2333
+#: includes/teacher-classes.php:2368
 msgid "You are already a member of %s."
 msgstr ""
 
 #. translators: %s: class name
-#: includes/teacher-classes.php:2338
+#: includes/teacher-classes.php:2373
 msgid "You joined %s."
 msgstr ""
 

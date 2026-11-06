@@ -2035,10 +2035,45 @@ if (!function_exists('ll_tools_teacher_class_reset_invite_request_context')) {
     }
 }
 
+if (!function_exists('ll_tools_teacher_class_get_signup_redirect_invite_token')) {
+    function ll_tools_teacher_class_get_signup_redirect_invite_token($raw_redirect): string {
+        $redirect = is_string($raw_redirect) ? wp_validate_redirect(wp_unslash($raw_redirect), '') : '';
+        $target = $redirect !== '' ? wp_parse_url($redirect) : false;
+        if (empty($target['query'])) {
+            return '';
+        }
+
+        if (isset($target['host'])) {
+            $home = wp_parse_url(home_url('/'));
+            $scheme = $target['scheme'] ?? '';
+            $default_port = $scheme === 'https' ? 443 : 80;
+            if ($scheme !== ($home['scheme'] ?? null)
+                || strcasecmp($target['host'], $home['host'] ?? '') !== 0
+                || ($target['port'] ?? $default_port) !== ($home['port'] ?? $default_port)
+                || isset($target['user']) || isset($target['pass'])) {
+                return '';
+            }
+        } elseif (!str_starts_with($redirect, '/')) {
+            return '';
+        }
+
+        parse_str($target['query'], $args);
+        $token = $args[LL_TOOLS_TEACHER_CLASS_INVITE_QUERY_ARG] ?? '';
+        return is_string($token) ? $token : '';
+    }
+}
+
 if (!function_exists('ll_tools_teacher_class_current_request_allows_signup_registration')) {
     function ll_tools_teacher_class_current_request_allows_signup_registration(): bool {
         $context = ll_tools_teacher_class_get_invite_request_context();
-        return is_array($context) && (($context['mode'] ?? '') === 'signup');
+        if ($context === []) {
+            // The form posts the invite landing URL, where the token will be
+            // validated again when the signed-in learner returns to join.
+            $token = ll_tools_teacher_class_get_signup_redirect_invite_token($_POST['redirect_to'] ?? '');
+            $context = $token !== '' ? ll_tools_teacher_class_parse_invite_token($token) : [];
+        }
+        return is_array($context) && (($context['mode'] ?? '') === 'signup')
+            && get_post_status((int) $context['class_id']) === 'publish';
     }
 }
 

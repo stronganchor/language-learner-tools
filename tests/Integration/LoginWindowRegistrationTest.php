@@ -651,6 +651,92 @@ final class LoginWindowRegistrationTest extends LL_Tools_TestCase
         $this->assertStringNotContainsString('wp-login.php', $markup);
     }
 
+    public function test_teacher_signup_invite_in_registration_redirect_can_create_learner_when_public_signup_is_closed(): void
+    {
+        $class_id = self::factory()->post->create([
+            'post_type' => LL_TOOLS_TEACHER_CLASS_POST_TYPE,
+            'post_status' => 'publish',
+        ]);
+        $token = ll_tools_teacher_class_build_invite_token($class_id);
+        $this->assertNotSame('', $token);
+        $return_url = add_query_arg(LL_TOOLS_TEACHER_CLASS_INVITE_QUERY_ARG, $token, home_url('/learn/'));
+
+        $redirect = $this->runRegistrationRequest([
+            '__registration_enabled' => false,
+            'redirect_to' => $return_url,
+            'user_login' => 'classsignupinvite',
+            'user_email' => 'class-signup-invite@example.org',
+        ]);
+
+        $this->assertSame($return_url, $redirect);
+        $learner = get_user_by('email', 'class-signup-invite@example.org');
+        $this->assertInstanceOf(WP_User::class, $learner);
+        $this->assertContains('ll_tools_learner', $learner->roles);
+        $this->assertFalse(ll_tools_is_wordpress_user_registration_enabled());
+    }
+
+    public function test_teacher_invite_redirect_does_not_open_registration_for_invalid_invites_or_other_origins(): void
+    {
+        $class_id = self::factory()->post->create([
+            'post_type' => LL_TOOLS_TEACHER_CLASS_POST_TYPE,
+            'post_status' => 'publish',
+        ]);
+        $inactive_class_id = self::factory()->post->create([
+            'post_type' => LL_TOOLS_TEACHER_CLASS_POST_TYPE,
+            'post_status' => 'draft',
+        ]);
+        $valid = ll_tools_teacher_class_build_invite_token($class_id);
+        $existing = ll_tools_teacher_class_build_invite_token($class_id, [
+            'mode' => 'existing',
+            'email' => 'denied-class-signup@example.org',
+        ]);
+        $inactive = ll_tools_teacher_class_build_invite_token($inactive_class_id);
+        $expired_seconds = static fn(): int => -60;
+        add_filter('ll_tools_teacher_class_invite_expiration_seconds', $expired_seconds);
+        try {
+            $expired = ll_tools_teacher_class_build_invite_token($class_id);
+        } finally {
+            remove_filter('ll_tools_teacher_class_invite_expiration_seconds', $expired_seconds);
+        }
+        foreach ([$valid, $existing, $inactive, $expired] as $token) {
+            $this->assertNotSame('', $token);
+        }
+
+        $local = home_url('/learn/');
+        $home = wp_parse_url($local);
+        $scheme = $home['scheme'] === 'https' ? 'http' : 'https';
+        $port = ($home['port'] ?? ($home['scheme'] === 'https' ? 443 : 80)) === 8080 ? 8081 : 8080;
+        $invite_url = static fn(string $token, string $url): string =>
+            add_query_arg(LL_TOOLS_TEACHER_CLASS_INVITE_QUERY_ARG, $token, $url);
+        $redirects = [
+            'missing token' => $local,
+            'invalid signature' => $invite_url($valid . 'a', $local),
+            'expired signup' => $invite_url($expired, $local),
+            'existing mode' => $invite_url($existing, $local),
+            'inactive class' => $invite_url($inactive, $local),
+            'different host' => $invite_url($valid, 'https://offsite.example/learn/'),
+            'different scheme' => $invite_url($valid, home_url('/learn/', $scheme)),
+            'different port' => $invite_url($valid, $home['scheme'] . '://' . $home['host'] . ':' . $port . '/learn/'),
+        ];
+        $allow_offsite = static fn(array $hosts): array => array_merge($hosts, ['offsite.example']);
+        add_filter('allowed_redirect_hosts', $allow_offsite);
+        try {
+            foreach ($redirects as $case => $return_url) {
+                $redirect = $this->runRegistrationRequest([
+                    '__registration_enabled' => false,
+                    'redirect_to' => $return_url,
+                    'user_login' => 'deniedclasssignup',
+                    'user_email' => 'denied-class-signup@example.org',
+                ]);
+                $payload = $this->getFeedbackPayloadFromRedirect($redirect);
+                $this->assertSame(['New account registration is currently disabled.'], $payload['messages'] ?? [], $case);
+                $this->assertFalse(email_exists('denied-class-signup@example.org'), $case);
+            }
+        } finally {
+            remove_filter('allowed_redirect_hosts', $allow_offsite);
+        }
+    }
+
     public function test_recorder_invite_registration_creates_audio_recorder_and_assigns_wordset(): void
     {
         ll_tools_register_or_refresh_audio_recorder_role();
