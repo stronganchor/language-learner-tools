@@ -23288,22 +23288,22 @@ msgstr "Eşleşen corpus text yazısı bulunamadı."
 msgid "The matching content lesson is not a corpus text."
 msgstr "Eşleşen içerik dersi bir corpus text değil."
 
-#: includes/lib/public-static-cache.php:2730
+#: includes/lib/public-static-cache.php:2738
 msgid "Clear LL cache"
 msgstr "LL önbelleğini temizle"
 
 #. translators: %d: number of deleted cache files
-#: includes/lib/public-static-cache.php:2735
+#: includes/lib/public-static-cache.php:2743
 #, php-format
 msgid "LL cache cleared (%d)"
 msgstr "LL önbelleği temizlendi (%d)"
 
-#: includes/lib/public-static-cache.php:2754
+#: includes/lib/public-static-cache.php:2762
 msgid "You are not allowed to clear LL Tools caches."
 msgstr "LL Tools önbelleklerini temizleme iznin yok."
 
 #. translators: %d: number of deleted cache files
-#: includes/lib/public-static-cache.php:2790
+#: includes/lib/public-static-cache.php:2798
 #, php-format
 msgid "Cleared LL Tools static caches. %d cache file was removed."
 msgid_plural "Cleared LL Tools static caches. %d cache files were removed."

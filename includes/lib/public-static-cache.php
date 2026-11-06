@@ -1639,6 +1639,14 @@ function ll_tools_serve_public_static_cache(): void {
         return;
     }
 
+    // The existing canonical handler will redirect these legacy query URLs
+    // before rendering. They must not spend a cold HTML render reservation.
+    if ((isset($_GET['ll_wordset_page']) || isset($_GET['ll_wordset_view']))
+        && function_exists('ll_tools_wordset_page_get_query_request_redirect_url')
+        && ll_tools_wordset_page_get_query_request_redirect_url() !== '') {
+        return;
+    }
+
     if (ll_tools_public_static_cache_has_safe_request_shape()
         && !ll_tools_public_static_cache_has_supported_display_args()
         && ll_tools_public_static_cache_request_identity() !== null) {

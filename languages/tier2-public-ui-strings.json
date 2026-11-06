@@ -2121,10 +2121,10 @@
             "msgid": "Clear LL cache",
             "msgid_plural": null,
             "references": [
-                "includes/lib/public-static-cache.php:2730"
+                "includes/lib/public-static-cache.php:2738"
             ],
             "public_references": [
-                "includes/lib/public-static-cache.php:2730"
+                "includes/lib/public-static-cache.php:2738"
             ]
         },
         {
@@ -2133,10 +2133,10 @@
             "msgid": "LL cache cleared (%d)",
             "msgid_plural": null,
             "references": [
-                "includes/lib/public-static-cache.php:2735"
+                "includes/lib/public-static-cache.php:2743"
             ],
             "public_references": [
-                "includes/lib/public-static-cache.php:2735"
+                "includes/lib/public-static-cache.php:2743"
             ]
         },
         {
@@ -2145,10 +2145,10 @@
             "msgid": "You are not allowed to clear LL Tools caches.",
             "msgid_plural": null,
             "references": [
-                "includes/lib/public-static-cache.php:2754"
+                "includes/lib/public-static-cache.php:2762"
             ],
             "public_references": [
-                "includes/lib/public-static-cache.php:2754"
+                "includes/lib/public-static-cache.php:2762"
             ]
         },
         {
@@ -2157,10 +2157,10 @@
             "msgid": "Cleared LL Tools static caches. %d cache file was removed.",
             "msgid_plural": "Cleared LL Tools static caches. %d cache files were removed.",
             "references": [
-                "includes/lib/public-static-cache.php:2790"
+                "includes/lib/public-static-cache.php:2798"
             ],
             "public_references": [
-                "includes/lib/public-static-cache.php:2790"
+                "includes/lib/public-static-cache.php:2798"
             ]
         },
         {

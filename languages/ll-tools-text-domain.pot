@@ -15467,21 +15467,21 @@ msgstr ""
 msgid "An earlier job step did not finish checkpointing. Review its applied changes and saved state before recovery; automatic replay is blocked."
 msgstr ""
 
-#: includes/lib/public-static-cache.php:2730
+#: includes/lib/public-static-cache.php:2738
 msgid "Clear LL cache"
 msgstr ""
 
 #. translators: %d: number of deleted cache files
-#: includes/lib/public-static-cache.php:2735
+#: includes/lib/public-static-cache.php:2743
 msgid "LL cache cleared (%d)"
 msgstr ""
 
-#: includes/lib/public-static-cache.php:2754
+#: includes/lib/public-static-cache.php:2762
 msgid "You are not allowed to clear LL Tools caches."
 msgstr ""
 
 #. translators: %d: number of deleted cache files
-#: includes/lib/public-static-cache.php:2790
+#: includes/lib/public-static-cache.php:2798
 msgid "Cleared LL Tools static caches. %d cache file was removed."
 msgid_plural "Cleared LL Tools static caches. %d cache files were removed."
 msgstr[0] ""

@@ -471,6 +471,86 @@ final class PublicStaticCacheTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_legacy_wordset_redirect_reaches_canonical_handler_when_cold_budget_is_saturated(): void
+    {
+        $redirecting = self::factory()->term->create_and_get(['taxonomy' => 'wordset']);
+        $query_only = self::factory()->term->create_and_get(['taxonomy' => 'wordset']);
+        $this->assertInstanceOf(WP_Term::class, $redirecting);
+        $this->assertInstanceOf(WP_Term::class, $query_only);
+
+        $old_server = $_SERVER;
+        $old_get = $_GET;
+        $old_permalinks = get_option('permalink_structure');
+        $old_rules = get_option('rewrite_rules');
+        $slug = (string) $redirecting->slug;
+        $pattern = '^' . preg_quote($slug, '/');
+        $target = 'index.php?ll_wordset_page=' . $slug;
+        $rules = [$pattern . '/?$' => $target];
+        foreach (ll_tools_get_wordset_page_allowed_views() as $view) {
+            $rules[$pattern . '/' . $view . '/?$'] = $target . '&ll_wordset_view=' . $view;
+        }
+
+        $ip = '203.0.113.211';
+        $budget_checks = 0;
+        $config = static function () use (&$budget_checks): array {
+            $budget_checks++;
+            return ['window' => 3600, 'ip_limit' => 1, 'site_limit' => 0];
+        };
+        $die = static fn() => static function ($message, $title, $args): void {
+            throw new RuntimeException('response-' . (int) $args['response']);
+        };
+        add_filter('ll_tools_public_static_cache_miss_throttle', $config);
+        add_filter('wp_die_handler', $die, PHP_INT_MAX);
+        try {
+            wp_set_current_user(0);
+            update_option('permalink_structure', '/%postname%/');
+            update_option('rewrite_rules', $rules);
+            $_SERVER['REMOTE_ADDR'] = $ip;
+            $this->assertTrue(ll_tools_public_static_cache_reserve_miss()['allowed']);
+
+            $request_url = add_query_arg('ll_wordset_page', $slug, home_url('/'));
+            $this->go_to($request_url);
+            $_SERVER['REQUEST_METHOD'] = 'GET';
+            $_SERVER['REMOTE_ADDR'] = $ip;
+            $this->assertSame('wordset_main', ll_tools_public_static_cache_request_identity()['type'] ?? null);
+            $this->assertSame(home_url('/' . $slug), untrailingslashit(ll_tools_wordset_page_get_query_request_redirect_url()));
+            ll_tools_serve_public_static_cache();
+            $this->assertSame(1, $budget_checks);
+            $this->assertArrayNotHasKey('ll_tools_public_static_cache_request', $GLOBALS);
+
+            $request_url = add_query_arg('ll_wordset_page', (string) $query_only->slug, home_url('/'));
+            $this->go_to($request_url);
+            $_SERVER['REQUEST_METHOD'] = 'GET';
+            $_SERVER['REMOTE_ADDR'] = $ip;
+            $this->assertSame('', ll_tools_wordset_page_get_query_request_redirect_url());
+            try {
+                ll_tools_serve_public_static_cache();
+                $this->fail('A public query route without a redirect must honor the saturated cold budget.');
+            } catch (RuntimeException $error) {
+                $this->assertSame('response-429', $error->getMessage());
+            }
+            $this->assertSame(2, $budget_checks);
+
+            update_term_meta($query_only->term_id, LL_TOOLS_WORDSET_VISIBILITY_META_KEY, 'private');
+            $this->assertNull(ll_tools_public_static_cache_request_identity());
+            ll_tools_serve_public_static_cache();
+            $this->assertSame(2, $budget_checks);
+            $this->assertArrayNotHasKey('ll_tools_public_static_cache_request', $GLOBALS);
+        } finally {
+            remove_filter('ll_tools_public_static_cache_miss_throttle', $config);
+            remove_filter('wp_die_handler', $die, PHP_INT_MAX);
+            ll_tools_public_ajax_reset_counter('ll_public_static_miss_ip_', $ip);
+            update_option('permalink_structure', $old_permalinks);
+            if ($old_rules === false) {
+                delete_option('rewrite_rules');
+            } else {
+                update_option('rewrite_rules', $old_rules);
+            }
+            $_SERVER = $old_server;
+            $_GET = $old_get;
+        }
+    }
+
     public function test_public_static_cache_identifies_only_public_wordset_main_view(): void
     {
         $term = wp_insert_term('Public Static Cache Wordset', 'wordset');
