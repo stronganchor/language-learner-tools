@@ -15,7 +15,6 @@ async function showResults(page) {
 }
 
 async function switchViaResults(page, mode) {
-  await showResults(page);
   const button = page.locator(`#restart-${mode}-mode`);
   await expect(button).toBeVisible();
   await expect(button).toBeEnabled();
@@ -30,37 +29,6 @@ async function switchViaResults(page, mode) {
   })).toBe(mode);
 }
 
-function expectsImage(mode) {
-  return String(mode || '') === 'image';
-}
-
-function expectsText(mode) {
-  const normalized = String(mode || '');
-  return normalized === 'text' || normalized === 'text_title' || normalized === 'text_translation' || normalized === 'text_audio';
-}
-
-function expectsAudio(mode) {
-  const normalized = String(mode || '');
-  return normalized === 'audio' || normalized === 'text_audio';
-}
-
-async function expectFaceMatchesMode(page, faceSelector, mode) {
-  const face = page.locator(faceSelector);
-  await expect(face).toBeVisible();
-
-  if (expectsImage(mode)) {
-    await expect(face.locator('.ll-study-check-image img')).toBeVisible();
-  }
-  if (expectsText(mode)) {
-    await expect(face.locator('.ll-study-check-text')).toBeVisible();
-  }
-  if (expectsAudio(mode)) {
-    const audioControls = face.locator('.ll-study-recording-btn, .ll-study-check-audio-btn');
-    expect(await audioControls.count()).toBeGreaterThan(0);
-    await expect(audioControls.first()).toBeVisible();
-  }
-}
-
 test('quiz popup supports results mode actions without a floating switcher', async ({ page }) => {
   await page.goto(LEARN_PATH, { waitUntil: 'domcontentloaded' });
 
@@ -73,6 +41,7 @@ test('quiz popup supports results mode actions without a floating switcher', asy
   await expect(page.locator('#ll-tools-flashcard-header')).toBeVisible({ timeout: 60000 });
   await expect(page.locator('#ll-tools-mode-switcher-wrap, #ll-tools-mode-switcher, #ll-tools-mode-menu')).toHaveCount(0);
 
+  await showResults(page);
   await switchViaResults(page, 'self-check');
   await expect(page.locator('#ll-tools-flashcard-quiz-popup')).toHaveClass(/ll-self-check-active/);
   await expect(page.locator('.ll-study-check-round')).toBeVisible();
@@ -108,26 +77,30 @@ test('quiz popup supports results mode actions without a floating switcher', asy
   expect(selfCheckUi.flashcardHasAudioLineLayout).toBe(false);
   expect(selfCheckUi.contentHasAudioLineMode).toBe(false);
 
-  const modeMeta = await page.evaluate(() => {
-    const state = (window.LLFlashcards && window.LLFlashcards.State) || {};
-    return {
-      optionType: String(state.currentOptionType || ''),
-      promptType: String(state.currentPromptType || ''),
-      starModeOverride: (state.starModeOverride === null || typeof state.starModeOverride === 'undefined')
-        ? null
-        : String(state.starModeOverride)
-    };
-  });
-
   // Self-check must always review all words once regardless of star preference.
-  expect(modeMeta.starModeOverride).toBe('normal');
+  expect(await page.evaluate(() => window.LLFlashcards.State.starModeOverride)).toBe('normal');
 
-  await expectFaceMatchesMode(page, '.ll-study-check-face--front', modeMeta.optionType);
+  // Both faces keep the same image cue, with text as a fallback for words without an image.
+  const cueSelector = '.ll-study-check-image img, .ll-study-check-text';
+  const front = page.locator('.ll-study-check-face--front');
+  const promptCue = front.locator(cueSelector).first();
+  await expect(promptCue).toBeVisible();
+  await expect(front.locator('.ll-study-recording-btn, .ll-study-check-audio-btn')).toHaveCount(0);
+  const promptImage = await promptCue.getAttribute('src');
+  const promptText = promptImage ? '' : (await promptCue.textContent()).trim();
+  expect(promptImage || promptText).toBeTruthy();
   await page.locator('.ll-study-check-btn--think').click();
   await expect(page.locator('.ll-study-check-flip-card')).toHaveClass(/is-flipped/);
-  await expectFaceMatchesMode(page, '.ll-study-check-face--back', modeMeta.promptType);
+  const answerCue = page.locator('.ll-study-check-face--back').locator(cueSelector).first();
+  await expect(answerCue).toBeVisible();
+  if (promptImage) {
+    await expect(answerCue).toHaveAttribute('src', promptImage);
+  } else {
+    await expect(answerCue).toHaveText(promptText);
+  }
 
-  await switchViaResults(page, 'listening');
+  await showResults(page);
+  await expect(page.locator('#restart-listening-mode')).toBeHidden();
   await switchViaResults(page, 'practice');
 
   await showResults(page);
