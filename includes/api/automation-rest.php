@@ -6,6 +6,86 @@ if (!defined('WPINC')) {
 
 require_once LL_TOOLS_BASE_PATH . 'includes/cli/cli-support.php';
 require_once LL_TOOLS_BASE_PATH . 'includes/api/word-metadata-plan-rest.php';
+require_once LL_TOOLS_BASE_PATH . 'includes/api/scoped-bundle-import.php';
+
+function ll_tools_scoped_import_wordset_id(int $user_id): int {
+    $user = $user_id > 0 ? get_userdata($user_id) : false;
+    if (!$user instanceof WP_User || !user_can($user, 'view_ll_tools') || !user_can($user, 'upload_files')
+        || !user_can($user, 'edit_posts') || !ll_tools_is_wordset_isolation_enabled()) {
+        return 0;
+    }
+    $grants = get_user_meta($user_id, '_ll_tools_scoped_bundle_import_wordset', false);
+    $target = count($grants) === 1 && is_scalar($grants[0]) && ctype_digit((string) $grants[0]) ? (int) $grants[0] : 0;
+    $complete = false;
+    return $target > 0 && ll_tools_is_wordset_private($target, $complete) && $complete
+        && ll_tools_user_can_manage_wordset_content($target, $user_id) ? $target : 0;
+}
+
+function ll_tools_scoped_import_job_matches_user(array $job): bool {
+    $target = (int) ($job['options']['scoped_wordset_id'] ?? 0);
+    $user_id = get_current_user_id();
+    return $target > 0 && (int) ($job['user_id'] ?? 0) === $user_id
+        && ll_tools_scoped_import_wordset_id($user_id) === $target;
+}
+
+function ll_tools_scoped_import_expire_upload(string $name): void {
+    if (!preg_match('/^upload-[a-f0-9-]{36}\.zip$/D', $name)) {
+        return;
+    }
+    $dir = ll_tools_static_cache_private_dir('scoped-imports');
+    if ($dir === '') {
+        return;
+    }
+    $path = trailingslashit($dir) . $name;
+    if (!is_file($path)) {
+        return;
+    }
+    ll_tools_rest_automation_load_import_helpers();
+    $lease = ll_tools_mutation_job_acquire('bundle-import', 'start');
+    if (is_wp_error($lease)) {
+        wp_schedule_single_event(time() + HOUR_IN_SECONDS, 'll_tools_scoped_import_expire_upload', [$name]);
+        return;
+    }
+    try {
+        $active = ll_tools_import_job_get(ll_tools_import_job_get_active_id());
+        if (is_array($active) && ($active['zip_path'] ?? '') === $path) {
+            wp_schedule_single_event(time() + DAY_IN_SECONDS, 'll_tools_scoped_import_expire_upload', [$name]);
+            return;
+        }
+        @unlink($path);
+    } finally {
+        ll_tools_mutation_job_release($lease);
+    }
+}
+add_action('ll_tools_scoped_import_expire_upload', 'll_tools_scoped_import_expire_upload');
+
+function ll_tools_scoped_import_replace_pending_upload(string $name): bool {
+    $user_id = get_current_user_id();
+    $key = '_ll_tools_scoped_bundle_import_pending_upload';
+    $previous = get_user_meta($user_id, $key, true);
+    update_user_meta($user_id, $key, $name);
+    if (get_user_meta($user_id, $key, true) !== $name) {
+        return false;
+    }
+    if (is_string($previous) && $previous !== '' && $previous !== $name) {
+        // At most one pending upload per user, in addition to any active job.
+        ll_tools_scoped_import_expire_upload($previous);
+    }
+    return true;
+}
+
+function ll_tools_scoped_import_clear_upload_tracking(array $job): void {
+    if (empty($job['options']['scoped_wordset_id'])) {
+        return;
+    }
+    $user_id = (int) ($job['user_id'] ?? 0);
+    $path = (string) ($job['zip_path'] ?? '');
+    $name = basename($path);
+    if ($user_id > 0 && !is_file($path) && preg_match('/^upload-[a-f0-9-]{36}\.zip$/D', $name)) {
+        delete_user_meta($user_id, '_ll_tools_scoped_bundle_import_pending_upload', $name);
+        wp_clear_scheduled_hook('ll_tools_scoped_import_expire_upload', [$name]);
+    }
+}
 
 if (!defined('LL_TOOLS_TRANSCRIPTION_VALIDATION_JOB_CRON_HOOK')) {
     define('LL_TOOLS_TRANSCRIPTION_VALIDATION_JOB_CRON_HOOK', 'll_tools_transcription_validation_job_process_async');
@@ -820,6 +900,15 @@ function ll_tools_rest_automation_require_import_access() {
     return true;
 }
 
+/** The delegated grant applies only to bundle routes, never to other admin import operations. */
+function ll_tools_rest_automation_require_bundle_import_access() {
+    $access = ll_tools_rest_automation_require_import_access();
+    if (!is_wp_error($access) || $access->get_error_code() !== 'll_tools_rest_import_forbidden') {
+        return $access;
+    }
+    return ll_tools_scoped_import_wordset_id(get_current_user_id()) > 0 ? true : $access;
+}
+
 function ll_tools_rest_automation_require_static_cache_purge_access() {
     $view_check = ll_tools_rest_automation_require_view_access();
     if (is_wp_error($view_check)) {
@@ -1420,7 +1509,9 @@ function ll_tools_rest_resource_guard_policy(WP_REST_Request $request): array {
         return [];
     }
 
-    if (!ll_tools_rest_resource_guard_is_automation_request($request)) {
+    $scoped_import = str_starts_with($route, '/ll-tools/v1/imports/')
+        && ll_tools_scoped_import_wordset_id(get_current_user_id()) > 0;
+    if (!$scoped_import && !ll_tools_rest_resource_guard_is_automation_request($request)) {
         return [];
     }
 
@@ -10223,6 +10314,48 @@ function ll_tools_rest_automation_import_preview(WP_REST_Request $request) {
         );
     }
 
+    if (!ll_tools_current_user_can_export_import()) {
+        $target = ll_tools_scoped_import_wordset_id(get_current_user_id());
+        $params = ll_tools_rest_automation_scoped_import_options($request, $target);
+        if (is_wp_error($params)) {
+            return $params;
+        }
+        $files = $request->get_file_params();
+        $file = $files['ll_import_file'] ?? $files['file'] ?? null;
+        if (!is_array($file) || (int) ($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK
+            || !is_string($file['tmp_name'] ?? null) || !is_uploaded_file($file['tmp_name'])
+            || !is_string($file['name'] ?? null) || strtolower(pathinfo($file['name'], PATHINFO_EXTENSION)) !== 'zip') {
+            return ll_tools_rest_automation_error('ll_tools_rest_import_upload_required', __('Upload a ZIP file to preview this import.', 'll-tools-text-domain'), 400);
+        }
+        $dir = ll_tools_static_cache_private_dir('scoped-imports');
+        if ($dir === '') {
+            return ll_tools_rest_automation_error('ll_tools_rest_import_storage_unavailable', __('Private import storage is unavailable.', 'll-tools-text-domain'), 503);
+        }
+        $name = 'upload-' . wp_generate_uuid4() . '.zip';
+        $zip_path = trailingslashit($dir) . $name;
+        if (!move_uploaded_file($file['tmp_name'], $zip_path)) {
+            return ll_tools_rest_automation_error('ll_tools_rest_import_upload_failed', __('Unable to store the import ZIP.', 'll-tools-text-domain'), 500);
+        }
+        $scheduled = wp_schedule_single_event(time() + DAY_IN_SECONDS, 'll_tools_scoped_import_expire_upload', [$name], true);
+        if (is_wp_error($scheduled) || !$scheduled) {
+            @unlink($zip_path);
+            return ll_tools_rest_automation_error('ll_tools_rest_import_storage_unavailable', __('Private import storage is unavailable.', 'll-tools-text-domain'), 503);
+        }
+        $preview = ll_tools_rest_automation_scoped_import_preview($zip_path, sanitize_file_name($file['name']), $target);
+        if (is_wp_error($preview)) {
+            @unlink($zip_path);
+            wp_clear_scheduled_hook('ll_tools_scoped_import_expire_upload', [$name]);
+            return $preview;
+        }
+        if (!ll_tools_scoped_import_replace_pending_upload($name)) {
+            ll_tools_delete_import_preview_data((string) $preview['preview_token']);
+            @unlink($zip_path);
+            wp_clear_scheduled_hook('ll_tools_scoped_import_expire_upload', [$name]);
+            return ll_tools_rest_automation_error('ll_tools_rest_import_storage_unavailable', __('Unable to save the import preview.', 'll-tools-text-domain'), 503);
+        }
+        return rest_ensure_response(ll_tools_rest_automation_prepare_preview_response($preview));
+    }
+
     $zip_info = ll_tools_rest_automation_resolve_import_zip($request);
     if (is_wp_error($zip_info)) {
         return ll_tools_rest_automation_with_status($zip_info, 400);
@@ -10234,6 +10367,57 @@ function ll_tools_rest_automation_import_preview(WP_REST_Request $request) {
     }
 
     return rest_ensure_response(ll_tools_rest_automation_prepare_preview_response($preview));
+}
+
+function ll_tools_rest_automation_scoped_import_options(WP_REST_Request $request, int $target) {
+    if ($target <= 0) {
+        return ll_tools_rest_automation_error('ll_tools_rest_import_forbidden', __('You cannot import LL Tools bundles through automation.', 'll-tools-text-domain'), 403);
+    }
+    foreach (['target_wordset_id', 'll_import_target_wordset'] as $key) {
+        $value = $request->get_param($key);
+        if ($value !== null && (!is_scalar($value) || (string) $value !== (string) $target)) {
+            return ll_tools_rest_automation_error('ll_tools_rest_import_target_forbidden', __('This import grant is limited to the assigned private word set.', 'll-tools-text-domain'), 403);
+        }
+    }
+    foreach (['wordset_mode', 'll_import_wordset_mode'] as $key) {
+        $value = $request->get_param($key);
+        if ($value !== null && $value !== 'assign_existing') {
+            return ll_tools_rest_automation_error('ll_tools_rest_import_target_forbidden', __('This import grant is limited to the assigned private word set.', 'll-tools-text-domain'), 403);
+        }
+    }
+    foreach (['existing', 'filename', 'll_import_existing', 'wordset_names', 'll_import_wordset_names'] as $key) {
+        if ($request->get_param($key) !== null) {
+            return ll_tools_rest_automation_error('ll_tools_rest_import_source_forbidden', __('Use a directly uploaded ZIP and the assigned word set.', 'll-tools-text-domain'), 403);
+        }
+    }
+    return ['wordset_mode' => 'assign_existing', 'target_wordset_id' => $target];
+}
+
+/** Build a private, owner-bound preview without passing an uploaded ZIP through the public uploads directory. */
+function ll_tools_rest_automation_scoped_import_preview(string $zip_path, string $zip_name, int $target) {
+    $validation = ll_tools_scoped_import_validate_zip($zip_path);
+    if (is_wp_error($validation)) {
+        return ll_tools_rest_automation_with_status($validation, 400);
+    }
+    $result = ll_tools_read_import_preview_from_zip($zip_path, $target);
+    if (is_wp_error($result)) {
+        return ll_tools_rest_automation_with_status($result, 400);
+    }
+    $preview = array_merge($result['preview'], [
+        'zip_path' => $zip_path,
+        'zip_name' => $zip_name,
+        'source_type' => 'uploaded',
+        'cleanup_zip' => true,
+        'options' => ['wordset_mode' => 'assign_existing', 'target_wordset_id' => $target],
+        'scoped_wordset_id' => $target,
+        'created_by' => get_current_user_id(),
+        'created_at' => time(),
+    ]);
+    $token = wp_generate_password(32, false, false);
+    if (!ll_tools_store_import_preview_data($token, $preview, false)) {
+        return ll_tools_rest_automation_error('ll_tools_rest_import_storage_unavailable', __('Unable to save the import preview.', 'll-tools-text-domain'), 503);
+    }
+    return ['preview_token' => $token, 'preview_data' => $preview];
 }
 
 function ll_tools_rest_automation_import_request_params(WP_REST_Request $request): array {
@@ -10276,7 +10460,8 @@ function ll_tools_rest_automation_get_import_job_from_request(WP_REST_Request $r
     }
 
     $job = ll_tools_import_job_get($job_id);
-    if (!is_array($job) || !ll_tools_import_job_current_user_can_access($job)) {
+    if (!is_array($job) || !ll_tools_import_job_current_user_can_access($job)
+        || (!ll_tools_current_user_can_export_import() && !ll_tools_scoped_import_job_matches_user($job))) {
         return ll_tools_rest_automation_error(
             'll_tools_rest_import_job_not_found',
             __('The requested import job could not be found.', 'll-tools-text-domain'),
@@ -10290,11 +10475,25 @@ function ll_tools_rest_automation_get_import_job_from_request(WP_REST_Request $r
 function ll_tools_rest_automation_import_start(WP_REST_Request $request) {
     ll_tools_rest_automation_load_import_helpers();
 
+    $target = 0;
+    if (!ll_tools_current_user_can_export_import()) {
+        $target = ll_tools_scoped_import_wordset_id(get_current_user_id());
+        $options = ll_tools_rest_automation_scoped_import_options($request, $target);
+        if (is_wp_error($options)) {
+            return $options;
+        }
+    }
+    $params = ll_tools_rest_automation_import_request_params($request);
+    if ($target > 0) {
+        $params = ['ll_import_preview_token' => $params['ll_import_preview_token'] ?? ''];
+    }
+
     $active_job_id = ll_tools_import_job_get_active_id();
     if ($active_job_id !== '') {
         $active_job = ll_tools_import_job_get($active_job_id);
         if (is_array($active_job) && in_array((string) ($active_job['status'] ?? ''), ['running', 'paused'], true)) {
             $snapshot = ll_tools_import_job_current_user_can_access($active_job)
+                && ($target === 0 || ll_tools_scoped_import_job_matches_user($active_job))
                 ? ll_tools_import_job_get_snapshot($active_job)
                 : null;
             return new WP_Error(
@@ -10310,7 +10509,7 @@ function ll_tools_rest_automation_import_start(WP_REST_Request $request) {
         ll_tools_import_job_clear_active_id($active_job_id);
     }
 
-    $job = ll_tools_import_job_create_from_request(ll_tools_rest_automation_import_request_params($request));
+    $job = ll_tools_import_job_create_from_request($params, $target);
     if (is_wp_error($job)) {
         return ll_tools_rest_automation_with_status($job, 400);
     }
@@ -10355,7 +10554,6 @@ function ll_tools_rest_automation_import_discard(WP_REST_Request $request) {
     if (is_wp_error($job)) {
         return $job;
     }
-
     $discarded = ll_tools_import_job_discard($job);
     if (is_wp_error($discarded)) {
         $fresh = ll_tools_mutation_job_read_option(ll_tools_import_job_get_option_key((string) $job['id']));
@@ -11677,37 +11875,37 @@ function ll_tools_rest_register_automation_routes(): void {
     register_rest_route('ll-tools/v1', '/imports/preview', [
         'methods' => WP_REST_Server::CREATABLE,
         'callback' => 'll_tools_rest_automation_import_preview',
-        'permission_callback' => 'll_tools_rest_automation_require_import_access',
+        'permission_callback' => 'll_tools_rest_automation_require_bundle_import_access',
     ]);
 
     register_rest_route('ll-tools/v1', '/imports/start', [
         'methods' => WP_REST_Server::CREATABLE,
         'callback' => 'll_tools_rest_automation_import_start',
-        'permission_callback' => 'll_tools_rest_automation_require_import_access',
+        'permission_callback' => 'll_tools_rest_automation_require_bundle_import_access',
     ]);
 
     register_rest_route('ll-tools/v1', '/imports/(?P<job_id>[A-Za-z0-9_-]+)', [
         'methods' => WP_REST_Server::READABLE,
         'callback' => 'll_tools_rest_automation_import_status',
-        'permission_callback' => 'll_tools_rest_automation_require_import_access',
+        'permission_callback' => 'll_tools_rest_automation_require_bundle_import_access',
     ]);
 
     register_rest_route('ll-tools/v1', '/imports/(?P<job_id>[A-Za-z0-9_-]+)/process', [
         'methods' => WP_REST_Server::CREATABLE,
         'callback' => 'll_tools_rest_automation_import_process',
-        'permission_callback' => 'll_tools_rest_automation_require_import_access',
+        'permission_callback' => 'll_tools_rest_automation_require_bundle_import_access',
     ]);
 
     register_rest_route('ll-tools/v1', '/imports/(?P<job_id>[A-Za-z0-9_-]+)/discard', [
         'methods' => WP_REST_Server::CREATABLE,
         'callback' => 'll_tools_rest_automation_import_discard',
-        'permission_callback' => 'll_tools_rest_automation_require_import_access',
+        'permission_callback' => 'll_tools_rest_automation_require_bundle_import_access',
     ]);
 
     register_rest_route('ll-tools/v1', '/imports/(?P<job_id>[A-Za-z0-9_-]+)/result', [
         'methods' => WP_REST_Server::READABLE,
         'callback' => 'll_tools_rest_automation_import_result',
-        'permission_callback' => 'll_tools_rest_automation_require_import_access',
+        'permission_callback' => 'll_tools_rest_automation_require_bundle_import_access',
     ]);
 
     register_rest_route('ll-tools/v1', '/corpus-texts/asset', [

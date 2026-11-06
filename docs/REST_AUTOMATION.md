@@ -1544,6 +1544,23 @@ Body fields:
 Returns `preview_token`, bundle summary, warnings, source zip metadata, and the
 default wordset import options.
 
+An operator can opt a manager into these ZIP routes for a single **private**
+wordset by setting protected user meta `_ll_tools_scoped_bundle_import_wordset`
+to that wordset's numeric term ID. The user must already manage that wordset,
+have upload and edit access, and the site must have wordset isolation enabled.
+Remove the user meta to revoke the grant. This leaves administrator permissions
+and other import routes unchanged.
+
+With a scoped grant, upload the ZIP directly with multipart `file`; omit
+`existing` and other server filename fields. Start with the returned token and
+`wordset_mode=assign_existing`, `target_wordset_id=<assigned ID>` (or omit both
+to use those defaults). Upload a full category bundle (`data.json` or the
+supported quiz CSV format with local image/audio files). Private work files are
+stored outside web roots. The grant does not cover templates, site settings,
+shared content, server files, or jobs and previews from another user. Only
+supported quiz fields are copied; arbitrary post/term metadata is ignored.
+The ZIP limit is 64 MiB; split larger uploads by lesson or category.
+
 ### `POST /imports/start`
 
 Starts an import job from a preview token.
@@ -1592,6 +1609,11 @@ Discards a paused partial import and returns the cleanup result. This is only
 valid for paused jobs without an uncertain checkpoint. Failure responses include
 a fresh job snapshot when the stored job can still be read.
 
+A delegated job may also be canceled before its first content write. If the job
+already wrote content or its owner's grant was revoked, an administrator can
+review the checkpoint and use `discard` to release the active job and clean up
+new records. Updates to preexisting records are outside automatic undo.
+
 ### `GET /imports/{job_id}/result`
 
 Returns the durable per-job result for completed or paused jobs. This is the
@@ -1612,9 +1634,10 @@ The routes still respect LL Tools permissions:
 - Dictionary entry mutations require `edit_post` for the affected entry inside
   their callbacks; rebuilding the lookup index requires `manage_options`.
 - Plugin updates and static-cache purges use their dedicated permission helpers.
-- Import routes require the same capability as the LL Tools import admin page
-  (`manage_options` by default, filterable through
-  `ll_tools_export_import_capability`).
+- Import routes default to the same capability as the LL Tools import admin
+  page (`manage_options`, filterable through `ll_tools_export_import_capability`).
+  An explicit scoped ZIP grant gives access only to `/imports/*` for one
+  assigned private wordset.
 
 That means a `wordset_manager` can use these routes for their assigned wordset
 but not for unrelated wordsets.
