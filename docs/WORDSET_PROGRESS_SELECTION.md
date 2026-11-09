@@ -64,6 +64,15 @@ It stays available at portrait phone widths even when the Last column is hidden.
 - Filtered gender-table selections retain the existing locally displayed
   gender-eligible selection behavior; named progress groups switch back to
   ordinary word progress, as summary pills do.
+- Fresh Learn launches order selected targets by the learner's last-seen time,
+  preferring unseen and least recently studied words. A recently studied set
+  moves behind remaining sets for Hard, Starred, other filters, and exact word
+  selections. Recency applies before bounded set formation and across compatible
+  presentation groups; every selected target remains in the plan. Small or
+  sparse selections can still need repeated words to form playable sets.
+- A Learn question hides its category heading when the displayed answer choices
+  mix categories. Introductions and questions with choices from one category
+  retain their heading.
 
 ## Focused verification
 

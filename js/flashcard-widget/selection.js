@@ -2558,6 +2558,14 @@
             );
         }
 
+        if (root.LLFlashcards.Dom && typeof root.LLFlashcards.Dom.updateCategoryNameDisplay === 'function') {
+            root.LLFlashcards.Dom.updateCategoryNameDisplay(targetCategoryName, {
+                hasMixedCategoryOptions: State.isLearningMode && chosen.some(function (word) {
+                    return getTargetCategoryName(word) !== targetCategoryName;
+                })
+            });
+        }
+
         if (Util && typeof Util.isPromptCard === 'function' && Util.isPromptCard(targetWord)) {
             const $renderedCards = jQuery('#ll-tools-flashcard .flashcard-container');
             if ($renderedCards.length > 1) {

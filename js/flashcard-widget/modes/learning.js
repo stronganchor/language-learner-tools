@@ -286,20 +286,42 @@
         return out;
     }
 
+    function learningWordLastSeenAt(word) {
+        const raw = String((word && word.progress_last_seen_at) || '').trim();
+        if (!raw) return 0;
+        // Progress timestamps are MySQL UTC strings. Never interpret them in
+        // the device's local timezone when ordering fresh Learning sets.
+        const utc = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(raw)
+            ? raw.replace(' ', 'T') + 'Z'
+            : raw;
+        if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/.test(utc)) return 0;
+        const timestamp = Date.parse(utc);
+        return Number.isFinite(timestamp) ? Math.max(0, timestamp) : 0;
+    }
+
     function collectAllLearningWordIds() {
         const seen = new Set();
         const allIds = [];
+        const lastSeenById = {};
         for (const name of (State.categoryNames || [])) {
             const list = (State.wordsByCategory && State.wordsByCategory[name]) || [];
             for (const w of list) {
                 if (!isPromptEligibleWord(w)) continue;
                 const id = normalizeWordId(w && w.id);
-                if (!id || seen.has(id)) continue;
+                if (!id) continue;
+                // The same word may have separate copies in several selected
+                // categories. Its newest known study time owns its priority.
+                lastSeenById[id] = Math.max(lastSeenById[id] || 0, learningWordLastSeenAt(w));
+                if (seen.has(id)) continue;
                 seen.add(id);
                 allIds.push(id);
             }
         }
-        return allIds;
+        return allIds.map(function (id, index) {
+            return { id: id, index: index, lastSeenAt: lastSeenById[id] || 0 };
+        }).sort(function (left, right) {
+            return left.lastSeenAt - right.lastSeenAt || left.index - right.index;
+        }).map(function (entry) { return entry.id; });
     }
 
     function buildWordIdSignature(ids) {
@@ -591,6 +613,13 @@
     function recordAnswerResult(wordId, isCorrect, hadWrongThisTurn = false) {
         ensureDefaults();
         const normalizedWordId = parseInt(wordId, 10) || wordId;
+        // Keep a same-page fresh launch current even before progress sync has
+        // returned. This stays on the existing current-wordset word objects;
+        // server and offline progress persistence retain their own ownership.
+        const answeredWord = findWordObjectById(normalizedWordId);
+        if (answeredWord) {
+            answeredWord.progress_last_seen_at = new Date().toISOString().slice(0, 19).replace('T', ' ');
+        }
 
         if (isCorrect) {
             // Only count toward mastery on first try

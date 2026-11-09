@@ -53,6 +53,7 @@
     let soundGateWatchedListeners = [];
     let soundGateResumeAudio = null;
     let soundGateOverlayTransition = 0;
+    let categoryDisplaySuppressedForQuestion = false;
 
     function getMessages() {
         return (root && root.llToolsFlashcardsMessages && typeof root.llToolsFlashcardsMessages === 'object')
@@ -376,6 +377,12 @@
     }
 
     function shouldHideCategoryDisplay() {
+        // A category can be an answer clue before a Learning question's choices
+        // finish loading. Keep it suppressed across header restores until the
+        // rendered choices prove that the category can be shown safely.
+        if (State.isLearningMode && categoryDisplaySuppressedForQuestion) {
+            return true;
+        }
         const flashData = (root.llToolsFlashcardsData && typeof root.llToolsFlashcardsData === 'object')
             ? root.llToolsFlashcardsData
             : {};
@@ -735,7 +742,8 @@
             }
             setSelfCheckLayout(selfCheckActive);
         },
-        updateCategoryNameDisplay(name) {
+        updateCategoryNameDisplay(name, options) {
+            categoryDisplaySuppressedForQuestion = !!(options && (options.hasMixedCategoryOptions || options.pendingQuestion));
             const $el = $('#ll-tools-category-display');
             if (!$el.length) return;
             if (shouldHideCategoryDisplay()) {

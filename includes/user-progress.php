@@ -11870,6 +11870,116 @@ function ll_tools_user_study_selection_launch_limits(int $wordset_id = 0): array
 }
 
 /**
+ * Read only study recency for Learning selections that need no progress filter.
+ *
+ * Unlike summary rows, this never resolves legacy recording-type metadata.
+ *
+ * @param int[] $word_ids
+ * @return array<int,array{word_id:string,last_seen_at:string}>
+ */
+function ll_tools_get_user_word_recency_planning_rows(
+    int $user_id,
+    array $word_ids,
+    ?bool &$complete = null
+): array {
+    global $wpdb;
+
+    $complete = true;
+    if (!isset($wpdb) || !($wpdb instanceof wpdb)) {
+        $complete = false;
+        return [];
+    }
+    $word_ids = ll_tools_user_progress_normalize_positive_ids($word_ids);
+    if ($user_id <= 0 || empty($word_ids)) {
+        return [];
+    }
+
+    $table = ll_tools_user_progress_table_names()['words'];
+    $rows_by_word_id = [];
+    foreach (array_chunk($word_ids, 500) as $chunk) {
+        $placeholders = implode(', ', array_fill(0, count($chunk), '%d'));
+        $wpdb->last_error = '';
+        $rows = $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT word_id, last_seen_at FROM {$table} WHERE user_id = %d AND word_id IN ({$placeholders})",
+                array_merge([$user_id], $chunk)
+            ),
+            ARRAY_A
+        );
+        if ($wpdb->last_error !== '') {
+            $complete = false;
+            return [];
+        }
+        foreach ((array) $rows as $row) {
+            $word_id = (int) ($row['word_id'] ?? 0);
+            if ($word_id > 0) {
+                $rows_by_word_id[$word_id] = $row;
+            }
+        }
+    }
+    return $rows_by_word_id;
+}
+
+/**
+ * Put words studied least recently first, preserving source order for ties.
+ *
+ * The lookup is user-specific and contains UTC database datetime strings.
+ * Missing progress sorts before any recorded study; ISO datetime strings keep
+ * their chronological order without parsing every word into a timestamp.
+ *
+ * @param int[]             $word_ids
+ * @param array<int,string> $word_recency_lookup
+ * @return int[]
+ */
+function ll_tools_user_study_order_word_ids_by_recency(array $word_ids, array $word_recency_lookup): array {
+    if (empty($word_recency_lookup) || count($word_ids) < 2) {
+        return $word_ids;
+    }
+    $source_order = array_flip($word_ids);
+    usort($word_ids, static function (int $left, int $right) use ($word_recency_lookup, $source_order): int {
+        $comparison = strcmp((string) ($word_recency_lookup[$left] ?? ''), (string) ($word_recency_lookup[$right] ?? ''));
+        return $comparison !== 0 ? $comparison : (($source_order[$left] ?? 0) <=> ($source_order[$right] ?? 0));
+    });
+    return $word_ids;
+}
+
+/**
+ * Keep any just-studied Learning set behind sets of older or untouched words.
+ *
+ * The newest member is the set's priority so a recently studied word never
+ * gets promoted merely by sharing a set with several untouched words. Keep
+ * the existing category/request-count optimization when recency is equal.
+ *
+ * @param array<int,array<string,mixed>> $chunks
+ * @param array<int,string>             $word_recency_lookup
+ * @return array<int,array<string,mixed>>
+ */
+function ll_tools_user_study_order_launch_chunks_by_recency(array $chunks, array $word_recency_lookup): array {
+    if (empty($word_recency_lookup) || count($chunks) < 2) {
+        return $chunks;
+    }
+    $priorities = [];
+    foreach ($chunks as $index => $chunk) {
+        $newest = '';
+        foreach ((array) ($chunk['target_word_ids'] ?? $chunk['word_ids'] ?? []) as $word_id) {
+            $seen_at = (string) ($word_recency_lookup[(int) $word_id] ?? '');
+            if (strcmp($seen_at, $newest) > 0) {
+                $newest = $seen_at;
+            }
+        }
+        $priorities[$index] = $newest;
+    }
+    $indices = array_keys($chunks);
+    usort($indices, static function (int $left, int $right) use ($priorities): int {
+        $comparison = strcmp($priorities[$left], $priorities[$right]);
+        return $comparison !== 0 ? $comparison : ($left <=> $right);
+    });
+    return array_values(array_map(static function (int $index) use ($chunks): array {
+        return $chunks[$index];
+    }, $indices));
+}
+
+/**
  * Split a complete category-aware selection into bounded launch chunks.
  *
  * Every matching word is assigned to its first matching category so a word
@@ -11879,14 +11989,16 @@ function ll_tools_user_study_selection_launch_limits(int $wordset_id = 0): array
  * chunks. Even sizing prevents the common 15/15/1 tail while preserving the
  * configured per-chunk word and category limits.
  *
- * @param array<int,int[]> $matched_by_category
+ * @param array<int,int[]>  $matched_by_category
+ * @param array<int,string> $word_recency_lookup Optional Learning study order.
  * @return array<int,array{category_ids:int[],word_ids:int[]}>
  */
 function ll_tools_build_user_study_selection_launch_chunks(
     array $matched_by_category,
     int $max_words,
     int $max_categories,
-    int $minimum_words
+    int $minimum_words,
+    array $word_recency_lookup = []
 ): array {
     $max_words = max(1, $max_words);
     $max_categories = max(1, $max_categories);
@@ -12019,6 +12131,7 @@ function ll_tools_build_user_study_selection_launch_chunks(
                 }
             }
         }
+        $batch_word_ids = ll_tools_user_study_order_word_ids_by_recency($batch_word_ids, $word_recency_lookup);
         $batch_word_count = count($batch_word_ids);
         if ($batch_word_count === 0) {
             continue;
@@ -12166,7 +12279,7 @@ function ll_tools_build_user_study_selection_launch_chunks(
     }
     unset($chunk);
 
-    return $chunks;
+    return ll_tools_user_study_order_launch_chunks_by_recency($chunks, $word_recency_lookup);
 }
 
 /**
@@ -12713,6 +12826,7 @@ function ll_tools_user_study_learning_compatibility_key(array $category_meta): s
  * @param array<int,int[]>              $matched_by_category
  * @param array<int,int[]>              $word_ids_by_category
  * @param array<int,array<string,mixed>> $category_payload_lookup
+ * @param array<int,string>             $word_recency_lookup
  * @return array<int,array{category_ids:int[],word_ids:int[],target_word_ids:int[],compatibility_key:string}>|WP_Error
  */
 function ll_tools_build_user_study_learning_selection_launch_chunks(
@@ -12721,7 +12835,8 @@ function ll_tools_build_user_study_learning_selection_launch_chunks(
     array $category_payload_lookup,
     int $max_words = 15,
     int $max_categories = 8,
-    int $preferred_max_words = 12
+    int $preferred_max_words = 12,
+    array $word_recency_lookup = []
 ) {
     $minimum_words = 8;
     $max_words = max($minimum_words, min(15, $max_words));
@@ -12810,7 +12925,8 @@ function ll_tools_build_user_study_learning_selection_launch_chunks(
             $group_targets_by_category,
             $target_chunk_max_words,
             $max_categories,
-            1
+            1,
+            $word_recency_lookup
         );
         if (empty($target_chunks)) {
             return $unlaunchable();
@@ -13073,7 +13189,7 @@ function ll_tools_build_user_study_learning_selection_launch_chunks(
         return $unlaunchable();
     }
 
-    return $chunks;
+    return ll_tools_user_study_order_launch_chunks_by_recency($chunks, $word_recency_lookup);
 }
 
 /**
@@ -13242,12 +13358,22 @@ function ll_tools_build_user_study_selection_launch_plan(
     }
 
     $progress_rows = [];
-    if (!$has_exact_candidate_scope && in_array($criteria, ['new', 'studied', 'learned', 'hard'], true)) {
+    $needs_progress_filter = !$has_exact_candidate_scope && in_array($criteria, ['new', 'studied', 'learned', 'hard'], true);
+    if ($mode === 'learning' || $needs_progress_filter) {
         $progress_complete = true;
         $wpdb->last_error = '';
-        $progress_rows = function_exists('ll_tools_get_user_word_progress_summary_rows')
-            ? ll_tools_get_user_word_progress_summary_rows($user_id, $all_word_ids, $progress_complete)
-            : ll_tools_get_user_word_progress_rows($user_id, $all_word_ids);
+        // Exact selections are already filtered. Read only their in-scope IDs
+        // for rotation instead of reading progress for the entire wordset.
+        $progress_word_ids = ($mode === 'learning' && $has_exact_candidate_scope)
+            ? array_values(array_intersect($all_word_ids, $candidate_word_ids))
+            : $all_word_ids;
+        if (!$needs_progress_filter) {
+            $progress_rows = ll_tools_get_user_word_recency_planning_rows($user_id, $progress_word_ids, $progress_complete);
+        } else {
+            $progress_rows = function_exists('ll_tools_get_user_word_progress_summary_rows')
+                ? ll_tools_get_user_word_progress_summary_rows($user_id, $progress_word_ids, $progress_complete)
+                : ll_tools_get_user_word_progress_rows($user_id, $progress_word_ids);
+        }
         if (!$progress_complete || $wpdb->last_error !== '') {
             return new WP_Error('selection_query_failed', __('Something went wrong. Please try again.', 'll-tools-text-domain'));
         }
@@ -13436,6 +13562,10 @@ function ll_tools_build_user_study_selection_launch_plan(
         ];
     }
     if ($mode === 'learning') {
+        $word_recency_lookup = [];
+        foreach ($progress_rows as $word_id => $progress_row) {
+            $word_recency_lookup[(int) $word_id] = (string) ($progress_row['last_seen_at'] ?? '');
+        }
         $learning_max_words = max(8, min(15, (int) ($limits['max_words'] ?? 15)));
         $learning_preferred_max_words = max(8, min($learning_max_words, (int) apply_filters(
             'll_tools_user_study_learning_selection_launch_preferred_max_words',
@@ -13448,7 +13578,8 @@ function ll_tools_build_user_study_selection_launch_plan(
             $category_payload_lookup,
             $learning_max_words,
             (int) ($limits['hard_max_categories'] ?? 8),
-            $learning_preferred_max_words
+            $learning_preferred_max_words,
+            $word_recency_lookup
         );
         if (is_wp_error($learning_chunks)) {
             return $learning_chunks;

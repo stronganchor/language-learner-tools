@@ -4482,7 +4482,14 @@
                 State.currentCategoryName = categoryNameForRound;
                 State.currentCategory = State.wordsByCategory[categoryNameForRound] || State.currentCategory;
             }
-            try { Dom.updateCategoryNameDisplay(categoryNameForRound); } catch (_) { /* no-op */ }
+            try {
+                // Target media can load asynchronously before options are built.
+                // Do not expose a Learning answer's category during that wait;
+                // fillQuizOptions restores it for actual same-category choices.
+                Dom.updateCategoryNameDisplay(categoryNameForRound, {
+                    pendingQuestion: State.isLearningMode && !Array.isArray(target)
+                });
+            } catch (_) { /* no-op */ }
         }
 
         if (modeModule && typeof modeModule.handlePostSelection === 'function') {

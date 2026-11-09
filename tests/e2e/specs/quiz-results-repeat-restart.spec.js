@@ -1064,6 +1064,74 @@ test('bounded starred continuation refreshes the actual category instead of reta
   await expect(page.locator('#ll-tools-category-display')).toHaveText('Animals');
 });
 
+for (const hasMixedCategoryOptions of [false, true]) {
+  test(`learning conceals the pending target category before ${hasMixedCategoryOptions ? 'mixed' : 'same-category'} choices finish loading`, async ({ page }) => {
+    await mountBoundedCategoryLabelHarness(page, { categoryDisplayOverride: 'Hard words' });
+
+    await page.evaluate((mixed) => {
+      const api = window.LLFlashcards;
+      api.State.isLearningMode = true;
+      api.State.categoryNames = ['Travel', 'Animals'];
+      window.__boundedLabelRoundTarget = {
+        id: 2201, title: 'Cat', __categoryName: 'Animals'
+      };
+      window.__targetPreloadStarted = false;
+      window.FlashcardLoader.loadResourcesForWord = () => {
+        window.__targetPreloadStarted = true;
+        return new Promise((resolve) => {
+          window.__releaseTargetPreload = () => resolve({ ready: true });
+        });
+      };
+      const fillOptions = api.Selection.fillQuizOptions;
+      api.Selection.fillQuizOptions = (target) => {
+        const result = fillOptions(target);
+        // The selection regression exercises actual choice detection. Here the
+        // real Main + Dom own visibility throughout a deliberately held preload.
+        api.Dom.updateCategoryNameDisplay('Animals', { hasMixedCategoryOptions: mixed });
+        return result;
+      };
+      api.Main.runQuizRound();
+    }, hasMixedCategoryOptions);
+
+    await expect.poll(() => page.evaluate(() => window.__targetPreloadStarted)).toBe(true);
+    await expect(page.locator('#ll-tools-category-display')).toBeHidden();
+    await expect(page.locator('#ll-tools-category-display')).toHaveText('');
+    await page.evaluate(() => window.LLFlashcards.Dom.restoreHeaderUI());
+    await expect(page.locator('#ll-tools-category-display')).toBeHidden();
+
+    await page.evaluate(() => window.__releaseTargetPreload());
+    await page.waitForFunction(() => window.LLFlashcards.State.getState() === 'showing_question');
+    if (hasMixedCategoryOptions) {
+      await expect(page.locator('#ll-tools-category-display')).toBeHidden();
+    } else {
+      await expect(page.locator('#ll-tools-category-display')).toBeVisible();
+      await expect(page.locator('#ll-tools-category-display')).toHaveText('Animals');
+    }
+  });
+}
+
+test('learning keeps the introduction category visible before handing off introduction cards', async ({ page }) => {
+  await mountBoundedCategoryLabelHarness(page);
+  await page.evaluate(() => {
+    const api = window.LLFlashcards;
+    api.State.isLearningMode = true;
+    api.State.categoryNames = ['Travel', 'Animals'];
+    api.Modes.Learning = {
+      selectTargetWord() {
+        return [{ id: 2201, title: 'Cat', __categoryName: 'Animals' }];
+      },
+      handlePostSelection(target) {
+        window.__introductionSelected = Array.isArray(target);
+        return true;
+      }
+    };
+    api.Main.runQuizRound();
+  });
+  expect(await page.evaluate(() => window.__introductionSelected)).toBe(true);
+  await expect(page.locator('#ll-tools-category-display')).toBeVisible();
+  await expect(page.locator('#ll-tools-category-display')).toHaveText('Animals');
+});
+
 test('bounded listening continuation is accepted and delegated to the active listening sequence', async ({ page }) => {
   await mountBoundedCategoryLabelHarness(page, {
     categoryDisplayOverride: 'In progress words'

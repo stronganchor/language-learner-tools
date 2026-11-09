@@ -35,6 +35,10 @@ const learningSource = fs.readFileSync(
   path.resolve(__dirname, '../../../js/flashcard-widget/modes/learning.js'),
   'utf8'
 );
+const domSource = fs.readFileSync(
+  path.resolve(__dirname, '../../../js/flashcard-widget/dom.js'),
+  'utf8'
+);
 
 async function mountSelectionHarness(page, options = {}) {
   const maxCards = Number.isFinite(Number(options.maxCards))
@@ -73,6 +77,7 @@ async function mountSelectionHarness(page, options = {}) {
 
   await page.goto('about:blank');
   await page.setContent(`
+    <div id="ll-tools-flashcard-header"><span id="ll-tools-category-display"></span></div>
     <div id="ll-tools-flashcard-content">
       <div id="ll-tools-prompt"></div>
       <div id="ll-tools-flashcard"></div>
@@ -142,6 +147,9 @@ async function mountSelectionHarness(page, options = {}) {
     };
   }, data);
 
+  if (options.realDom) {
+    await page.addScriptTag({ content: domSource });
+  }
   if (options.realOptionLabels) {
     await page.addScriptTag({ content: options.utilSource || utilSource });
     await page.evaluate(() => {
@@ -2477,6 +2485,56 @@ test('falls back to category distractors when specific wrong-answer IDs are brok
   }, targetWord);
 
   expect(pickedIds).toEqual([701, 702]);
+});
+
+test('learning hides the category clue for mixed rendered options and restores it for introductions and same-category choices', async ({ page }) => {
+  const animals = [
+    { id: 9101, title: 'Dog', image: 'dog.jpg', __categoryName: 'Animals' },
+    { id: 9102, title: 'Cat', image: 'cat.jpg', __categoryName: 'Animals' }
+  ];
+  const foods = [
+    { id: 9103, title: 'Apple', image: 'apple.jpg', __categoryName: 'Foods' }
+  ];
+  await mountSelectionHarness(page, {
+    realDom: true,
+    categories: [
+      { name: 'Animals', prompt_type: 'audio', option_type: 'image' },
+      { name: 'Foods', prompt_type: 'audio', option_type: 'image' }
+    ],
+    targetCategoryName: 'Animals',
+    desiredCount: 3,
+    wordsByCategory: { Animals: animals, Foods: foods },
+    state: { isLearningMode: true, introducedWordIDs: [9101, 9102, 9103] }
+  });
+
+  const pickedIds = await page.evaluate(async () => {
+    // Progress-page launches can supply a generic session label. It must not
+    // make the concrete prompt category visible for mixed answer choices.
+    window.llToolsFlashcardsData.categoryDisplayOverride = 'Hard words';
+    const api = window.LLFlashcards;
+    api.Dom.updateCategoryNameDisplay('Animals');
+    await api.Selection.fillQuizOptions(api.State.wordsByCategory.Animals[0]);
+    api.Dom.restoreHeaderUI();
+    return Array.from(document.querySelectorAll('#ll-tools-flashcard .flashcard-container'))
+      .map((el) => Number(el.getAttribute('data-word-id')));
+  });
+  expect(pickedIds).toEqual([9101, 9102, 9103]);
+  await expect(page.locator('#ll-tools-category-display')).toBeHidden();
+  await expect(page.locator('#ll-tools-category-display')).toHaveText('');
+
+  await page.evaluate(() => window.LLFlashcards.Dom.updateCategoryNameDisplay('Foods'));
+  await expect(page.locator('#ll-tools-category-display')).toBeVisible();
+  await expect(page.locator('#ll-tools-category-display')).toHaveText('Foods');
+
+  await page.evaluate(async () => {
+    const api = window.LLFlashcards;
+    api.State.introducedWordIDs = [9101, 9102];
+    window.jQuery('#ll-tools-flashcard').empty();
+    await api.Selection.fillQuizOptions(api.State.wordsByCategory.Animals[0]);
+  });
+  await expect(page.locator('#ll-tools-flashcard .flashcard-container')).toHaveCount(2);
+  await expect(page.locator('#ll-tools-category-display')).toBeVisible();
+  await expect(page.locator('#ll-tools-category-display')).toHaveText('Animals');
 });
 
 test('learning mode matches introduced IDs even when word payload IDs are strings', async ({ page }) => {
