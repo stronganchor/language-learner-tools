@@ -1698,12 +1698,156 @@ test('practice rounds refill failed distractors from the hydrated reserve withou
   expect(result.errorState).toBe(false);
 });
 
-test('practice rounds limit failed distractor refills to one bounded attempt', async ({ page }) => {
+for (const failureKind of ['throw', 'status', 'reject']) {
+  test(`exhausted distractor reserve retains the original options for same-round Retry (${failureKind})`, async ({ page }) => {
+    await mountRenderedImageReadinessHarness(page);
+    const goodImage = fixtureImage('#dcfce7', 'OK');
+    const brokenImage = 'data:image/png;base64,this-is-not-a-valid-image';
+    await page.evaluate(({ goodImage, brokenImage, failureKind }) => {
+      window.jQuery('#quiz-results').html('<h2 id="quiz-results-title"></h2><p id="quiz-results-message"></p><button id="restart-quiz" style="display:none"></button>');
+      window.llToolsFlashcardsMessages = { retry: 'Yeniden Dene', sessionContinuationError: 'Lütfen yeniden deneyin.' };
+      window.__targets.shift();
+      window.__fillCalls = 0;
+      window.__retainedHandlerCalls = 0;
+      const state = window.LLFlashcards.State;
+      state.quizResults = { correctOnFirstTry: 7, incorrect: [42], wordAttempts: {} };
+      state.usedWordIDs = [42];
+      state.categoryRoundCount = { Kitchen: 4 };
+      state.totalWordCount = 80;
+      window.LLFlashcards.Selection.fillQuizOptions = target => {
+        window.__fillCalls++;
+        const container = window.jQuery('#ll-tools-flashcard').empty();
+        const options = window.__fillCalls === 1 ? [
+          { id: target.id, image: goodImage },
+          { id: 900, image: brokenImage },
+          { id: 901, image: brokenImage }
+        ] : [{ id: target.id, image: goodImage }];
+        options.forEach(word => {
+          window.jQuery('<div class="flashcard-container"></div>')
+            .attr('data-word-id', word.id)
+            .append(window.jQuery('<img alt="">').attr('src', word.image))
+            .on('retained-handler', () => { window.__retainedHandlerCalls++; })
+            .appendTo(container);
+        });
+        if (window.__fillCalls === 1) {
+          window.__originalCards = container.children().toArray();
+          return Promise.resolve({ ready: true });
+        }
+        container.addClass('ll-options-preparing').attr('data-ll-option-reveal-token', 'failed-refill');
+        const error = new Error('Quiz round requires at least two options.');
+        error.code = 'LL_MINIMUM_OPTIONS_VIOLATION';
+        error.details = { chosenCount: 1, minimumRequired: 2 };
+        if (failureKind === 'throw') throw error;
+        if (failureKind === 'reject') return Promise.reject(error);
+        return Promise.resolve({ errorCode: error.code, details: error.details });
+      };
+      window.LLFlashcards.Main.runQuizRound();
+    }, { goodImage, brokenImage, failureKind });
+
+    const retry = page.locator('#restart-quiz');
+    await expect(retry).toBeVisible();
+    await expect(retry).toHaveText('Yeniden Dene');
+    await expect(page.locator('#quiz-results-message')).toHaveText('Lütfen yeniden deneyin.');
+    const snapshot = () => page.evaluate(() => ({
+      selections: window.__targetSelectionCalls,
+      fills: window.__fillCalls,
+      shown: window.__shownWordIds.slice(),
+      cards: Array.from(document.querySelectorAll('#ll-tools-flashcard .flashcard-container')).map(card => Number(card.getAttribute('data-word-id'))),
+      sameCards: window.__originalCards.every((card, index) => card === document.querySelectorAll('#ll-tools-flashcard .flashcard-container')[index]),
+      preparing: window.jQuery('#ll-tools-flashcard').hasClass('ll-options-preparing'),
+      revealToken: window.jQuery('#ll-tools-flashcard').attr('data-ll-option-reveal-token') || '',
+      correct: window.LLFlashcards.State.quizResults.correctOnFirstTry,
+      used: window.LLFlashcards.State.usedWordIDs.slice(),
+      rounds: window.LLFlashcards.State.categoryRoundCount.Kitchen,
+      total: window.LLFlashcards.State.totalWordCount,
+      words: window.LLFlashcards.State.wordsByCategory.Kitchen.map(word => word.id)
+    }));
+    const before = await snapshot();
+    expect(before).toEqual({ selections: 1, fills: 2, shown: [], cards: [502, 900, 901], sameCards: true, preparing: false, revealToken: '', correct: 7, used: [42], rounds: 4, total: 80, words: [501, 502] });
+    await page.evaluate(() => window.jQuery(window.__originalCards[1]).triggerHandler('retained-handler'));
+    expect(await page.evaluate(() => window.__retainedHandlerCalls)).toBe(1);
+    await retry.click();
+    await expect(retry).toBeVisible();
+    expect(await snapshot()).toEqual(before);
+    await page.evaluate(goodImage => {
+      document.querySelectorAll('#ll-tools-flashcard img').forEach(image => { image.src = goodImage; });
+    }, goodImage);
+    await retry.click();
+    await page.waitForFunction(() => window.LLFlashcards.State.getState() === 'showing_question');
+    expect(await snapshot()).toEqual({ ...before, shown: [502] });
+  });
+}
+
+test('initially insufficient quiz options still fail closed without a media Retry', async ({ page }) => {
+  await mountRenderedImageReadinessHarness(page);
+  await page.evaluate(() => {
+    window.jQuery('#quiz-results').html('<h2 id="quiz-results-title"></h2><p id="quiz-results-message"></p><button id="restart-quiz" style="display:none"></button>');
+    window.LLFlashcards.Selection.fillQuizOptions = () => {
+      const error = new Error('Quiz round requires at least two options.');
+      error.code = 'LL_MINIMUM_OPTIONS_VIOLATION';
+      error.details = { chosenCount: 1, minimumRequired: 2 };
+      throw error;
+    };
+    window.LLFlashcards.Main.runQuizRound();
+  });
+  await expect(page.locator('#quiz-results-message')).toContainText('Round setup: 1 of 2 required options are available.');
+  await expect(page.locator('#restart-quiz')).toBeHidden();
+});
+
+for (const failureKind of ['status', 'reject']) {
+  test(`late distractor refill failure cannot replace a newer question (${failureKind})`, async ({ page }) => {
+    await mountRenderedImageReadinessHarness(page);
+    await page.evaluate(({ goodImage, brokenImage }) => {
+      window.jQuery('#quiz-results').html('<h2 id="quiz-results-title"></h2><p id="quiz-results-message"></p><button id="restart-quiz" style="display:none"></button>');
+      window.__targets.shift();
+      window.__fillCalls = 0;
+      window.LLFlashcards.Selection.fillQuizOptions = (target, options = {}) => {
+        window.__fillCalls++;
+        const container = window.jQuery('#ll-tools-flashcard').empty();
+        [{ id: target.id, image: goodImage }, { id: 900, image: target.id === 502 ? brokenImage : goodImage }].forEach(word => {
+          window.jQuery('<div class="flashcard-container"></div>').attr('data-word-id', word.id)
+            .append(window.jQuery('<img alt="">').attr('src', word.image)).appendTo(container);
+        });
+        if (options.excludedOptionWordIds) {
+          return new Promise((resolve, reject) => { window.__completeOldRefill = { resolve, reject }; });
+        }
+        return Promise.resolve({ ready: true });
+      };
+      window.LLFlashcards.Main.runQuizRound();
+    }, { goodImage: fixtureImage('#dcfce7', 'OK'), brokenImage: 'data:image/png;base64,this-is-not-a-valid-image' });
+    await expect.poll(() => page.evaluate(() => !!window.__completeOldRefill)).toBe(true);
+    await page.evaluate(() => {
+      window.__targets = [{ id: 503, title: 'Replacement target', __categoryName: 'Kitchen' }];
+      window.LLFlashcards.State.forceTransitionTo(window.LLFlashcards.State.STATES.QUIZ_READY);
+      window.LLFlashcards.Main.runQuizRound();
+    });
+    await page.waitForFunction(() => window.LLFlashcards.State.getState() === 'showing_question');
+    await page.evaluate(failureKind => {
+      window.__replacementCards = Array.from(document.querySelectorAll('#ll-tools-flashcard .flashcard-container'));
+      const error = new Error('Quiz round requires at least two options.');
+      error.code = 'LL_MINIMUM_OPTIONS_VIOLATION';
+      error.details = { chosenCount: 1, minimumRequired: 2 };
+      if (failureKind === 'reject') window.__completeOldRefill.reject(error);
+      else window.__completeOldRefill.resolve({ errorCode: error.code, details: error.details });
+    }, failureKind);
+    await page.waitForTimeout(100);
+    expect(await page.evaluate(() => ({
+      state: window.LLFlashcards.State.getState(),
+      shown: window.__shownWordIds.slice(),
+      selections: window.__targetSelectionCalls,
+      sameCards: window.__replacementCards.every((card, index) => card === document.querySelectorAll('#ll-tools-flashcard .flashcard-container')[index])
+    }))).toEqual({ state: 'showing_question', shown: [503], selections: 2, sameCards: true });
+    await expect(page.locator('#restart-quiz')).toBeHidden();
+  });
+}
+
+test('practice rounds limit failed distractor refills to one bounded attempt and allow Retry', async ({ page }) => {
   const goodImage = fixtureImage('#dcfce7', 'OK');
   const brokenImage = 'data:image/png;base64,this-is-not-a-valid-image';
   await mountRenderedImageReadinessHarness(page);
 
   await page.evaluate((bootstrap) => {
+    window.jQuery('#quiz-results').html('<h2 id="quiz-results-title"></h2><p id="quiz-results-message"></p><button id="restart-quiz" style="display:none"></button>');
     const target = {
       id: 711,
       title: 'Healthy target without a ready reserve',
@@ -1761,6 +1905,20 @@ test('practice rounds limit failed distractor refills to one bounded attempt', a
   expect(result.optionFillCalls).toEqual([[], ['911']]);
   expect(result.remainingWordIds).toEqual([711]);
   expect(result.errorState).toBe(true);
+  const retry = page.locator('#restart-quiz');
+  await expect(retry).toBeVisible();
+  await page.evaluate(goodImage => {
+    window.__refilledCards = Array.from(document.querySelectorAll('#ll-tools-flashcard .flashcard-container'));
+    document.querySelector('[data-word-id="912"] img').src = goodImage;
+  }, goodImage);
+  await retry.click();
+  await page.waitForFunction(() => window.LLFlashcards.State.getState() === 'showing_question');
+  expect(await page.evaluate(() => ({
+    selections: window.__targetSelectionCalls,
+    fills: window.__optionFillCalls,
+    shown: window.__shownWordIds,
+    sameCards: window.__refilledCards.every((card, index) => card === document.querySelectorAll('#ll-tools-flashcard .flashcard-container')[index])
+  }))).toEqual({ selections: 1, fills: [[], ['911']], shown: [711], sameCards: true });
 });
 
 test('image retry rechecks mounted prompt audio before remounting it', async ({ page }) => {

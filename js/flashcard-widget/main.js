@@ -4759,11 +4759,10 @@
                     });
                 };
 
-                const showDistractorMinimumOptionsError = function (recovery, errorMessage, errorDetails) {
+                const showDistractorMediaRetry = function (recovery, errorMessage, errorDetails) {
                     const recoveryDetails = (recovery && typeof recovery === 'object') ? recovery : {};
                     const suppliedDetails = (errorDetails && typeof errorDetails === 'object') ? errorDetails : {};
-                    showLoadingError({
-                        reason: 'minimum-options',
+                    showRoundMediaRetry(target, 'distractor-images-not-ready', {
                         errorMessage: errorMessage || '',
                         details: Object.assign({
                             chosenCount: Math.max(0, parseInt(recoveryDetails.remainingCount, 10) || 0),
@@ -4783,7 +4782,21 @@
                     const refillGeneration = ++distractorRefillGeneration;
                     let refillOptionPromise;
 
-                    $flashcardContainer.empty();
+                    // Keep the original complete option set until its replacement
+                    // has passed construction. A failed refill can leave only the
+                    // target mounted; Retry must never reveal that one-card set.
+                    const originalPreparing = $flashcardContainer.hasClass('ll-options-preparing');
+                    const originalRevealToken = $flashcardContainer.attr('data-ll-option-reveal-token');
+                    const $originalOptions = $flashcardContainer.children().detach();
+                    const restoreOriginalOptions = function () {
+                        $flashcardContainer.empty().append($originalOptions)
+                            .toggleClass('ll-options-preparing', originalPreparing);
+                        if (originalRevealToken) {
+                            $flashcardContainer.attr('data-ll-option-reveal-token', originalRevealToken);
+                        } else {
+                            $flashcardContainer.removeAttr('data-ll-option-reveal-token');
+                        }
+                    };
                     Dom.showLoading();
 
                     try {
@@ -4792,7 +4805,8 @@
                         }));
                     } catch (refillBuildError) {
                         if (refillBuildError && refillBuildError.code === 'LL_MINIMUM_OPTIONS_VIOLATION') {
-                            showDistractorMinimumOptionsError(
+                            restoreOriginalOptions();
+                            showDistractorMediaRetry(
                                 recovery,
                                 refillBuildError.message || '',
                                 refillBuildError.details || {}
@@ -4822,7 +4836,8 @@
                         const refillRenderedStatus = refillStatuses[1] || {};
 
                         if (refillOptionStatus && refillOptionStatus.errorCode === 'LL_MINIMUM_OPTIONS_VIOLATION') {
-                            showDistractorMinimumOptionsError(
+                            restoreOriginalOptions();
+                            showDistractorMediaRetry(
                                 recovery,
                                 refillOptionStatus.errorMessage || '',
                                 refillOptionStatus.details || {}
@@ -4837,6 +4852,7 @@
                             });
                             return;
                         }
+                        $originalOptions.remove();
                         if (refillRenderedStatus.imagesReady) {
                             continueAfterImageRetry(refillRenderedStatus);
                             return;
@@ -4864,7 +4880,7 @@
                                 return;
                             }
                             if (finalRecovery.distractorOnly) {
-                                showDistractorMinimumOptionsError(finalRecovery);
+                                showDistractorMediaRetry(finalRecovery);
                                 return;
                             }
                             showRoundMediaRetry(target, 'round-images-not-ready-after-distractor-refill', {
@@ -4878,7 +4894,7 @@
                             console.warn('Round distractor refill image retry failed', refillRetryError);
                             const exceptionRecovery = recoverRoundFromUnreadyDistractorImages(target);
                             if (exceptionRecovery.distractorOnly) {
-                                showDistractorMinimumOptionsError(exceptionRecovery);
+                                showDistractorMediaRetry(exceptionRecovery);
                                 return;
                             }
                             showRoundMediaRetry(target, 'round-distractor-refill-retry-exception', {
@@ -4889,7 +4905,8 @@
                     }).catch(function (refillError) {
                         if (isStaleRound() || refillGeneration !== distractorRefillGeneration) { return; }
                         if (refillError && refillError.code === 'LL_MINIMUM_OPTIONS_VIOLATION') {
-                            showDistractorMinimumOptionsError(
+                            restoreOriginalOptions();
+                            showDistractorMediaRetry(
                                 recovery,
                                 refillError.message || '',
                                 refillError.details || {}
