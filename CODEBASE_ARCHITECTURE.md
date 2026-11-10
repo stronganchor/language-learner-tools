@@ -44,6 +44,13 @@ read_first:
 
 # Overview (30-second tour)
 
+Inline quiz launches show loading and bind Close before audio startup or category
+hydration. A first-launch failure offers a scoped Retry; replacement chunks keep
+their previous results until ready. Close invalidates the pending initialization,
+so a late response cannot revive it or clear a newer launch's promise guard.
+`flashcard-mixed-presentation-launch.spec.js` covers the actual lesson header
+launcher with paused startup, close/reopen and failed audio/category preparation.
+
 Quiz media timeouts retain the selected question, rendered options and progress.
 An automatic prompt retry keeps an unfinished download alive; only a failed
 element or explicit Retry reloads it. Exhausted waits show the localized Retry

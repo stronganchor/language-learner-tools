@@ -11,6 +11,9 @@ const mainSource = fs.readFileSync(
   path.resolve(__dirname, '../../../js/flashcard-widget/main.js'),
   'utf8'
 );
+const quizPagesSource = fs.readFileSync(path.resolve(__dirname, '../../../js/quiz-pages.js'), 'utf8');
+const quizShellPhp = fs.readFileSync(path.resolve(__dirname, '../../../includes/shortcodes/quiz-pages-shortcodes.php'), 'utf8');
+const inlineLauncherSource = quizShellPhp.match(/<script>\s*((\(function\(\$\)\{)\s*function normalizeWordIdList[\s\S]*?\}\)\(jQuery\);)\s*<\/script>/)[1];
 
 function buildHarnessMarkup() {
   return `
@@ -35,8 +38,8 @@ function buildHarnessMarkup() {
         <button id="restart-listening-mode" type="button"></button>
         <button id="restart-quiz" type="button"></button>
       </div>
-      <div id="ll-tools-loading-animation" style="display:none;"></div>
-      <div id="ll-tools-loading-status" hidden></div>
+      <div id="ll-tools-loading-animation" style="display:none;width:24px;height:24px;"></div>
+      <div id="ll-tools-loading-status" hidden>Loading quiz...</div>
     </div>
   `;
 }
@@ -253,6 +256,95 @@ async function mountLaunchHarness(page, options = {}) {
   });
 
   await page.addScriptTag({ content: mainSource });
+}
+
+async function mountLessonHeaderLauncher(page) {
+  await mountLaunchHarness(page);
+  await page.evaluate(() => {
+    document.getElementById('quiz-results').style.display = 'none';
+    const button = document.createElement('button');
+    button.id = 'lesson-practice';
+    button.className = 'll-vocab-lesson-mode-button ll-quiz-page-trigger';
+    button.setAttribute('data-category', 'Cat A');
+    button.setAttribute('data-mode', 'practice');
+    button.setAttribute('data-wordset-id', '42');
+    button.textContent = 'Practice';
+    document.body.prepend(button);
+  });
+  await page.addScriptTag({ content: inlineLauncherSource });
+  await page.addScriptTag({ content: quizPagesSource });
+}
+
+test('lesson header shows loading and can close while audio startup is pending', async ({ page }) => {
+  await mountLessonHeaderLauncher(page);
+  await page.evaluate(() => {
+    let calls = 0;
+    window.FlashcardAudio.startNewSession = () => ++calls === 1
+      ? new Promise((resolve) => { window.__resolveAudioStartup = resolve; })
+      : Promise.resolve();
+  });
+  await page.click('#lesson-practice');
+  await expect(page.locator('#ll-tools-loading-animation')).toBeVisible({ timeout: 2000 });
+  await expect(page.locator('#ll-tools-loading-status')).toBeVisible();
+  await expect(page.locator('#ll-tools-flashcard-quiz-popup')).toHaveAttribute('aria-busy', 'true');
+  expect(await page.evaluate(() => window.__loadCategoryCalls)).toEqual([]);
+  await page.click('#ll-tools-close-flashcard');
+  await expect(page.locator('#ll-tools-flashcard-quiz-popup')).toBeHidden();
+  await page.evaluate(() => window.__resolveAudioStartup());
+  await expect.poll(() => page.evaluate(() => window.__LL_QPG_OPEN_IN_PROGRESS)).toBe(false);
+  expect(await page.evaluate(() => window.__loadCategoryCalls)).toEqual([]);
+});
+
+test('closing a pending lesson category permits reopening and ignores the stale failure', async ({ page }) => {
+  await mountLessonHeaderLauncher(page);
+  await page.evaluate(() => {
+    window.__pendingCategoryLoads = [];
+    window.FlashcardLoader.loadResourcesForCategory = () => new Promise((resolve) => {
+      window.__pendingCategoryLoads.push(resolve);
+    });
+  });
+  await page.click('#lesson-practice');
+  await expect.poll(() => page.evaluate(() => window.__pendingCategoryLoads.length)).toBe(1);
+  await expect(page.locator('#ll-tools-loading-animation')).toBeVisible();
+  await page.click('#ll-tools-close-flashcard');
+  await expect(page.locator('#ll-tools-flashcard-quiz-popup')).toBeHidden();
+  await page.click('#lesson-practice');
+  await expect.poll(() => page.evaluate(() => window.__pendingCategoryLoads.length)).toBe(2);
+  await page.evaluate(() => window.__pendingCategoryLoads[0]({ success: false }));
+  await expect(page.locator('#ll-tools-loading-animation')).toBeVisible();
+  await expect(page.locator('#ll-tools-flashcard-quiz-popup')).toHaveAttribute('aria-busy', 'true');
+  expect(await page.evaluate(() => window.__LL_QPG_OPEN_IN_PROGRESS)).toBe(true);
+  await page.evaluate(() => window.__pendingCategoryLoads[1]({ success: true }));
+  await expect.poll(() => page.evaluate(() => window.__LL_QPG_OPEN_IN_PROGRESS)).toBe(false);
+  expect(await page.evaluate(() => window.__hideResultsCalls)).toBe(2);
+  await expect(page.locator('#ll-tools-flashcard-quiz-popup')).toBeVisible();
+  await expect(page.locator('#quiz-results')).toBeHidden();
+});
+
+for (const failureAt of ['audio', 'category']) {
+  test(`first lesson launch offers a scoped Retry after ${failureAt} startup failure`, async ({ page }) => {
+    await mountLessonHeaderLauncher(page);
+    await page.evaluate((stage) => {
+      const owner = stage === 'audio' ? window.FlashcardAudio : window.FlashcardLoader;
+      const method = stage === 'audio' ? 'startNewSession' : 'loadResourcesForCategory';
+      const original = owner[method];
+      let calls = 0;
+      owner[method] = function (...args) {
+        if (++calls === 1) { return Promise.reject(new Error('simulated startup failure')); }
+        return original.apply(this, args);
+      };
+    }, failureAt);
+    await page.click('#lesson-practice');
+    await expect(page.locator('#restart-quiz')).toBeVisible();
+    await expect(page.locator('#restart-quiz')).toHaveText('Localized Retry');
+    await expect(page.locator('#ll-tools-loading-animation')).toBeHidden();
+    await expect(page.locator('#ll-tools-flashcard-quiz-popup')).not.toHaveAttribute('aria-busy', 'true');
+    await expect(page.locator('#quiz-results-message')).toContainText('Localized retryable loading error');
+    await page.click('#restart-quiz');
+    await expect(page.locator('#quiz-results')).toBeHidden();
+    expect(await page.evaluate(() => window.llToolsFlashcardsData.wordset)).toBe('42');
+    expect(await page.evaluate(() => window.LLFlashcards.State.categoryNames)).toEqual(['Cat A']);
+  });
 }
 
 test('practice init keeps mixed-presentation categories when the launch plan preserves them', async ({ page }) => {

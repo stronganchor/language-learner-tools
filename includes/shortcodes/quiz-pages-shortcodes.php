@@ -2866,7 +2866,7 @@ function ll_qpg_print_flashcard_shell_once() {
       <?php
       ll_tools_render_flashcard_overlay_shell([
           'include_category_selection' => false,
-          'include_loading_status' => false,
+          'include_loading_status' => true,
           'show_category_display' => true,
           'category_label_text' => '',
           'mode_ui' => $mode_ui,
@@ -3266,8 +3266,18 @@ function ll_qpg_print_flashcard_shell_once() {
             $('#ll-tools-flashcard-quiz-popup').css('display', 'flex');
             try {
                 var p = initFlashcardWidget([catName], mode);
-                if (p && typeof p.finally === 'function') {
-                    p.finally(function(){ window.__LL_QPG_OPEN_IN_PROGRESS = false; });
+                if (p && typeof p.then === 'function') {
+                    window.__LL_QPG_OPEN_PROMISE = p;
+                    var finishLaunch = function(){
+                        if (window.__LL_QPG_OPEN_PROMISE === p) {
+                            window.__LL_QPG_OPEN_IN_PROGRESS = false;
+                            window.__LL_QPG_OPEN_PROMISE = null;
+                        }
+                    };
+                    p.then(finishLaunch, function(error){
+                        finishLaunch();
+                        console.error('initFlashcardWidget failed', error);
+                    });
                 } else {
                     setTimeout(function(){ window.__LL_QPG_OPEN_IN_PROGRESS = false; }, 0);
                 }

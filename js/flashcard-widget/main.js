@@ -5434,6 +5434,7 @@
         }
 
         const proceed = () => {
+            const preserveVisibleResults = $('#quiz-results').is(':visible');
             activateInlineQuizDialog('#ll-tools-flashcard-quiz-popup');
             // Protect the visible loading state immediately. Resource hydration
             // may still be in flight, but back navigation, selection, and zoom
@@ -5472,7 +5473,17 @@
                 }
             }
 
+            // A cold category/audio load can take time. Keep the first launch
+            // visibly busy and closable before either asynchronous step starts.
+            // A replacement chunk retains its existing results until ready.
+            State.widgetActive = true;
+            $('#ll-tools-close-flashcard').off('click').on('click', closeFlashcard);
+            if (!preserveVisibleResults) {
+                Dom.showLoading();
+            }
+
             return root.FlashcardAudio.startNewSession().then(function () {
+                if (launchSession !== __LLSession || !State.widgetActive) { return; }
                 const requestedCategoriesRaw = normalizeCategoryNameList(selectedCategories);
                 let requestedMode = mode;
                 if (isSelfCheckMode(requestedMode)) {
@@ -5565,6 +5576,7 @@
                     try { activeModule.initialize(); } catch (err) { console.error('Mode initialization failed:', err); }
                 }
                 return prepareInitialCategoryLoad(State.categoryNames).then(function () {
+                    if (launchSession !== __LLSession || !State.widgetActive) { return; }
                     // Keep the completed-session results visible until the replacement
                     // chunk is fully validated and ready. If bounded handoff or the first
                     // category load rejects, callers can leave the same retry controls on
@@ -5691,12 +5703,20 @@
                     });
                 });
             }).catch(function (err) {
+                if (launchSession !== __LLSession || !State.widgetActive) { return; }
                 if (isRetryableInitialCategoryWarmupTimeout(err)) {
                     console.warn('Flashcard category cache is still warming; waiting for user retry.', err.result);
                     showInitialCategoryRetryError(err, selectedCategories, mode, launchSession);
                     return;
                 }
+                if (!preserveVisibleResults && isFlashcardPopupVisible()) {
+                    // First-launch failures have no previous results to fall
+                    // back to. Keep the same scoped launch available for Retry.
+                    showInitialCategoryRetryError(err, selectedCategories, mode, launchSession);
+                    return;
+                }
                 console.error('Failed to initialize flashcard widget:', err);
+                hideInitialCategoryWarmupLoading();
                 State.forceTransitionTo(STATES.IDLE, 'Initialization error');
                 throw err;
             });
@@ -5711,9 +5731,12 @@
         );
 
         // Track in-flight init; clear when finished (success or failure)
-        initInProgressPromise = kickoff.finally(() => {
-            initInProgressPromise = null;
+        const trackedInit = kickoff.finally(() => {
+            if (initInProgressPromise === trackedInit) {
+                initInProgressPromise = null;
+            }
         });
+        initInProgressPromise = trackedInit;
 
         return initInProgressPromise;
     }
@@ -5742,6 +5765,11 @@
         }
 
         const closeOptions = (options && typeof options === 'object') ? options : {};
+        // A pending resource request belongs to the closing session. It must
+        // neither block a new launch nor clear its in-flight promise later.
+        initInProgressPromise = null;
+        root.__LL_QPG_OPEN_IN_PROGRESS = false;
+        root.__LL_QPG_OPEN_PROMISE = null;
 
         try {
             const tracker = getProgressTracker();
