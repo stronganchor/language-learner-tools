@@ -4,6 +4,7 @@ A WordPress toolkit for building vocabulary-driven language learning sites. It p
 
 ## Recent changes
 
+- **6.7.70** accepts active public quiz languages supplied by the plugin without requiring matching WordPress core language packs. Quiz reads and background builders preserve the requested language and restore the caller's locale, translations, user and locks after failures.
 - **6.7.65** stores generated HTML outside public web directories and prevents an older dictionary render from replacing content after invalidation. REST automation also recognizes WordPress application passwords when the user was first resolved before REST dispatch.
 - **6.7.63:** Compact prerequisite headings reset theme padding, and phone article paragraphs and tables retain at least16px text even when the theme uses a small root font. Lesson heading sizes remain unchanged.
 - **6.7.62:** Article lessons use a compact phone header so the opening lesson text appears sooner. One prerequisite remains directly linked; multiple prerequisites expand through a keyboard-accessible disclosure. Phone navigation shortens trailing examples while preserving full accessible titles and completion status.

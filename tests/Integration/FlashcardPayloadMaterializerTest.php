@@ -1001,6 +1001,201 @@ final class FlashcardPayloadMaterializerTest extends LL_Tools_TestCase
         $this->assertSame('invalid_flashcard_payload_locale', $invalid->get_error_code());
     }
 
+    public function test_bundled_public_locales_are_allowed_without_wordpress_language_packs(): void
+    {
+        $this->withEnglishCoreLocales(function (): void {
+            $this->assertNotContains('es_ES', get_available_languages());
+            $this->assertContains('es_ES', ll_tools_get_plugin_locales(true));
+            $this->assertSame('es_ES', ll_tools_flashcards_payload_page_request_locale(['locale' => 'es_ES']));
+
+            foreach (ll_tools_get_plugin_locales() as $locale) {
+                $this->assertSame($locale, ll_tools_flashcards_payload_page_request_locale(['locale' => $locale]));
+            }
+            foreach (['zh_CN', 'zz_NotInstalled'] as $locale) {
+                $invalid = ll_tools_flashcards_payload_page_request_locale(['locale' => $locale]);
+                $this->assertWPError($invalid);
+                $this->assertSame('invalid_flashcard_payload_locale', $invalid->get_error_code());
+            }
+        });
+    }
+
+    public function test_bundled_spanish_scope_materializes_and_restores_the_original_locale(): void
+    {
+        $this->withEnglishCoreLocales(function (): void {
+            $fixture = $this->createTextFixture('Bundled Spanish Locale', 2);
+            $originalLocale = get_locale();
+            $resolved = ll_tools_flashcards_resolve_payload_page_scope([
+                'category_id' => (int) $fixture['term']->term_id,
+                'locale' => 'es_ES',
+                'wordset_fallback' => '0',
+            ]);
+            $this->assertIsArray($resolved);
+            $scope = $resolved['scope'];
+            $this->scopeHashes[] = (string) $scope['scope_hash'];
+            $this->assertSame('es_ES', $scope['locale']);
+            $this->assertNotSame($fixture['scope']['scope_hash'], $scope['scope_hash']);
+            $this->assertSame($originalLocale, get_locale(), 'Scope resolution must restore the request locale.');
+
+            $state = $this->warmScope($scope);
+            $this->assertSame('completed', $state['status']);
+            $this->assertSame('es_ES', $state['scope']['locale']);
+            $this->assertSame($originalLocale, get_locale(), 'The background builder must restore the worker locale.');
+            $page = ll_tools_flashcard_payload_read_page($scope, '', 10);
+            $this->assertIsArray($page);
+            $this->assertSame($fixture['word_ids'], $this->rowIds($page['rows']));
+            $this->assertSame($originalLocale, get_locale());
+        });
+    }
+
+    public function test_bundled_locale_context_restores_after_a_builder_exception(): void
+    {
+        $this->withEnglishCoreLocales(function (): void {
+            $fixture = $this->createTextFixture('Spanish Locale Failure', 1);
+            $resolved = ll_tools_flashcards_resolve_payload_page_scope([
+                'category_id' => (int) $fixture['term']->term_id,
+                'locale' => 'es_ES',
+                'wordset_fallback' => '0',
+            ]);
+            $this->assertIsArray($resolved);
+            $scope = $resolved['scope'];
+            $scopeHash = (string) $scope['scope_hash'];
+            $this->scopeHashes[] = $scopeHash;
+            $originalLocale = get_locale();
+            $originalRetry = __('Retry', 'll-tools-text-domain');
+            $observedLocale = '';
+            $observedRetry = '';
+            $failProjection = static function () use (&$observedLocale, &$observedRetry): void {
+                $observedLocale = get_locale();
+                $observedRetry = __('Retry', 'll-tools-text-domain');
+                throw new RuntimeException('Spanish projection fixture failure');
+            };
+            add_filter('ll_tools_quiz_image_size', $failProjection);
+            try {
+                ll_tools_flashcard_payload_ensure_ready($scope);
+                $this->fail('The projection fixture must throw.');
+            } catch (RuntimeException $error) {
+                $this->assertSame('Spanish projection fixture failure', $error->getMessage());
+            } finally {
+                remove_filter('ll_tools_quiz_image_size', $failProjection);
+            }
+            $this->assertSame('es_ES', $observedLocale);
+            $this->assertNotSame($originalRetry, $observedRetry, 'The bundled plugin translation must load without a core language pack.');
+            $this->assertSame($originalLocale, get_locale());
+            $this->assertSame($originalLocale, determine_locale());
+            $this->assertSame($originalRetry, __('Retry', 'll-tools-text-domain'));
+            $this->assertFalse(ll_tools_flashcard_payload_lock_is_active($scopeHash));
+            $this->assertFalse(ll_tools_flashcard_payload_lock_is_active('global'));
+            $this->assertWPError(ll_tools_flashcard_payload_enter_locale('zz_NotInstalled'));
+            $this->assertSame($originalLocale, get_locale());
+        });
+    }
+
+    public function test_plugin_only_locale_restores_across_an_installed_nested_locale(): void
+    {
+        $this->withEnglishCoreLocales(function (): void {
+            $previousSwitcher = $GLOBALS['wp_locale_switcher'];
+            $installed = get_available_languages();
+            $originalRetry = __('Retry', 'll-tools-text-domain');
+            $restoreSpanish = ll_tools_flashcard_payload_enter_locale('es_ES');
+            $this->assertIsCallable($restoreSpanish);
+            try {
+                $spanishRetry = __('Retry', 'll-tools-text-domain');
+                $this->assertSame('es_ES', get_locale());
+                $this->assertNotSame($originalRetry, $spanishRetry);
+                $this->assertSame($installed, get_available_languages());
+                $restoreTurkish = ll_tools_flashcard_payload_enter_locale('tr_TR');
+                $this->assertIsCallable($restoreTurkish);
+                try {
+                    $this->assertSame('tr_TR', get_locale());
+                    $this->assertSame('tr_TR', determine_locale());
+                    $this->assertNotSame($spanishRetry, __('Retry', 'll-tools-text-domain'));
+                    $this->assertSame($installed, get_available_languages());
+                } finally {
+                    $restoreTurkish();
+                }
+                $this->assertSame('es_ES', get_locale());
+                $this->assertSame('es_ES', determine_locale());
+                $this->assertSame($spanishRetry, __('Retry', 'll-tools-text-domain'));
+            } finally {
+                $restoreSpanish();
+            }
+            $this->assertSame($previousSwitcher, $GLOBALS['wp_locale_switcher']);
+            $this->assertSame('en_US', get_locale());
+            $this->assertSame('en_US', determine_locale());
+            $this->assertSame($originalRetry, __('Retry', 'll-tools-text-domain'));
+            $this->assertSame($installed, get_available_languages());
+        }, ['tr_TR']);
+    }
+
+    public function test_locale_switch_entry_exception_restores_the_caller_context(): void
+    {
+        $this->withEnglishCoreLocales(function (): void {
+            $previousSwitcher = $GLOBALS['wp_locale_switcher'];
+            $installed = get_available_languages();
+            $originalRetry = __('Retry', 'll-tools-text-domain');
+            $entryFailure = static function (string $locale): void {
+                if ($locale === 'es_ES') {
+                    throw new RuntimeException('Locale switch entry fixture failure');
+                }
+            };
+            add_action('switch_locale', $entryFailure);
+            try {
+                ll_tools_flashcard_payload_enter_locale('es_ES');
+                $this->fail('The locale switch entry fixture must throw.');
+            } catch (RuntimeException $error) {
+                $this->assertSame('Locale switch entry fixture failure', $error->getMessage());
+            } finally {
+                remove_action('switch_locale', $entryFailure);
+            }
+            $this->assertSame($previousSwitcher, $GLOBALS['wp_locale_switcher']);
+            $this->assertFalse(is_locale_switched());
+            $this->assertSame('en_US', get_locale());
+            $this->assertSame('en_US', determine_locale());
+            $this->assertSame($originalRetry, __('Retry', 'll-tools-text-domain'));
+            $this->assertSame($installed, get_available_languages());
+        });
+    }
+
+    public function test_worker_restoration_exception_still_releases_locks_and_restores_user(): void
+    {
+        $this->withEnglishCoreLocales(function (): void {
+            $fixture = $this->createTextFixture('Locale Restore Failure', 1);
+            $resolved = ll_tools_flashcards_resolve_payload_page_scope([
+                'category_id' => (int) $fixture['term']->term_id,
+                'locale' => 'es_ES',
+                'wordset_fallback' => '0',
+            ]);
+            $this->assertIsArray($resolved);
+            $scope = $resolved['scope'];
+            $scopeHash = (string) $scope['scope_hash'];
+            $this->scopeHashes[] = $scopeHash;
+            $previousSwitcher = $GLOBALS['wp_locale_switcher'];
+            $previousUser = self::factory()->user->create(['role' => 'subscriber']);
+            wp_set_current_user($previousUser);
+            $restoreFailure = static function (string $locale): void {
+                if ($locale === 'en_US') {
+                    throw new RuntimeException('Locale restoration fixture failure');
+                }
+            };
+            add_action('restore_previous_locale', $restoreFailure);
+            try {
+                ll_tools_flashcard_payload_ensure_ready($scope);
+                $this->fail('The locale restoration fixture must throw.');
+            } catch (RuntimeException $error) {
+                $this->assertSame('Locale restoration fixture failure', $error->getMessage());
+            } finally {
+                remove_action('restore_previous_locale', $restoreFailure);
+            }
+            $this->assertSame($previousSwitcher, $GLOBALS['wp_locale_switcher']);
+            $this->assertSame($previousUser, get_current_user_id());
+            $this->assertSame('en_US', get_locale());
+            $this->assertSame('en_US', determine_locale());
+            $this->assertSame('Retry', __('Retry', 'll-tools-text-domain'));
+            $this->assertFalse(ll_tools_flashcard_payload_lock_is_active($scopeHash));
+            $this->assertFalse(ll_tools_flashcard_payload_lock_is_active('global'));
+        });
+    }
+
     public function test_private_category_materializes_in_an_exact_viewer_scope(): void
     {
         $viewerId = self::factory()->user->create(['role' => 'subscriber']);
@@ -1326,6 +1521,35 @@ final class FlashcardPayloadMaterializerTest extends LL_Tools_TestCase
             'scope' => $this->buildScope($term),
             'word_ids' => $wordIds,
         ];
+    }
+
+    /** Run with the same core/plugin locale split as a public-only language on production. */
+    private function withEnglishCoreLocales(callable $callback, array $installedLanguages = []): void
+    {
+        global $wp_locale_switcher, $current_screen;
+        $previousSwitcher = $wp_locale_switcher;
+        $previousScreen = $current_screen ?? null;
+        $previousUser = get_current_user_id();
+        $coreLanguages = static function () use ($installedLanguages): array { return $installedLanguages; };
+        add_filter('get_available_languages', $coreLanguages);
+        wp_set_current_user(0);
+        set_current_screen('dashboard');
+        $temporarySwitcher = new WP_Locale_Switcher();
+        $temporarySwitcher->init();
+        $wp_locale_switcher = $temporarySwitcher;
+        try {
+            $this->assertSame('en_US', get_locale());
+            $callback();
+        } finally {
+            $temporarySwitcher->restore_current_locale();
+            remove_filter('locale', [$temporarySwitcher, 'filter_locale']);
+            remove_filter('determine_locale', [$temporarySwitcher, 'filter_locale']);
+            $wp_locale_switcher = $previousSwitcher;
+            remove_filter('get_available_languages', $coreLanguages);
+            $current_screen = $previousScreen;
+            wp_set_current_user($previousUser);
+            ll_tools_get_plugin_locales(true);
+        }
     }
 
     private function createCategory(

@@ -362,6 +362,12 @@ find tests/Integration -maxdepth 1 -name '*Test.php' | sort
   queued workers from reviving missing or retiring state. Its fixed option-row
   reader returns no cursor, waits for a completed generation, excludes target
   aliases, and caps useful same-scope distractors at 12.
+  It also verifies bundled public locales absent from WordPress core language
+  packs remain allowlisted and materialize under their own locale, unsupported
+  and planned locales stay denied, and installed-language enumeration remains
+  unchanged. Mixed nested locales, switch-entry exceptions, failed builders,
+  and restoration-hook failures preserve the caller's locale context and
+  unconditional user/lock cleanup.
 - `QuizPagesShortcodeCatalogTest` verifies durable keyset catalog generations, stale-serving and usable-snapshot rules (including empty stale snapshots), epoch-drift recovery without resetting the only valid compatible partial generation, plugin-versioned builder fencing, worker-side suppression of every per-category derived transient namespace, early unrelated-cron suppression, and signed bounded no-JavaScript continuation.
 - Recorder "new word" flow (`ll_prepare_new_word_recording_handler`) creating draft words and categories with recording types.
 - Word publish guard that blocks publish without `word_audio` when category config requires audio, and allows publish otherwise.

@@ -2545,6 +2545,9 @@ function ll_tools_flashcards_payload_page_request_locale(array $request) {
     if (function_exists('get_available_languages')) {
         $allowed = array_merge($allowed, (array) get_available_languages());
     }
+    if (function_exists('ll_tools_get_plugin_locales')) {
+        $allowed = array_merge($allowed, (array) ll_tools_get_plugin_locales());
+    }
     $allowed = array_values(array_unique(array_filter(array_map(
         static function ($locale): string {
             return function_exists('ll_tools_flashcard_payload_normalize_locale')
@@ -2658,15 +2661,11 @@ function ll_tools_flashcards_resolve_payload_page_scope(array $request) {
         );
     }
 
-    $locale_switched = false;
+    $restore_locale = ll_tools_flashcard_payload_enter_locale($request_locale);
+    if (is_wp_error($restore_locale)) {
+        return $restore_locale;
+    }
     try {
-        if (
-            $request_locale !== get_locale()
-            && function_exists('switch_to_locale')
-            && function_exists('restore_previous_locale')
-        ) {
-            $locale_switched = switch_to_locale($request_locale);
-        }
         $config = ll_tools_get_category_quiz_config($term);
         if (function_exists('ll_tools_apply_wordset_quiz_presentation_overrides')) {
             $config = ll_tools_apply_wordset_quiz_presentation_overrides(
@@ -2707,9 +2706,7 @@ function ll_tools_flashcards_resolve_payload_page_scope(array $request) {
             ? ll_tools_flashcard_payload_build_scope($term, $wordset_ids, $config)
             : new WP_Error('flashcard_payload_unavailable');
     } finally {
-        if ($locale_switched) {
-            restore_previous_locale();
-        }
+        $restore_locale();
     }
     if (is_wp_error($scope)) {
         return $scope;
