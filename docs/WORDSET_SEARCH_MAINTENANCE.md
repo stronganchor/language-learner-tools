@@ -5,6 +5,18 @@ The durable category-search table is maintained in
 mutation handling live in `wordset-category-search-incremental.php`; the dedicated
 worker is `wordset-category-search-worker.php`.
 
+## Result ranking
+
+Search ranks a complete normalized word, translation, or category label above
+a whole-word match inside a longer phrase, then a word prefix, then a substring.
+Category labels break ties only at the same match strength; a partial category
+label must never outrank an exact vocabulary match. Both bounded SQL candidate
+selection and PHP preview ranking must preserve this complete-field priority so
+an older phrase cannot crowd the base word out of the preview window. Ranking is
+computed at query time and does not require rebuilding the durable index.
+`WordsetPageCategorySearchIndexTest`
+and `wordset-page-category-search.spec.js` guard this ordering.
+
 ## Visitor traffic and the managed worker
 
 The default remains compatible with installations that rely on ordinary

@@ -1290,6 +1290,85 @@ final class WordsetPageCategorySearchIndexTest extends LL_Tools_TestCase
         $this->assertGreaterThan(0, (int) ($first_match['match_rank'] ?? 0));
     }
 
+    public function test_category_search_selects_the_base_word_before_older_phrases_in_the_bounded_candidate_window(): void
+    {
+        $wordset = wp_insert_term('Exact Base Search ' . wp_generate_password(6, false), 'wordset');
+        $category = wp_insert_term('Exact Base Category ' . wp_generate_password(4, false), 'word-category');
+        $this->assertIsArray($wordset);
+        $this->assertIsArray($category);
+        $wordset_id = (int) $wordset['term_id'];
+        $category_id = (int) $category['term_id'];
+        $this->setCategoryOwner($category_id, $wordset_id);
+
+        // More older token matches than the four candidates fetched for one
+        // preview ensure SQL must retain the exact field before PHP re-ranking.
+        for ($index = 1; $index <= 6; $index++) {
+            $this->createSearchWord('el phrase ' . $index, 'phrase translation', $wordset_id, [$category_id]);
+        }
+        $word_id = $this->createSearchWord('el', 'hand', $wordset_id, [$category_id]);
+        $this->assertSame($word_id, wp_update_post(['ID' => $word_id, 'post_title' => 'ÉL']));
+
+        $complete = false;
+        $matches = ll_tools_wordset_page_get_category_search_matches($wordset_id, [$category_id], '  el  ', 1, $complete);
+
+        $this->assertTrue($complete);
+        $this->assertCount(1, $matches[$category_id] ?? []);
+        $this->assertSame($word_id, (int) ($matches[$category_id][0]['id'] ?? 0));
+        $this->assertSame(400, (int) ($matches[$category_id][0]['match_rank'] ?? 0));
+        $this->assertSame('title', (string) ($matches[$category_id][0]['match_field'] ?? ''));
+    }
+
+    public function test_category_search_selects_an_exact_translation_before_older_translation_phrases(): void
+    {
+        $wordset = wp_insert_term('Exact Translation Search ' . wp_generate_password(6, false), 'wordset');
+        $category = wp_insert_term('Exact Translation Category ' . wp_generate_password(4, false), 'word-category');
+        $this->assertIsArray($wordset);
+        $this->assertIsArray($category);
+        $wordset_id = (int) $wordset['term_id'];
+        $category_id = (int) $category['term_id'];
+        $this->setCategoryOwner($category_id, $wordset_id);
+
+        for ($index = 1; $index <= 6; $index++) {
+            $this->createSearchWord('older phrase ' . $index, 'el phrase ' . $index, $wordset_id, [$category_id]);
+        }
+        $word_id = $this->createSearchWord('hand', '  ÉL  ', $wordset_id, [$category_id]);
+
+        $complete = false;
+        $matches = ll_tools_wordset_page_get_category_search_matches($wordset_id, [$category_id], 'el', 1, $complete);
+
+        $this->assertTrue($complete);
+        $this->assertCount(1, $matches[$category_id] ?? []);
+        $this->assertSame($word_id, (int) ($matches[$category_id][0]['id'] ?? 0));
+        $this->assertSame(400, (int) ($matches[$category_id][0]['match_rank'] ?? 0));
+        $this->assertSame('translation', (string) ($matches[$category_id][0]['match_field'] ?? ''));
+    }
+
+    public function test_category_search_selects_an_exact_multiword_field_before_longer_phrases(): void
+    {
+        $wordset = wp_insert_term('Exact Phrase Search ' . wp_generate_password(6, false), 'wordset');
+        $category = wp_insert_term('Exact Phrase Category ' . wp_generate_password(4, false), 'word-category');
+        $this->assertIsArray($wordset);
+        $this->assertIsArray($category);
+        $wordset_id = (int) $wordset['term_id'];
+        $category_id = (int) $category['term_id'];
+        $this->setCategoryOwner($category_id, $wordset_id);
+
+        for ($index = 1; $index <= 6; $index++) {
+            $this->createSearchWord('el ele phrase ' . $index, 'longer phrase', $wordset_id, [$category_id]);
+        }
+        $word_id = $this->createSearchWord('el ele', 'hand in hand', $wordset_id, [$category_id]);
+        $this->assertSame($word_id, wp_update_post(['ID' => $word_id, 'post_title' => 'ÉL   ELE']));
+
+        $complete = false;
+        $matches = ll_tools_wordset_page_get_category_search_matches($wordset_id, [$category_id], '  el   ele  ', 1, $complete);
+
+        $this->assertTrue($complete);
+        $this->assertCount(1, $matches[$category_id] ?? []);
+        $this->assertSame($word_id, (int) ($matches[$category_id][0]['id'] ?? 0));
+        $this->assertSame(400, (int) ($matches[$category_id][0]['match_rank'] ?? 0));
+        $this->assertSame('title', (string) ($matches[$category_id][0]['match_field'] ?? ''));
+    }
+
     public function test_anonymous_category_search_cache_miss_reservation_is_atomic(): void
     {
         global $wpdb;

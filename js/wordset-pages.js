@@ -8766,7 +8766,7 @@
     }
 
     function getMainCategorySearchQueryKey(query) {
-        return normalizeSearchText(query || '');
+        return normalizeSearchText(query || '').replace(/\s+/gu, ' ');
     }
 
     function getMainCategorySearchRecoveryPath() {
@@ -8935,22 +8935,25 @@
     }
 
     function getSearchTextMatchStrength(value, normalizedQuery) {
-        const query = String(normalizedQuery || '').trim();
+        const query = getMainCategorySearchQueryKey(normalizedQuery || '');
         if (!query) {
             return 0;
         }
-        const text = normalizeSearchText(value || '');
+        const text = getMainCategorySearchQueryKey(value || '');
         if (!text) {
             return 0;
         }
+        if (text === query) {
+            return 400;
+        }
         const tokens = text.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
         if (tokens.some(function (token) { return token === query; })) {
-            return 3;
+            return 300;
         }
         if (tokens.some(function (token) { return token.indexOf(query) === 0; })) {
-            return 2;
+            return 200;
         }
-        return text.indexOf(query) !== -1 ? 1 : 0;
+        return text.indexOf(query) !== -1 ? 100 : 0;
     }
 
     function getCategoryLabelSearchRank(category, normalizedQuery) {
@@ -8966,12 +8969,16 @@
         const rows = Array.isArray(matches[categoryId]) ? matches[categoryId] : [];
         if (rows.length) {
             return Math.max.apply(null, rows.map(function (row) {
-                return Math.max(0, parseInt(row && row.match_rank, 10) || 0);
+                const suppliedRank = Math.max(0, parseInt(row && row.match_rank, 10) || 0);
+                return suppliedRank || Math.max(
+                    getSearchTextMatchStrength(row && row.title || '', normalizedQuery),
+                    getSearchTextMatchStrength(row && row.translation || '', normalizedQuery)
+                );
             }));
         }
 
         const cat = getCategoryById(categoryId);
-        const legacySearchText = normalizeSearchText(cat && cat.search_text || '');
+        const legacySearchText = getMainCategorySearchQueryKey(cat && cat.search_text || '');
         if (legacySearchText && legacySearchText.indexOf(normalizedQuery) !== -1) {
             return getSearchTextMatchStrength(legacySearchText, normalizedQuery);
         }
@@ -8985,14 +8992,10 @@
         }
         const categoryId = parseInt(category && category.id, 10) || 0;
         const labelRank = getCategoryLabelSearchRank(category, normalizedQuery);
-        if (labelRank > 0) {
-            return 1000 + labelRank;
-        }
         const wordRank = categoryId > 0 ? getCategoryWordSearchRank(categoryId, normalizedQuery) : 0;
-        if (wordRank > 0) {
-            return 100 + wordRank;
-        }
-        return 0;
+        const strongestRank = Math.max(labelRank, wordRank);
+        // Match strength comes first; category labels break equal-strength ties.
+        return strongestRank > 0 ? strongestRank * 10 + (labelRank === strongestRank ? 1 : 0) : 0;
     }
 
     function mainCategoryLabelMatchesSearch(category, normalizedQuery) {
@@ -9007,7 +9010,7 @@
             return true;
         }
 
-        const legacySearchText = normalizeSearchText(cat.search_text || '');
+        const legacySearchText = getMainCategorySearchQueryKey(cat.search_text || '');
         return legacySearchText !== '' && legacySearchText.indexOf(normalizedQuery) !== -1;
     }
 

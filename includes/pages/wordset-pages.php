@@ -7939,6 +7939,9 @@ function ll_tools_wordset_page_category_search_text_match_rank(string $value, st
     if ($value === '' || $query === '') {
         return 0;
     }
+    if ($value === $query) {
+        return 400;
+    }
 
     $tokens = preg_split('/[^\p{L}\p{N}]+/u', $value);
     if (!is_array($tokens)) {

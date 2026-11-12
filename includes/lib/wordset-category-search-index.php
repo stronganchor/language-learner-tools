@@ -2426,6 +2426,11 @@ function ll_tools_wordset_category_search_query_matches(
     $contains_like = '%' . $wpdb->esc_like($query) . '%';
     $exact_like = '% ' . $wpdb->esc_like($query) . ' %';
     $prefix_like = '% ' . $wpdb->esc_like($query) . '%';
+    $whole_condition = $wpdb->prepare(
+        '(title_normalized = %s OR translation_normalized = %s)',
+        $query,
+        $query
+    );
     $exact_condition = $wpdb->prepare(
         '(title_tokens LIKE %s OR translation_tokens LIKE %s)',
         $exact_like,
@@ -2437,6 +2442,7 @@ function ll_tools_wordset_category_search_query_matches(
         $prefix_like
     );
     $rank_expression = "CASE
+        WHEN {$whole_condition} THEN 400
         WHEN {$exact_condition} THEN 300
         WHEN {$prefix_condition} THEN 200
         ELSE 100
