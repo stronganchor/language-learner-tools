@@ -5860,6 +5860,15 @@ function ll_tools_wordset_page_store_category_search_payload(array $payload, int
 
     $cache_key = ll_tools_wordset_page_category_search_payload_cache_key($token);
     $default_ttl = 30 * MINUTE_IN_SECONDS;
+    if (max(0, (int) ($payload['user_id'] ?? 0)) > 0) {
+        // An open signed-in page must not lose its search scope while its
+        // WordPress nonce is still valid. Explicit/filter TTLs remain opt-ins.
+        $default_ttl = max($default_ttl, (int) apply_filters(
+            'nonce_life',
+            DAY_IN_SECONDS,
+            'll_tools_wordset_page_category_search'
+        ));
+    }
     $dependency_ttl_floor = 0;
     $is_shared_token = (
         ll_tools_wordset_page_is_shared_category_search_token($token)

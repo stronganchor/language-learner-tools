@@ -1231,6 +1231,124 @@ final class WordsetPageCategorySearchIndexTest extends LL_Tools_TestCase
         $this->assertSame([], $queries);
     }
 
+    public function test_signed_in_category_search_survives_the_old_expiry_and_still_checks_owner_and_scope(): void
+    {
+        $previous_user_id = get_current_user_id();
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        $other_user_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        try {
+            $wordset = wp_insert_term('Long Open Search ' . wp_generate_password(6, false), 'wordset');
+            $category = wp_insert_term('Long Open Category ' . wp_generate_password(4, false), 'word-category');
+            $this->assertIsArray($wordset);
+            $this->assertIsArray($category);
+            $wordset_id = (int) $wordset['term_id'];
+            $category_id = (int) $category['term_id'];
+            $this->setCategoryOwner($category_id, $wordset_id);
+            $word_id = $this->createSearchWord('Long Open Needle', 'needle', $wordset_id, [$category_id]);
+            ll_tools_get_wordset_page_category_search_index($wordset_id, [$category_id]);
+
+            $created_at = time();
+            $token = ll_tools_wordset_page_store_category_search_payload([
+                'wordset_id' => $wordset_id,
+                'category_ids' => [$category_id],
+                'user_id' => $admin_id,
+                'access_signature' => ll_tools_wordset_page_category_search_payload_access_signature($wordset_id, $admin_id),
+            ]);
+            $this->assertNotSame('', $token);
+            $cache_key = ll_tools_wordset_page_category_search_payload_cache_key($token);
+            $timeout_option = '_transient_timeout_' . $cache_key;
+            $expires_at = (int) get_option($timeout_option, 0);
+            $this->assertGreaterThanOrEqual($created_at + DAY_IN_SECONDS, $expires_at);
+
+            // Age the durable copy past the former 30-minute lifetime and
+            // bypass the object-cache shortcut before the first AJAX read.
+            update_option($timeout_option, $expires_at - 31 * MINUTE_IN_SECONDS);
+            wp_cache_delete($cache_key, 'll_tools');
+            $request = [
+                'nonce' => wp_create_nonce('ll_tools_wordset_page_category_search'),
+                'token' => $token,
+                'wordset_id' => $wordset_id,
+                'query' => 'needle',
+            ];
+            $response = $this->postCategorySearchAjax($request);
+            $this->assertTrue((bool) ($response['success'] ?? false));
+            $this->assertSame($word_id, (int) ($response['data']['wordMatches'][$category_id][0]['id'] ?? 0));
+
+            wp_set_current_user($other_user_id);
+            $request['nonce'] = wp_create_nonce('ll_tools_wordset_page_category_search');
+            $wrong_owner = $this->postCategorySearchAjax($request);
+            $this->assertFalse((bool) ($wrong_owner['success'] ?? true));
+
+            wp_set_current_user($admin_id);
+            $request['nonce'] = wp_create_nonce('ll_tools_wordset_page_category_search');
+            ll_tools_bump_category_cache_epoch([$wordset_id]);
+            $stale_scope = $this->postCategorySearchAjax($request);
+            $this->assertFalse((bool) ($stale_scope['success'] ?? true));
+        } finally {
+            wp_set_current_user($previous_user_id);
+        }
+    }
+
+    public function test_signed_in_category_search_default_ttl_tracks_the_search_action_nonce_lifetime(): void
+    {
+        foreach ([2 * HOUR_IN_SECONDS, 2 * DAY_IN_SECONDS, 10 * MINUTE_IN_SECONDS] as $nonce_life) {
+            $seen_actions = [];
+            $custom_nonce_life = static function (int $life, $action) use ($nonce_life, &$seen_actions): int {
+                $seen_actions[] = $action;
+                return $action === 'll_tools_wordset_page_category_search' ? $nonce_life : $life;
+            };
+            add_filter('nonce_life', $custom_nonce_life, 10, 2);
+            try {
+                $created_at = time();
+                $token = ll_tools_wordset_page_store_category_search_payload(['user_id' => 123]);
+                $this->assertNotSame('', $token);
+                $cache_key = ll_tools_wordset_page_category_search_payload_cache_key($token);
+                $expires_at = (int) get_option('_transient_timeout_' . $cache_key, 0);
+                $expected_ttl = max(30 * MINUTE_IN_SECONDS, $nonce_life);
+                $this->assertGreaterThanOrEqual($created_at + $expected_ttl, $expires_at);
+                $this->assertLessThanOrEqual(time() + $expected_ttl, $expires_at);
+                $this->assertContains('ll_tools_wordset_page_category_search', $seen_actions);
+            } finally {
+                remove_filter('nonce_life', $custom_nonce_life, 10);
+            }
+        }
+    }
+
+    public function test_category_search_preserves_private_ttl_overrides_and_guest_dependency_lifetimes(): void
+    {
+        $seen_default = 0;
+        $custom_ttl = static function (int $ttl) use (&$seen_default): int {
+            $seen_default = $ttl;
+            return 5 * MINUTE_IN_SECONDS;
+        };
+        add_filter('ll_tools_wordset_page_category_search_payload_cache_ttl', $custom_ttl);
+        try {
+            $created_at = time();
+            $filtered_token = ll_tools_wordset_page_store_category_search_payload(['user_id' => 123]);
+            $this->assertSame(DAY_IN_SECONDS, $seen_default);
+            $filtered_key = ll_tools_wordset_page_category_search_payload_cache_key($filtered_token);
+            $this->assertGreaterThanOrEqual($created_at + 5 * MINUTE_IN_SECONDS, (int) get_option('_transient_timeout_' . $filtered_key, 0));
+            $this->assertLessThanOrEqual(time() + 5 * MINUTE_IN_SECONDS, (int) get_option('_transient_timeout_' . $filtered_key, 0));
+
+            $explicit_token = ll_tools_wordset_page_store_category_search_payload(['user_id' => 123], 2 * MINUTE_IN_SECONDS);
+            $explicit_key = ll_tools_wordset_page_category_search_payload_cache_key($explicit_token);
+            $this->assertGreaterThanOrEqual($created_at + 2 * MINUTE_IN_SECONDS, (int) get_option('_transient_timeout_' . $explicit_key, 0));
+            $this->assertLessThanOrEqual(time() + 2 * MINUTE_IN_SECONDS, (int) get_option('_transient_timeout_' . $explicit_key, 0));
+
+            $guest_payload = ['user_id' => 0];
+            $guest_token = ll_tools_wordset_page_build_category_search_token($guest_payload);
+            $expected_guest_ttl = ll_tools_wordset_page_public_static_dependency_ttl(30 * MINUTE_IN_SECONDS, 'category_search');
+            $guest_token = ll_tools_wordset_page_store_category_search_payload($guest_payload, 0, $guest_token);
+            $guest_key = ll_tools_wordset_page_category_search_payload_cache_key($guest_token);
+            $this->assertGreaterThanOrEqual($created_at + $expected_guest_ttl, (int) get_option('_transient_timeout_' . $guest_key, 0));
+            $this->assertLessThanOrEqual(time() + $expected_guest_ttl, (int) get_option('_transient_timeout_' . $guest_key, 0));
+        } finally {
+            remove_filter('ll_tools_wordset_page_category_search_payload_cache_ttl', $custom_ttl);
+        }
+    }
+
     public function test_category_search_ajax_returns_diacritic_insensitive_word_matches(): void
     {
         $wordset = wp_insert_term('Ajax Search Wordset ' . wp_generate_password(6, false), 'wordset');

@@ -87,6 +87,12 @@ invalidate this index.
 
 ## Verification and recovery
 
+Signed-in search scopes default to at least the WordPress search nonce lifetime
+(24 hours by default), so an open tab does not lose search after 30 minutes.
+Explicit payload TTLs and the category-search payload TTL filter still override
+that default. Guest static-cache dependency lifetimes are unchanged; every AJAX
+request still checks its nonce, payload owner and current structural access scope.
+
 - `tests/Integration/WordsetCategorySearchMaintenanceTest.php`: one-word edits,
   moves, publication/type/deletion, failed writes, concurrent edits, fresh epoch
   reads, traffic-independent work, worker budgets and retry behavior.
