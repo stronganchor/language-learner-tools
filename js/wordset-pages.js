@@ -5283,6 +5283,9 @@
         const bodyEl = $body && $body.length ? $body[0] : null;
         const rows = Array.isArray(opts.rows) ? opts.rows : [];
         const buildRow = typeof opts.buildRow === 'function' ? opts.buildRow : null;
+        const insertBatch = typeof opts.insertBatch === 'function'
+            ? opts.insertBatch
+            : function (fragment) { bodyEl.appendChild(fragment); };
         const onDone = typeof opts.onDone === 'function' ? opts.onDone : function () {};
         const getToken = typeof opts.getToken === 'function' ? opts.getToken : function () { return 0; };
         const clearAnyTask = typeof opts.clearAnyTask === 'function' ? opts.clearAnyTask : function () {};
@@ -5323,7 +5326,7 @@
                     fragment.appendChild(node);
                 }
             }
-            bodyEl.appendChild(fragment);
+            insertBatch(fragment);
             if (index >= rows.length) {
                 finalize();
                 return false;
@@ -7350,8 +7353,49 @@
         return $tr[0];
     }
 
+    function captureProgressWordScrollAnchor() {
+        const wrapEl = $progressWordTableWrap[0];
+        const wrapRect = wrapEl ? wrapEl.getBoundingClientRect() : null;
+        const viewportTop = Math.max(0, wrapRect ? wrapRect.top : 0);
+        const viewportBottom = Math.min(window.innerHeight, wrapRect ? wrapRect.bottom : window.innerHeight);
+        const row = Array.from($progressWordRows[0].children).find(function (node) {
+            const rect = node.getBoundingClientRect();
+            return rect.bottom > viewportTop && rect.top < viewportBottom;
+        });
+        return row ? { row: row, top: row.getBoundingClientRect().top, wrap: wrapEl } : null;
+    }
+
+    function restoreProgressWordScrollAnchor(anchor) {
+        if (!anchor || !anchor.row.isConnected) { return; }
+        const delta = anchor.row.getBoundingClientRect().top - anchor.top;
+        if (anchor.wrap && anchor.wrap.scrollHeight > anchor.wrap.clientHeight + 8) {
+            anchor.wrap.scrollTop += delta;
+        } else if (delta) {
+            window.scrollBy(0, delta);
+        }
+    }
+
+    function setProgressWordColumnWidths(preserveRows) {
+        const table = $progressWordRows.closest('table')[0];
+        if (!table) { return; }
+        if (!preserveRows) {
+            table.classList.remove('has-paged-column-widths');
+            return;
+        }
+        if (window.innerWidth <= 860 || table.classList.contains('has-paged-column-widths')) { return; }
+        const firstRow = table.rows[0];
+        const tableWidth = table.getBoundingClientRect().width;
+        if (!firstRow || !tableWidth) { return; }
+        Array.from(firstRow.cells).forEach(function (cell, index) {
+            table.style.setProperty('--ll-progress-column-' + (index + 1),
+                (100 * cell.getBoundingClientRect().width / tableWidth) + '%');
+        });
+        table.classList.add('has-paged-column-widths');
+    }
+
     function renderProgressWordTable(options) {
         const opts = (options && typeof options === 'object') ? options : {};
+        const preserveRows = !!opts.preserveRows && !analyticsWordRenderTimer;
         const token = parseInt(opts.token, 10) || (++analyticsWordRenderToken);
         if (!$progressWordRows.length) { return; }
 
@@ -7361,7 +7405,9 @@
         analyticsWordLoadingTimer = null;
         clearProgressWordChunkTask();
 
-        stopProgressWordAudio();
+        if (!preserveRows) {
+            stopProgressWordAudio();
+        }
         const rows = buildProgressWordRowsForDisplay();
         if (progressAnalyticsLoading && (!!analytics.wordsOmitted || !rows.length)) {
             syncProgressSelectionControls([]);
@@ -7370,7 +7416,17 @@
             return;
         }
 
-        $progressWordRows.empty().removeAttr('aria-busy');
+        const scrollAnchor = preserveRows ? captureProgressWordScrollAnchor() : null;
+        const hadPartOfSpeech = $progressRoot.hasClass('has-part-of-speech');
+        renderProgressTableModeState();
+        if (hadPartOfSpeech !== $progressRoot.hasClass('has-part-of-speech')) {
+            setProgressWordColumnWidths(false);
+        }
+        setProgressWordColumnWidths(preserveRows);
+        if (!preserveRows) {
+            $progressWordRows.empty();
+        }
+        $progressWordRows.removeAttr('aria-busy');
         const renderGenderTable = isGenderProgressViewActive();
         syncProgressSelectionControls(rows);
         const selectedLookup = {};
@@ -7399,9 +7455,37 @@
             return;
         }
 
+        // Continuations retain the existing DOM and table height. Only build
+        // missing rows, inserting them in the current client-side sort order.
+        const existingRows = {};
+        if (preserveRows) {
+            $progressWordRows.children('[data-word-id]').each(function () {
+                existingRows[this.getAttribute('data-word-id')] = this;
+            });
+        }
+        const insertBeforeRows = {};
+        let nextExistingRow = null;
+        for (let index = rows.length - 1; index >= 0; index -= 1) {
+            const wordId = rows[index].id;
+            if (existingRows[wordId]) {
+                nextExistingRow = existingRows[wordId];
+            } else {
+                insertBeforeRows[wordId] = nextExistingRow;
+            }
+        }
+        const missingRows = rows.filter(function (row) { return !existingRows[row.id]; });
+
         renderProgressRowsProgressively({
             $body: $progressWordRows,
-            rows: rows,
+            rows: missingRows,
+            insertBatch: preserveRows ? function (fragment) {
+                const anchor = captureProgressWordScrollAnchor();
+                while (fragment.firstChild) {
+                    const node = fragment.firstChild;
+                    $progressWordRows[0].insertBefore(node, insertBeforeRows[node.getAttribute('data-word-id')] || null);
+                }
+                restoreProgressWordScrollAnchor(anchor);
+            } : null,
             buildRow: function (row) {
                 return buildProgressWordRowElement(row, {
                     renderGenderTable: renderGenderTable,
@@ -7419,6 +7503,7 @@
             token: token
         });
         renderProgressWordPaginationControls();
+        restoreProgressWordScrollAnchor(scrollAnchor);
         scheduleProgressWordsAutoLoadCheck(140);
     }
 
@@ -7949,17 +8034,21 @@
         appendProgressWordRequestFilter(requestData, wordFilterPayload);
 
         return $.post(ajaxUrl, requestData).done(function (res) {
-            if (token !== progressWordPageRequestToken) { return; }
+            if (token !== progressWordPageRequestToken || wordFilterKey !== getCurrentProgressWordRequestFilterKey()) { return; }
             if (!res || !res.success || !res.data || !res.data.analytics) {
                 setProgressStatus(i18n.analyticsUnavailable || '', 'error');
                 return;
             }
             mergeProgressWordPage(res.data.analytics);
-            renderProgressAnalytics();
+            if (analyticsTab === 'words') {
+                renderProgressWordTable({ preserveRows: true });
+            } else {
+                renderProgressWordPaginationControls();
+            }
             setProgressStatus('', '');
             scheduleProgressWordsAutoLoadCheck(80);
         }).fail(function () {
-            if (token !== progressWordPageRequestToken) { return; }
+            if (token !== progressWordPageRequestToken || wordFilterKey !== getCurrentProgressWordRequestFilterKey()) { return; }
             setProgressStatus(i18n.analyticsUnavailable || '', 'error');
         }).always(function () {
             if (token !== progressWordPageRequestToken) { return; }

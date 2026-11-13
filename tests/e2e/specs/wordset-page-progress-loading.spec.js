@@ -2299,6 +2299,303 @@ test('progress words load in bounded pages', async ({ page }) => {
   await expect(page.locator('[data-ll-wordset-progress-words-load-more]')).toBeHidden();
 });
 
+for (const viewport of [
+  { name: 'desktop', width: 1280, height: 720 },
+  { name: 'mobile', width: 390, height: 844 }
+]) {
+  test(`${viewport.name} progress autoload preserves existing rows and document scroll across pages`, async ({ page }) => {
+    await mountProgressPage(page);
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    await page.addStyleTag({ path: wordsetCssPath });
+    // Production scrolls the document; the basic fixture's 40px scroller would
+    // conceal a table collapse and the browser's resulting scroll clamp.
+    await page.evaluate(() => {
+      document.querySelector('.ll-wordset-progress-table-wrap').removeAttribute('style');
+    });
+    await expect.poll(() => page.evaluate(() => window.__llAnalyticsRequests.length)).toBe(1);
+    await page.evaluate(payload => window.__resolveAnalyticsRequest(0, payload), buildAnalytics({
+      totalWords: 90,
+      words: buildProgressWords(1, 30),
+      wordsPagination: { enabled: true, total: 90, offset: 0, limit: 30, loaded: 30, next_offset: 30, has_more: true }
+    }));
+    await page.getByRole('tab', { name: 'Words' }).click();
+    const body = page.locator('[data-ll-wordset-progress-words-body]');
+    await expect(body.locator('tr')).toHaveCount(30);
+    await expect(body).not.toHaveAttribute('aria-busy', 'true');
+
+    for (let pageIndex = 1; pageIndex <= 2; pageIndex += 1) {
+      await page.evaluate(() => {
+        window.scrollTo(0, document.documentElement.scrollHeight);
+        window.dispatchEvent(new Event('scroll'));
+      });
+      await expect.poll(() => page.evaluate(() => window.__llAnalyticsRequests.length)).toBe(pageIndex + 1);
+      const before = await page.evaluate(() => {
+        const bodyElement = document.querySelector('[data-ll-wordset-progress-words-body]');
+        window.__pagingOriginalRows = Array.from(bodyElement.children);
+        window.__pagingRemovedRows = [];
+        window.__pagingObserver = new MutationObserver(records => {
+          records.forEach(record => record.removedNodes.forEach(node => {
+            if (window.__pagingOriginalRows.includes(node)) {
+              window.__pagingRemovedRows.push(node.getAttribute('data-word-id'));
+            }
+          }));
+        });
+        window.__pagingObserver.observe(bodyElement, { childList: true });
+        // A busy browser can postpone later render chunks. Rows already shown
+        // must remain present even while that continuation is waiting.
+        window.requestIdleCallback = callback => window.setTimeout(() => callback({ didTimeout: false, timeRemaining: () => 1 }), 60);
+        window.cancelIdleCallback = id => window.clearTimeout(id);
+        return { scrollY: window.scrollY, height: document.documentElement.scrollHeight };
+      });
+      expect(before.scrollY).toBeGreaterThan(viewport.height / 2);
+      const loaded = (pageIndex + 1) * 30;
+      const immediate = await page.evaluate(({ index, payload }) => {
+        window.__resolveAnalyticsRequest(index, payload);
+        return {
+          scrollY: window.scrollY,
+          height: document.documentElement.scrollHeight,
+          retained: window.__pagingOriginalRows.every(row => row.isConnected)
+        };
+      }, {
+        index: pageIndex,
+        payload: buildAnalytics({
+          totalWords: 90,
+          words: buildProgressWords(pageIndex * 30 + 1, 30),
+          wordsPagination: {
+            enabled: true, total: 90, offset: pageIndex * 30, limit: 30,
+            loaded, next_offset: loaded < 90 ? loaded : null, has_more: loaded < 90
+          }
+        })
+      });
+      expect(immediate.retained).toBe(true);
+      expect(immediate.height).toBeGreaterThanOrEqual(before.height);
+      expect(Math.abs(immediate.scrollY - before.scrollY)).toBeLessThanOrEqual(2);
+      await expect(body.locator('tr')).toHaveCount(loaded);
+      await expect(body).not.toHaveAttribute('aria-busy', 'true');
+      const after = await page.evaluate(() => {
+        window.__pagingObserver.disconnect();
+        return {
+          scrollY: window.scrollY,
+          removed: window.__pagingRemovedRows,
+          retained: window.__pagingOriginalRows.every(row => row.isConnected)
+        };
+      });
+      expect(after.removed).toEqual([]);
+      expect(after.retained).toBe(true);
+      expect(Math.abs(after.scrollY - before.scrollY)).toBeLessThanOrEqual(2);
+      await expect.poll(() => body.locator('tr').evaluateAll(rows => new Set(rows.map(row => row.getAttribute('data-word-id'))).size)).toBe(loaded);
+    }
+    await expect(page.locator('[data-ll-wordset-progress-words-loaded]')).toHaveText('Showing 90 of 90 words');
+  });
+}
+
+test('sorted progress paging inserts new rows in order while preserving the visible word', async ({ page }) => {
+  await mountProgressPage(page);
+  await page.addStyleTag({ path: wordsetCssPath });
+  await page.evaluate(() => {
+    document.querySelector('.ll-wordset-progress-table-wrap').removeAttribute('style');
+    const sortButton = document.createElement('button');
+    sortButton.type = 'button';
+    sortButton.setAttribute('data-ll-wordset-progress-sort', 'word');
+    sortButton.textContent = 'Sort words';
+    document.querySelector('[data-ll-wordset-progress-panel="words"]').prepend(sortButton);
+  });
+  await expect.poll(() => page.evaluate(() => window.__llAnalyticsRequests.length)).toBe(1);
+  await page.evaluate(payload => window.__resolveAnalyticsRequest(0, payload), buildAnalytics({
+    totalWords: 60,
+    words: buildProgressWords(1, 30).reverse().map(row => ({ ...row, title: `Middle ${String(row.id).padStart(3, '0')}` })),
+    wordsPagination: { enabled: true, total: 60, offset: 0, limit: 30, loaded: 30, next_offset: 30, has_more: true }
+  }));
+  await page.getByRole('tab', { name: 'Words' }).click();
+  const body = page.locator('[data-ll-wordset-progress-words-body]');
+  await expect(body.locator('tr')).toHaveCount(30);
+  await page.getByRole('button', { name: 'Sort words', exact: true }).click();
+  await expect(body.locator('tr').first()).toHaveAttribute('data-word-id', '1');
+  await expect(body.locator('tr')).toHaveCount(30);
+  await expect(body).not.toHaveAttribute('aria-busy', 'true');
+  await page.evaluate(() => {
+    window.scrollTo(0, document.documentElement.scrollHeight);
+    window.dispatchEvent(new Event('scroll'));
+  });
+  await expect.poll(() => page.evaluate(() => window.__llAnalyticsRequests.length)).toBe(2);
+  const before = await page.evaluate(() => {
+    window.__pagingOriginalRows = Array.from(document.querySelector('[data-ll-wordset-progress-words-body]').children);
+    window.__pagingAnchor = window.__pagingOriginalRows.find(row => {
+      const rect = row.getBoundingClientRect();
+      return rect.top >= 0 && rect.bottom <= window.innerHeight;
+    });
+    return { id: window.__pagingAnchor.getAttribute('data-word-id'), top: window.__pagingAnchor.getBoundingClientRect().top, scrollY: window.scrollY, height: document.documentElement.scrollHeight };
+  });
+  await page.evaluate(payload => window.__resolveAnalyticsRequest(1, payload), buildAnalytics({
+    totalWords: 60,
+    words: buildProgressWords(31, 30).map(row => ({ ...row, title: `Ahead ${String(row.id).padStart(3, '0')}` })),
+    wordsPagination: { enabled: true, total: 60, offset: 30, limit: 30, loaded: 60, next_offset: null, has_more: false }
+  }));
+  await expect(body.locator('tr')).toHaveCount(60);
+  await expect(body).not.toHaveAttribute('aria-busy', 'true');
+  const after = await page.evaluate(() => ({
+    retained: window.__pagingOriginalRows.every(row => row.isConnected),
+    anchorId: window.__pagingAnchor.getAttribute('data-word-id'),
+    top: window.__pagingAnchor.getBoundingClientRect().top,
+    scrollY: window.scrollY,
+    height: document.documentElement.scrollHeight,
+    ids: Array.from(document.querySelector('[data-ll-wordset-progress-words-body]').children, row => Number(row.getAttribute('data-word-id')))
+  }));
+  expect(after.retained).toBe(true);
+  expect(after.anchorId).toBe(before.id);
+  expect(Math.abs(after.top - before.top), JSON.stringify({ before, after: { top: after.top, scrollY: after.scrollY, height: after.height } })).toBeLessThanOrEqual(2);
+  expect(after.scrollY).toBeGreaterThan(before.scrollY);
+  expect(after.ids).toEqual([...Array.from({ length: 30 }, (_unused, index) => index + 31), ...Array.from({ length: 30 }, (_unused, index) => index + 1)]);
+});
+
+test('desktop progress paging keeps existing column widths when new labels are long', async ({ page }) => {
+  await mountProgressPage(page);
+  await page.addStyleTag({ path: wordsetCssPath });
+  await expect.poll(() => page.evaluate(() => window.__llAnalyticsRequests.length)).toBe(1);
+  await page.evaluate(payload => window.__resolveAnalyticsRequest(0, payload), buildAnalytics({
+    totalWords: 60,
+    words: buildProgressWords(1, 30),
+    wordsPagination: { enabled: true, total: 60, offset: 0, limit: 30, loaded: 30, next_offset: 30, has_more: true }
+  }));
+  await page.getByRole('tab', { name: 'Words' }).click();
+  const body = page.locator('[data-ll-wordset-progress-words-body]');
+  await expect(body.locator('tr')).toHaveCount(30);
+  const before = await body.locator('tr').first().locator('td').evaluateAll(cells => cells.map(cell => cell.getBoundingClientRect().width));
+  await page.locator('[data-ll-wordset-progress-words-load-more]').click();
+  await expect.poll(() => page.evaluate(() => window.__llAnalyticsRequests.length)).toBe(2);
+  await page.evaluate(payload => window.__resolveAnalyticsRequest(1, payload), buildAnalytics({
+    totalWords: 60,
+    words: buildProgressWords(31, 30).map(row => ({
+      ...row,
+      title: 'A substantially longer vocabulary expression with several descriptive words',
+      translation: 'A substantially longer translation containing extra explanatory wording',
+      category_label: 'Extraordinarilylongcategorylabel with more category words',
+      category_labels: ['Extraordinarilylongcategorylabel with more category words']
+    })),
+    wordsPagination: { enabled: true, total: 60, offset: 30, limit: 30, loaded: 60, next_offset: null, has_more: false }
+  }));
+  await expect(body.locator('tr')).toHaveCount(60);
+  const after = await body.locator('tr').first().locator('td').evaluateAll(cells => cells.map(cell => cell.getBoundingClientRect().width));
+  expect(after).toHaveLength(before.length);
+  after.forEach((width, index) => expect(Math.abs(width - before[index]), `Column ${index + 1} changed from ${before[index]} to ${width}`).toBeLessThanOrEqual(1));
+});
+
+for (const change of ['sort', 'search']) {
+  test(`progress paging response respects a ${change} change before its deferred render`, async ({ page }) => {
+    await mountProgressPage(page);
+    await expect.poll(() => page.evaluate(() => window.__llAnalyticsRequests.length)).toBe(1);
+    await page.evaluate(payload => window.__resolveAnalyticsRequest(0, payload), buildAnalytics({
+      totalWords: 60,
+      words: buildProgressWords(1, 30).reverse().map(row => ({ ...row, title: `Word ${String(row.id).padStart(3, '0')}` })),
+      wordsPagination: { enabled: true, total: 60, offset: 0, limit: 30, loaded: 30, next_offset: 30, has_more: true }
+    }));
+    await page.getByRole('tab', { name: 'Words' }).click();
+    const body = page.locator('[data-ll-wordset-progress-words-body]');
+    await expect(body.locator('tr')).toHaveCount(30);
+    await page.locator('[data-ll-wordset-progress-words-load-more]').click();
+    await expect.poll(() => page.evaluate(() => window.__llAnalyticsRequests.length)).toBe(2);
+    await page.evaluate(({ change, payload }) => {
+      if (change === 'sort') {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.setAttribute('data-ll-wordset-progress-sort', 'word');
+        document.querySelector('[data-ll-wordset-progress-panel="words"]').appendChild(button);
+        button.click();
+      } else {
+        const search = document.querySelector('[data-ll-wordset-progress-search]');
+        search.value = 'Needle';
+        search.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+      // Resolve in the same browser task, before the sort's zero-delay render
+      // or search's debounced analytics refresh has had a chance to run.
+      window.__resolveAnalyticsRequest(1, payload);
+    }, {
+      change,
+      payload: buildAnalytics({
+        totalWords: 60,
+        words: buildProgressWords(31, 30).map(row => ({ ...row, title: `Word ${String(row.id).padStart(3, '0')}` })),
+        wordsPagination: { enabled: true, total: 60, offset: 30, limit: 30, loaded: 60, next_offset: null, has_more: false }
+      })
+    });
+    if (change === 'sort') {
+      await expect(body.locator('tr')).toHaveCount(60);
+      await expect.poll(() => body.locator('tr').evaluateAll(rows => rows.map(row => Number(row.getAttribute('data-word-id')))))
+        .toEqual(Array.from({ length: 60 }, (_unused, index) => index + 1));
+    } else {
+      await expect.poll(() => page.evaluate(() => window.__llAnalyticsRequests.length)).toBe(3);
+      expect(await page.evaluate(() => JSON.parse(window.__llAnalyticsRequests[2].request.word_filter).search)).toBe('Needle');
+      await page.evaluate(payload => window.__resolveAnalyticsRequest(2, payload), buildAnalytics({
+        totalWords: 60,
+        words: buildProgressWords(101, 1).map(row => ({ ...row, title: 'Needle' })),
+        wordsPagination: { enabled: true, filtered: true, total: 1, offset: 0, limit: 30, loaded: 1, next_offset: null, has_more: false }
+      }));
+      await expect(body.locator('tr')).toHaveCount(1);
+      await expect(body.locator('tr').first()).toHaveAttribute('data-word-id', '101');
+    }
+  });
+}
+
+test('progress paging reveals a part-of-speech column first encountered on a later page', async ({ page }) => {
+  await mountProgressPage(page);
+  await page.addStyleTag({ path: wordsetCssPath });
+  await expect.poll(() => page.evaluate(() => window.__llAnalyticsRequests.length)).toBe(1);
+  await page.evaluate(payload => window.__resolveAnalyticsRequest(0, payload), buildAnalytics({
+    totalWords: 60,
+    words: buildProgressWords(1, 30),
+    wordsPagination: { enabled: true, total: 60, offset: 0, limit: 30, loaded: 30, next_offset: 30, has_more: true }
+  }));
+  await page.getByRole('tab', { name: 'Words' }).click();
+  const body = page.locator('[data-ll-wordset-progress-words-body]');
+  const root = page.locator('[data-ll-wordset-progress-root]');
+  await expect(body.locator('tr')).toHaveCount(30);
+  await expect(root).not.toHaveClass(/has-part-of-speech/);
+  await page.locator('[data-ll-wordset-progress-words-load-more]').click();
+  await expect.poll(() => page.evaluate(() => window.__llAnalyticsRequests.length)).toBe(2);
+  await page.evaluate(payload => window.__resolveAnalyticsRequest(1, payload), buildAnalytics({
+    totalWords: 60,
+    words: buildProgressWords(31, 30).map(row => ({ ...row, part_of_speech_slug: 'noun', part_of_speech_label: 'Noun', part_of_speech_abbreviation: 'n.' })),
+    wordsPagination: { enabled: true, total: 60, offset: 30, limit: 30, loaded: 60, next_offset: null, has_more: false }
+  }));
+  await expect(body.locator('tr')).toHaveCount(60);
+  await expect(root).toHaveClass(/has-part-of-speech/);
+  await expect(body.locator('[data-word-id="31"] .ll-wordset-progress-col--part-of-speech')).toBeVisible();
+  await expect(body.locator('[data-word-id="31"] .ll-wordset-progress-pos-pill')).toContainText('Noun');
+});
+
+test('progress paging failure retains existing rows and retries the same page', async ({ page }) => {
+  await mountProgressPage(page);
+  await expect.poll(() => page.evaluate(() => window.__llAnalyticsRequests.length)).toBe(1);
+  await page.evaluate(payload => window.__resolveAnalyticsRequest(0, payload), buildAnalytics({
+    totalWords: 60,
+    words: buildProgressWords(1, 30),
+    wordsPagination: { enabled: true, total: 60, offset: 0, limit: 30, loaded: 30, next_offset: 30, has_more: true }
+  }));
+  await page.getByRole('tab', { name: 'Words' }).click();
+  const body = page.locator('[data-ll-wordset-progress-words-body]');
+  await expect(body.locator('tr')).toHaveCount(30);
+  await page.evaluate(() => {
+    window.__pagingOriginalRows = Array.from(document.querySelector('[data-ll-wordset-progress-words-body]').children);
+  });
+  await page.locator('[data-ll-wordset-progress-words-load-more]').click();
+  await expect.poll(() => page.evaluate(() => window.__llAnalyticsRequests.length)).toBe(2);
+  await page.evaluate(() => window.__rejectAnalyticsRequest(1));
+  await expect(page.locator('[data-ll-wordset-progress-status]')).toHaveText('Progress unavailable.');
+  await expect(body.locator('tr')).toHaveCount(30);
+  expect(await page.evaluate(() => window.__pagingOriginalRows.every(row => row.isConnected))).toBe(true);
+  await expect(page.locator('[data-ll-wordset-progress-words-loaded]')).toHaveText('Showing 30 of 60 words');
+  await page.locator('[data-ll-wordset-progress-words-load-more]').click();
+  await expect.poll(() => page.evaluate(() => window.__llAnalyticsRequests.length)).toBe(3);
+  expect(await page.evaluate(() => window.__llAnalyticsRequests.slice(1).map(entry => entry.request.word_offset))).toEqual([30, 30]);
+  await page.evaluate(payload => window.__resolveAnalyticsRequest(2, payload), buildAnalytics({
+    totalWords: 60,
+    words: buildProgressWords(31, 30),
+    wordsPagination: { enabled: true, total: 60, offset: 30, limit: 30, loaded: 60, next_offset: null, has_more: false }
+  }));
+  await expect(body.locator('tr')).toHaveCount(60);
+  expect(await page.evaluate(() => window.__pagingOriginalRows.every(row => row.isConnected))).toBe(true);
+  await expect(page.locator('[data-ll-wordset-progress-status]')).toBeHidden();
+});
+
 test('progress starred filter requests matching word pages directly', async ({ page }) => {
   const matchingIds = Array.from({ length: 12 }, (_unused, index) => 101 + index);
   await mountProgressPage(page, {

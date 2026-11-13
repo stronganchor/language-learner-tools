@@ -7531,6 +7531,8 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 
 .ll-wordset-progress-words-more {
     display: flex;
+    box-sizing: border-box;
+    min-height: 48px;
     align-items: center;
     justify-content: center;
     gap: 10px;
@@ -7977,6 +7979,26 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 }
 
 @media (min-width: 861px) {
+    /* Keep incoming long labels from resizing columns in already-read rows. */
+    .ll-wordset-progress-table--words.has-paged-column-widths {
+        table-layout: fixed;
+    }
+
+    .ll-wordset-progress-table--words.has-paged-column-widths :is(th, td) {
+        box-sizing: border-box;
+        overflow-wrap: anywhere;
+    }
+
+    .ll-wordset-progress-table--words.has-paged-column-widths :is(th, td):nth-child(1) { width: var(--ll-progress-column-1); }
+    .ll-wordset-progress-table--words.has-paged-column-widths :is(th, td):nth-child(2) { width: var(--ll-progress-column-2); }
+    .ll-wordset-progress-table--words.has-paged-column-widths :is(th, td):nth-child(3) { width: var(--ll-progress-column-3); }
+    .ll-wordset-progress-table--words.has-paged-column-widths :is(th, td):nth-child(4) { width: var(--ll-progress-column-4); }
+    .ll-wordset-progress-table--words.has-paged-column-widths :is(th, td):nth-child(5) { width: var(--ll-progress-column-5); }
+    .ll-wordset-progress-table--words.has-paged-column-widths :is(th, td):nth-child(6) { width: var(--ll-progress-column-6); }
+    .ll-wordset-progress-table--words.has-paged-column-widths :is(th, td):nth-child(7) { width: var(--ll-progress-column-7); }
+    .ll-wordset-progress-table--words.has-paged-column-widths :is(th, td):nth-child(8) { width: var(--ll-progress-column-8); }
+    .ll-wordset-progress-table--words.has-paged-column-widths :is(th, td):nth-child(9) { width: var(--ll-progress-column-9); }
+
     .ll-wordset-progress-mobile-legend {
         gap: 6px;
     }
