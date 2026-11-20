@@ -3,6 +3,57 @@ declare(strict_types=1);
 
 final class RecordingWorkflowTest extends LL_Tools_TestCase
 {
+    public function test_processor_visit_preserves_due_summary_and_worker_delivers_it_once(): void
+    {
+        $hook = 'll_tools_send_recording_notification_event';
+        $due = time() - 10;
+        $state = ['total_count' => 2, 'last_upload_unix' => time() - DAY_IN_SECONDS];
+        update_option('ll_tools_recording_notification_state', $state);
+        wp_schedule_single_event($due, $hook);
+        ll_tools_acknowledge_recording_notification_batch_from_processor_page();
+        $this->assertSame($state, get_option('ll_tools_recording_notification_state'));
+        $this->assertSame($due, wp_next_scheduled($hook));
+
+        $subjects = [];
+        $capture = static function ($sent, $mail) use (&$subjects) {
+            $subjects[] = $mail['subject'];
+            return true;
+        };
+        add_filter('pre_wp_mail', $capture, 10, 2);
+        try {
+            wp_unschedule_event($due, $hook);
+            do_action($hook);
+            do_action($hook);
+        } finally {
+            remove_filter('pre_wp_mail', $capture, 10);
+        }
+        $this->assertCount(1, $subjects);
+        $this->assertStringContainsString('2 new recordings', $subjects[0]);
+        $this->assertFalse(get_option('ll_tools_recording_notification_state'));
+    }
+
+    public function test_processor_visit_restores_missing_event_for_overdue_batch(): void
+    {
+        $hook = 'll_tools_send_recording_notification_event';
+        $state = ['total_count' => 1, 'last_upload_unix' => time() - DAY_IN_SECONDS];
+        update_option('ll_tools_recording_notification_state', $state);
+        ll_tools_acknowledge_recording_notification_batch_from_processor_page();
+        $event = wp_next_scheduled($hook);
+        $this->assertIsInt($event);
+        $this->assertLessThanOrEqual(time(), $event);
+        $this->assertSame($state, get_option('ll_tools_recording_notification_state'));
+    }
+
+    public function test_processor_visit_acknowledges_uploads_during_quiet_window(): void
+    {
+        $hook = 'll_tools_send_recording_notification_event';
+        update_option('ll_tools_recording_notification_state', ['total_count' => 1, 'last_upload_unix' => time()]);
+        wp_schedule_single_event(time() + 300, $hook);
+        ll_tools_acknowledge_recording_notification_batch_from_processor_page();
+        $this->assertFalse(get_option('ll_tools_recording_notification_state'));
+        $this->assertFalse(wp_next_scheduled($hook));
+    }
+
     public function test_new_word_preparation_marks_only_precreation_rejections_safe_to_retry(): void
     {
         $user_id = self::factory()->user->create(['role' => 'administrator']);

@@ -9536,8 +9536,13 @@ function ll_tools_get_recording_notification_category_summary_lines(array $state
     return $lines;
 }
 
+function ll_tools_recording_notification_is_due(array $state): bool {
+    $last_upload = (int) ($state['last_upload_unix'] ?? 0);
+    return $last_upload <= 0 || time() >= $last_upload + ll_tools_get_recording_notification_delay_seconds();
+}
+
 /**
- * Clear the pending recording notification batch when the audio processor page is opened.
+ * A processor visit acknowledges uploads only during their quiet window.
  */
 function ll_tools_acknowledge_recording_notification_batch_from_processor_page() {
     $state = get_option('ll_tools_recording_notification_state', []);
@@ -9547,6 +9552,14 @@ function ll_tools_acknowledge_recording_notification_batch_from_processor_page()
 
     $total_count = max(0, (int) ($state['total_count'] ?? 0));
     if ($total_count < 1) {
+        return;
+    }
+
+    if (ll_tools_recording_notification_is_due($state)) {
+        // A delayed cron runner still owes this summary, even if someone opens the processor.
+        if (false === wp_next_scheduled('ll_tools_send_recording_notification_event')) {
+            wp_schedule_single_event(time(), 'll_tools_send_recording_notification_event');
+        }
         return;
     }
 
@@ -9639,9 +9652,7 @@ function ll_tools_send_recording_notification_email() {
         return;
     }
 
-    $last_upload_unix = isset($state['last_upload_unix']) ? (int) $state['last_upload_unix'] : 0;
-    $delay_seconds = ll_tools_get_recording_notification_delay_seconds();
-    if ($last_upload_unix > 0 && (time() - $last_upload_unix) < $delay_seconds) {
+    if (!ll_tools_recording_notification_is_due($state)) {
         ll_tools_schedule_recording_notification_event();
         return;
     }
