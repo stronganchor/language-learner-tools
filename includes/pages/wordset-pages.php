@@ -26349,7 +26349,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
         [
             'key' => 'older',
             'count_key' => 'older',
-            'label' => __('Older than 30 days', 'll-tools-text-domain'),
+            'label' => __('Due for review', 'll-tools-text-domain'),
             'icon' => ll_tools_wordset_page_render_progress_icon('older', 'll-wordset-progress-kpi-icon'),
         ],
     ];
@@ -27418,7 +27418,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             'analyticsNew' => __('New', 'll-tools-text-domain'),
             'analyticsStarred' => __('Starred', 'll-tools-text-domain'),
             'analyticsHard' => __('Hard', 'll-tools-text-domain'),
-            'analyticsOlder' => __('Older than 30 days', 'll-tools-text-domain'),
+            'analyticsOlder' => __('Due for review', 'll-tools-text-domain'),
             'analyticsSelect' => __('Select', 'll-tools-text-domain'),
             'analyticsSelectAll' => __('All', 'll-tools-text-domain'),
             'analyticsSelectFiltered' => __('Filtered', 'll-tools-text-domain'),

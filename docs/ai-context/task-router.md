@@ -1,5 +1,9 @@
 # AI Context Task Router
 
+For context-based 30-day review, start with `includes/lib/context-review.php`,
+`docs/WORDSET_PROGRESS_SELECTION.md`, the `context-review` route in
+`docs/REST_AUTOMATION.md`, and `UserStudyAnalyticsTest`.
+
 Start here when the task is broad or the owner is unclear. Pick the nearest
 pack, generate it, then verify against current source before editing.
 

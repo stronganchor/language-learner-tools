@@ -5721,3 +5721,7 @@ msgstr "Complete a atividade de preencher lacunas para salvar o progresso."
 #: includes/post-types/content-lesson-post-type.php:127
 msgid "Fill in the blanks"
 msgstr "Preencher as lacunas"
+
+#: includes/pages/wordset-pages.php
+msgid "Due for review"
+msgstr "Para revisar"

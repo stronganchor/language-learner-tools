@@ -1478,7 +1478,7 @@ function ll_tools_rest_resource_guard_policy(WP_REST_Request $request): array {
     } elseif ($route === '/ll-tools/v1/wordsets') {
         $resource = 'll_tools_wordset_create';
         $delay_seconds = 5.0;
-    } elseif (preg_match('#^/ll-tools/v1/wordsets/[^/]+/(bulk-update|word-title-updates|word-helper-updates|word-category-updates|word-image-category-ownership|legacy-translation-cleanup|canonical-text-migration|transcriptions|word-audio-speakers|transcription-validations|word-option-rules|orthography-conversion|prompt-cards|review-notes|interlinear|profile|translations)$#', $route, $matches)) {
+    } elseif (preg_match('#^/ll-tools/v1/wordsets/[^/]+/(bulk-update|word-title-updates|word-helper-updates|word-category-updates|word-image-category-ownership|legacy-translation-cleanup|canonical-text-migration|transcriptions|word-audio-speakers|transcription-validations|word-option-rules|context-review|orthography-conversion|prompt-cards|review-notes|interlinear|profile|translations)$#', $route, $matches)) {
         $resource = 'll_tools_' . sanitize_key((string) $matches[1]);
         if ((string) $matches[1] === 'transcription-validations') {
             $delay_seconds = 30.0;
@@ -1831,6 +1831,7 @@ function ll_tools_rest_automation_status(WP_REST_Request $request): WP_REST_Resp
             'transcription_validation_job_status' => '/ll-tools/v1/wordsets/{wordset}/transcription-validation-jobs/{job_id}',
             'transcription_validation_job_process' => '/ll-tools/v1/wordsets/{wordset}/transcription-validation-jobs/{job_id}/process',
             'site_sync_snapshot' => '/ll-tools/v1/wordsets/{wordset}/site-sync/snapshot',
+            'context_review' => '/ll-tools/v1/wordsets/{wordset}/context-review',
             'word_option_rules' => '/ll-tools/v1/wordsets/{wordset}/word-option-rules',
             'orthography_conversion' => '/ll-tools/v1/wordsets/{wordset}/orthography-conversion',
             'wordset_profile' => '/ll-tools/v1/wordsets/{wordset}/profile',
@@ -11633,6 +11634,13 @@ function ll_tools_rest_register_automation_routes(): void {
                 'default' => false,
             ],
         ],
+    ]);
+
+    register_rest_route('ll-tools/v1', '/wordsets/(?P<wordset>[^/]+)/context-review', [
+        'methods' => [WP_REST_Server::READABLE, WP_REST_Server::CREATABLE],
+        'callback' => 'll_tools_rest_context_review',
+        'permission_callback' => 'll_tools_rest_automation_require_wordset_access',
+        'args' => ['dry_run' => ['type' => 'boolean', 'default' => false]],
     ]);
 
     register_rest_route('ll-tools/v1', '/wordsets/(?P<wordset>[^/]+)/word-option-rules', [

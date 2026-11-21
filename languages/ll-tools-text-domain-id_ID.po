@@ -5663,3 +5663,7 @@ msgstr "Selesaikan aktivitas mengisi bagian yang kosong untuk menyimpan progres.
 
 msgid "Fill in the blanks"
 msgstr "Isi bagian yang kosong"
+
+#: includes/pages/wordset-pages.php
+msgid "Due for review"
+msgstr "Saatnya diulang"

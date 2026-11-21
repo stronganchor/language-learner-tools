@@ -97,6 +97,69 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_context_review_pending_success_and_fallback_across_progress_views(): void
+    {
+        global $wpdb;
+        $uid = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($uid);
+        $f = $this->createAnalyticsFixture();
+        [$cat, $phrase, $hard, $new] = $f['word_ids'];
+        $ws = $f['wordset_id'];
+        $route = '/ll-tools/v1/wordsets/' . $ws . '/context-review';
+        $api = static function ($method, $params = []) use ($route) {
+            $request = new WP_REST_Request($method, $route);
+            foreach ($params as $key => $value) { $request->set_param($key, $value); }
+            return rest_do_request($request);
+        };
+        $initial = $api('GET');
+        $this->assertSame(200, $initial->get_status());
+        $add = ['operation' => 'add', 'edges' => [[$phrase, $cat], [$phrase, $hard], [$phrase, $new]],
+            'expected_revision' => $initial->get_data()['revision']];
+        $this->assertSame(200, $api('POST', $add + ['dry_run' => true])->get_status());
+        $this->assertSame([], $api('GET')->get_data()['edges']);
+        $this->assertSame(200, $api('POST', $add)->get_status());
+        $this->assertSame(409, $api('POST', $add)->get_status());
+        $latest = $api('GET')->get_data()['revision'];
+        foreach ([[[$cat, $phrase]], [[$cat, $cat]], [[$cat, 99999999]]] as $invalid) {
+            $this->assertSame(400, $api('POST', ['operation' => 'add', 'edges' => $invalid, 'expected_revision' => $latest])->get_status());
+        }
+        $old = gmdate('Y-m-d H:i:s', time() - 35 * DAY_IN_SECONDS);
+        $base = ['last_seen_at' => $old, 'total_coverage' => 8, 'correct_clean' => 8, 'stage' => 5];
+        $this->seedWordProgressRow($uid, $cat, $f['category_ids'][0], $ws, $base);
+        $this->seedWordProgressRow($uid, $phrase, $f['category_ids'][0], $ws, $base);
+        $this->seedWordProgressRow($uid, $hard, $f['category_ids'][0], $ws, ['incorrect' => 10] + $base);
+        $assert_due = function (array $expected) use ($uid, $ws, $f) {
+            $filter = ['word_filter' => ['summary' => 'older']];
+            foreach ([['summary_only' => true], ['include_words' => true,'word_limit' => 20] + $filter,
+                ['include_words' => false, 'include_word_ids' => true, 'selection_ids_only' => true] + $filter] as $options) {
+                $result = ll_tools_build_user_study_analytics_payload($uid, $ws, $f['category_ids'], 14, false, $options);
+                $this->assertSame(count($expected), $result['summary']['older_words']);
+                if (isset($options['include_words'])) {
+                    $actual = $options['include_words'] ? array_column($result['words'], 'id') : $result['word_ids'];
+                    $this->assertEqualsCanonicalizing($expected, $actual);
+                }
+            }
+        };
+        $assert_due([$phrase, $hard]);
+        $now = gmdate('Y-m-d H:i:s');
+        $this->seedWordProgressRow($uid, $phrase, $f['category_ids'][0], $ws, ['last_seen_at' => $now] + $base);
+        $assert_due([$cat, $hard]); // Exposure alone earns no credit.
+        $tables = ll_tools_user_progress_table_names();
+        $event = ['user_id' => $uid, 'event_uuid' => wp_generate_uuid4(), 'wordset_id' => $ws,
+            'word_id' => $phrase, 'event_type' => 'word_outcome', 'mode' => 'practice', 'is_correct' => 1, 'created_at' => $now];
+        $this->assertNotFalse($wpdb->insert($tables['events'], ['is_correct' => 0, 'event_uuid' => wp_generate_uuid4()] + $event));
+        $assert_due([$cat, $hard]);
+        $this->assertNotFalse($wpdb->insert($tables['events'], $event));
+        $assert_due([$hard]);
+        $this->assertSame($old, ll_tools_get_user_word_progress_rows($uid, [$cat])[$cat]['last_seen_at']);
+        $wpdb->update($tables['events'], ['created_at' => $old], ['event_uuid' => $event['event_uuid']]);
+        $assert_due([$cat, $hard]);
+        $this->assertSame(200, $api('POST', ['operation' => 'remove', 'edges' => $add['edges'], 'expected_revision' => $latest])->get_status());
+        $this->assertSame([], $api('GET')->get_data()['edges']);
+        wp_set_current_user(0);
+        $this->assertGreaterThanOrEqual(401, $api('GET')->get_status());
+    }
+
     public function test_older_backlog_grows_across_cutoff_with_warm_membership_and_only_studied_target_leaves(): void
     {
         global $wpdb;

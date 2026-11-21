@@ -7,17 +7,23 @@ It stays available at portrait phone widths even when the Last column is hidden.
   scope. In normal word-progress mode this includes words beyond the loaded page.
 - **Filtered** appears only while a search, summary pill, category filter, or
   column filter is active. It keeps those filters and selects every match.
-- **Learned**, **In progress**, **New**, **Starred**, **Hard**, and **Older than
-  30 days** replace the word filters/search with the named group and select it.
+- **Learned**, **In progress**, **New**, **Starred**, **Hard**, and **Due for
+  review** replace the word filters/search with the named group and select it.
   The existing selection bar launches the group in the chosen study mode.
 - Applying a summary pill, search, category filter, or column filter selects
   the matching scope and immediately reveals the study actions. Pills
   still toggle their filter off on a second tap. Clearing the selection hides
   the actions until another filter or selection action. The older-words pill
   uses purple and a clock icon.
-- **Older than 30 days** uses the same last-seen rule as the Last column's
-  **Older** option: a recorded last-seen time strictly more than 30 days ago.
-  Never-seen, recent, and future-dated words are excluded.
+- **Due for review** starts with words last studied over 30 days ago. A
+  previously studied, due phrase can represent its learned component words
+  in the current scope. A correct learning, practice, or self-check outcome
+  on that phrase covers them for 30 days. An exposure or an unsuccessful
+  attempt alone leaves the base word eligible for direct review. New and
+  hard base words retain their own progress. Links can compose through
+  learned intermediate cards. Each distinct due phrase keeps its own place.
+- **Last → Older** uses the recorded date of direct study. Use the wordset
+  `context-review` automation route to maintain the relationships.
 
 ## Contracts and owners
 

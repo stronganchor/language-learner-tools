@@ -5719,3 +5719,7 @@ msgstr "Termine l’activité de texte à trous pour enregistrer ta progression.
 #: includes/post-types/content-lesson-post-type.php:127
 msgid "Fill in the blanks"
 msgstr "Texte à trous"
+
+#: includes/pages/wordset-pages.php
+msgid "Due for review"
+msgstr "À réviser"

@@ -6080,6 +6080,7 @@ function ll_tools_build_user_study_analytics_summary_only_payload(
     int $days
 ): array {
     $progress_rows = ll_tools_get_user_word_progress_summary_rows($uid, $all_word_ids);
+    ll_tools_context_review_mark_rows($uid, $scope_wordset_id, $progress_rows);
     $category_progress = ll_tools_get_user_category_progress($uid);
     $category_url_map = ll_tools_user_progress_get_vocab_lesson_url_map($scope_wordset_id);
     $progress_modes = ll_tools_progress_modes();
@@ -6105,7 +6106,7 @@ function ll_tools_build_user_study_analytics_summary_only_payload(
         if (ll_tools_user_progress_word_is_hard($progress)) {
             $summary_hard++;
         }
-        if (ll_tools_user_progress_last_seen_matches_analytics_filter((string) ($progress['last_seen_at'] ?? ''), 'older')) {
+        if (ll_tools_context_review_word_due($progress)) {
             $summary_older++;
         }
     }
@@ -6582,7 +6583,7 @@ function ll_tools_user_progress_analytics_word_matches_filter(
     if ($summary === 'hard' && !$is_hard) {
         return false;
     }
-    if ($summary === 'older' && !ll_tools_user_progress_last_seen_matches_analytics_filter((string) ($progress['last_seen_at'] ?? ''), 'older')) {
+    if ($summary === 'older' && !ll_tools_context_review_word_due($progress)) {
         return false;
     }
 
@@ -7152,6 +7153,7 @@ function ll_tools_build_user_study_analytics_payload(
     } else {
         $progress_rows = ll_tools_get_user_word_progress_rows($uid, $all_word_ids);
     }
+    ll_tools_context_review_mark_rows($uid, $scope_wordset_id, $progress_rows);
     $starred_word_ids = function_exists('ll_tools_get_user_study_starred_word_ids')
         ? ll_tools_get_user_study_starred_word_ids($uid)
         : (array) ((function_exists('ll_tools_get_user_study_state') ? ll_tools_get_user_study_state($uid) : [])['starred_word_ids'] ?? []);
@@ -7250,7 +7252,7 @@ function ll_tools_build_user_study_analytics_payload(
             if (ll_tools_user_progress_word_is_hard($progress)) {
                 $summary_hard++;
             }
-            if (ll_tools_user_progress_last_seen_matches_analytics_filter((string) ($progress['last_seen_at'] ?? ''), 'older')) {
+            if (ll_tools_context_review_word_due($progress)) {
                 $summary_older++;
             }
             if (isset($starred_lookup[$word_id])) {
@@ -7669,6 +7671,7 @@ function ll_tools_build_user_study_analytics_payload(
                 'accuracy_percent' => $accuracy,
                 'last_mode' => $last_mode,
                 'last_seen_at' => $last_seen_at,
+                'review_in_context' => !empty($progress['review_in_context']),
                 'due_at' => $due_at,
                 'is_starred' => !empty($starred_lookup[$wid]),
                 'prompt_blocked' => !empty($word['prompt_blocked']),
@@ -7693,7 +7696,7 @@ function ll_tools_build_user_study_analytics_payload(
         if (ll_tools_user_progress_word_is_hard($progress)) {
             $summary_hard++;
         }
-        if (ll_tools_user_progress_last_seen_matches_analytics_filter((string) ($progress['last_seen_at'] ?? ''), 'older')) {
+        if (ll_tools_context_review_word_due($progress)) {
             $summary_older++;
         }
         if (!empty($starred_lookup[$wid])) {

@@ -1,5 +1,26 @@
 # LL Tools REST Automation
 
+## Vocabulary review relationships
+
+Wordset content managers can read and maintain the directed pairs used by
+the Progress page's **Due for review** selection. Each pair is
+`[richer_word_id, practiced_component_word_id]`. Link cards when practicing
+the richer target actually rehearses the component in its intended sense.
+
+1. GET `/wp-json/ll-tools/v1/wordsets/{wordset}/context-review` for the
+   current `edges` and `revision`.
+2. POST to the same route with JSON, for example
+   `{"operation":"add","edges":[[4200,2504]],"expected_revision":"<GET revision>","dry_run":true}`.
+   The preview returns the proposed total. Submit again with `dry_run:false`
+   to apply. Each request accepts up to 100 pairs. Use `operation:"remove"`
+   to unlink pairs, including retired cards.
+3. Carry the returned revision into the next batch. On HTTP 409, read the
+   graph again and reconcile. Read back the final pairs to verify. A duplicate
+   addition or absent removal is a no-op. Additions require published words
+   in the addressed wordset and an acyclic result.
+
+See [Progress word selection](WORDSET_PROGRESS_SELECTION.md) for learner behavior.
+
 Language Learner Tools exposes REST routes for scoped content maintenance,
 media manifests, import jobs, dictionary operations, and site administration.
 Some routes share helpers with WP-CLI; their batch and permission contracts can

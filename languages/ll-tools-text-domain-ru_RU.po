@@ -5683,3 +5683,7 @@ msgstr "Выполните задание на заполнение пропус
 
 msgid "Fill in the blanks"
 msgstr "Заполните пропуски"
+
+#: includes/pages/wordset-pages.php
+msgid "Due for review"
+msgstr "Пора повторить"

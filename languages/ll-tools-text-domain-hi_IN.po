@@ -5665,3 +5665,7 @@ msgstr "प्रगति सहेजने के लिए खाली स�
 
 msgid "Fill in the blanks"
 msgstr "खाली स्थान भरें"
+
+#: includes/pages/wordset-pages.php
+msgid "Due for review"
+msgstr "दोहराने का समय"

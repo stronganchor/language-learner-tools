@@ -5723,3 +5723,7 @@ msgstr ""
 #: includes/post-types/content-lesson-post-type.php:127
 msgid "Fill in the blanks"
 msgstr "Completa gli spazi"
+
+#: includes/pages/wordset-pages.php
+msgid "Due for review"
+msgstr "Da ripassare"

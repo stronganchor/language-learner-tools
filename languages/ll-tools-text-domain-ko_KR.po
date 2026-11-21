@@ -5643,3 +5643,7 @@ msgstr "학습 진행 상황을 저장하려면 빈칸 채우기 활동을 완�
 
 msgid "Fill in the blanks"
 msgstr "빈칸 채우기"
+
+#: includes/pages/wordset-pages.php
+msgid "Due for review"
+msgstr "복습할 항목"

@@ -5720,3 +5720,7 @@ msgstr "Completa la actividad de rellenar huecos para guardar el progreso."
 #: includes/post-types/content-lesson-post-type.php:127
 msgid "Fill in the blanks"
 msgstr "Completa los huecos"
+
+#: includes/pages/wordset-pages.php
+msgid "Due for review"
+msgstr "Pendientes de repaso"

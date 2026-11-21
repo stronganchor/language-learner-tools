@@ -30407,3 +30407,35 @@ msgstr ""
 #: templates/vocab-lesson-template.php:1929
 msgid "Delete empty category"
 msgstr ""
+
+#: includes/pages/wordset-pages.php
+msgid "Due for review"
+msgstr ""
+
+#: includes/lib/context-review.php
+msgid "Could not read review relationships."
+msgstr ""
+
+#: includes/lib/context-review.php
+msgid "Relationships changed. Read the current revision and retry."
+msgstr ""
+
+#: includes/lib/context-review.php
+msgid "Provide an add or remove operation and 1â€“100 word pairs."
+msgstr ""
+
+#: includes/lib/context-review.php
+msgid "Each pair needs two distinct positive word IDs."
+msgstr ""
+
+#: includes/lib/context-review.php
+msgid "Both words must be published members of this word set."
+msgstr ""
+
+#: includes/lib/context-review.php
+msgid "Review relationships cannot contain a loop."
+msgstr ""
+
+#: includes/lib/context-review.php
+msgid "Could not save review relationships."
+msgstr ""

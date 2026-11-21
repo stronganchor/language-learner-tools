@@ -31193,3 +31193,7 @@ msgstr "Kaydedilmiş metni kontrol et"
 #: includes/shortcodes/audio-recording-shortcode.php:1661
 msgid "The saved word text could not be checked. Please try again."
 msgstr "Kaydedilmiş kelime metni kontrol edilemedi. Yeniden dene."
+
+#: includes/pages/wordset-pages.php
+msgid "Due for review"
+msgstr "Tekrar zamanı gelenler"

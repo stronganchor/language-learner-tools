@@ -2121,6 +2121,7 @@
                 incorrect: Math.max(0, parseInt(row.incorrect, 10) || 0),
                 lapse_count: Math.max(0, parseInt(row.lapse_count, 10) || 0),
                 last_seen_at: String(row.last_seen_at || ''),
+                review_in_context: !!row.review_in_context,
                 is_starred: !!row.is_starred,
                 prompt_blocked: !!row.prompt_blocked,
                 normalized_grammatical_gender: String(row.normalized_grammatical_gender || ''),
@@ -4496,7 +4497,7 @@
                 return analyticsWordIsDifficult(row);
             }
             if (key === 'older') {
-                return analyticsWordMatchesLastFilter(row, 'older');
+                return !row.review_in_context && analyticsWordMatchesLastFilter(row, 'older');
             }
             return true;
         });
