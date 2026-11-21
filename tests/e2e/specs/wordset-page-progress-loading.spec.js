@@ -1182,6 +1182,28 @@ async function expectFlashcardLaunchUiClosed(page) {
   });
 }
 
+test('Last shows the historical context review date while a pending review keeps its older date', async ({ page }) => {
+  await mountProgressPage(page);
+  await expect.poll(() => page.evaluate(() => window.__llAnalyticsRequests.length)).toBe(1);
+  const [context, direct, pending] = buildProgressWords(1, 3);
+  const old = '2020-01-10 10:00:00';
+  const reviewed = '2026-10-13 10:00:00';
+  const words = [
+    { ...context, last_seen_at: old, last_reviewed_at: reviewed, review_in_context: true },
+    { ...direct, last_seen_at: reviewed },
+    { ...pending, last_seen_at: old, review_in_context: true }
+  ];
+  await page.evaluate(payload => window.__resolveAnalyticsRequest(0, payload),
+    buildAnalytics({ totalWords: 3, studiedWords: 3, newWords: 0, words }));
+  await page.getByRole('tab', { name: 'Words' }).click();
+  const date = id => page.locator(`[data-word-id="${id}"] .ll-wordset-progress-last-full`);
+  await expect(date(2)).toHaveCount(1);
+  const directDate = await date(2).textContent();
+  expect(directDate.trim()).not.toBe('');
+  await expect(date(1)).toHaveText(directDate);
+  await expect(date(3)).not.toHaveText(directDate);
+});
+
 test('idle visible Progress refreshes older counts as words pass 30 days without study', async ({ page }) => {
   const startedAt = new Date('2026-10-13T10:00:00Z');
   await page.clock.install({ time: startedAt });

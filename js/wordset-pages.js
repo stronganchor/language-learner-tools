@@ -2121,6 +2121,7 @@
                 incorrect: Math.max(0, parseInt(row.incorrect, 10) || 0),
                 lapse_count: Math.max(0, parseInt(row.lapse_count, 10) || 0),
                 last_seen_at: String(row.last_seen_at || ''),
+                last_reviewed_at: String(row.last_reviewed_at || row.last_seen_at || ''),
                 review_in_context: !!row.review_in_context,
                 is_starred: !!row.is_starred,
                 prompt_blocked: !!row.prompt_blocked,
@@ -3449,7 +3450,7 @@
     }
 
     function analyticsWordLastTimestamp(row) {
-        const parsed = parseMysqlUtcDate(row && row.last_seen_at);
+        const parsed = parseMysqlUtcDate(row && (row.last_reviewed_at || row.last_seen_at));
         return parsed ? parsed.getTime() : 0;
     }
 
@@ -7343,7 +7344,7 @@
             }).appendTo($tr);
         }
 
-        const lastSeenSource = renderGenderTable ? analyticsWordGenderProgress(row).last_seen_at : row.last_seen_at;
+        const lastSeenSource = renderGenderTable ? analyticsWordGenderProgress(row).last_seen_at : (row.last_reviewed_at || row.last_seen_at);
         const wordLastFull = formatAnalyticsLastSeen(lastSeenSource);
         const wordLastDate = formatAnalyticsLastSeenDate(lastSeenSource);
         const $wordLastCell = $('<td>', { class: 'll-wordset-progress-last-cell' });

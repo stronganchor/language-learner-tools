@@ -3,7 +3,7 @@
 ## Vocabulary review relationships
 
 Wordset content managers can read and maintain the directed pairs used by
-the Progress page's **Due for review** selection. Each pair is
+the Progress page's **Due for review** selection and **Last** study dates. Each pair is
 `[richer_word_id, practiced_component_word_id]`. Link cards when practicing
 the richer target actually rehearses the component in its intended sense.
 

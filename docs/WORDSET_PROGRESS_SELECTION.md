@@ -22,8 +22,14 @@ It stays available at portrait phone widths even when the Last column is hidden.
   attempt alone leaves the base word eligible for direct review. New and
   hard base words retain their own progress. Links can compose through
   learned intermediate cards. Each distinct due phrase keeps its own place.
-- **Last → Older** uses the recorded date of direct study. Use the wordset
-  `context-review` automation route to maintain the relationships.
+- The **Last** column, its date filters, and their totals use the later of
+  direct study and a correct review through a linked card. The date comes
+  from that learner's recorded outcome, including outcomes before a link
+  was added and outcomes in another lesson of the same wordset. A pending
+  phrase can represent a component in the queue without giving it a recent
+  study date. Removing a link recalculates these totals on the next request.
+  Direct answers, mastery, and study history retain their recorded values.
+  Use the wordset `context-review` automation route to maintain the links.
 
 ## Contracts and owners
 

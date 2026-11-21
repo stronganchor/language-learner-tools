@@ -6080,7 +6080,7 @@ function ll_tools_build_user_study_analytics_summary_only_payload(
     int $days
 ): array {
     $progress_rows = ll_tools_get_user_word_progress_summary_rows($uid, $all_word_ids);
-    ll_tools_context_review_mark_rows($uid, $scope_wordset_id, $progress_rows);
+    ll_tools_context_review_mark_rows($uid, $scope_wordset_id, $progress_rows, $all_word_ids);
     $category_progress = ll_tools_get_user_category_progress($uid);
     $category_url_map = ll_tools_user_progress_get_vocab_lesson_url_map($scope_wordset_id);
     $progress_modes = ll_tools_progress_modes();
@@ -6645,7 +6645,7 @@ function ll_tools_user_progress_analytics_word_matches_filter(
 
     $last_filters = (array) ($column_filters['last'] ?? []);
     if (!empty($last_filters)) {
-        $last_seen_at = (string) ($progress['last_seen_at'] ?? '');
+        $last_seen_at = ll_tools_context_review_last_studied_at($progress);
         $matches_last = false;
         foreach ($last_filters as $last_filter) {
             if (ll_tools_user_progress_last_seen_matches_analytics_filter($last_seen_at, (string) $last_filter)) {
@@ -6838,7 +6838,7 @@ function ll_tools_build_user_progress_analytics_word_filter_counts(
         }
 
         if (ll_tools_user_progress_analytics_word_matches_filter_context($word_id, 'last', $context_filters, $progress_rows, $word_category_ids_lookup, $starred_lookup, $part_of_speech_by_word, $search_matched_lookup)) {
-            $last_seen_at = (string) ($progress['last_seen_at'] ?? '');
+            $last_seen_at = ll_tools_context_review_last_studied_at($progress);
             foreach ($last_filter_keys as $last_filter_key) {
                 if (ll_tools_user_progress_last_seen_matches_analytics_filter($last_seen_at, $last_filter_key)) {
                     $counts['last'][$last_filter_key]++;
@@ -7153,7 +7153,7 @@ function ll_tools_build_user_study_analytics_payload(
     } else {
         $progress_rows = ll_tools_get_user_word_progress_rows($uid, $all_word_ids);
     }
-    ll_tools_context_review_mark_rows($uid, $scope_wordset_id, $progress_rows);
+    ll_tools_context_review_mark_rows($uid, $scope_wordset_id, $progress_rows, $all_word_ids);
     $starred_word_ids = function_exists('ll_tools_get_user_study_starred_word_ids')
         ? ll_tools_get_user_study_starred_word_ids($uid)
         : (array) ((function_exists('ll_tools_get_user_study_state') ? ll_tools_get_user_study_state($uid) : [])['starred_word_ids'] ?? []);
@@ -7671,6 +7671,7 @@ function ll_tools_build_user_study_analytics_payload(
                 'accuracy_percent' => $accuracy,
                 'last_mode' => $last_mode,
                 'last_seen_at' => $last_seen_at,
+                'last_reviewed_at' => ll_tools_context_review_last_studied_at($progress),
                 'review_in_context' => !empty($progress['review_in_context']),
                 'due_at' => $due_at,
                 'is_starred' => !empty($starred_lookup[$wid]),

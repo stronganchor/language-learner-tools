@@ -160,6 +160,58 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
         $this->assertGreaterThanOrEqual(401, $api('GET')->get_status());
     }
 
+    public function test_historical_context_dates_drive_scoped_counts_and_selection_without_changing_direct_history(): void
+    {
+        global $wpdb;
+        $f = $this->createAnalyticsFixture();
+        [$base, $middle, $phrase, $pending] = $f['word_ids'];
+        [$category] = $f['category_ids'];
+        $ws = $f['wordset_id'];
+        $uid = self::factory()->user->create();
+        $other = self::factory()->user->create();
+        $old = gmdate('Y-m-d H:i:s', time() - 60 * DAY_IN_SECONDS);
+        $recent = gmdate('Y-m-d H:i:s', time() - 9 * DAY_IN_SECONDS);
+        $week = gmdate('Y-m-d H:i:s', time() - 3 * DAY_IN_SECONDS);
+        $now = gmdate('Y-m-d H:i:s');
+        foreach ([$uid, $other] as $learner) {
+            foreach ([$base, $middle, $phrase, $pending] as $id) {
+                $this->seedWordProgressRow($learner, $id, $id === $phrase ? $f['category_ids'][1] : $category, $ws,
+                    ['last_seen_at' => $id === $phrase ? $now : $old, 'total_coverage' => 8, 'correct_clean' => 8, 'stage' => 5]);
+            }
+        }
+        $events = ll_tools_user_progress_table_names()['events'];
+        foreach ([[$phrase, $recent, $ws, 1], [$middle, $week, $ws, 1], [$phrase, $now, $ws, 0], [$phrase, $now, $ws + 12345, 1]] as [$source, $when, $wordset, $correct]) {
+            $this->assertNotFalse($wpdb->insert($events, ['user_id' => $uid, 'event_uuid' => wp_generate_uuid4(),
+                'wordset_id' => $wordset, 'word_id' => $source, 'created_at' => $when,
+                'event_type' => 'word_outcome', 'mode' => 'practice', 'is_correct' => $correct]));
+        }
+        $scope = static function (int $learner, string $last, bool $ids_only = false) use ($ws, $category): array {
+            return ll_tools_build_user_study_analytics_payload($learner, $ws, [$category], 14, false, [
+                'include_words' => !$ids_only, 'include_word_ids' => $ids_only, 'selection_ids_only' => $ids_only,
+                'word_filter' => ['column_filters' => ['last' => [$last]]],
+            ]);
+        };
+        $this->assertSame([], $scope($uid, '30d', true)['word_ids']); // Events predate the links.
+        $key = 'll_tools_context_review_' . $ws;
+        update_option($key, wp_json_encode([[$phrase, $middle], [$middle, $base], [$pending, $base]]), false);
+        $page = $scope($uid, '30d');
+        $words = array_column($page['words'], null, 'id');
+        $this->assertEqualsCanonicalizing([$base, $middle], array_keys($words));
+        $this->assertSame(2, $page['word_filter_counts']['last']['30d']);
+        $this->assertSame(1, $page['word_filter_counts']['last']['older']);
+        $this->assertEqualsCanonicalizing([$base, $middle], $scope($uid, '30d', true)['word_ids']);
+        $this->assertSame([$base], $scope($uid, '7d', true)['word_ids']);
+        $this->assertSame([], $scope($uid, '24h', true)['word_ids']);
+        $this->assertSame([$pending], $scope($uid, 'older', true)['word_ids']);
+        $this->assertSame($old, $words[$base]['last_seen_at']);
+        $this->assertSame($week, $words[$base]['last_reviewed_at']);
+        $this->assertSame($recent, $words[$middle]['last_reviewed_at']); // Phrase belongs to another lesson.
+        $this->assertSame([], $scope($other, '30d', true)['word_ids']);
+        $this->assertSame($old, ll_tools_get_user_word_progress_rows($uid, [$base])[$base]['last_seen_at']);
+        delete_option($key);
+        $this->assertSame([], $scope($uid, '30d', true)['word_ids']);
+    }
+
     public function test_older_backlog_grows_across_cutoff_with_warm_membership_and_only_studied_target_leaves(): void
     {
         global $wpdb;
