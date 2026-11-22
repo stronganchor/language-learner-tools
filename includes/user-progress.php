@@ -6307,7 +6307,7 @@ function ll_tools_build_user_study_analytics_summary_only_payload(
             'older_words' => $summary_older,
             'starred_words' => $summary_starred,
         ],
-        'daily_activity' => ll_tools_user_study_daily_activity_series($uid, $scope_wordset_id, $scope_category_ids, $days),
+        'daily_activity' => $card_metrics_only ? [] : ll_tools_user_study_daily_activity_series($uid, $scope_wordset_id, $scope_category_ids, $days),
         'gender_progress' => ll_tools_user_progress_empty_gender_analytics(false),
         'categories' => $category_rows,
         'words' => [],

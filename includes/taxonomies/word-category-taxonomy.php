@@ -6281,14 +6281,14 @@ function ll_tools_default_option_type_for_category(
             (int) $min_word_count
         );
         $text_title_complete = true;
-        $text_title_count = ll_get_words_by_category_count(
+        $text_title_count = $use_titles ? ll_get_words_by_category_count(
             $term,
             'text',
             $wordset_ids,
             $cfg_text_title,
             $text_title_complete,
             (int) $min_word_count
-        );
+        ) : 0;
         $text_translation_complete = true;
         $text_translation_count = ll_get_words_by_category_count(
             $term,
@@ -8318,7 +8318,15 @@ function ll_tools_count_category_rows_to_threshold_bounded(
         $candidate_ids = array_values(array_unique(array_filter(array_map('intval', $candidate_ids), static function (int $word_id): bool {
             return $word_id > 0;
         })));
-        foreach (array_chunk($candidate_ids, 50) as $candidate_chunk) {
+        // Most image categories qualify in the first few words. Only resolve the
+        // remaining media if that first group does not establish eligibility.
+        $first_size = min(50, max(1, $stop_at - $count));
+        $first_candidates = array_splice($candidate_ids, 0, $first_size);
+        $candidate_chunks = array_chunk($candidate_ids, 50);
+        if ($first_candidates) {
+            array_unshift($candidate_chunks, $first_candidates);
+        }
+        foreach ($candidate_chunks as $candidate_chunk) {
             $candidate_config = $config;
             $candidate_config['__skip_quiz_config_merge'] = true;
             $candidate_config['__candidate_word_ids'] = $candidate_chunk;
@@ -8941,6 +8949,18 @@ function ll_get_words_by_category_count(
 
     $stop_at = max(0, $stop_at);
     if ($stop_at > 0) {
+        // Eligibility is a lower bound. Keep it separate from exact counts, and
+        // let cursor-based maintenance own its budget and checkpoints.
+        $minimum_key = 'll_wc_min_' . md5($count_cache_key);
+        if ($resume_context === null) {
+            $known_minimum = wp_cache_get($minimum_key, $count_cache_group);
+            if ($known_minimum === false) {
+                $known_minimum = get_transient($minimum_key);
+            }
+            if ((int) $known_minimum >= $stop_at) {
+                return $stop_at;
+            }
+        }
         $bounded_complete = true;
         $bounded = ll_tools_count_category_rows_to_threshold_bounded(
             $categoryName,
@@ -8963,8 +8983,12 @@ function ll_get_words_by_category_count(
 
         $bounded_count = max(0, (int) ($bounded['count'] ?? 0));
         if (!empty($bounded['reached'])) {
-            // Threshold hits are intentionally capped and are not persisted as
-            // exact totals. The caller only compares them with the threshold.
+            if ($resume_context === null) {
+                wp_cache_set($minimum_key, $stop_at, $count_cache_group, WEEK_IN_SECONDS);
+                if (apply_filters('ll_tools_words_count_persist_transient', true, 'quiz', $minimum_key, $term_id, $wordset_terms)) {
+                    set_transient($minimum_key, $stop_at, WEEK_IN_SECONDS);
+                }
+            }
             return $stop_at;
         }
 

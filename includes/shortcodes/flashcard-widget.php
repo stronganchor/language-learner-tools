@@ -246,7 +246,9 @@ function ll_flashcards_get_processed_categories_cached(
         'schema' => 9,
     ]));
     $cache_group = 'll_tools_flashcards';
-    $cache_ttl = (int) apply_filters('ll_tools_flashcard_categories_cache_ttl', DAY_IN_SECONDS);
+    // Versioned, bounded pieces are reusable when a different category changes.
+    $default_ttl = count($term_ids) <= 16 && count($wordset_ids) === 1 ? MONTH_IN_SECONDS : DAY_IN_SECONDS;
+    $cache_ttl = (int) apply_filters('ll_tools_flashcard_categories_cache_ttl', $default_ttl);
     if ($cache_ttl < 1) {
         $cache_ttl = 10 * MINUTE_IN_SECONDS;
     }

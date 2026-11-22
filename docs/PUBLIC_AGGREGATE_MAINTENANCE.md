@@ -56,8 +56,11 @@ total pending. The bounded scans collect identities beyond the two card previews
 
 Homepage counts reuse completed category eligibility for one week across edits
 to other categories and lesson presentation. The progress catalog and membership
-maps reuse small, stable category ID ranges after localized edits. Changes
-without a proven category scope continue to invalidate dependent results. Keys retain the category content version, structural and
+maps reuse small, stable category ID ranges after localized edits. Catalog pieces
+are retained for a month by default. A successful bounded quiz eligibility check
+can satisfy smaller thresholds for a week. Exact totals and resumable maintenance
+keep their own paths. Changes without a proven category scope continue to
+invalidate dependent results. Keys retain the category content version, structural and
 unknown/failsafe epochs, minimum word count, builder schema, and exact viewer
 identity/capabilities. Each batch discovers at most 100 lesson pairs (hard cap
 250), with at most eight cold eligibility scans and the existing raw/prompt

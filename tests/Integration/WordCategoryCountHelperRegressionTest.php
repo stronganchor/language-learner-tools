@@ -153,6 +153,32 @@ final class WordCategoryCountHelperRegressionTest extends LL_Tools_TestCase
         $this->assertNotContains($effective_parent_id, $available_category_ids);
     }
 
+    public function test_threshold_proof_is_reused_without_truncating_exact_counts(): void
+    {
+        $category = $this->createCategory('Threshold proof ' . wp_generate_password(6, false));
+        for ($i = 0; $i < 5; $i++) {
+            $this->createWord($category, 'Proof word ' . $i, 'Translation ' . $i);
+        }
+        $config = ['prompt_type' => 'text_title', 'option_type' => 'text_title'];
+        $this->assertSame(2, ll_get_words_by_category_count($category, 'text', null, $config, $complete, 2));
+        $this->assertTrue($complete);
+        $reads = 0;
+        $observe = static function ($size) use (&$reads) {
+            $reads++;
+            return $size;
+        };
+        add_filter('ll_tools_quiz_eligibility_scan_batch_size', $observe);
+        try {
+            $this->assertSame(1, ll_get_words_by_category_count($category, 'text', null, $config, $complete, 1));
+            $this->assertSame(0, $reads);
+            $this->assertSame(4, ll_get_words_by_category_count($category, 'text', null, $config, $complete, 4));
+            $this->assertGreaterThan(0, $reads);
+            $this->assertSame(5, ll_get_words_by_category_count($category, 'text', null, $config, $complete));
+        } finally {
+            remove_filter('ll_tools_quiz_eligibility_scan_batch_size', $observe);
+        }
+    }
+
     public function test_count_helper_matches_rows_for_text_and_image_quiz_filters(): void
     {
         $category_name = 'Count Helper Filters ' . (string) wp_rand(1000, 9999);
