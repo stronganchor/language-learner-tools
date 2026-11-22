@@ -4896,21 +4896,22 @@ function ll_tools_user_progress_analytics_word_ids_cache_key(array $category_ids
         ? ll_tools_get_category_cache_versions($key_category_ids)
         : array_fill_keys($key_category_ids, 1);
 
-    $category_epoch = function_exists('ll_tools_get_category_cache_epoch')
-        ? max(1, (int) ll_tools_get_category_cache_epoch())
+    $category_epoch = function_exists('ll_tools_get_category_dependency_epoch')
+        ? max(1, (int) ll_tools_get_category_dependency_epoch())
         : 1;
     $wordset_epoch = function_exists('ll_tools_get_wordset_cache_epoch')
         ? max(1, (int) ll_tools_get_wordset_cache_epoch())
         : 1;
-    $quiz_content_epoch = function_exists('ll_tools_get_quiz_content_cache_epoch')
-        ? (string) ll_tools_get_quiz_content_cache_epoch($wordset_id > 0 ? [$wordset_id] : [])
+    $quiz_content_epoch = function_exists('ll_tools_get_category_versioned_content_epoch')
+        ? (string) ll_tools_get_category_versioned_content_epoch($wordset_id > 0 ? [$wordset_id] : [], $key_category_ids)
         : 'qce-unavailable';
     $min_word_count = defined('LL_TOOLS_MIN_WORDS_PER_QUIZ')
         ? (int) apply_filters('ll_tools_quiz_min_words', LL_TOOLS_MIN_WORDS_PER_QUIZ)
         : 0;
 
     $payload = [
-        'schema' => 4,
+        'schema' => 5,
+        'capabilities' => wp_get_current_user()->allcaps,
         'wordset_id' => max(0, $wordset_id),
         'category_ids' => $key_category_ids,
         'category_versions' => $category_versions,
@@ -5012,7 +5013,7 @@ function ll_tools_user_progress_analytics_word_ids_by_category(
         return [];
     }
     $cache_group = 'll_tools_user_progress';
-    $cache_ttl = HOUR_IN_SECONDS;
+    $cache_ttl = WEEK_IN_SECONDS;
 
     static $request_cache = [];
     if ($cache_key !== '' && array_key_exists($cache_key, $request_cache)) {
@@ -5064,6 +5065,26 @@ function ll_tools_user_progress_analytics_word_ids_by_category(
 
     if ($cache_key !== '') {
         do_action('ll_tools_user_progress_analytics_word_ids_cache_status', 'miss', $cache_key, $category_ids, $wordset_id);
+    }
+
+    if ($wordset_id > 0 && count($category_ids) > 16) {
+        $batches = [];
+        foreach ($category_ids as $id) {
+            $batches[intdiv($id, 16)][] = $id;
+        }
+        $word_ids_by_category = [];
+        foreach ($batches as $batch) {
+            $rows = ll_tools_user_progress_analytics_word_ids_by_category($batch, $wordset_id, $batch_complete, $direct);
+            if (!$batch_complete) {
+                $complete = false;
+                $direct_word_ids_by_category = [];
+                return [];
+            }
+            $word_ids_by_category += $rows;
+            $direct_word_ids_by_category += $direct;
+        }
+        $direct_word_ids_by_category = ll_tools_user_progress_order_word_ids_by_category($direct_word_ids_by_category, $category_ids);
+        return ll_tools_user_progress_order_word_ids_by_category($word_ids_by_category, $category_ids);
     }
 
     $renderable_complete = true;
@@ -5908,6 +5929,13 @@ function ll_tools_user_progress_get_vocab_lesson_url_map(int $wordset_id): array
         ],
     ]);
 
+    // Permalinks and category metadata used to issue three reads per published lesson.
+    _prime_post_caches($lesson_ids, false, true);
+    $stored_ids = [];
+    foreach ($lesson_ids as $lesson_id) {
+        $stored_ids[$lesson_id] = (int) get_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, true);
+    }
+    $effective = ll_tools_wordset_isolation_get_category_id_map_for_wordset($wordset_id, array_values($stored_ids));
     $map = [];
     foreach ((array) $lesson_ids as $lesson_id) {
         $lesson_id = (int) $lesson_id;
@@ -5915,20 +5943,12 @@ function ll_tools_user_progress_get_vocab_lesson_url_map(int $wordset_id): array
             continue;
         }
 
-        $stored_category_id = (int) get_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, true);
+        $stored_category_id = $stored_ids[$lesson_id];
         if ($stored_category_id <= 0) {
             continue;
         }
 
-        $category_ids = [$stored_category_id];
-        if (function_exists('ll_tools_get_vocab_lesson_category_meta_candidates')) {
-            $category_ids = ll_tools_get_vocab_lesson_category_meta_candidates($stored_category_id, $wordset_id);
-        } elseif (function_exists('ll_tools_get_effective_category_id_for_wordset')) {
-            $effective_category_id = (int) ll_tools_get_effective_category_id_for_wordset($stored_category_id, $wordset_id, false);
-            if ($effective_category_id > 0) {
-                $category_ids[] = $effective_category_id;
-            }
-        }
+        $category_ids = [$stored_category_id, $effective[$stored_category_id] ?? 0, ll_tools_get_category_isolation_source_id($stored_category_id)];
 
         $url = (string) get_permalink($lesson_id);
         if ($url === '') {
@@ -6077,12 +6097,13 @@ function ll_tools_build_user_study_analytics_summary_only_payload(
     array $category_lookup,
     array $category_word_ids,
     array $all_word_ids,
-    int $days
+    int $days,
+    bool $card_metrics_only = false
 ): array {
     $progress_rows = ll_tools_get_user_word_progress_summary_rows($uid, $all_word_ids);
     ll_tools_context_review_mark_rows($uid, $scope_wordset_id, $progress_rows, $all_word_ids);
     $category_progress = ll_tools_get_user_category_progress($uid);
-    $category_url_map = ll_tools_user_progress_get_vocab_lesson_url_map($scope_wordset_id);
+    $category_url_map = $card_metrics_only ? [] : ll_tools_user_progress_get_vocab_lesson_url_map($scope_wordset_id);
     $progress_modes = ll_tools_progress_modes();
     $all_word_lookup = array_fill_keys($all_word_ids, true);
 
@@ -6928,7 +6949,8 @@ function ll_tools_build_user_study_analytics_payload(
             : (bool) $parsed_selection_ids_only;
     }
     $selection_ids_only = $selection_ids_only && $include_word_ids && !$include_words;
-    if (!$selection_ids_only && $scope_wordset_id > 0 && function_exists('ll_tools_wordset_has_grammatical_gender')) {
+    $card_metrics_only = $summary_only && empty($include_word_ids) && !empty($options['card_metrics_only']);
+    if (!$selection_ids_only && !$card_metrics_only && $scope_wordset_id > 0 && function_exists('ll_tools_wordset_has_grammatical_gender')) {
         $gender_enabled = ll_tools_wordset_has_grammatical_gender($scope_wordset_id);
     }
     $include_filter_counts = $include_words;
@@ -7129,7 +7151,8 @@ function ll_tools_build_user_study_analytics_payload(
             $category_lookup,
             $category_word_ids,
             $all_word_ids,
-            (int) $days
+            (int) $days,
+            $card_metrics_only
         );
         $summary_payload['word_filter_counts'] = ll_tools_user_progress_empty_analytics_word_filter_counts();
         return $summary_payload;
@@ -13831,6 +13854,7 @@ function ll_tools_user_study_analytics_ajax() {
         'include_word_ids' => $include_word_ids,
         'selection_ids_only' => $selection_ids_only,
         'summary_only' => $summary_only,
+        'card_metrics_only' => !empty($_POST['card_metrics_only']),
         'word_limit' => $word_limit,
         'word_offset' => $word_offset,
         'word_filter' => $word_filter,

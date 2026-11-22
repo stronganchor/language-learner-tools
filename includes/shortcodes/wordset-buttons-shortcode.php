@@ -862,9 +862,8 @@ function ll_tools_wordset_button_pair_eligibility_cache_key(int $wordset_id, int
     ksort($versions);
     $epochs = [];
     foreach ([
-        'category_epoch' => 'll_tools_get_category_cache_epoch',
+        'category_epoch' => 'll_tools_get_category_dependency_epoch',
         'wordset_epoch' => 'll_tools_get_wordset_cache_epoch',
-        'buttons_epoch' => 'll_tools_wordset_buttons_shortcode_generation_epoch',
         'unknown_epoch' => 'll_tools_get_quiz_content_unknown_epoch',
         'failsafe_epoch' => 'll_tools_get_quiz_content_failsafe_epoch',
     ] as $name => $reader) {
@@ -877,6 +876,11 @@ function ll_tools_wordset_button_pair_eligibility_cache_key(int $wordset_id, int
             return '';
         }
     }
+    $wpdb->last_error = '';
+    $content_epoch = ll_tools_get_category_versioned_content_epoch([$wordset_id]);
+    if ($wpdb->last_error !== '') {
+        return '';
+    }
     $user = wp_get_current_user();
     $capabilities = (array) $user->allcaps;
     ksort($capabilities);
@@ -887,6 +891,7 @@ function ll_tools_wordset_button_pair_eligibility_cache_key(int $wordset_id, int
         'category_id' => $category_id,
         'minimum' => $minimum,
         'category_versions' => $versions,
+        'unmapped_content' => $content_epoch,
         'epochs' => $epochs,
         'builder_schema' => ll_tools_wordset_button_count_builder_schema(),
         'user_id' => (int) $user->ID,
@@ -1386,7 +1391,7 @@ function ll_tools_process_wordset_button_active_pair(
         $eligibility_cache_key !== ''
         && $eligibility_cache_key === ll_tools_wordset_button_pair_eligibility_cache_key($wordset_id, $category_id, $min_word_count)
     ) {
-        set_transient($eligibility_cache_key, ['schema' => 1, 'eligible' => (bool) $can_generate_quiz], HOUR_IN_SECONDS);
+        set_transient($eligibility_cache_key, ['schema' => 1, 'eligible' => (bool) $can_generate_quiz], WEEK_IN_SECONDS);
     }
     return (bool) $can_generate_quiz;
 }

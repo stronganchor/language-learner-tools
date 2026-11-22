@@ -565,6 +565,9 @@
         setupWordsetSelector();
         setupCategorySelector();
         setupCategoryOverview();
+        if (!categoryOverviewEnabled && document.querySelector('[data-ll-recording-remaining][aria-busy="true"]')) {
+            refreshRecordingTotal(1000);
+        }
         setupNewWordMode();
         if (recorderView === 'overview') {
             if (window.llRecorder?.mainScreen) window.llRecorder.mainScreen.style.display = 'none';
@@ -1879,6 +1882,7 @@
                 placeholder.setAttribute('data-ll-recorder-queue-summary-retries', String(retries));
             });
             const remainingPlaceholders = getCategoryOverviewPlaceholders();
+            if (!remainingPlaceholders.length) refreshRecordingTotal();
             const hasExhaustedPlaceholders = remainingPlaceholders.some(placeholder => (
                 getCategoryOverviewRetryCount(placeholder) > categoryOverviewMaxAutoRetries
             ));
@@ -1907,6 +1911,40 @@
             }
             observeNextCategoryOverviewPlaceholder();
         }
+    }
+
+    let recordingTotalTimer = 0;
+    let recordingTotalGeneration = 0;
+    function refreshRecordingTotal(delay = 0) {
+        const element = document.querySelector('[data-ll-recording-remaining]');
+        if (!element) return;
+        const generation = ++recordingTotalGeneration;
+        window.clearTimeout(recordingTotalTimer);
+        element.setAttribute('aria-busy', 'true');
+        element.textContent = '…';
+        recordingTotalTimer = window.setTimeout(async () => {
+            const data = new FormData();
+            data.append('action', 'll_tools_recorder_queue_summaries');
+            data.append('nonce', nonce);
+            appendRequestLocale(data);
+            data.append('wordset_ids', JSON.stringify(window.ll_recorder_data.wordset_ids));
+            data.append('include_recording_types', window.ll_recorder_data.include_types || '');
+            data.append('exclude_recording_types', window.ll_recorder_data.exclude_types || '');
+            data.append('recording_total_only', '1');
+            try {
+                const { response, payload } = await fetchJsonWithDeadline(ajaxUrl, { method: 'POST', body: data });
+                if (generation !== recordingTotalGeneration) return;
+                if (response.ok && payload?.success && Number.isInteger(payload.data.total)) {
+                    element.textContent = payload.data.formatted;
+                    element.setAttribute('aria-busy', 'false');
+                    return;
+                }
+                if (response.status === 403) return;
+            } catch (_) {
+                if (generation !== recordingTotalGeneration) return;
+            }
+            refreshRecordingTotal(Math.min(30000, Math.max(1500, delay * 2)));
+        }, delay);
     }
 
     function setupCategoryOverview() {
@@ -2288,6 +2326,7 @@
         if (el.hiddenCount) {
             el.hiddenCount.textContent = String(hiddenWords.length);
         }
+        if (!hiddenWordsPanelOpen) return;
         if (el.hiddenList) {
             el.hiddenList.innerHTML = '';
             hiddenWords.forEach(entry => {
@@ -2340,6 +2379,7 @@
             }
         }
         if (hiddenWordsPanelOpen) {
+            renderHiddenWordsList();
             el.hiddenPanel.removeAttribute('hidden');
             el.hiddenPanel.scrollTop = 0;
         } else {
@@ -4780,6 +4820,7 @@
             currentImage.prompt_types = sortRecordingTypes(currentImage.prompt_types);
         }
         currentImage.missing_types = remainingTypes;
+        refreshRecordingTotal(300);
 
         if (requireAll && remainingTypes.length > 0) {
             newWordUploadTransition = false;
@@ -5928,6 +5969,7 @@
             }
 
             setHiddenWordsFromServer(data.data);
+            refreshRecordingTotal();
             showStatus(i18n.unhide_success || 'Word unhidden.', 'success');
 
             if (images.length === 0 && !newWordMode) {
@@ -5985,6 +6027,7 @@
 
             setHiddenWordsFromServer(data.data);
 
+            refreshRecordingTotal();
             const hiddenKeySet = new Set(getItemHideKeys(img));
             const serverKey = sanitizeHideKey(data?.data?.entry?.key || hideKey);
             if (serverKey) hiddenKeySet.add(serverKey);

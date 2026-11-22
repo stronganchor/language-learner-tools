@@ -18829,9 +18829,11 @@ function ll_tools_wordset_page_word_needs_category_recording(
     array $filtered_types,
     int $recorder_user_id,
     ?bool &$complete = null,
-    array $category_eligibility = []
+    array $category_eligibility = [],
+    ?array &$missing_types = null
 ): bool {
     $complete = true;
+    $missing_types = [];
     $word_id = (int) $word_id;
     if ($word_id <= 0) {
         return false;
@@ -20204,7 +20206,7 @@ function ll_tools_wordset_page_maybe_bump_recorder_queue_structure_for_category_
         return;
     }
 
-    $structural_meta_keys = [
+    $eligibility_meta_keys = [
         defined('LL_TOOLS_CATEGORY_WORDSET_OWNER_META_KEY')
             ? (string) LL_TOOLS_CATEGORY_WORDSET_OWNER_META_KEY
             : 'll_wordset_owner_id',
@@ -20220,12 +20222,11 @@ function ll_tools_wordset_page_maybe_bump_recorder_queue_structure_for_category_
         defined('LL_TOOLS_CATEGORY_ACCESS_USER_IDS_META_KEY')
             ? (string) LL_TOOLS_CATEGORY_ACCESS_USER_IDS_META_KEY
             : 'll_category_access_user_ids',
-        defined('LL_TOOLS_ENTITY_TRANSLATIONS_META_KEY')
-            ? (string) LL_TOOLS_ENTITY_TRANSLATIONS_META_KEY
-            : 'll_tools_entity_translations',
-        'term_translation',
     ];
-    if (!in_array($meta_key, $structural_meta_keys, true)) {
+    $changes_eligibility = in_array($meta_key, $eligibility_meta_keys, true);
+    $translations_key = defined('LL_TOOLS_ENTITY_TRANSLATIONS_META_KEY')
+        ? (string) LL_TOOLS_ENTITY_TRANSLATIONS_META_KEY : 'll_tools_entity_translations';
+    if (!$changes_eligibility && !in_array($meta_key, [$translations_key, 'term_translation'], true)) {
         return;
     }
 
@@ -20239,11 +20240,16 @@ function ll_tools_wordset_page_maybe_bump_recorder_queue_structure_for_category_
         } else {
             ll_tools_wordset_page_mark_recorder_queue_content_dirty();
         }
+        // A wordless image inherits the recording types of its accessible sibling
+        // categories. Text and ordering edits do not change this union.
+        if ($changes_eligibility) {
+            ll_tools_wordset_page_bump_recorder_category_eligibility_epoch();
+        }
         // Category owner/source/visibility/translation metadata is structural.
         // Keep the broad structural generation limited to these rare identity
         // edits; ordinary word/audio saves continue using scoped content epochs.
         if (function_exists('ll_tools_bump_category_cache_epoch')) {
-            ll_tools_bump_category_cache_epoch();
+            ll_tools_bump_category_cache_epoch([], !$changes_eligibility && in_array($term_id, $bumped_ids ?? [], true));
         }
         ll_tools_wordset_page_mark_recorder_queue_structure_dirty();
     }
@@ -20251,6 +20257,15 @@ function ll_tools_wordset_page_maybe_bump_recorder_queue_structure_for_category_
 add_action('added_term_meta', 'll_tools_wordset_page_maybe_bump_recorder_queue_structure_for_category_meta', 30, 3);
 add_action('updated_term_meta', 'll_tools_wordset_page_maybe_bump_recorder_queue_structure_for_category_meta', 30, 3);
 add_action('deleted_term_meta', 'll_tools_wordset_page_maybe_bump_recorder_queue_structure_for_category_meta', 30, 3);
+
+function ll_tools_wordset_page_bump_recorder_category_eligibility_epoch(): void {
+    $key = 'll_tools_recorder_category_eligibility_epoch';
+    $before = ll_tools_read_option_epoch($key, true);
+    if (ll_tools_atomic_increment_option_epoch($key) <= $before) {
+        ll_tools_bump_structural_failsafe_epoch();
+    }
+}
+add_action('delete_word-category', 'll_tools_wordset_page_bump_recorder_category_eligibility_epoch', 30, 0);
 
 foreach (['created_word-category', 'edited_word-category', 'delete_word-category'] as $ll_tools_recorder_queue_category_hook) {
     add_action($ll_tools_recorder_queue_category_hook, 'll_tools_wordset_page_mark_recorder_queue_structure_dirty', 30, 0);
@@ -20936,17 +20951,13 @@ function ll_tools_wordset_page_get_recorder_queue_summary_global_source_signatur
     sort($uncategorized_defaults, SORT_STRING);
 
     return md5((string) wp_json_encode([
-        'schema' => 8,
+        'schema' => 9,
         'hidden_global' => (string) ($hidden_source_signatures['global'] ?? ''),
         'category_access' => ll_tools_wordset_page_get_recorder_category_access_signature($recorder_user_id),
         'recording_type_epoch' => ll_tools_wordset_page_get_recorder_queue_recording_type_epoch(),
-        // Wordless images inherit a union across every visible, wordset-scoped
-        // sibling category. The structural category epoch rotates for their
-        // rare owner/source/privacy/access edits and deletion without tying
-        // these summaries to ordinary post-structure changes.
-        'category_eligibility_epoch' => function_exists('ll_tools_get_category_cache_epoch')
-            ? (string) ll_tools_get_category_cache_epoch()
-            : 'category-eligibility-unavailable',
+        'category_eligibility_epoch' => ll_tools_compose_structural_cache_epoch(
+            ll_tools_read_option_epoch('ll_tools_recorder_category_eligibility_epoch')
+        ),
         'uncategorized_defaults_hash' => md5((string) wp_json_encode($uncategorized_defaults)),
         'wordset_isolation_enabled' => function_exists('ll_tools_is_wordset_isolation_enabled')
             ? ll_tools_is_wordset_isolation_enabled()
@@ -21114,6 +21125,7 @@ function ll_tools_wordset_page_advance_recorder_queue_summary_scan(
         (int) ($scan_state['prompt_total'] ?? 0),
         (int) ($prompt_cursor['eligible_seen'] ?? 0)
     );
+    $recording_tasks = (array) ($scan_state['recording_tasks'] ?? []);
     $category_slug = sanitize_title((string) ($category['slug'] ?? ''));
     $category_source_complete = true;
     $category_term = ll_tools_wordset_page_get_recorder_queue_category_term($wordset_id, $category_slug, $recorder_user_id, $category_source_complete);
@@ -21132,6 +21144,7 @@ function ll_tools_wordset_page_advance_recorder_queue_summary_scan(
             'valid_seen' => max(0, (int) ($scan_state['valid_seen'] ?? 0)),
             'canonical_total' => max(0, (int) ($scan_state['valid_seen'] ?? 0)),
             'candidates' => array_slice((array) ($scan_state['candidates'] ?? []), 0, 2),
+            'recording_tasks' => $recording_tasks,
             'legacy_cursor' => $legacy_cursor,
             'legacy_items' => $legacy_items,
             'legacy_scan_complete' => $legacy_scan_complete,
@@ -21160,6 +21173,7 @@ function ll_tools_wordset_page_advance_recorder_queue_summary_scan(
             'valid_seen' => max(0, (int) ($scan_state['valid_seen'] ?? 0)),
             'canonical_total' => max(0, (int) ($scan_state['valid_seen'] ?? 0)),
             'candidates' => array_slice((array) ($scan_state['candidates'] ?? []), 0, 2),
+            'recording_tasks' => $recording_tasks,
             'legacy_cursor' => $legacy_cursor,
             'legacy_items' => $legacy_items,
             'legacy_scan_complete' => $legacy_scan_complete,
@@ -21188,6 +21202,7 @@ function ll_tools_wordset_page_advance_recorder_queue_summary_scan(
             'valid_seen' => 0,
             'canonical_total' => 0,
             'candidates' => [],
+            'recording_tasks' => $recording_tasks,
             'legacy_cursor' => $legacy_cursor,
             'legacy_items' => $legacy_items,
             'legacy_scan_complete' => $legacy_scan_complete,
@@ -21268,7 +21283,8 @@ function ll_tools_wordset_page_advance_recorder_queue_summary_scan(
                     $filtered_types,
                     $recorder_user_id,
                     $word_eligibility_complete,
-                    $category_word_eligibility
+                    $category_word_eligibility,
+                    $missing_types
                 );
                 if (!$word_eligibility_complete) {
                     $source_incomplete = true;
@@ -21281,6 +21297,7 @@ function ll_tools_wordset_page_advance_recorder_queue_summary_scan(
                 if (!empty($hidden_lookup) && ll_tools_wordset_page_recorder_queue_candidate_is_hidden($hidden_lookup, $word_id, 0, (string) get_the_title($word_id))) {
                     continue;
                 }
+                ll_tools_recorder_add_missing_tasks($recording_tasks, 'word:' . $word_id, $missing_types);
                 $valid_seen++;
                 if (count($candidates) < 2) {
                     $candidates[] = ['type' => 'word', 'id' => $word_id];
@@ -21358,6 +21375,7 @@ function ll_tools_wordset_page_advance_recorder_queue_summary_scan(
             if (!empty($hidden_lookup) && ll_tools_wordset_page_recorder_queue_candidate_is_hidden($hidden_lookup, 0, $image_id, (string) get_the_title($image_id))) {
                 continue;
             }
+            ll_tools_recorder_add_missing_tasks($recording_tasks, 'image:' . $image_id, $candidate_image_type_map[$image_id]);
             $valid_seen++;
             if (count($candidates) < 2) {
                 $candidates[] = ['type' => 'image', 'id' => $image_id];
@@ -21390,6 +21408,7 @@ function ll_tools_wordset_page_advance_recorder_queue_summary_scan(
         'valid_seen' => $valid_seen,
         'canonical_total' => $valid_seen,
         'candidates' => $candidates,
+        'recording_tasks' => $recording_tasks,
         'legacy_cursor' => $legacy_cursor,
         'legacy_items' => $legacy_items,
         'legacy_scan_complete' => $legacy_scan_complete,
@@ -21442,6 +21461,10 @@ function ll_tools_wordset_page_build_recorder_queue_summary_group(
             } else {
                 $candidate_image_ids[] = $candidate_id;
             }
+        }
+
+        if (!$candidates) {
+            return ['items' => [], 'complete' => true, 'retained_candidates' => [], 'rejected_count' => 0];
         }
 
         $hydration_complete = true;
@@ -21516,7 +21539,13 @@ function ll_tools_wordset_page_build_recorder_queue_summary_group(
         }
         $rejected_count = max(0, (int) ($hydrated['rejected_count'] ?? 0));
         if ($rejected_count > 0) {
-            $scan_state['candidates'] = (array) ($hydrated['retained_candidates'] ?? []);
+            $retained = (array) ($hydrated['retained_candidates'] ?? []);
+            foreach ($scan_state['candidates'] as $candidate) {
+                if (!in_array($candidate, $retained, true)) {
+                    unset($scan_state['recording_tasks'][$candidate['type'] . ':' . $candidate['id']]);
+                }
+            }
+            $scan_state['candidates'] = $retained;
             $scan_state['valid_seen'] = max(0, (int) ($scan_state['valid_seen'] ?? 0) - $rejected_count);
         }
 
@@ -21558,6 +21587,11 @@ function ll_tools_wordset_page_build_recorder_queue_summary_group(
         (int) ($scan_state['legacy_cursor']['eligible_seen'] ?? 0)
     );
     $legacy_capacity = max(0, $preview_limit - count($visible_base_items) - count($legacy_items));
+    // The paged sources already resolve each eligible item and its missing types.
+    // Collect only task identities, including rows beyond the two preview slots.
+    $collect_tasks = static function (array $item) use (&$scan_state): void {
+        ll_tools_recorder_add_missing_tasks($scan_state['recording_tasks'], $item['hide_key'], $item['missing_types']);
+    };
     if (!$legacy_scan_complete && function_exists('ll_tools_get_legacy_missing_audio_instances_page')) {
         $legacy_page = ll_tools_get_legacy_missing_audio_instances_page(
             $category_slug,
@@ -21575,6 +21609,7 @@ function ll_tools_wordset_page_build_recorder_queue_summary_group(
                 'continue_after_limit' => true,
                 'raw_scan_limit' => $auxiliary_scan_limit,
                 'cursor' => (array) ($scan_state['legacy_cursor'] ?? []),
+                'on_eligible_item' => $collect_tasks,
             ]
         );
         $legacy_items = array_slice(array_values(array_merge(
@@ -21630,6 +21665,7 @@ function ll_tools_wordset_page_build_recorder_queue_summary_group(
                 'continue_after_limit' => true,
                 'raw_scan_limit' => $auxiliary_scan_limit,
                 'cursor' => (array) ($scan_state['prompt_cursor'] ?? []),
+                'on_eligible_item' => $collect_tasks,
             ]
         );
         foreach ((array) ($prompt_page['items'] ?? []) as $prompt_item) {
@@ -21689,6 +21725,7 @@ function ll_tools_wordset_page_build_recorder_queue_summary_group(
             'name' => (string) ($matched_group['name'] ?? $category_name),
             'slug' => (string) ($matched_group['slug'] ?? $category_slug),
             'count' => $exact_count,
+            'recording_tasks' => $scan_state['recording_tasks'],
             'count_is_lower_bound' => false,
             'items' => $visible_items,
             'preview_items' => ll_tools_wordset_page_get_recorder_queue_category_preview_items($visible_items, $preview_limit),
@@ -21716,10 +21753,17 @@ function ll_tools_wordset_page_build_recorder_queue_summary_manifest_scope(
         $exclude_types_csv
     );
 
+    $manifest_id = md5(wp_json_encode([
+        $wordset_id, $recorder_user_id,
+        ll_tools_wordset_page_get_recorder_category_access_signature($recorder_user_id),
+        ll_tools_wordset_page_recorder_queue_type_csv_to_slugs($include_types_csv),
+        ll_tools_wordset_page_recorder_queue_type_csv_to_slugs($exclude_types_csv),
+    ]));
     return [
         'complete' => true,
         'generation' => $generation,
-        'cache_key' => ll_tools_wordset_page_get_recorder_queue_summary_manifest_cache_key($generation),
+        'manifest_id' => $manifest_id,
+        'cache_key' => ll_tools_wordset_page_get_recorder_queue_summary_manifest_cache_key($manifest_id),
         'categories' => $catalog,
     ];
 }
@@ -21871,7 +21915,8 @@ function ll_tools_wordset_page_merge_recorder_queue_summary_manifest_entries(
     string $cache_key,
     string $generation,
     array $entries,
-    int $retention_ttl
+    int $retention_ttl,
+    ?array $catalog = null
 ): bool {
     if ($cache_key === '' || $generation === '' || empty($entries)) {
         return false;
@@ -21889,6 +21934,15 @@ function ll_tools_wordset_page_merge_recorder_queue_summary_manifest_entries(
             ll_tools_wordset_page_get_cached_payload($cache_key, $request_cache),
             $generation
         );
+        if ($catalog !== null) {
+            $current_slugs = array_column($catalog, 'slug', 'slug');
+            $observation = min(array_column($entries, 'observed_at'));
+            foreach (array_diff_key($payload['entries'], $current_slugs) as $slug => $previous) {
+                if ((float) $previous['observed_at'] <= $observation) {
+                    unset($payload['entries'][$slug]);
+                }
+            }
+        }
         foreach ($entries as $slug => $entry) {
             $slug = sanitize_title((string) $slug);
             $normalized_entry = ll_tools_wordset_page_normalize_recorder_queue_summary_manifest_payload([
@@ -21984,7 +22038,7 @@ function ll_tools_wordset_page_build_recorder_queue_summary_groups(
     $manifest_payload = !empty($manifest_scope['complete'])
         ? ll_tools_wordset_page_get_recorder_queue_summary_manifest_payload(
             (string) ($manifest_scope['cache_key'] ?? ''),
-            (string) ($manifest_scope['generation'] ?? '')
+            (string) $manifest_scope['manifest_id']
         )
         : ['entries' => []];
     $manifest_entries = (array) ($manifest_payload['entries'] ?? []);
@@ -22118,9 +22172,10 @@ function ll_tools_wordset_page_build_recorder_queue_summary_groups(
         );
         ll_tools_wordset_page_merge_recorder_queue_summary_manifest_entries(
             (string) ($manifest_scope['cache_key'] ?? ''),
-            (string) ($manifest_scope['generation'] ?? ''),
+            (string) $manifest_scope['manifest_id'],
             $manifest_merge_entries,
-            $manifest_retention_ttl
+            $manifest_retention_ttl,
+            $manifest_scope['categories']
         );
     }
 
@@ -22210,7 +22265,18 @@ function ll_tools_wordset_page_get_recorder_queue_cached_overview(
         }
     }
 
+    $recording_total = null;
+    if (empty($pending_slugs)) {
+        $tasks = [];
+        foreach ($groups as $group) {
+            foreach ($group['recording_tasks'] as $identity => $types) {
+                $tasks[$identity] = ($tasks[$identity] ?? []) + $types;
+            }
+        }
+        $recording_total = array_sum(array_map('count', $tasks));
+    }
     return [
+        'recording_total' => $recording_total,
         'complete' => empty($pending_slugs),
         'generation' => (string) ($manifest_scope['generation'] ?? ''),
         'groups' => $groups,
@@ -22218,6 +22284,53 @@ function ll_tools_wordset_page_get_recorder_queue_cached_overview(
         'pending_slugs' => $pending_slugs,
         'status' => $status,
     ];
+}
+
+/**
+ * Keep recently visited recorder scopes ready for a return visit. The worker
+ * checks the compact manifest, then queues only categories that need a scan.
+ */
+function ll_tools_wordset_page_track_active_recorder_overview(int $wordset_id, int $user_id, string $include, string $exclude): void {
+    $args = [
+        $wordset_id, $user_id,
+        implode(',', ll_tools_wordset_page_recorder_queue_type_csv_to_slugs($include)),
+        implode(',', ll_tools_wordset_page_recorder_queue_type_csv_to_slugs($exclude)),
+    ];
+    $key = ll_tools_wordset_page_build_cache_key('active_recorder_overview', $args);
+    if ((int) get_transient($key) < time() - DAY_IN_SECONDS) {
+        set_transient($key, time(), WEEK_IN_SECONDS);
+    }
+    $hook = 'll_tools_check_active_recorder_overview';
+    if (!wp_next_scheduled($hook, $args)) {
+        wp_schedule_single_event(time() + MINUTE_IN_SECONDS, $hook, $args);
+    }
+}
+
+/** Return the next check delay, or zero when this scope is no longer active. */
+function ll_tools_wordset_page_check_active_recorder_overview(array $args): int {
+    global $wpdb;
+    [$wordset_id, $user_id, $include, $exclude] = $args;
+    $wpdb->last_error = '';
+    if (!get_transient(ll_tools_wordset_page_build_cache_key('active_recorder_overview', $args))
+        || !user_can($user_id, 'upload_files')
+        || !(user_can($user_id, 'view_ll_tools') || user_can($user_id, 'manage_options'))
+        || !term_exists($wordset_id, 'wordset')
+        || !in_array($wordset_id, ll_tools_filter_recording_wordset_ids_for_user([$wordset_id], $user_id), true)) {
+        return $wpdb->last_error !== '' ? MINUTE_IN_SECONDS : 0;
+    }
+
+    $complete = true;
+    $categories = ll_tools_wordset_page_get_recorder_queue_summary_categories($wordset_id, $user_id, $complete);
+    if (!$complete) {
+        return MINUTE_IN_SECONDS;
+    }
+    $overview = ll_tools_wordset_page_get_recorder_queue_cached_overview($wordset_id, $user_id, $categories, $include, $exclude);
+    if ($overview['pending_slugs']) {
+        ll_tools_wordset_page_schedule_recorder_queue_summary_warmup(
+            $wordset_id, $user_id, $include, $exclude, $overview['generation'], 0, $overview['pending_slugs']
+        );
+    }
+    return 5 * MINUTE_IN_SECONDS;
 }
 
 /**
@@ -22661,12 +22774,18 @@ function ll_tools_wordset_page_run_recorder_queue_summary_warmup(
     }
     return ['complete' => true, 'args' => [], 'delay' => 0, 'error' => ''];
 }
-add_action(
-    'll_tools_wordset_page_warm_recorder_queue_summaries',
-    'll_tools_wordset_page_run_recorder_queue_summary_warmup',
-    10,
-    9
-);
+// Both cron entry points use the recorder's stored public locale, including
+// on installations that use ordinary WP-Cron without the dedicated worker.
+function ll_tools_wordset_page_dispatch_recorder_cron(...$args): void {
+    $hook = current_action();
+    $result = ll_tools_public_aggregate_worker_process_event($hook, $args);
+    $next = $result['args'];
+    if (!$result['complete'] && !wp_next_scheduled($hook, $next)) {
+        wp_schedule_single_event(time() + $result['delay'], $hook, $next);
+    }
+}
+add_action('ll_tools_wordset_page_warm_recorder_queue_summaries', 'll_tools_wordset_page_dispatch_recorder_cron', 10, 9);
+add_action('ll_tools_check_active_recorder_overview', 'll_tools_wordset_page_dispatch_recorder_cron', 10, 4);
 
 function ll_tools_wordset_page_schedule_recorder_queue_summary_warmup_for_user_config(
     int $user_id,

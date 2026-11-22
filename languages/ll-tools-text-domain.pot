@@ -30439,3 +30439,7 @@ msgstr ""
 #: includes/lib/context-review.php
 msgid "Could not save review relationships."
 msgstr ""
+
+#: includes/shortcodes/audio-recording-shortcode.php:1779
+msgid "Recordings remaining"
+msgstr ""

@@ -44,8 +44,20 @@ witness. Both ordinary cron and the dedicated worker use the same retry delay;
 the worker accepts the original seven-field event and its nine-field backoff
 continuation, and checkpoints the latter without dropping its retry state.
 
-Homepage counts reuse completed category eligibility for one hour across edits
-to other categories. Keys retain the category content version, structural and
+An authorized recorder overview visit schedules a manifest check for its wordset,
+recorder, and recording-type filters. The first check runs after one minute.
+Subsequent checks run every five minutes while the scope is recently active.
+They enqueue bounded repairs for the pending categories, including edits by
+other people while the recorder is away. The activity marker expires after a
+week and is renewed at most daily. Ordinary WP-Cron also runs recorder repairs
+in the recorder's public locale. The recorder header counts unique missing
+item/type pairs across completed categories. A pending category keeps the
+total pending. The bounded scans collect identities beyond the two card previews.
+
+Homepage counts reuse completed category eligibility for one week across edits
+to other categories and lesson presentation. The progress catalog and membership
+maps reuse small, stable category ID ranges after localized edits. Changes
+without a proven category scope continue to invalidate dependent results. Keys retain the category content version, structural and
 unknown/failsafe epochs, minimum word count, builder schema, and exact viewer
 identity/capabilities. Each batch discovers at most 100 lesson pairs (hard cap
 250), with at most eight cold eligibility scans and the existing raw/prompt

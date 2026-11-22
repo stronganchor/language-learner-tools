@@ -7,9 +7,9 @@ the Progress page's **Due for review** selection and **Last** study dates. Each 
 `[richer_word_id, practiced_component_word_id]`. Link cards when practicing
 the richer target actually rehearses the component in its intended sense.
 
-1. GET `/wp-json/ll-tools/v1/wordsets/{wordset}/context-review` for the
+1. Use `GET /wordsets/{wordset}/context-review` under `/wp-json/ll-tools/v1` for the
    current `edges` and `revision`.
-2. POST to the same route with JSON, for example
+2. Use `POST /wordsets/{wordset}/context-review` with JSON, for example
    `{"operation":"add","edges":[[4200,2504]],"expected_revision":"<GET revision>","dry_run":true}`.
    The preview returns the proposed total. Submit again with `dry_run:false`
    to apply. Each request accepts up to 100 pairs. Use `operation:"remove"`

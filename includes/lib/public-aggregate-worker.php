@@ -7,6 +7,7 @@ function ll_tools_public_aggregate_worker_hooks(): array {
         LL_TOOLS_DICTIONARY_LOOKUP_REBUILD_HOOK,
         'll_tools_refresh_wordset_button_lesson_counts',
         'll_tools_wordset_page_warm_recorder_queue_summaries',
+        'll_tools_check_active_recorder_overview',
     ];
 }
 
@@ -124,7 +125,8 @@ function ll_tools_run_public_aggregate_worker(int $max_seconds = 8, int $max_bat
 /** Dispatch a known builder, obtaining source-specific completeness and retry scope. */
 function ll_tools_public_aggregate_worker_process_event(string $hook, array $args): array {
     global $wpdb;
-    if ($hook !== 'll_tools_wordset_page_warm_recorder_queue_summaries' || !isset($args[1]) || !is_numeric($args[1])) {
+    if (!in_array($hook, ['ll_tools_wordset_page_warm_recorder_queue_summaries', 'll_tools_check_active_recorder_overview'], true)
+        || !isset($args[1]) || !is_numeric($args[1])) {
         return ll_tools_public_aggregate_worker_process_event_in_locale($hook, $args);
     }
     // The CLI admin's locale is not the recorder's catalog locale. In
@@ -160,6 +162,11 @@ function ll_tools_public_aggregate_worker_process_event(string $hook, array $arg
 function ll_tools_public_aggregate_worker_process_event_in_locale(string $hook, array $args): array {
     global $wpdb;
     $retry = ['complete' => false, 'args' => $args, 'delay' => 30, 'error' => 'invalid_event_args'];
+    if ($hook === 'll_tools_check_active_recorder_overview' && count($args) === 4
+        && is_int($args[0]) && is_int($args[1]) && is_string($args[2]) && is_string($args[3])) {
+        $delay = ll_tools_wordset_page_check_active_recorder_overview($args);
+        return ['complete' => $delay === 0, 'args' => $args, 'delay' => $delay, 'error' => ''];
+    }
     if ($hook === LL_TOOLS_DICTIONARY_LOOKUP_REBUILD_HOOK && $args === []) {
         $wpdb->last_error = '';
         $before_raw = $wpdb->get_var($wpdb->prepare(

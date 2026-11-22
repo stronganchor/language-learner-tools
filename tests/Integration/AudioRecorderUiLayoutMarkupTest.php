@@ -29,6 +29,21 @@ final class AudioRecorderUiLayoutMarkupTest extends LL_Tools_TestCase
         parent::tearDown();
     }
 
+    public function test_recorder_page_enqueues_layout_styles_before_the_shortcode_renders(): void
+    {
+        wp_set_current_user(self::factory()->user->create(['role' => 'administrator']));
+        $page = self::factory()->post->create(['post_type' => 'page', 'post_content' => '[audio_recording_interface]']);
+        $this->go_to(get_permalink($page));
+        $handles = ['ll-tools-frontend-utility-menu-css', 'll-recording-interface', 'll-recording-history'];
+        foreach ($handles as $handle) {
+            wp_dequeue_style($handle);
+        }
+        do_action('wp_enqueue_scripts');
+        foreach ($handles as $handle) {
+            $this->assertTrue(wp_style_is($handle, 'enqueued'), $handle);
+        }
+    }
+
     public function test_utility_menu_includes_recorder_context_class(): void
     {
         $markup = ll_tools_render_frontend_user_utility_menu([

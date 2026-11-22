@@ -5501,6 +5501,8 @@ function ll_tools_epoch_request_cache_set(string $cache_key, int $epoch): int {
 function ll_tools_epoch_request_cache_reset_for_option(string $option_name): void {
     if (in_array($option_name, [
         'll_tools_wc_cache_epoch',
+        'll_tools_category_dependency_epoch',
+        'll_tools_recorder_category_eligibility_epoch',
         'll_tools_wordset_cache_epoch',
         'll_tools_structural_failsafe_epoch',
         'll_tools_quiz_content_cache_epoch',
@@ -5525,6 +5527,7 @@ function ll_tools_epoch_request_cache_reset_for_term_meta($meta_id, int $term_id
     if (in_array($meta_key, [
         '_ll_wc_cache_version',
         '_ll_quiz_content_epoch',
+        '_ll_quiz_unmapped_content_epoch',
         'll_category_aspect_cache_version',
     ], true)) {
         ll_tools_epoch_request_cache_reset(ll_tools_epoch_request_cache_key('term', $term_id, $meta_key));
@@ -5878,8 +5881,26 @@ function ll_tools_get_quiz_content_fallback_epoch(): string {
 }
 
 /**
- * Return the quiz/content epoch for one valid wordset.
+ * Category-versioned consumers can reuse their exact results after another category changes.
+ * Legacy source IDs may resolve to a different category and need the broader generation.
  */
+function ll_tools_get_category_versioned_content_epoch(array $wordset_ids, array $category_ids = []): string {
+    if (count($wordset_ids) !== 1 || (int) reset($wordset_ids) <= 0) {
+        return ll_tools_get_quiz_content_cache_epoch($wordset_ids);
+    }
+    $wordset_id = (int) reset($wordset_ids);
+    if ($category_ids && ll_tools_is_wordset_isolation_enabled()) {
+        update_meta_cache('term', $category_ids);
+        foreach ($category_ids as $id) {
+            if (ll_tools_get_category_wordset_owner_id($id, $complete) !== $wordset_id || !$complete) {
+                return ll_tools_get_quiz_content_cache_epoch($wordset_ids) . ':s' . ll_tools_get_category_cache_epoch();
+            }
+        }
+    }
+    return ll_tools_get_quiz_content_fallback_epoch() . ':w' . $wordset_id . ':'
+        . ll_tools_read_term_meta_epoch($wordset_id, '_ll_quiz_unmapped_content_epoch');
+}
+
 function ll_tools_get_wordset_quiz_content_epoch(int $wordset_id): int {
     $wordset_id = max(0, $wordset_id);
     $wordset = $wordset_id > 0 ? get_term($wordset_id, 'wordset') : null;
@@ -5927,7 +5948,7 @@ function ll_tools_get_quiz_content_cache_epoch($wordset_ids = []): string {
  * @param array|int $wordset_ids
  * @return array{global_epoch:int,unknown_epoch:int,wordset_epochs:array<int,int>,scope_complete:bool}
  */
-function ll_tools_bump_quiz_content_cache_epoch($wordset_ids = [], bool $scope_complete = true): array {
+function ll_tools_bump_quiz_content_cache_epoch($wordset_ids = [], bool $scope_complete = true, bool $category_versions_advanced = false): array {
     $requested_wordset_ids = ll_tools_normalize_quiz_content_wordset_ids($wordset_ids);
     $valid_wordset_ids = [];
     foreach ($requested_wordset_ids as $wordset_id) {
@@ -5952,6 +5973,14 @@ function ll_tools_bump_quiz_content_cache_epoch($wordset_ids = [], bool $scope_c
     $wordset_epochs = [];
     $wordset_epochs_advanced = true;
     foreach ($valid_wordset_ids as $wordset_id) {
+        // An import or repair can know the wordset without knowing which category changed.
+        if (!$category_versions_advanced) {
+            $previous = ll_tools_read_term_meta_epoch($wordset_id, '_ll_quiz_unmapped_content_epoch', true);
+            if (ll_tools_atomic_increment_term_meta_epoch($wordset_id, '_ll_quiz_unmapped_content_epoch') <= $previous) {
+                $wordset_epochs_advanced = false;
+                $scope_complete = false;
+            }
+        }
         $before = ll_tools_get_wordset_quiz_content_epoch($wordset_id);
         $epoch = ll_tools_atomic_increment_term_meta_epoch($wordset_id, '_ll_quiz_content_epoch');
         $wordset_epochs[$wordset_id] = $epoch;
@@ -6043,7 +6072,18 @@ function ll_tools_get_quiz_content_wordset_scope_for_categories($term_ids): arra
     return ['wordset_ids' => $wordset_ids, 'complete' => $complete];
 }
 
-function ll_tools_bump_category_cache_epoch($wordset_ids = []) {
+/** For caches that already validate their exact category IDs and versions. */
+function ll_tools_get_category_dependency_epoch(): int {
+    return ll_tools_compose_structural_cache_epoch(ll_tools_read_option_epoch('ll_tools_category_dependency_epoch'));
+}
+
+function ll_tools_bump_category_cache_epoch($wordset_ids = [], bool $category_versions_advanced = false) {
+    if (!$category_versions_advanced) {
+        $before = ll_tools_read_option_epoch('ll_tools_category_dependency_epoch', true);
+        if (ll_tools_atomic_increment_option_epoch('ll_tools_category_dependency_epoch') <= $before) {
+            ll_tools_bump_structural_failsafe_epoch();
+        }
+    }
     $before = ll_tools_read_option_epoch('ll_tools_wc_cache_epoch', true);
     $after = ll_tools_atomic_increment_option_epoch('ll_tools_wc_cache_epoch');
     if ($after <= $before) {
@@ -6138,7 +6178,7 @@ function ll_tools_bump_category_cache_version($term_ids, $wordset_ids = null, ?b
         ];
     }
 
-    ll_tools_bump_quiz_content_cache_epoch($scope['wordset_ids'], !empty($scope['complete']));
+    ll_tools_bump_quiz_content_cache_epoch($scope['wordset_ids'], !empty($scope['complete']), $all_categories_resolved);
 }
 
 /**
@@ -6171,7 +6211,7 @@ function ll_tools_bump_single_category_cache_version($term_id) {
     }
     // Structural term edits are rare and owner metadata alone cannot prove
     // every legacy/direct wordset that renders this category.
-    ll_tools_bump_category_cache_epoch();
+    ll_tools_bump_category_cache_epoch([], in_array($term_id, $bumped_ids, true));
 }
 
 function ll_tools_bump_deleted_category_cache_epoch($term_id): void {

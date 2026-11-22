@@ -247,7 +247,8 @@ final class WordsetButtonsShortcodeTest extends LL_Tools_TestCase
         add_action('ll_tools_wordset_buttons_shortcode_eligibility_pair_scanned', $capture_pair, 10, 2);
         add_filter('ll_tools_wordset_buttons_shortcode_eligibility_batch_size', $batch_size);
         try {
-            ll_tools_bump_quiz_content_cache_epoch([$first_wordset_id, $second_wordset_id], true);
+            // A generation refresh whose category versions have already been recorded.
+            ll_tools_bump_quiz_content_cache_epoch([$first_wordset_id, $second_wordset_id], true, true);
             $next_exact_key = ll_tools_wordset_buttons_shortcode_cache_key($atts, 'll_wordset_buttons');
             $this->assertNotSame($initial_exact_key, $next_exact_key);
             $this->assertSame($initial_stale_key, ll_tools_wordset_buttons_shortcode_stale_key($atts, 'll_wordset_buttons'));
@@ -1888,6 +1889,11 @@ final class WordsetButtonsShortcodeTest extends LL_Tools_TestCase
         $category_id = (int) get_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, true);
         $key = ll_tools_wordset_button_pair_eligibility_cache_key($wordset_id, $category_id, 5);
         $this->assertNotSame($key, ll_tools_wordset_button_pair_eligibility_cache_key($wordset_id, $category_id, 6));
+        ll_tools_bump_wordset_buttons_shortcode_generation_epoch();
+        $this->assertSame($key, ll_tools_wordset_button_pair_eligibility_cache_key($wordset_id, $category_id, 5));
+        ll_tools_bump_quiz_content_cache_epoch([$wordset_id], true);
+        $this->assertNotSame($key, ll_tools_wordset_button_pair_eligibility_cache_key($wordset_id, $category_id, 5));
+        $key = ll_tools_wordset_button_pair_eligibility_cache_key($wordset_id, $category_id, 5);
         $user = get_userdata($user_id);
         $user->set_role('administrator');
         wp_set_current_user(0);

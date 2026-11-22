@@ -52,6 +52,14 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
         $this->assertCount(2, $payload['words']);
         $this->assertSame(10, $payload['summary']['total_words']);
         $this->assertSame(10, $payload['gender_progress']['tracked_word_total']);
+        $card_metrics = ll_tools_build_user_study_analytics_payload(
+            $user_id, $wordset_id, $fixture['category_ids'], 14, false,
+            ['summary_only' => true, 'card_metrics_only' => true], $complete
+        );
+        $this->assertTrue($complete);
+        $this->assertSame($payload['summary'], $card_metrics['summary']);
+        $this->assertSame(array_column($payload['categories'], 'word_count', 'id'), array_column($card_metrics['categories'], 'word_count', 'id'));
+        $this->assertFalse($card_metrics['gender_progress']['enabled']);
         $this->assertSame([], $queries_from_config_rebuild,
             'Gender statistics must reuse the resolved catalog instead of recounting every category.');
         foreach ($payload['words'] as $word) {

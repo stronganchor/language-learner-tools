@@ -13755,6 +13755,7 @@
             category_ids: getVisibleCategoryIds(),
             days: 14,
             summary_only: 1,
+            card_metrics_only: 1,
             include_words: 0
         }).done(function (res) {
             if (metricsLoadingToken !== summaryMetricsLoadingToken) { return; }

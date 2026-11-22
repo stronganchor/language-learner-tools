@@ -190,7 +190,7 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
             $this->assertTrue((bool) ($scope['complete'] ?? false));
             $manifest = ll_tools_wordset_page_get_recorder_queue_summary_manifest_payload(
                 (string) ($scope['cache_key'] ?? ''),
-                (string) ($scope['generation'] ?? '')
+                (string) $scope['manifest_id']
             );
             $this->assertCount(4, (array) ($manifest['entries'] ?? []));
             $this->assertArrayHasKey((string) $empty_category['slug'], (array) ($manifest['entries'] ?? []));
@@ -370,6 +370,44 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
         } finally {
             remove_action('pre_get_posts', $query_watcher);
         }
+    }
+
+    public function test_label_edits_and_catalog_reordering_reuse_other_completed_categories(): void
+    {
+        $this->ensureRecordingType('Isolation', 'isolation');
+        $fixture = $this->createWordsetWithCategories(4);
+        $wordset = (int) $fixture['wordset_id'];
+        $recorder = self::factory()->user->create(['role' => 'administrator']);
+        $catalog = $fixture['categories'];
+        $before = ll_tools_wordset_page_build_recorder_queue_summary_manifest_scope($wordset, $recorder, $catalog);
+        $status = $states = [];
+        ll_tools_wordset_page_build_recorder_queue_summary_groups($catalog, $wordset, $recorder, '', '', 4, $status, $states);
+        $this->assertSame(4, $status['fresh']);
+
+        $changed = $catalog[0];
+        $this->assertIsArray(wp_update_term($changed['id'], 'word-category', ['name' => 'Updated category label']));
+        $catalog[0]['name'] = 'Updated category label';
+        $catalog = array_reverse($catalog);
+        $after = ll_tools_wordset_page_get_recorder_queue_cached_overview($wordset, $recorder, $catalog);
+        $this->assertNotSame($before['generation'], $after['generation']);
+        $this->assertSame([$changed['slug']], $after['pending_slugs']);
+        $this->assertSame(array_slice(array_column($catalog, 'slug'), 0, 3), $after['resolved_slugs']);
+        $this->assertSame(0, $after['status']['refreshed']);
+
+        $args = [$wordset, $recorder, '', ''];
+        ll_tools_wordset_page_track_active_recorder_overview(...$args);
+        ll_tools_wordset_page_track_active_recorder_overview(...$args);
+        $hook = 'll_tools_check_active_recorder_overview';
+        $this->assertNotFalse(wp_next_scheduled($hook, $args));
+        $this->assertSame(5 * MINUTE_IN_SECONDS, ll_tools_wordset_page_check_active_recorder_overview($args));
+        $current = ll_tools_wordset_page_get_recorder_queue_summary_categories($wordset, $recorder);
+        $scope = ll_tools_wordset_page_build_recorder_queue_summary_manifest_scope($wordset, $recorder, $current);
+        $warm = array_merge($args, [$scope['generation'], 0, [$changed['slug']]]);
+        $this->assertNotFalse(wp_next_scheduled('ll_tools_wordset_page_warm_recorder_queue_summaries', $warm));
+        do_action('ll_tools_wordset_page_warm_recorder_queue_summaries', ...$warm);
+        $this->assertTrue(ll_tools_wordset_page_get_recorder_queue_cached_overview($wordset, $recorder, $current)['complete']);
+        delete_transient(ll_tools_wordset_page_build_cache_key('active_recorder_overview', $args));
+        $this->assertSame(0, ll_tools_wordset_page_check_active_recorder_overview($args));
     }
 
     public function test_targeted_warmup_rebuilds_only_the_changed_category(): void
@@ -1841,6 +1879,8 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
             );
 
             update_option('ll_tools_wc_cache_epoch', 102, false);
+            $this->assertSame($signature_a, ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $wordset_id, $category_a));
+            ll_tools_wordset_page_bump_recorder_category_eligibility_epoch();
             $eligibility_signature_a = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $wordset_id, $category_a);
             $eligibility_signature_b = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $wordset_id, $category_b);
             $eligibility_other_signature = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $other_wordset_id, $other_category);
@@ -1896,6 +1936,30 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
                 }
             }
         }
+    }
+
+    public function test_remaining_recordings_count_each_missing_type_once_across_categories(): void
+    {
+        $uid = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($uid);
+        $this->ensureRecordingType('Isolation', 'isolation');
+        $this->ensureRecordingType('Question', 'question');
+        $fixture = $this->createWordsetWithCategories(2);
+        $wordset = $fixture['wordset_id'];
+        $categories = $fixture['categories'];
+        $ids = array_column($categories, 'id');
+        update_term_meta($ids[0], 'll_desired_recording_types', ['isolation', 'question']);
+        $words = get_objects_in_term($ids[0], 'word-category');
+        $this->assertCount(1, $words);
+        wp_set_post_terms((int) $words[0], $ids, 'word-category');
+        $before = ll_tools_wordset_page_get_recorder_queue_cached_overview($wordset, $uid, $categories);
+        $this->assertNull($before['recording_total']);
+        $status = $states = [];
+        ll_tools_wordset_page_build_recorder_queue_summary_groups($categories, $wordset, $uid, '', '', 2, $status, $states);
+        $overview = ll_tools_wordset_page_get_recorder_queue_cached_overview($wordset, $uid, $categories);
+        // Shared word needs isolation and question. The second word needs isolation.
+        $this->assertTrue($overview['complete']);
+        $this->assertSame(3, $overview['recording_total']);
     }
 
     public function test_summary_exact_count_combines_canonical_legacy_and_prompt_sources(): void
@@ -1965,6 +2029,7 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
         }
 
         $this->assertTrue((bool) $summary['complete']);
+        $this->assertCount(3, $summary['group']['recording_tasks']);
         $this->assertSame(1, (int) $summary['scan_state']['canonical_total']);
         $this->assertSame(1, (int) $summary['scan_state']['legacy_total']);
         $this->assertSame(1, (int) $summary['scan_state']['prompt_total']);

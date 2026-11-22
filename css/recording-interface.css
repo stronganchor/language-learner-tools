@@ -229,6 +229,20 @@
     border: 1px solid #ddd;
 }
 
+.ll-recording-interface .ll-recording-remaining {
+    display: inline-flex;
+    align-items: baseline;
+    gap: .4em;
+    color: #50575e;
+    white-space: nowrap;
+}
+
+.ll-recording-interface .ll-recording-remaining strong {
+    min-width: 3ch;
+    font-variant-numeric: tabular-nums;
+    color: #1d2327;
+}
+
 .ll-wordset-display strong {
     color: #2271b1;
 }

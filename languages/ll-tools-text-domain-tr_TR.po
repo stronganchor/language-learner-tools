@@ -31197,3 +31197,7 @@ msgstr "Kaydedilmiş kelime metni kontrol edilemedi. Yeniden dene."
 #: includes/pages/wordset-pages.php
 msgid "Due for review"
 msgstr "Tekrar zamanı gelenler"
+
+#: includes/shortcodes/audio-recording-shortcode.php:1779
+msgid "Recordings remaining"
+msgstr "Kalan kayıt"

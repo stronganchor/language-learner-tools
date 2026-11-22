@@ -198,8 +198,8 @@ function ll_flashcards_get_processed_categories_cached(
         }
     }
 
-    $structure_epoch = function_exists('ll_tools_get_category_cache_epoch')
-        ? (int) ll_tools_get_category_cache_epoch()
+    $structure_epoch = function_exists('ll_tools_get_category_dependency_epoch')
+        ? (int) ll_tools_get_category_dependency_epoch()
         : 1;
     if ($structure_epoch < 1) {
         $structure_epoch = 1;
@@ -227,7 +227,7 @@ function ll_flashcards_get_processed_categories_cached(
     $content_epoch = function_exists('ll_tools_get_quiz_content_cache_epoch')
         // An empty caller scope is genuinely site-wide; category-owner
         // metadata alone cannot prove every legacy/direct wordset consumer.
-        ? ll_tools_get_quiz_content_cache_epoch($wordset_ids)
+        ? ll_tools_get_category_versioned_content_epoch($wordset_ids, $term_ids)
         : 'qce0:' . $structure_epoch;
 
     $cache_key = 'll_fc_proc_cats_' . md5(wp_json_encode([
@@ -240,8 +240,10 @@ function ll_flashcards_get_processed_categories_cached(
         'structure_epoch' => $structure_epoch,
         'wordset_epoch' => $wordset_epoch,
         'content_epoch' => $content_epoch,
-        'plugin_version' => defined('LL_TOOLS_VERSION') ? (string) LL_TOOLS_VERSION : '',
-        'schema' => 8,
+        'viewer' => (int) get_current_user_id(),
+        'capabilities' => wp_get_current_user()->allcaps,
+        'locale' => get_locale(),
+        'schema' => 9,
     ]));
     $cache_group = 'll_tools_flashcards';
     $cache_ttl = (int) apply_filters('ll_tools_flashcard_categories_cache_ttl', DAY_IN_SECONDS);
@@ -264,13 +266,32 @@ function ll_flashcards_get_processed_categories_cached(
     }
 
     $processing_complete = true;
-    $processed = ll_process_categories(
-        $terms,
-        $use_translations,
-        $min_word_count,
-        $wordset_ids,
-        $processing_complete
-    );
+    if (count($term_ids) > 16 && count($wordset_ids) === 1) {
+        // Stable ID ranges survive additions and sorting. Preserve the caller's display order.
+        $batches = [];
+        foreach ($terms as $term) {
+            if ($term instanceof WP_Term) {
+                $batches[intdiv((int) $term->term_id, 16)][$term->term_id] = $term;
+            }
+        }
+        $by_id = [];
+        foreach ($batches as $batch) {
+            ksort($batch, SORT_NUMERIC);
+            $rows = ll_flashcards_get_processed_categories_cached($batch, $use_translations, $min_word_count, $wordset_ids, $batch_complete);
+            $processing_complete = $processing_complete && $batch_complete;
+            foreach ($rows as $row) {
+                $by_id[$row['id']] = $row;
+            }
+        }
+        $processed = [];
+        foreach ($term_ids as $id) {
+            if (isset($by_id[$id])) {
+                $processed[] = $by_id[$id];
+            }
+        }
+    } else {
+        $processed = ll_process_categories($terms, $use_translations, $min_word_count, $wordset_ids, $processing_complete);
+    }
     $processed = is_array($processed) ? $processed : [];
 
     if (!$processing_complete) {
