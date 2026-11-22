@@ -2,6 +2,8 @@
 // /includes/shortcodes/wordset-buttons-shortcode.php
 if (!defined('WPINC')) { die; }
 
+require_once __DIR__ . '/wordset-button-count-snapshots.php';
+
 function ll_tools_wordset_buttons_shortcode_tags(): array {
     return ['wordset_buttons', 'll_wordset_buttons'];
 }
@@ -146,6 +148,8 @@ function ll_tools_wordset_buttons_shortcode_cache_key(
 
     $payload = [
         'schema' => 5,
+        'quiz_minimum' => ll_tools_wordset_button_quiz_min_word_count(),
+        'builder_schema' => ll_tools_wordset_button_count_builder_schema(),
         'plugin_version' => $plugin_version !== ''
             ? $plugin_version
             : (defined('LL_TOOLS_VERSION') ? (string) LL_TOOLS_VERSION : ''),
@@ -155,6 +159,7 @@ function ll_tools_wordset_buttons_shortcode_cache_key(
         'category_epoch' => $category_epoch,
         'quiz_content_epoch' => $quiz_content_epoch,
         'buttons_generation_epoch' => ll_tools_wordset_buttons_shortcode_generation_epoch(),
+        'membership_epoch' => ll_tools_wordset_button_membership_epoch(),
         'tag' => sanitize_key($tag !== '' ? $tag : 'll_wordset_buttons'),
         'atts' => [
             'class' => $extra_classes,
@@ -184,6 +189,9 @@ function ll_tools_wordset_buttons_shortcode_stale_key(array $atts, string $tag =
     $payload = [
         'schema' => 2,
         'markup_schema' => 1,
+        'quiz_minimum' => ll_tools_wordset_button_quiz_min_word_count(),
+        'builder_schema' => ll_tools_wordset_button_count_builder_schema(),
+        'membership_epoch' => ll_tools_wordset_button_membership_epoch(),
         'site' => home_url('/'),
         'locale' => function_exists('get_locale') ? (string) get_locale() : '',
         'wordset_epoch' => function_exists('ll_tools_get_wordset_cache_epoch')
@@ -611,6 +619,8 @@ function ll_tools_wordset_buttons_shortcode_context_matches(
     string $expected_cache_key,
     string $expected_stale_key
 ): bool {
+    // Refresh the membership boundary before accepting HTML across a concurrent edit.
+    ll_tools_wordset_button_membership_epoch(true);
     return $expected_cache_key !== ''
         && $expected_stale_key !== ''
         && hash_equals(
@@ -768,17 +778,6 @@ function ll_tools_reset_wordset_buttons_shortcode_cache_purge_once_state(): void
     unset($GLOBALS['ll_tools_wordset_buttons_shortcode_content_cache_purged_this_request']);
 }
 
-function ll_tools_wordset_buttons_shortcode_purge_on_post_change($post_id = 0): void {
-    $post_type = $post_id ? get_post_type((int) $post_id) : '';
-    if ($post_type !== 'll_vocab_lesson') {
-        return;
-    }
-
-    ll_tools_purge_wordset_buttons_shortcode_cache_once();
-}
-add_action('save_post_ll_vocab_lesson', 'll_tools_wordset_buttons_shortcode_purge_on_post_change', 30, 1);
-add_action('before_delete_post', 'll_tools_wordset_buttons_shortcode_purge_on_post_change', 30, 1);
-
 function ll_tools_wordset_button_normalize_wordset_ids(array $wordset_ids): array {
     $wordset_ids = array_values(array_unique(array_filter(array_map('intval', $wordset_ids), static function (int $wordset_id): bool {
         return $wordset_id > 0;
@@ -899,7 +898,7 @@ function ll_tools_wordset_button_pair_eligibility_cache_key(int $wordset_id, int
     ]));
 }
 
-function ll_tools_wordset_button_counts_generation_key(array $wordset_ids, int $min_word_count): string {
+function ll_tools_wordset_button_counts_generation_key(array $wordset_ids, int $min_word_count, ?int $viewer_id = null): string {
     $wordset_ids = ll_tools_wordset_button_normalize_wordset_ids($wordset_ids);
     $payload = [
         'schema' => 2,
@@ -916,9 +915,10 @@ function ll_tools_wordset_button_counts_generation_key(array $wordset_ids, int $
             ? ll_tools_get_quiz_content_cache_epoch($wordset_ids)
             : 'unavailable',
         'buttons_generation_epoch' => ll_tools_wordset_buttons_shortcode_generation_epoch(),
-        // Category and wordset grants can differ even when the visible wordset
-        // ID vector is identical, so the authorization scope must remain exact.
-        'user_id' => (int) get_current_user_id(),
+        'membership_epoch' => ll_tools_wordset_button_membership_epoch(),
+        // Category grants can differ for the same visible wordset vector.
+        'user_id' => $viewer_id ?? (int) get_current_user_id(),
+        'manage_private' => ($viewer_id ?? get_current_user_id()) > 0 && user_can($viewer_id ?? get_current_user_id(), 'manage_options'),
     ];
 
     return md5((string) wp_json_encode($payload));
@@ -1269,7 +1269,8 @@ function ll_tools_schedule_wordset_button_count_refresh(
     array $wordset_ids,
     bool $schedule,
     int $run_at = 0,
-    bool $replace = false
+    bool $replace = false,
+    ?int $viewer_id = null
 ): void {
     $wordset_ids = ll_tools_wordset_button_normalize_wordset_ids($wordset_ids);
     if (empty($wordset_ids) || !function_exists('wp_next_scheduled')) {
@@ -1277,7 +1278,7 @@ function ll_tools_schedule_wordset_button_count_refresh(
     }
 
     $hook = 'll_tools_refresh_wordset_button_lesson_counts';
-    $args = [$wordset_ids, (int) get_current_user_id()];
+    $args = [$wordset_ids, $viewer_id ?? (int) get_current_user_id()];
     if ($schedule) {
         $logical_now = ll_tools_wordset_button_now();
         $delay = $run_at > $logical_now
@@ -1442,6 +1443,7 @@ function ll_tools_get_wordset_button_lesson_counts_bounded(
         ) {
             $complete = true;
             $retry_after_ms = 0;
+            ll_tools_wordset_button_store_snapshot($wordset_ids, $counts, $min_word_count, $generation_key);
             ll_tools_schedule_wordset_button_count_refresh($wordset_ids, false);
             return $counts;
         }
@@ -1727,6 +1729,7 @@ function ll_tools_get_wordset_button_lesson_counts_bounded_unlocked(
     $complete = true;
     $retry_after_ms = 0;
     ll_tools_schedule_wordset_button_count_refresh($wordset_ids, false);
+    ll_tools_wordset_button_store_snapshot($wordset_ids, $state['counts'], $min_word_count, $generation_key);
     return (array) $state['counts'];
 }
 
@@ -2832,13 +2835,28 @@ function ll_tools_wordset_buttons_shortcode_render(
 
     $items_complete = true;
     $retry_after_ms = ll_tools_wordset_buttons_shortcode_refresh_retry_ms();
-    $items = ll_tools_get_wordset_button_items(
-        ll_tools_wordset_buttons_shortcode_is_truthy($atts['hide_empty'] ?? '0'),
-        true,
-        $items_complete,
-        $retry_after_ms,
-        $advance_bounded_counts
-    );
+    $snapshot_current = false;
+    $snapshot_epoch = 0;
+    $items = $allow_refresh && !$advance_bounded_counts
+        ? ll_tools_wordset_button_snapshot_items($atts, $snapshot_current, $snapshot_epoch)
+        : null;
+    if ($items !== null && !$snapshot_current) {
+        $html = $items ? ll_tools_wordset_buttons_shortcode_items_html($atts, $items) : '';
+        if (ll_tools_wordset_button_membership_epoch(true) === $snapshot_epoch) {
+            ll_tools_wordset_buttons_shortcode_mark_incomplete_response_uncacheable();
+            return $html;
+        }
+        $items = null;
+    }
+    if ($items === null) {
+        $items = ll_tools_get_wordset_button_items(
+            ll_tools_wordset_buttons_shortcode_is_truthy($atts['hide_empty'] ?? '0'),
+            true,
+            $items_complete,
+            $retry_after_ms,
+            $advance_bounded_counts
+        );
+    }
     if (!$items_complete) {
         $complete = false;
         return ll_tools_wordset_buttons_shortcode_incomplete_html(

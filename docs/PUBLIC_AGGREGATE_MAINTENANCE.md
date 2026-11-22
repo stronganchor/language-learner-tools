@@ -54,6 +54,15 @@ in the recorder's public locale. The recorder header counts unique missing
 item/type pairs across completed categories. A pending category keeps the
 total pending. The bounded scans collect identities beyond the two card previews.
 
+The homepage stores complete lesson totals in a non-autoloaded public option and
+a site-specific option for each viewer who needs private counts. These totals have
+no time expiry. Published lesson membership, preview flags, category access and
+isolation changes fence both the saved counts and HTML. Quiz-content changes
+schedule a bounded recount while the last confirmed numbers stay visible.
+Ordinary signed-in learners can use the public result when it covers all their
+visible wordsets and they have no private category grants. The regression lives
+in `WordsetButtonsShortcodeTest`.
+
 Homepage counts reuse completed category eligibility for one week across edits
 to other categories and lesson presentation. The progress catalog and membership
 maps reuse small, stable category ID ranges after localized edits. Catalog pieces
