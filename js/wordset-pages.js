@@ -17301,9 +17301,9 @@
             : beginFlashcardLaunch();
         // Run inside the original user-gesture click stack when possible so
         // listening-mode visualizer can use analyser-driven bars instead of fallback waves.
-        warmupFlashcardVisualizerContext();
-
         const normalizedMode = normalizeMode(mode) || 'practice';
+        if (normalizedMode === 'listening') warmupFlashcardVisualizerContext();
+
         const sessionStarModeOverride = normalizeStarMode(opts.sessionStarMode || 'normal');
         const randomizeSessionCategoryOrder = !!opts.randomizeSessionCategoryOrder;
         const boundedSelectionPlan = !!opts.boundedSelectionPlan;

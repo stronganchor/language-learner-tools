@@ -872,7 +872,7 @@ wordset can opt into it.
 - `dom.js` - DOM helpers and progress UI.
 - `effects.js` - confetti and visual feedback.
 - `results.js` - end-of-quiz UI.
-- `audio-visualizer.js` - animated loading/listening visualizer.
+- `audio-visualizer.js` - listening visualizer and quiz playback buttons. Practice recordings use native media output. Button analysers may observe a captured copy or fall back to CSS and must never route the recording to the speakers.
 - `category-selection.js`, `util.js` - supporting UI/utility helpers.
 
 ## Mode behavior (high level)

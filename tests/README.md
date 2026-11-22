@@ -612,6 +612,8 @@ Representative E2E coverage areas:
   - Verifies adaptive Gender mode rules: "I don't know" behaves as wrong with 2-correct recovery, Level 1 requires 3 correct answers and learn-like intro pacing, and dashboard results always expose next-activity + next-set actions with chunk-scoped categories. Bounded logical sessions retain exact-once ownership when newer browser progress re-buckets stale server levels, checkpoint after Level 1 groups without emitting an intermediate mode completion, automatically continue Level 2/3 groups without resetting logical progress, and emit completion exactly once at final results.
 - `tests/e2e/specs/listening-sequence-weighting.spec.js`
   - Verifies Listening mode sequence weighting and replay behavior stay within expected constraints, while large category selections advance through a bounded prefetch window and invalidate old-session requests.
+- `tests/e2e/specs/practice-audio-resume.spec.js`
+  - Checks native recording playback across a frozen tab, an interrupted or detached button analyser, and browsers without media-element capture.
 - `tests/e2e/specs/listening-visualizer-regression.spec.js`
   - Verifies Listening visualizer warmup/resume behavior and countdown-hide recovery.
 - `tests/e2e/specs/offline-app-shell-launcher.spec.js`

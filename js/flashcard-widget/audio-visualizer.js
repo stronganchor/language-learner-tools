@@ -14,6 +14,7 @@
     let bars = [];
     let rafId = null;
     let audioContext = null;
+    let meterContext = null;
     let analyser = null;
     let analyserData = null;
     let timeDomainData = null;
@@ -427,24 +428,16 @@
         detachAudioEvents();
         currentAudio = audio;
 
-        let source = audio.__llVisualizerSource || audio.__llMiniVisualizerSource;
+        let source = audio.__llVisualizerSource;
         if (!source) {
             try {
                 source = ctx.createMediaElementSource(audio);
-                // Keep a single source node alias so mini + listening visualizers
-                // can attach in any order without createMediaElementSource conflicts.
                 audio.__llVisualizerSource = source;
-                audio.__llMiniVisualizerSource = source;
             } catch (err) {
                 console.warn('AudioVisualizer: media source failed', err);
                 activateFallback();
                 return;
             }
-        } else {
-            // If one visualizer created the source first, mirror aliases so
-            // the other visualizer can always discover and reuse it.
-            audio.__llVisualizerSource = source;
-            audio.__llMiniVisualizerSource = source;
         }
 
         try {
@@ -503,6 +496,18 @@
         el.classList.remove(CLASS_PAUSED);
     }
 
+    // A button meter must never open a second speaker device on phone wake.
+    // Browsers without a silent analysis context use the existing CSS bars.
+    function getMeterContext() {
+        if (meterContext) return meterContext;
+        const Ctor = root.AudioContext || root.webkitAudioContext;
+        if (!Ctor || !('sinkId' in Ctor.prototype)) return null;
+        try {
+            meterContext = new Ctor({ sinkId: { type: 'none' } });
+        } catch (_) { return null; }
+        return meterContext;
+    }
+
     function createMiniVisualizer(options) {
         const cfg = Object.assign({
             barSelector: '.bar',
@@ -528,7 +533,9 @@
         let miniAnalyserData = null;
         let miniTimeData = null;
         let miniSource = null;
+        let miniStream = null;
         let miniListeners = [];
+        let visibilityHandler = null;
 
         function ensureMiniBars(container) {
             if (!container) { return []; }
@@ -546,21 +553,13 @@
             return bars;
         }
 
-        function ensureMiniAnalyser() {
-            const ctx = ensureAudioContext();
-            if (!ctx) return null;
+        function ensureMiniAnalyser(ctx) {
             if (!miniAnalyser) {
                 miniAnalyser = ctx.createAnalyser();
                 miniAnalyser.fftSize = 256;
                 miniAnalyser.smoothingTimeConstant = 0.65;
                 miniAnalyserData = new Uint8Array(miniAnalyser.frequencyBinCount);
                 miniTimeData = new Uint8Array(miniAnalyser.fftSize);
-            }
-            if (!miniAnalyser.__llConnected) {
-                try {
-                    miniAnalyser.connect(ctx.destination);
-                    miniAnalyser.__llConnected = true;
-                } catch (_) {}
             }
             return miniAnalyser;
         }
@@ -582,28 +581,34 @@
 
         function pauseMini() {
             cancelMiniLoop();
+            if (miniSource) {
+                miniSource.disconnect();
+                miniSource = null;
+            }
+            if (miniStream) {
+                miniStream.getTracks().forEach(track => track.stop());
+                miniStream = null;
+            }
+            if (miniContainer && cfg.activeClass) {
+                miniContainer.classList.remove(cfg.activeClass);
+            }
             resetMiniBars();
         }
 
         function stopMini() {
             pauseMini();
-            if (miniAudio && miniListeners.length) {
-                miniListeners.forEach(function (item) {
-                    try { miniAudio.removeEventListener(item.type, item.handler); } catch (_) {}
-                });
+            if (visibilityHandler) {
+                root.document.removeEventListener('visibilitychange', visibilityHandler);
+                visibilityHandler = null;
+            }
+            if (miniAudio) {
+                miniListeners.forEach(item => miniAudio.removeEventListener(item.type, item.handler));
             }
             miniListeners = [];
-            if (miniSource && miniAnalyser) {
-                try { miniSource.disconnect(miniAnalyser); } catch (_) {}
-            }
-            if (miniContainer && cfg.activeClass) {
-                try { miniContainer.classList.remove(cfg.activeClass); } catch (_) {}
-            }
             miniAudio = null;
             miniContainer = null;
             miniBars = [];
             miniLevels = [];
-            miniSource = null;
         }
 
         function updateMini() {
@@ -615,9 +620,8 @@
                 pauseMini();
                 return;
             }
-            const ctx = ensureAudioContext();
-            if (!ctx || ctx.state !== 'running') {
-                miniRafId = root.requestAnimationFrame(updateMini);
+            if (meterContext.state !== 'running') {
+                pauseMini();
                 return;
             }
 
@@ -670,60 +674,53 @@
             miniLevels = miniBars.map(() => 0);
             if (!miniBars.length) { return; }
 
-            const ctx = ensureAudioContext();
-            const analyser = ensureMiniAnalyser();
-            if (!ctx || !analyser) { return; }
-
-            let source = audio.__llMiniVisualizerSource || audio.__llVisualizerSource;
-            if (!source) {
-                try {
-                    source = ctx.createMediaElementSource(audio);
-                    audio.__llMiniVisualizerSource = source;
-                    audio.__llVisualizerSource = source;
-                } catch (_) {
-                    return;
-                }
-            } else {
-                audio.__llMiniVisualizerSource = source;
-                audio.__llVisualizerSource = source;
-            }
-
-            miniSource = source;
-            try { source.disconnect(analyser); } catch (_) {}
-            try {
-                source.connect(analyser);
-            } catch (_) {
-                return;
-            }
+            const capture = audio.captureStream || audio.mozCaptureStream;
+            if (typeof capture !== 'function') return; // The button already has a CSS animation.
 
             const onPlay = function () {
-                if (ctx.state === 'suspended') {
-                    ctx.resume().then(function () {
-                        if (cfg.activeClass) {
-                            try { container.classList.add(cfg.activeClass); } catch (_) {}
-                        }
-                        startMini();
-                    }).catch(function () {
-                        if (cfg.activeClass) {
-                            try { container.classList.remove(cfg.activeClass); } catch (_) {}
-                        }
-                    });
-                } else {
-                    if (cfg.activeClass) {
-                        try { container.classList.add(cfg.activeClass); } catch (_) {}
+                if (miniSource || audio.paused || audio.ended || root.document.hidden) return;
+                const ctx = getMeterContext();
+                if (!ctx || !ctx.createMediaStreamSource) return;
+                try {
+                    // Observe a copy. The native player owns the speaker even when the
+                    // tab sleeps, the analyser is suspended, or the button is rebound.
+                    miniStream = capture.call(audio);
+                    if (!miniStream.getAudioTracks().length) {
+                        pauseMini();
+                        return;
                     }
+                    miniSource = ctx.createMediaStreamSource(miniStream);
+                    miniSource.connect(ensureMiniAnalyser(ctx));
+                } catch (_) {
+                    pauseMini();
+                    return;
+                }
+                const source = miniSource;
+                const show = function () {
+                    if (miniSource !== source || audio.paused || ctx.state !== 'running') return;
+                    if (cfg.activeClass) container.classList.add(cfg.activeClass);
                     startMini();
+                };
+                if (ctx.state === 'running') {
+                    show();
+                } else {
+                    ctx.resume().then(show).catch(function () {
+                        if (miniSource === source) pauseMini();
+                    });
                 }
             };
-            const onStop = function () { pauseMini(); };
+            visibilityHandler = function () {
+                if (root.document.hidden) pauseMini();
+                else onPlay();
+            };
+            root.document.addEventListener('visibilitychange', visibilityHandler);
 
             miniListeners = [
-                { type: 'play', handler: onPlay },
                 { type: 'playing', handler: onPlay },
-                { type: 'pause', handler: onStop },
-                { type: 'ended', handler: onStop },
-                { type: 'emptied', handler: onStop },
-                { type: 'error', handler: onStop }
+                { type: 'pause', handler: pauseMini },
+                { type: 'ended', handler: pauseMini },
+                { type: 'emptied', handler: pauseMini },
+                { type: 'error', handler: pauseMini }
             ];
             miniListeners.forEach(function (item) {
                 try { audio.addEventListener(item.type, item.handler, { passive: true }); }

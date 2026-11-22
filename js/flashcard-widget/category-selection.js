@@ -51,6 +51,7 @@
     syncWordsetFromDataset();
 
     function warmupVisualizerContext() {
+        if ((window.llToolsFlashcardsData || {}).quiz_mode !== 'listening') return;
         try {
             var ll = window.LLFlashcards || {};
             var viz = ll.AudioVisualizer;

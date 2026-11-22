@@ -3448,7 +3448,7 @@
 
         // Mode changes happen from user interaction; use that gesture window to
         // unlock the analyser AudioContext for listen-mode visualizer updates.
-        warmupVisualizerContext();
+        if (newMode === 'listening') warmupVisualizerContext();
 
         if (!preserveGenderPlan) {
             const flashData = root.llToolsFlashcardsData || {};
@@ -5426,7 +5426,7 @@
     function initFlashcardWidget(selectedCategories, mode, attemptOptions) {
         // Launch is user-initiated (button click). Warm up visualizer AudioContext
         // here so listening autoplay can use analyser data instead of fallback waves.
-        warmupVisualizerContext();
+        if (mode === 'listening') warmupVisualizerContext();
 
         // Deduplicate concurrent init calls; reuse in-flight promise
         if (initInProgressPromise) {
@@ -5666,7 +5666,7 @@
                     .off('.llAutoplayKick')
                     .on('pointerdown.llAutoplayKick keydown.llAutoplayKick', function () {
                         const $content = $('#ll-tools-flashcard-content');
-                        warmupVisualizerContext();
+                        if (State.isListeningMode) warmupVisualizerContext();
                         try {
                             const audioApi = root.FlashcardAudio;
                             const audio = audioApi && typeof audioApi.getCurrentTargetAudio === 'function'
