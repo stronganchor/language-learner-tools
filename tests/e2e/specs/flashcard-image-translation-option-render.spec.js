@@ -87,6 +87,7 @@ async function renderQuizFrame(page, options = {}) {
       <div id="ll-tools-flashcard-container" class="ll-tools-flashcard-container">
         <div id="ll-tools-flashcard-popup" style="display:flex;">
           <div id="ll-tools-flashcard-quiz-popup" style="display:flex;">
+            ${options.topLevel ? '<button id="ll-tools-close-flashcard">×</button>' : ''}
             <div id="ll-tools-flashcard-header" style="display:flex;">
               <div id="ll-tools-learning-progress" style="display:block;">
                 <div class="learning-progress-bar simple-progress-bar">
@@ -94,6 +95,7 @@ async function renderQuizFrame(page, options = {}) {
                 </div>
               </div>
               <div id="ll-tools-category-stack" class="ll-tools-category-stack">
+                ${options.topLevel ? '<span id="ll-tools-category-display" class="ll-tools-category-display">Diğer</span>' : ''}
                 <button id="ll-tools-repeat-flashcard" class="play-mode" type="button" aria-label="Play">
                   <span class="ll-repeat-audio-ui">
                     <span class="ll-repeat-icon-wrap" aria-hidden="true">
@@ -170,6 +172,12 @@ async function renderQuizFrame(page, options = {}) {
     words.forEach((word) => {
       window.LLFlashcards.Cards.appendWordToContainer(word, optionType, 'audio', true);
     });
+    if (bootstrap.useCaptions) {
+      // The target may be last in the shuffled DOM, even though it was selected first.
+      const grid = document.getElementById('ll-tools-flashcard');
+      grid.appendChild(grid.firstElementChild);
+      window.LLFlashcards.Cards.prepareCaptionChoices(words);
+    }
     document.querySelectorAll('#ll-tools-flashcard .flashcard-container').forEach((card) => {
       card.style.display = 'flex';
       card.style.visibility = 'visible';
@@ -457,60 +465,75 @@ test('prompt-card image answer options render the answer image instead of the pr
 
 test.describe('full-screen phone Practice', () => {
   test.use({ isMobile: true, hasTouch: true });
-
-  test('six captioned pictures keep their bottom margin as the browser bars return', async ({ page }) => {
-    const initial = await renderQuizFrame(page, {
-      width: 360, height: 685, imageSize: 'small', count: 6,
-      useCaptions: true, isEmbed: false, portaled: true, topLevel: true,
-      captions: ['İzzet', 'Kabul etmiyor', 'Affediyor', 'Af diliyor', 'Elini suya daldırıyor', 'Arkadaşından yardım istiyor']
-    });
-    expect(initial.cards).toHaveLength(6);
-    expect(Math.max(...initial.cards.map(card => card.captionRows))).toBeGreaterThan(1.8);
-    expect(initial.cards[0].imageRect.width).toBeGreaterThan(115);
-    const lastBottom = Math.max(...initial.cards.map(card => card.rect.bottom));
-    expect(lastBottom).toBeLessThanOrEqual(initial.height - 15);
-
-    const cards = page.locator('#ll-tools-flashcard .flashcard-container');
-    const originalIds = await cards.evaluateAll(nodes => nodes.map(node => node.dataset.wordId));
-    const bottom = () => cards.evaluateAll(nodes => Math.max(...nodes.map(node => node.getBoundingClientRect().bottom)));
-
-    // Mobile chrome can change the visual viewport without resizing the layout viewport.
-    // Some browsers first expose the new height when the document is foregrounded.
-    for (const event of ['visibilitychange', 'resize', 'pageshow']) {
-      const shorter = Math.floor(lastBottom - 85);
-      await page.evaluate(({ height, event }) => {
-        Object.defineProperty(visualViewport, 'height', { configurable: true, value: height });
-        const target = event === 'resize' ? visualViewport : event === 'pageshow' ? window : document;
-        target.dispatchEvent(new Event(event));
-      }, { height: shorter, event });
-      await expect.poll(bottom, { message: event }).toBeLessThanOrEqual(shorter - 15);
-      expect(await page.evaluate(() => innerHeight)).toBe(initial.height);
-      expect(await cards.evaluateAll(nodes => nodes.map(node => node.dataset.wordId))).toEqual(originalIds);
-
-      await page.evaluate(() => {
-        delete visualViewport.height;
-        visualViewport.dispatchEvent(new Event('resize'));
-      });
-      await expect.poll(bottom).toBeCloseTo(lastBottom, 0);
+  const short = ['İzzet', 'Affediyor', 'Kabul etmiyor', 'Af diliyor', 'Özgür', 'Kumaş'];
+  const double = 'Arkadaşından yardım istiyor';
+  const mount = (page, captions, height = 685) => renderQuizFrame(page, {
+    width: 360, height, imageSize: 'small', count: captions.length,
+    useCaptions: true, isEmbed: false, portaled: true, topLevel: true, captions
+  });
+  function checkGrid(result, count) {
+    expect(result.cards).toHaveLength(count);
+    expect(new Set(result.cards.map(card => card.rect.left)).size).toBe(2);
+    expect(new Set(result.cards.map(card => card.rect.top)).size).toBe(count / 2);
+    for (const card of result.cards) {
+      expect(card.imageRect.width).toBe(150);
+      expect(card.imageRect.height).toBe(150);
+      expect(card.rect.bottom).toBeLessThanOrEqual(result.height - 15);
     }
+  }
 
-    // At extreme heights retain touch-sized images and scroll only the answers.
-    const tinyHeight = Math.floor(initial.cards[0].rect.top + 85);
-    await page.evaluate(height => {
-      Object.defineProperty(visualViewport, 'height', { configurable: true, value: height });
+  test('a compact header leaves room for three normal-sized rows and one double-line caption', async ({ page }) => {
+    const initial = await mount(page, [double, ...short.slice(1)]);
+    checkGrid(initial, 6);
+    expect(initial.cards.filter(card => card.captionRows > 1.5)).toHaveLength(1);
+    expect(initial.cards[0].rect.top).toBeLessThanOrEqual(105);
+    expect(initial.repeat.height).toBeGreaterThanOrEqual(44);
+    const close = await page.locator('#ll-tools-close-flashcard').boundingBox();
+    expect(close.height).toBeGreaterThanOrEqual(44);
+    expect(initial.progress.right).toBeLessThan(close.x);
+
+    const cards = page.locator('#ll-tools-flashcard .ll-answer-option-image-caption-card');
+    await page.evaluate(() => {
+      Object.defineProperty(visualViewport, 'height', {configurable: true, value: 610});
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    await expect(cards).toHaveCount(4);
+    const ids = await cards.evaluateAll(nodes => nodes.map(node => node.dataset.wordId));
+    expect(ids.sort()).toEqual(['101','102','103','104']);
+    for (const card of await cards.all()) {
+      const rect = await card.boundingBox();
+      expect(rect.width).toBe(150);
+      expect(rect.y + rect.height).toBeLessThanOrEqual(610 - 15);
+    }
+    await page.evaluate(() => {
+      delete visualViewport.height;
       visualViewport.dispatchEvent(new Event('resize'));
-    }, tinyHeight);
+    });
+    await expect(cards).toHaveCount(4);
+
+    // If even two rows exceed the available height, every answer stays reachable.
+    await page.evaluate(() => {
+      Object.defineProperty(visualViewport, 'height', { configurable: true, value: 300 });
+      visualViewport.dispatchEvent(new Event('resize'));
+    });
     const grid = page.locator('#ll-tools-flashcard');
     await expect(grid).toHaveCSS('overflow-y', 'auto');
     await grid.evaluate(node => { node.scrollTop = node.scrollHeight; });
-    expect(await bottom()).toBeLessThanOrEqual(tinyHeight - 15);
-    expect(await page.evaluate(() => scrollY)).toBe(0);
-    await page.evaluate(() => {
-      delete visualViewport.height;
-      window.dispatchEvent(new Event('focus'));
-    });
-    await expect.poll(bottom).toBeCloseTo(lastBottom, 0);
-    await expect(grid).not.toHaveCSS('overflow-y', 'auto');
+    const last = await cards.last().boundingBox();
+    expect(last.width).toBe(150);
+    expect(last.y + last.height).toBeLessThanOrEqual(285);
+  });
+
+  test('two double-line captions or one longer caption limit a tall phone to two rows', async ({ page }) => {
+    for (const captions of [
+      [double, double, ...short.slice(2)],
+      [...short.slice(0, 4), double, double],
+      [...short.slice(0, 5), 'Arkadaşından eve dönerken ona yardım etmesini istiyor']
+    ]) {
+      const result = await mount(page, captions, 846);
+      checkGrid(result, 4);
+      await expect(page.locator('#ll-tools-flashcard [data-word-id="101"]')).toBeVisible();
+    }
   });
 });
 

@@ -425,6 +425,46 @@
         };
     }
 
+    const captionChoiceRanks = new WeakMap();
+
+    function usesPhoneCaptionChoices(mode) {
+        return mode === 'image_text_translation' && root.innerWidth <= 520
+            && !!document.getElementById('ll-tools-flashcard-quiz-popup') && !isEmbeddedQuizRuntime();
+    }
+
+    function prepareCaptionChoices(words) {
+        // Selection order starts with the answer, even when the DOM is shuffled.
+        const ranks = new Map(words.map((word, index) => [String(word.id), index]));
+        const cards = Array.from(document.querySelectorAll('#ll-tools-flashcard .ll-answer-option-image-caption-card'));
+        cards.forEach(card => captionChoiceRanks.set(card, ranks.get(card.dataset.wordId)));
+        if (!usesPhoneCaptionChoices('image_text_translation')) return words;
+
+        // The preparing grid is invisible. Lay out the actual captions before reveal.
+        const displays = cards.map(card => card.style.display);
+        try {
+            cards.forEach(card => { card.style.display = 'flex'; });
+            applyImageAnswerOptionFitPass();
+        } finally {
+            cards.forEach((card, i) => { card.style.display = displays[i]; });
+        }
+        const retained = new Set(cards.filter(card => card.isConnected).map(card => card.dataset.wordId));
+        return words.filter(word => retained.has(String(word.id)));
+    }
+
+    function captionExtraLines(card) {
+        const label = card.querySelector('.ll-answer-option-image-caption');
+        if (!label || !label.offsetHeight) return 0;
+        const style = root.getComputedStyle(label);
+        const textHeight = label.getBoundingClientRect().height - parseCssPixels(style.paddingTop) - parseCssPixels(style.paddingBottom);
+        return Math.max(0, Math.round(textHeight / parseCssPixels(style.lineHeight, 16)) - 1);
+    }
+
+    function enableImageGridScroll(grid, bounds) {
+        const available = Math.max(1, Math.floor(bounds.bottom - grid.getBoundingClientRect().top));
+        grid.classList.add('ll-image-options-scroll');
+        grid.style.setProperty('--ll-image-grid-scroll-height', available + 'px');
+    }
+
     function applyImageAnswerOptionFitPass() {
         const $root = $('#ll-tools-flashcard-container');
         const grid = document.getElementById('ll-tools-flashcard');
@@ -437,17 +477,38 @@
         grid.style.removeProperty('--ll-answer-option-fit-size');
         grid.classList.remove('ll-image-options-scroll');
         grid.style.removeProperty('--ll-image-grid-scroll-height');
+        const phoneChoices = cards.length > 0 && captionChoiceRanks.has(cards[0])
+            && usesPhoneCaptionChoices('image_text_translation');
+        grid.classList.toggle('ll-phone-caption-choices', phoneChoices);
         if (!cards.length) return;
 
         const viewport = getViewportSize();
         const baseSize = Math.max(...cards.map(getImageCardBaseSize));
         let bounds = getOptionContentBounds();
-        function cardsFit() {
-            return cards.every(card => {
+        function cardsFit(items = cards) {
+            return items.every(card => {
                 const rect = card.getBoundingClientRect();
                 return rect.bottom <= bounds.bottom && rect.top >= bounds.top - 1
                     && rect.left >= bounds.left - 1 && rect.right <= bounds.right + 1;
             });
+        }
+
+        if (phoneChoices) {
+            // Only width limits the picture size. Height decides if we admit row three.
+            const gap = parseCssPixels(root.getComputedStyle(grid).columnGap);
+            const size = Math.min(baseSize, Math.floor((grid.clientWidth - gap) / 2));
+            if (size <= 0) return;
+            grid.style.setProperty('--ll-answer-option-fit-size', size + 'px');
+            const ranked = cards.slice().sort((a, b) => captionChoiceRanks.get(a) - captionChoiceRanks.get(b));
+            ranked.splice(6).forEach(card => card.remove());
+            const extraLines = ranked.reduce((total, card) => total + captionExtraLines(card), 0);
+            if (ranked.length > 4 && (extraLines > 1 || !cardsFit(ranked))) {
+                ranked.splice(4).forEach(card => card.remove());
+            }
+            if (ranked.some(card => card.getBoundingClientRect().bottom > bounds.bottom)) {
+                enableImageGridScroll(grid, bounds);
+            }
+            return { fitSize: size, compact: true };
         }
 
         const overflowsAtBase = !cardsFit();
@@ -488,9 +549,7 @@
             }
             setSize(size);
             if (size === minSize && !cardsFit()) {
-                const available = Math.max(1, Math.floor(bounds.bottom - grid.getBoundingClientRect().top));
-                grid.classList.add('ll-image-options-scroll');
-                grid.style.setProperty('--ll-image-grid-scroll-height', available + 'px');
+                enableImageGridScroll(grid, bounds);
             }
         }
         if (size < baseSize) {
@@ -855,6 +914,8 @@
     root.LLFlashcards = root.LLFlashcards || {};
     root.LLFlashcards.Cards = {
         appendWordToContainer,
+        usesPhoneCaptionChoices,
+        prepareCaptionChoices,
         addClickEventToCard,
         playOptionAudio,
         playPromptAudio,

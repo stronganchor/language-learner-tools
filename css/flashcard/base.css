@@ -1109,6 +1109,55 @@ body.ll-qpg-popup-active #ll-tools-flashcard-content {
     padding-bottom: max(15px, var(--ll-quiz-content-padding, 15px), env(safe-area-inset-bottom, 0px));
 }
 
+/* Phone picture-and-caption choices keep two normal-width columns. */
+#ll-tools-flashcard.ll-phone-caption-choices {
+    display: grid;
+    grid-template-columns: repeat(2, max-content);
+    align-content: start;
+    gap: 10px 14px;
+}
+
+#ll-tools-flashcard-quiz-popup:has(.ll-phone-caption-choices > .ll-answer-option-image-caption-card) {
+    --ll-quiz-header-padding: max(8px, env(safe-area-inset-top, 0px)) 14px 2px;
+    --ll-quiz-header-gap: 3px;
+    --ll-category-stack-gap: 2px;
+    --ll-repeat-button-padding-y: 4px;
+    --ll-repeat-button-padding-x: 8px;
+    --ll-repeat-icon-size: 32px;
+    --ll-repeat-play-icon-size: 16px;
+}
+
+#ll-tools-flashcard-quiz-popup:has(.ll-phone-caption-choices > .ll-answer-option-image-caption-card) #ll-tools-learning-progress {
+    box-sizing: border-box;
+    width: calc(100% - 52px);
+    max-width: 600px;
+    margin: 0 52px 0 0;
+    padding: 7px 4px 3px;
+}
+
+#ll-tools-flashcard-quiz-popup:has(.ll-phone-caption-choices > .ll-answer-option-image-caption-card) .learning-progress-bar {
+    height: 8px;
+}
+
+#ll-tools-flashcard-quiz-popup:has(.ll-phone-caption-choices > .ll-answer-option-image-caption-card) #ll-tools-category-display {
+    max-width: calc(100% - 96px);
+}
+
+#ll-tools-flashcard-quiz-popup:has(.ll-phone-caption-choices > .ll-answer-option-image-caption-card) #ll-tools-close-flashcard {
+    width: 44px;
+    height: 44px;
+    top: calc(env(safe-area-inset-top, 0px) + 5px);
+    right: calc(env(safe-area-inset-right, 0px) + 8px);
+}
+
+#ll-tools-flashcard-quiz-popup:has(.ll-phone-caption-choices > .ll-answer-option-image-caption-card) #ll-tools-repeat-flashcard {
+    min-height: 44px;
+}
+
+#ll-tools-flashcard-content:has(> .ll-phone-caption-choices > .ll-answer-option-image-caption-card) {
+    padding-top: 7px;
+}
+
 /* Keep answers reachable if even the smallest tiles exceed the visible area. */
 #ll-tools-flashcard.ll-image-options-scroll:has(.ll-answer-option-image-card) {
     flex: none;

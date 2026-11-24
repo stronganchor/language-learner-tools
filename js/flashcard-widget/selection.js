@@ -2247,6 +2247,8 @@
             }
         }
         const mode = config.option_type || getCategoryDisplayMode(targetCategoryName);
+        const cardsApi = root.LLFlashcards.Cards;
+        const phoneCaptions = cardsApi.usesPhoneCaptionChoices && cardsApi.usesPhoneCaptionChoices(mode);
         const promptType = getCategoryPromptType(targetCategoryName);
         State.currentOptionType = mode;
         State.currentPromptType = promptType;
@@ -2396,6 +2398,7 @@
         }
 
         const desiredCount = Math.max(MINIMUM_QUIZ_OPTIONS, parseInt(targetCount, 10) || MINIMUM_QUIZ_OPTIONS);
+        const canAddOption = () => phoneCaptions ? chosen.length < 6 : root.FlashcardOptions.canAddMoreCards();
         const addCandidate = function (candidate, rules) {
             if (!candidate || typeof candidate !== 'object') return false;
             const candidateId = String(candidate.id || '');
@@ -2449,7 +2452,7 @@
                 seenOptionTexts.add(normalizedText);
             }
             prepareWordForOptionRendering(candidate, mode, promptType, activePromptRecordingType);
-            queueWordPreload(candidate);
+            if (!phoneCaptions) queueWordPreload(candidate);
             root.LLFlashcards.Cards.appendWordToContainer(candidate, mode, promptType);
             return true;
         };
@@ -2457,7 +2460,7 @@
             const maxLength = Math.max(MINIMUM_QUIZ_OPTIONS, parseInt(targetLength, 10) || MINIMUM_QUIZ_OPTIONS);
             for (let candidate of availableWords) {
                 if (chosen.length >= maxLength) break;
-                if (!root.FlashcardOptions.canAddMoreCards()) break;
+                if (!canAddOption()) break;
                 addCandidate(candidate, rules);
             }
         };
@@ -2470,7 +2473,7 @@
         if (optionRequiresAudio && hasSpecificWrongAnswerIds) {
             const lookup = buildWordLookupById();
             specificWrongAnswerIds.forEach(function (wrongId) {
-                if (!root.FlashcardOptions.canAddMoreCards()) return;
+                if (!canAddOption()) return;
                 const candidate = findWordById(wrongId, lookup);
                 if (!candidate || String(candidate.id) === String(targetWord.id)) return;
                 addCandidate(candidate, {
@@ -2482,7 +2485,7 @@
             });
         } else if (hasSpecificWrongAnswerTexts) {
             specificWrongAnswerTexts.forEach(function (wrongText, index) {
-                if (!root.FlashcardOptions.canAddMoreCards()) return;
+                if (!canAddOption()) return;
                 const syntheticId = String(targetWord.id) + '-wrong-text-' + String(index + 1);
                 const syntheticOption = {
                     id: syntheticId,
@@ -2500,7 +2503,7 @@
         } else if (hasSpecificWrongAnswerIds) {
             const lookup = buildWordLookupById();
             specificWrongAnswerIds.forEach(function (wrongId) {
-                if (!root.FlashcardOptions.canAddMoreCards()) return;
+                if (!canAddOption()) return;
                 const candidate = findWordById(wrongId, lookup);
                 if (!candidate || String(candidate.id) === String(targetWord.id)) return;
                 addCandidate(candidate, {
@@ -2556,6 +2559,11 @@
                 chosen.length,
                 desiredCount
             );
+        }
+
+        if (mode === 'image_text_translation' && cardsApi.prepareCaptionChoices) {
+            chosen = cardsApi.prepareCaptionChoices(chosen);
+            if (phoneCaptions) chosen.slice(1).forEach(queueWordPreload);
         }
 
         if (root.LLFlashcards.Dom && typeof root.LLFlashcards.Dom.updateCategoryNameDisplay === 'function') {
