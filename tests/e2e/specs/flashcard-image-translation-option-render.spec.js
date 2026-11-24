@@ -59,21 +59,25 @@ async function renderQuizFrame(page, options = {}) {
   const isEmbed = options.isEmbed !== false;
   const useCaptions = !!options.useCaptions;
 
-  await page.setViewportSize({
-    width: Math.max(1000, width + 80),
-    height: Math.max(900, height + 80)
-  });
-  await page.goto('about:blank');
-  await page.setContent(`
-    <iframe id="quiz-frame" name="quiz-frame" style="width:${width}px;height:${height}px;border:0;display:block;"></iframe>
-  `);
+  const count = Number(options.count || 2);
+  const captions = Array.isArray(options.captions) ? options.captions : [];
+  const portaled = !!options.portaled;
 
-  const frameHandle = await page.locator('#quiz-frame').elementHandle();
-  const frame = await frameHandle.contentFrame();
+  let frame = page;
+  await page.goto('about:blank');
+  if (options.topLevel) {
+    await page.setViewportSize({ width, height });
+  } else {
+    await page.setViewportSize({ width: Math.max(1000, width + 80), height: Math.max(900, height + 80) });
+    await page.setContent(`<iframe id="quiz-frame" style="width:${width}px;height:${height}px;border:0;display:block;"></iframe>`);
+    const frameHandle = await page.locator('#quiz-frame').elementHandle();
+    frame = await frameHandle.contentFrame();
+  }
   await frame.setContent(`
     <!doctype html>
     <html>
     <head>
+      <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
       <style>
         html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; }
         body { background: #fff; }
@@ -116,6 +120,12 @@ async function renderQuizFrame(page, options = {}) {
     </html>
   `);
 
+  if (portaled) {
+    await frame.evaluate(() => {
+      document.body.appendChild(document.getElementById('ll-tools-flashcard-popup'));
+    });
+  }
+
   await addFrameScript(frame, jquerySource);
   await addFrameStyle(frame, baseCssSource);
   await addFrameStyle(frame, modeLearningCssSource);
@@ -148,20 +158,14 @@ async function renderQuizFrame(page, options = {}) {
   await addFrameScript(frame, cardsSource);
 
   await frame.evaluate((bootstrap) => {
-    const words = [
-      {
-        id: 101,
-        title: 'Option A',
-        translation: bootstrap.useCaptions ? 'First answer' : '',
-        image: bootstrap.imageA
-      },
-      {
-        id: 102,
-        title: 'Option B',
-        translation: bootstrap.useCaptions ? 'Second answer with a compact caption' : '',
-        image: bootstrap.imageB
-      }
-    ];
+    const words = Array.from({ length: bootstrap.count }, (_, index) => ({
+      id: 101 + index,
+      title: `Option ${index + 1}`,
+      translation: bootstrap.useCaptions
+        ? (bootstrap.captions[index] || (index === 0 ? 'First answer' : 'Second answer with a compact caption'))
+        : '',
+      image: index % 2 ? bootstrap.imageB : bootstrap.imageA
+    }));
     const optionType = bootstrap.useCaptions ? 'image_text_translation' : 'image';
     words.forEach((word) => {
       window.LLFlashcards.Cards.appendWordToContainer(word, optionType, 'audio', true);
@@ -173,6 +177,8 @@ async function renderQuizFrame(page, options = {}) {
     window.LLFlashcards.Cards.fitImageAnswerOptionCardsForViewport();
   }, {
     useCaptions,
+    captions,
+    count,
     imageA: fixtureImage(imageA, 'A'),
     imageB: fixtureImage(imageB, 'B')
   });
@@ -192,22 +198,34 @@ async function renderQuizFrame(page, options = {}) {
       };
     };
     const root = document.getElementById('ll-tools-flashcard-container');
+    const content = document.getElementById('ll-tools-flashcard-content');
+    const contentStyle = window.getComputedStyle(content);
     const cards = Array.from(document.querySelectorAll('#ll-tools-flashcard .flashcard-container'));
     return {
       width: window.innerWidth,
       height: window.innerHeight,
       rootClass: root.className,
+      portaled: !document.getElementById('ll-tools-flashcard-popup').closest('#ll-tools-flashcard-container'),
       fitSize: root.getAttribute('data-ll-image-fit-size') || '',
+      content: rectFor(content),
+      contentPaddingTop: parseFloat(contentStyle.paddingTop),
+      contentPaddingBottom: parseFloat(contentStyle.paddingBottom),
       progress: rectFor(document.getElementById('ll-tools-learning-progress')),
       repeat: rectFor(document.getElementById('ll-tools-repeat-flashcard')),
       cards: cards.map((card) => {
         const media = card.querySelector('.ll-answer-option-image-caption-media');
         const image = card.querySelector('img');
+        const caption = card.querySelector('.ll-answer-option-image-caption');
+        const captionStyle = caption ? window.getComputedStyle(caption) : null;
+        const captionHeight = caption ? caption.getBoundingClientRect().height : 0;
         return {
           rect: rectFor(card),
           imageRect: rectFor(media || image),
           className: card.className,
-          boxShadow: window.getComputedStyle(card).boxShadow
+          boxShadow: window.getComputedStyle(card).boxShadow,
+          captionRows: captionStyle
+            ? (captionHeight - parseFloat(captionStyle.paddingTop) - parseFloat(captionStyle.paddingBottom)) / parseFloat(captionStyle.lineHeight)
+            : 0
         };
       })
     };
@@ -435,6 +453,65 @@ test('prompt-card image answer options render the answer image instead of the pr
   });
 
   expect(src).toBe('https://media.test/tree-concept.webp');
+});
+
+test.describe('full-screen phone Practice', () => {
+  test.use({ isMobile: true, hasTouch: true });
+
+  test('six captioned pictures keep their bottom margin as the browser bars return', async ({ page }) => {
+    const initial = await renderQuizFrame(page, {
+      width: 360, height: 685, imageSize: 'small', count: 6,
+      useCaptions: true, isEmbed: false, portaled: true, topLevel: true,
+      captions: ['İzzet', 'Kabul etmiyor', 'Affediyor', 'Af diliyor', 'Elini suya daldırıyor', 'Arkadaşından yardım istiyor']
+    });
+    expect(initial.cards).toHaveLength(6);
+    expect(Math.max(...initial.cards.map(card => card.captionRows))).toBeGreaterThan(1.8);
+    expect(initial.cards[0].imageRect.width).toBeGreaterThan(115);
+    const lastBottom = Math.max(...initial.cards.map(card => card.rect.bottom));
+    expect(lastBottom).toBeLessThanOrEqual(initial.height - 15);
+
+    const cards = page.locator('#ll-tools-flashcard .flashcard-container');
+    const originalIds = await cards.evaluateAll(nodes => nodes.map(node => node.dataset.wordId));
+    const bottom = () => cards.evaluateAll(nodes => Math.max(...nodes.map(node => node.getBoundingClientRect().bottom)));
+
+    // Mobile chrome can change the visual viewport without resizing the layout viewport.
+    // Some browsers first expose the new height when the document is foregrounded.
+    for (const event of ['visibilitychange', 'resize', 'pageshow']) {
+      const shorter = Math.floor(lastBottom - 85);
+      await page.evaluate(({ height, event }) => {
+        Object.defineProperty(visualViewport, 'height', { configurable: true, value: height });
+        const target = event === 'resize' ? visualViewport : event === 'pageshow' ? window : document;
+        target.dispatchEvent(new Event(event));
+      }, { height: shorter, event });
+      await expect.poll(bottom, { message: event }).toBeLessThanOrEqual(shorter - 15);
+      expect(await page.evaluate(() => innerHeight)).toBe(initial.height);
+      expect(await cards.evaluateAll(nodes => nodes.map(node => node.dataset.wordId))).toEqual(originalIds);
+
+      await page.evaluate(() => {
+        delete visualViewport.height;
+        visualViewport.dispatchEvent(new Event('resize'));
+      });
+      await expect.poll(bottom).toBeCloseTo(lastBottom, 0);
+    }
+
+    // At extreme heights retain touch-sized images and scroll only the answers.
+    const tinyHeight = Math.floor(initial.cards[0].rect.top + 85);
+    await page.evaluate(height => {
+      Object.defineProperty(visualViewport, 'height', { configurable: true, value: height });
+      visualViewport.dispatchEvent(new Event('resize'));
+    }, tinyHeight);
+    const grid = page.locator('#ll-tools-flashcard');
+    await expect(grid).toHaveCSS('overflow-y', 'auto');
+    await grid.evaluate(node => { node.scrollTop = node.scrollHeight; });
+    expect(await bottom()).toBeLessThanOrEqual(tinyHeight - 15);
+    expect(await page.evaluate(() => scrollY)).toBe(0);
+    await page.evaluate(() => {
+      delete visualViewport.height;
+      window.dispatchEvent(new Event('focus'));
+    });
+    await expect.poll(bottom).toBeCloseTo(lastBottom, 0);
+    await expect(grid).not.toHaveCSS('overflow-y', 'auto');
+  });
 });
 
 test('embedded image quiz options stay fully inside small iframe viewports', async ({ page }) => {

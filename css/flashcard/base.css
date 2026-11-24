@@ -456,6 +456,7 @@ body:not(.ll-tools-flashcard-open):not(.ll-qpg-popup-active) #ll-tools-flashcard
     left: 0;
     width: 100%;
     height: 100%;
+    height: 100dvh;
     background-color: white;
     overflow: hidden;
     z-index: 1000000;
@@ -1102,6 +1103,17 @@ body.ll-qpg-popup-active #ll-tools-flashcard-content {
     align-items: flex-start;
     max-width: 720px;
     width: 100%;
+}
+
+#ll-tools-flashcard-content:has(.ll-answer-option-image-card) {
+    padding-bottom: max(15px, var(--ll-quiz-content-padding, 15px), env(safe-area-inset-bottom, 0px));
+}
+
+/* Keep answers reachable if even the smallest tiles exceed the visible area. */
+#ll-tools-flashcard.ll-image-options-scroll:has(.ll-answer-option-image-card) {
+    flex: none;
+    max-height: var(--ll-image-grid-scroll-height);
+    overflow-y: auto;
 }
 
 #ll-tools-flashcard.ll-options-preparing {
