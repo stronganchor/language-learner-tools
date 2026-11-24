@@ -489,7 +489,20 @@ test.describe('full-screen phone Practice', () => {
     expect(initial.cards[0].rect.top).toBeLessThanOrEqual(105);
     expect(initial.repeat.height).toBeGreaterThanOrEqual(44);
     const close = await page.locator('#ll-tools-close-flashcard').boundingBox();
-    expect(close.height).toBeGreaterThanOrEqual(44);
+    expect(close.width).toBe(38);
+    expect(close.height).toBe(38);
+    const closeButton = page.locator('#ll-tools-close-flashcard');
+    expect(await closeButton.evaluate(button => {
+      const rect = button.getBoundingClientRect();
+      const x = rect.left + rect.width / 2;
+      return [rect.top - 2.5, rect.bottom + 2.5].every(y => document.elementFromPoint(x, y) === button);
+    })).toBe(true);
+    const title = page.locator('#ll-tools-category-display');
+    await expect(title).toHaveCSS('font-size', '14px');
+    const label = await title.boundingBox();
+    const bar = await page.locator('#ll-tools-learning-progress .learning-progress-bar').boundingBox();
+    expect(label.y - (bar.y + bar.height)).toBeCloseTo(4, 1);
+    expect(initial.repeat.top - (label.y + label.height)).toBeCloseTo(4, 1);
     expect(initial.progress.right).toBeLessThan(close.x);
 
     const cards = page.locator('#ll-tools-flashcard .ll-answer-option-image-caption-card');
