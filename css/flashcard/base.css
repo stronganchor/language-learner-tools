@@ -1114,12 +1114,13 @@ body.ll-qpg-popup-active #ll-tools-flashcard-content {
     display: grid;
     grid-template-columns: repeat(2, max-content);
     align-content: start;
-    gap: 10px 14px;
 }
 
+/* The phone shell has its final spacing before a round or its choices exist. */
 @media (max-width: 520px) {
-    #ll-tools-flashcard-quiz-popup.ll-caption-choice-round {
+    #ll-tools-flashcard-quiz-popup {
         --ll-quiz-header-padding: max(8px, env(safe-area-inset-top, 0px)) 14px 2px;
+        --ll-option-grid-gap: 10px 14px;
         --ll-quiz-header-gap: 6px;
         --ll-category-stack-gap: var(--ll-quiz-header-gap);
         --ll-repeat-button-padding-y: 4px;
@@ -1128,7 +1129,7 @@ body.ll-qpg-popup-active #ll-tools-flashcard-content {
         --ll-repeat-play-icon-size: 16px;
     }
 
-    #ll-tools-flashcard-quiz-popup.ll-caption-choice-round #ll-tools-learning-progress {
+    #ll-tools-flashcard-quiz-popup #ll-tools-learning-progress {
         box-sizing: border-box;
         width: calc(100% - 52px);
         max-width: 600px;
@@ -1136,18 +1137,18 @@ body.ll-qpg-popup-active #ll-tools-flashcard-content {
         padding: 7px 4px 0;
     }
 
-    #ll-tools-flashcard-quiz-popup.ll-caption-choice-round .learning-progress-bar {
+    #ll-tools-flashcard-quiz-popup .learning-progress-bar {
         height: 8px;
     }
 
-    #ll-tools-flashcard-quiz-popup.ll-caption-choice-round #ll-tools-category-display {
+    #ll-tools-flashcard-quiz-popup #ll-tools-category-display {
         max-width: calc(100% - 96px);
         margin-block: 0;
         font-size: 14px;
         line-height: 18px;
     }
 
-    #ll-tools-flashcard-quiz-popup.ll-caption-choice-round #ll-tools-close-flashcard {
+    #ll-tools-flashcard-quiz-popup #ll-tools-close-flashcard {
         width: 38px;
         height: 38px;
         top: calc(env(safe-area-inset-top, 0px) + 8px);
@@ -1155,33 +1156,34 @@ body.ll-qpg-popup-active #ll-tools-flashcard-content {
         overflow: visible;
     }
 
-    #ll-tools-flashcard-quiz-popup.ll-caption-choice-round #ll-tools-close-flashcard::before {
+    #ll-tools-flashcard-quiz-popup #ll-tools-close-flashcard::before {
         font-size: 20px;
         transform: translateY(-1px);
     }
 
     /* Keep the original touch area around the smaller circle. */
-    #ll-tools-flashcard-quiz-popup.ll-caption-choice-round #ll-tools-close-flashcard::after {
+    #ll-tools-flashcard-quiz-popup #ll-tools-close-flashcard::after {
         content: "";
         position: absolute;
         inset: -4px;
     }
 
-    #ll-tools-flashcard-quiz-popup.ll-caption-choice-round #ll-tools-repeat-flashcard {
+    #ll-tools-flashcard-quiz-popup #ll-tools-repeat-flashcard {
         min-height: 44px;
     }
 
-    #ll-tools-flashcard-quiz-popup.ll-caption-choice-round #ll-tools-flashcard-content {
-        padding-top: 9px;
+    #ll-tools-flashcard-quiz-popup #ll-tools-flashcard-content {
+        padding: 9px max(15px, env(safe-area-inset-right, 0px))
+            max(15px, env(safe-area-inset-bottom, 0px)) max(15px, env(safe-area-inset-left, 0px));
     }
 
     /* Measure the incoming cards at their final size, then reveal them together. */
-    #ll-tools-flashcard-quiz-popup.ll-caption-choice-round.ll-round-media-pending #ll-tools-flashcard-content {
+    #ll-tools-flashcard-quiz-popup.ll-round-media-pending #ll-tools-flashcard-content {
         opacity: 0;
         pointer-events: none;
     }
 
-    #ll-tools-flashcard-quiz-popup.ll-caption-choice-round::before {
+    #ll-tools-flashcard-quiz-popup::before {
         display: none;
     }
 }
@@ -2723,62 +2725,71 @@ body.ll-qpg-popup-active #ll-tools-flashcard-content {
 #ll-tools-flashcard-container.ll-compact-quiz-layout {
     --ll-option-grid-gap: 10px;
     --ll-quiz-content-padding: 10px;
-    --ll-quiz-header-gap: 8px;
-    --ll-quiz-header-padding: 10px 12px 4px;
-    --ll-category-stack-gap: 0.25rem;
-    --ll-repeat-button-padding-y: 5px;
-    --ll-repeat-button-padding-x: 6px;
-    --ll-repeat-button-gap: 7px;
-    --ll-repeat-button-radius: 12px;
-    --ll-repeat-icon-size: 32px;
-    --ll-repeat-icon-radius: 10px;
-    --ll-repeat-play-icon-size: 15px;
-    --ll-repeat-visualizer-gap: 4px;
-    --ll-repeat-visualizer-min-height: 15px;
-    --ll-repeat-visualizer-range: 12px;
-    --ll-repeat-visualizer-bar-width: 4px;
 }
 
 #ll-tools-flashcard-container.ll-micro-quiz-layout {
     --ll-option-grid-gap: 7px;
     --ll-quiz-content-padding: 7px;
-    --ll-quiz-header-gap: 5px;
-    --ll-quiz-header-padding: 6px 8px 2px;
-    --ll-repeat-button-padding-y: 4px;
-    --ll-repeat-button-padding-x: 5px;
-    --ll-repeat-button-gap: 5px;
-    --ll-repeat-button-radius: 10px;
-    --ll-repeat-icon-size: 28px;
-    --ll-repeat-icon-radius: 8px;
-    --ll-repeat-play-icon-size: 13px;
-    --ll-repeat-visualizer-gap: 3px;
-    --ll-repeat-visualizer-min-height: 12px;
-    --ll-repeat-visualizer-range: 9px;
-    --ll-repeat-visualizer-bar-width: 3px;
 }
 
-#ll-tools-flashcard-container.ll-compact-quiz-layout #ll-tools-learning-progress {
-    max-width: min(560px, calc(100% - 36px));
-    width: min(560px, calc(100% - 36px));
-    padding: 3px 4px;
-    margin: 0 36px 0 0;
-    font-size: 12px;
-}
+/* Wider embedded quizzes can also use compact controls when height is limited. */
+@media (min-width: 521px) {
+    #ll-tools-flashcard-container.ll-compact-quiz-layout {
+        --ll-quiz-header-gap: 8px;
+        --ll-quiz-header-padding: 10px 12px 4px;
+        --ll-category-stack-gap: 0.25rem;
+        --ll-repeat-button-padding-y: 5px;
+        --ll-repeat-button-padding-x: 6px;
+        --ll-repeat-button-gap: 7px;
+        --ll-repeat-button-radius: 12px;
+        --ll-repeat-icon-size: 32px;
+        --ll-repeat-icon-radius: 10px;
+        --ll-repeat-play-icon-size: 15px;
+        --ll-repeat-visualizer-gap: 4px;
+        --ll-repeat-visualizer-min-height: 15px;
+        --ll-repeat-visualizer-range: 12px;
+        --ll-repeat-visualizer-bar-width: 4px;
+    }
 
-#ll-tools-flashcard-container.ll-compact-quiz-layout .learning-progress-bar {
-    height: 8px;
-    border-radius: 999px;
-}
+    #ll-tools-flashcard-container.ll-micro-quiz-layout {
+        --ll-quiz-header-gap: 5px;
+        --ll-quiz-header-padding: 6px 8px 2px;
+        --ll-repeat-button-padding-y: 4px;
+        --ll-repeat-button-padding-x: 5px;
+        --ll-repeat-button-gap: 5px;
+        --ll-repeat-button-radius: 10px;
+        --ll-repeat-icon-size: 28px;
+        --ll-repeat-icon-radius: 8px;
+        --ll-repeat-play-icon-size: 13px;
+        --ll-repeat-visualizer-gap: 3px;
+        --ll-repeat-visualizer-min-height: 12px;
+        --ll-repeat-visualizer-range: 9px;
+        --ll-repeat-visualizer-bar-width: 3px;
+    }
 
-#ll-tools-flashcard-container.ll-micro-quiz-layout #ll-tools-learning-progress {
-    max-width: min(520px, calc(100% - 28px));
-    width: min(520px, calc(100% - 28px));
-    padding: 2px 3px;
-    margin-right: 28px;
-}
+    #ll-tools-flashcard-container.ll-compact-quiz-layout #ll-tools-learning-progress {
+        max-width: min(560px, calc(100% - 36px));
+        width: min(560px, calc(100% - 36px));
+        padding: 3px 4px;
+        margin: 0 36px 0 0;
+        font-size: 12px;
+    }
 
-#ll-tools-flashcard-container.ll-micro-quiz-layout .learning-progress-bar {
-    height: 6px;
+    #ll-tools-flashcard-container.ll-compact-quiz-layout .learning-progress-bar {
+        height: 8px;
+        border-radius: 999px;
+    }
+
+    #ll-tools-flashcard-container.ll-micro-quiz-layout #ll-tools-learning-progress {
+        max-width: min(520px, calc(100% - 28px));
+        width: min(520px, calc(100% - 28px));
+        padding: 2px 3px;
+        margin-right: 28px;
+    }
+
+    #ll-tools-flashcard-container.ll-micro-quiz-layout .learning-progress-bar {
+        height: 6px;
+    }
 }
 
 @media (prefers-reduced-motion: reduce) {

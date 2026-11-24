@@ -3436,12 +3436,6 @@
         });
     }
 
-    function setLaunchRoundLayout(categoryName, mode) {
-        const hasChoices = !mode || mode === 'practice' || mode === 'learning';
-        const config = hasChoices && Selection?.getCategoryConfig?.(categoryName, mode === 'learning');
-        Cards?.setCaptionChoiceRound?.(config?.option_type);
-    }
-
     function switchMode(newMode, options) {
         const opts = (options && typeof options === 'object') ? options : {};
         const preserveGenderPlan = !!opts.preserveGenderPlan;
@@ -3451,8 +3445,6 @@
             console.warn('Cannot switch mode in state:', State.getState());
             return;
         }
-
-        setLaunchRoundLayout(State.currentCategoryName || State.categoryNames?.[0], newMode);
 
         // Mode changes happen from user interaction; use that gesture window to
         // unlock the analyser AudioContext for listen-mode visualizer updates.
@@ -4527,7 +4519,6 @@
                 : Selection.getCurrentDisplayMode());
         const promptType = categoryConfig.prompt_type || 'audio';
         State.currentOptionType = displayMode;
-        Cards?.setCaptionChoiceRound?.(displayMode);
         State.currentPromptType = promptType;
         applyRoundSoundRequirement(roundRequiresAudio({
             promptType: promptType,
@@ -5444,10 +5435,6 @@
 
         const proceed = () => {
             const preserveVisibleResults = $('#quiz-results').is(':visible');
-            const requestedCategoriesRaw = normalizeCategoryNameList(selectedCategories);
-            if (!preserveVisibleResults) {
-                setLaunchRoundLayout(requestedCategoriesRaw[0], mode);
-            }
             activateInlineQuizDialog('#ll-tools-flashcard-quiz-popup');
             // Protect the visible loading state immediately. Resource hydration
             // may still be in flight, but back navigation, selection, and zoom
@@ -5497,6 +5484,7 @@
 
             return root.FlashcardAudio.startNewSession().then(function () {
                 if (launchSession !== __LLSession || !State.widgetActive) { return; }
+                const requestedCategoriesRaw = normalizeCategoryNameList(selectedCategories);
                 let requestedMode = mode;
                 if (isSelfCheckMode(requestedMode)) {
                     requestedMode = 'self-check';
@@ -5922,7 +5910,7 @@
             }
             $('#ll-tools-flashcard').empty();
             $('#ll-tools-flashcard-header').hide();
-            $('#ll-tools-flashcard-quiz-popup').hide().removeClass('ll-caption-choice-round');
+            $('#ll-tools-flashcard-quiz-popup').hide();
             $('#ll-tools-flashcard-popup').hide();
             $('#ll-tools-listening-controls').remove();
 

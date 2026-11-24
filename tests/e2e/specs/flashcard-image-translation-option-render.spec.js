@@ -61,7 +61,8 @@ async function renderQuizFrame(page, options = {}) {
   const imageA = String(options.imageA || '#dbeafe');
   const imageB = String(options.imageB || '#dcfce7');
   const isEmbed = options.isEmbed !== false;
-  const useCaptions = !!options.useCaptions;
+  const optionType = options.optionType || (options.useCaptions ? 'image_text_translation' : 'image');
+  const useCaptions = optionType === 'image_text_translation';
 
   const count = Number(options.count || 2);
   const captions = Array.isArray(options.captions) ? options.captions : [];
@@ -153,11 +154,11 @@ async function renderQuizFrame(page, options = {}) {
       Dom: {},
       Selection: {
         getCurrentDisplayMode: function () {
-          return bootstrap.useCaptions ? 'image_text_translation' : 'image';
+          return bootstrap.optionType;
         }
       }
     };
-  }, { imageSize, isEmbed, useCaptions });
+  }, { imageSize, isEmbed, optionType });
 
   await addFrameScript(frame, optionsSource);
   await addFrameScript(frame, utilSource);
@@ -167,15 +168,11 @@ async function renderQuizFrame(page, options = {}) {
     const words = Array.from({ length: bootstrap.count }, (_, index) => ({
       id: 101 + index,
       title: `Option ${index + 1}`,
-      translation: bootstrap.useCaptions
-        ? (bootstrap.captions[index] || (index === 0 ? 'First answer' : 'Second answer with a compact caption'))
-        : '',
+      translation: bootstrap.captions[index] || (index === 0 ? 'First answer' : 'Second answer with a compact caption'),
       image: index % 2 ? bootstrap.imageB : bootstrap.imageA
     }));
-    const optionType = bootstrap.useCaptions ? 'image_text_translation' : 'image';
-    window.LLFlashcards.Cards.setCaptionChoiceRound(optionType);
     words.forEach((word) => {
-      window.LLFlashcards.Cards.appendWordToContainer(word, optionType, 'audio', true);
+      window.LLFlashcards.Cards.appendWordToContainer(word, bootstrap.optionType, 'audio', true);
     });
     if (bootstrap.useCaptions) {
       // The target may be last in the shuffled DOM, even though it was selected first.
@@ -189,6 +186,7 @@ async function renderQuizFrame(page, options = {}) {
     });
     window.LLFlashcards.Cards.fitImageAnswerOptionCardsForViewport();
   }, {
+    optionType,
     useCaptions,
     captions,
     count,
@@ -233,7 +231,7 @@ async function renderQuizFrame(page, options = {}) {
         const captionHeight = caption ? caption.getBoundingClientRect().height : 0;
         return {
           rect: rectFor(card),
-          imageRect: rectFor(media || image),
+          imageRect: image ? rectFor(media || image) : null,
           className: card.className,
           boxShadow: window.getComputedStyle(card).boxShadow,
           captionRows: captionStyle
@@ -572,9 +570,40 @@ test.describe('full-screen phone Practice', () => {
       return window.LLFlashcards.Dom.hideLoadingImmediately();
     });
     await expect(content).toHaveCSS('opacity', '1');
-    await page.evaluate(() => window.LLFlashcards.Cards.setCaptionChoiceRound('image'));
-    await expect(popup).not.toHaveClass(/ll-caption-choice-round/);
   });
+
+  for (const portaled of [true, false]) {
+    test(`phone controls and padding match across answer types in a ${portaled ? 'portaled' : 'nested'} quiz`, async ({ page }) => {
+      let expected;
+      for (const optionType of ['image_text_translation', 'image', 'text_translation', 'audio', 'text_audio']) {
+        await renderQuizFrame(page, {
+          width: 360, height: 685, imageSize: 'small', count: 4,
+          isEmbed: false, portaled, topLevel: true, optionType, captions: short
+        });
+        await addFrameScript(page, domSource);
+        const geometry = () => page.evaluate(() => {
+          const ids = ['ll-tools-close-flashcard', 'll-tools-category-display', 'll-tools-repeat-flashcard'];
+          const boxes = ids.map(id => document.getElementById(id).getBoundingClientRect().toJSON());
+          const bar = document.querySelector('.learning-progress-bar').getBoundingClientRect().toJSON();
+          const content = getComputedStyle(document.getElementById('ll-tools-flashcard-content'));
+          const gap = getComputedStyle(document.getElementById('ll-tools-flashcard')).gap;
+          return { boxes, bar, padding: content.padding, gap };
+        });
+        const ready = await geometry();
+        expect(ready.padding).toBe('9px 15px 15px');
+        expect(ready.gap).toBe('10px 14px');
+        if (!expected) expected = ready;
+        expect(ready, optionType).toEqual(expected);
+        await page.evaluate(() => {
+          document.getElementById('ll-tools-flashcard').replaceChildren();
+          window.LLFlashcards.Dom.showLoading();
+        });
+        expect(await geometry(), optionType + ' loading').toEqual(expected);
+        await expect(page.locator('#ll-tools-flashcard-content')).toHaveCSS('opacity', '0');
+        await page.evaluate(() => window.LLFlashcards.Dom.hideLoadingImmediately());
+      }
+    });
+  }
 
   test('two double-line captions or one longer caption limit a tall phone to two rows', async ({ page }) => {
     for (const captions of [

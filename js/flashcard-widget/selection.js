@@ -118,9 +118,9 @@
         return Object.assign({}, base, found || {});
     }
 
-    function applyLearningCategoryConfig(rawConfig, learningMode) {
+    function applyLearningCategoryConfig(rawConfig) {
         const cfg = Object.assign({}, rawConfig || {});
-        if (!parseBooleanFlag(learningMode)) {
+        if (!State || !parseBooleanFlag(State.isLearningMode)) {
             return cfg;
         }
 
@@ -144,8 +144,8 @@
         return cfg;
     }
 
-    function getCategoryConfig(name, learningMode = State && State.isLearningMode) {
-        return applyLearningCategoryConfig(getRawCategoryConfig(name), learningMode);
+    function getCategoryConfig(name) {
+        return applyLearningCategoryConfig(getRawCategoryConfig(name));
     }
 
     function stripGenderVariation(value) {
