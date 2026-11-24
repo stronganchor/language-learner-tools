@@ -347,6 +347,24 @@ for (const failureAt of ['audio', 'category']) {
   });
 }
 
+test('picture-and-caption launch sets its layout before waiting for audio or cards', async ({ page }) => {
+  await mountLaunchHarness(page);
+  await page.evaluate(() => {
+    window.jQuery('#quiz-results').hide();
+    window.llToolsFlashcardsData.categories[0].option_type = 'image_text_translation';
+    window.LLFlashcards.Cards.setCaptionChoiceRound = type => { window.__layoutType = type; };
+    window.FlashcardAudio.startNewSession = () => new Promise(resolve => { window.__finishAudio = resolve; });
+    window.__launch = window.initFlashcardWidget(['Cat A'], 'practice');
+  });
+  await expect.poll(() => page.evaluate(() => typeof window.__finishAudio)).toBe('function');
+  expect(await page.evaluate(() => window.__layoutType)).toBe('image_text_translation');
+  expect(await page.evaluate(() => window.__loadCategoryCalls)).toEqual([]);
+  await page.evaluate(() => {
+    window.__finishAudio();
+    return window.__launch;
+  });
+});
+
 test('practice init keeps mixed-presentation categories when the launch plan preserves them', async ({ page }) => {
   await mountLaunchHarness(page, { preserveMixedPresentation: true });
 

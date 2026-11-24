@@ -11,6 +11,10 @@ const cardsSource = fs.readFileSync(
   path.resolve(__dirname, '../../../js/flashcard-widget/cards.js'),
   'utf8'
 );
+const domSource = fs.readFileSync(
+  path.resolve(__dirname, '../../../js/flashcard-widget/dom.js'),
+  'utf8'
+);
 const optionsSource = fs.readFileSync(
   path.resolve(__dirname, '../../../js/flashcard-widget/options.js'),
   'utf8'
@@ -169,6 +173,7 @@ async function renderQuizFrame(page, options = {}) {
       image: index % 2 ? bootstrap.imageB : bootstrap.imageA
     }));
     const optionType = bootstrap.useCaptions ? 'image_text_translation' : 'image';
+    window.LLFlashcards.Cards.setCaptionChoiceRound(optionType);
     words.forEach((word) => {
       window.LLFlashcards.Cards.appendWordToContainer(word, optionType, 'audio', true);
     });
@@ -486,7 +491,7 @@ test.describe('full-screen phone Practice', () => {
     const initial = await mount(page, [double, ...short.slice(1)]);
     checkGrid(initial, 6);
     expect(initial.cards.filter(card => card.captionRows > 1.5)).toHaveLength(1);
-    expect(initial.cards[0].rect.top).toBeLessThanOrEqual(105);
+    expect(initial.cards[0].rect.top).toBeLessThanOrEqual(110);
     expect(initial.repeat.height).toBeGreaterThanOrEqual(44);
     const close = await page.locator('#ll-tools-close-flashcard').boundingBox();
     expect(close.width).toBe(38);
@@ -501,8 +506,8 @@ test.describe('full-screen phone Practice', () => {
     await expect(title).toHaveCSS('font-size', '14px');
     const label = await title.boundingBox();
     const bar = await page.locator('#ll-tools-learning-progress .learning-progress-bar').boundingBox();
-    expect(label.y - (bar.y + bar.height)).toBeCloseTo(4, 1);
-    expect(initial.repeat.top - (label.y + label.height)).toBeCloseTo(4, 1);
+    expect(label.y - (bar.y + bar.height)).toBeCloseTo(6, 1);
+    expect(initial.repeat.top - (label.y + label.height)).toBeCloseTo(6, 1);
     expect(initial.progress.right).toBeLessThan(close.x);
 
     const cards = page.locator('#ll-tools-flashcard .ll-answer-option-image-caption-card');
@@ -535,6 +540,40 @@ test.describe('full-screen phone Practice', () => {
     const last = await cards.last().boundingBox();
     expect(last.width).toBe(150);
     expect(last.y + last.height).toBeLessThanOrEqual(285);
+  });
+
+  test('the header stays still and incoming choices stay hidden until the round is ready', async ({ page }) => {
+    await mount(page, short);
+    await addFrameScript(page, domSource);
+    const popup = page.locator('#ll-tools-flashcard-quiz-popup');
+    const content = page.locator('#ll-tools-flashcard-content');
+    const controls = popup.locator('#ll-tools-close-flashcard, .learning-progress-bar, #ll-tools-category-display, #ll-tools-repeat-flashcard');
+    const boxes = () => controls.evaluateAll(nodes => nodes.map(n => n.getBoundingClientRect().toJSON()));
+    const initial = await boxes();
+
+    await page.evaluate(() => {
+      const grid = document.getElementById('ll-tools-flashcard');
+      window.incomingChoices = Array.from(grid.children);
+      grid.replaceChildren();
+      window.LLFlashcards.Dom.showLoading();
+    });
+    expect(await boxes()).toEqual(initial);
+    await expect(content).toHaveCSS('opacity', '0');
+    await expect(popup).toHaveAttribute('aria-busy', 'true');
+    expect(await popup.evaluate(n => getComputedStyle(n, '::before').display)).toBe('none');
+    await page.evaluate(() => document.getElementById('ll-tools-flashcard').append(...window.incomingChoices));
+    await expect(content).toHaveCSS('opacity', '0');
+    await page.evaluate(() => window.LLFlashcards.Dom.hideLoading());
+    await expect(content).toHaveCSS('opacity', '1');
+    expect(await boxes()).toEqual(initial);
+
+    await page.evaluate(() => {
+      window.LLFlashcards.Dom.showLoading();
+      return window.LLFlashcards.Dom.hideLoadingImmediately();
+    });
+    await expect(content).toHaveCSS('opacity', '1');
+    await page.evaluate(() => window.LLFlashcards.Cards.setCaptionChoiceRound('image'));
+    await expect(popup).not.toHaveClass(/ll-caption-choice-round/);
   });
 
   test('two double-line captions or one longer caption limit a tall phone to two rows', async ({ page }) => {

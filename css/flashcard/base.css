@@ -1117,61 +1117,73 @@ body.ll-qpg-popup-active #ll-tools-flashcard-content {
     gap: 10px 14px;
 }
 
-#ll-tools-flashcard-quiz-popup:has(.ll-phone-caption-choices > .ll-answer-option-image-caption-card) {
-    --ll-quiz-header-padding: max(8px, env(safe-area-inset-top, 0px)) 14px 2px;
-    --ll-quiz-header-gap: 4px;
-    --ll-category-stack-gap: var(--ll-quiz-header-gap);
-    --ll-repeat-button-padding-y: 4px;
-    --ll-repeat-button-padding-x: 8px;
-    --ll-repeat-icon-size: 32px;
-    --ll-repeat-play-icon-size: 16px;
-}
+@media (max-width: 520px) {
+    #ll-tools-flashcard-quiz-popup.ll-caption-choice-round {
+        --ll-quiz-header-padding: max(8px, env(safe-area-inset-top, 0px)) 14px 2px;
+        --ll-quiz-header-gap: 6px;
+        --ll-category-stack-gap: var(--ll-quiz-header-gap);
+        --ll-repeat-button-padding-y: 4px;
+        --ll-repeat-button-padding-x: 8px;
+        --ll-repeat-icon-size: 32px;
+        --ll-repeat-play-icon-size: 16px;
+    }
 
-#ll-tools-flashcard-quiz-popup:has(.ll-phone-caption-choices > .ll-answer-option-image-caption-card) #ll-tools-learning-progress {
-    box-sizing: border-box;
-    width: calc(100% - 52px);
-    max-width: 600px;
-    margin: 0 52px 0 0;
-    padding: 7px 4px 0;
-}
+    #ll-tools-flashcard-quiz-popup.ll-caption-choice-round #ll-tools-learning-progress {
+        box-sizing: border-box;
+        width: calc(100% - 52px);
+        max-width: 600px;
+        margin: 0 52px 0 0;
+        padding: 7px 4px 0;
+    }
 
-#ll-tools-flashcard-quiz-popup:has(.ll-phone-caption-choices > .ll-answer-option-image-caption-card) .learning-progress-bar {
-    height: 8px;
-}
+    #ll-tools-flashcard-quiz-popup.ll-caption-choice-round .learning-progress-bar {
+        height: 8px;
+    }
 
-#ll-tools-flashcard-quiz-popup:has(.ll-phone-caption-choices > .ll-answer-option-image-caption-card) #ll-tools-category-display {
-    max-width: calc(100% - 96px);
-    margin-block: 0;
-    font-size: 14px;
-    line-height: 18px;
-}
+    #ll-tools-flashcard-quiz-popup.ll-caption-choice-round #ll-tools-category-display {
+        max-width: calc(100% - 96px);
+        margin-block: 0;
+        font-size: 14px;
+        line-height: 18px;
+    }
 
-#ll-tools-flashcard-quiz-popup:has(.ll-phone-caption-choices > .ll-answer-option-image-caption-card) #ll-tools-close-flashcard {
-    width: 38px;
-    height: 38px;
-    top: calc(env(safe-area-inset-top, 0px) + 8px);
-    right: calc(env(safe-area-inset-right, 0px) + 11px);
-    overflow: visible;
-}
+    #ll-tools-flashcard-quiz-popup.ll-caption-choice-round #ll-tools-close-flashcard {
+        width: 38px;
+        height: 38px;
+        top: calc(env(safe-area-inset-top, 0px) + 8px);
+        right: calc(env(safe-area-inset-right, 0px) + 11px);
+        overflow: visible;
+    }
 
-#ll-tools-flashcard-quiz-popup:has(.ll-phone-caption-choices > .ll-answer-option-image-caption-card) #ll-tools-close-flashcard::before {
-    font-size: 20px;
-    transform: translateY(-1px);
-}
+    #ll-tools-flashcard-quiz-popup.ll-caption-choice-round #ll-tools-close-flashcard::before {
+        font-size: 20px;
+        transform: translateY(-1px);
+    }
 
-/* Keep the original touch area around the smaller circle. */
-#ll-tools-flashcard-quiz-popup:has(.ll-phone-caption-choices > .ll-answer-option-image-caption-card) #ll-tools-close-flashcard::after {
-    content: "";
-    position: absolute;
-    inset: -4px;
-}
+    /* Keep the original touch area around the smaller circle. */
+    #ll-tools-flashcard-quiz-popup.ll-caption-choice-round #ll-tools-close-flashcard::after {
+        content: "";
+        position: absolute;
+        inset: -4px;
+    }
 
-#ll-tools-flashcard-quiz-popup:has(.ll-phone-caption-choices > .ll-answer-option-image-caption-card) #ll-tools-repeat-flashcard {
-    min-height: 44px;
-}
+    #ll-tools-flashcard-quiz-popup.ll-caption-choice-round #ll-tools-repeat-flashcard {
+        min-height: 44px;
+    }
 
-#ll-tools-flashcard-content:has(> .ll-phone-caption-choices > .ll-answer-option-image-caption-card) {
-    padding-top: 7px;
+    #ll-tools-flashcard-quiz-popup.ll-caption-choice-round #ll-tools-flashcard-content {
+        padding-top: 9px;
+    }
+
+    /* Measure the incoming cards at their final size, then reveal them together. */
+    #ll-tools-flashcard-quiz-popup.ll-caption-choice-round.ll-round-media-pending #ll-tools-flashcard-content {
+        opacity: 0;
+        pointer-events: none;
+    }
+
+    #ll-tools-flashcard-quiz-popup.ll-caption-choice-round::before {
+        display: none;
+    }
 }
 
 /* Keep answers reachable if even the smallest tiles exceed the visible area. */

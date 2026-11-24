@@ -446,7 +446,7 @@
             return;
         }
 
-        $popup.removeClass('ll-round-loading-active ll-round-loading-instant').removeAttr('aria-busy');
+        $popup.removeClass('ll-round-media-pending ll-round-loading-active ll-round-loading-instant').removeAttr('aria-busy');
         $content.removeClass('ll-round-loading');
         $status.prop('hidden', true);
         $el.hide();
@@ -770,6 +770,7 @@
             if (viz && typeof viz.reset === 'function') viz.reset();
 
             loadingRequested = true;
+            $('#ll-tools-flashcard-quiz-popup').addClass('ll-round-media-pending');
             clearLoadingHideTimer();
 
             if (loadingVisible) {

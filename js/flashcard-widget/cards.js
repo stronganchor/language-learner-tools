@@ -427,6 +427,11 @@
 
     const captionChoiceRanks = new WeakMap();
 
+    function setCaptionChoiceRound(mode) {
+        $('#ll-tools-flashcard-quiz-popup').toggleClass('ll-caption-choice-round',
+            mode === 'image_text_translation' && !isEmbeddedQuizRuntime());
+    }
+
     function usesPhoneCaptionChoices(mode) {
         return mode === 'image_text_translation' && root.innerWidth <= 520
             && !!document.getElementById('ll-tools-flashcard-quiz-popup') && !isEmbeddedQuizRuntime();
@@ -914,6 +919,7 @@
     root.LLFlashcards = root.LLFlashcards || {};
     root.LLFlashcards.Cards = {
         appendWordToContainer,
+        setCaptionChoiceRound,
         usesPhoneCaptionChoices,
         prepareCaptionChoices,
         addClickEventToCard,
