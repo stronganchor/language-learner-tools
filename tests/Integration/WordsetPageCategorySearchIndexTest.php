@@ -1231,6 +1231,64 @@ final class WordsetPageCategorySearchIndexTest extends LL_Tools_TestCase
         $this->assertSame([], $queries);
     }
 
+    public function test_category_search_recovery_markup_only_exposes_the_current_authorized_scope(): void
+    {
+        $wordset = wp_insert_term('Search Recovery Credentials Wordset', 'wordset');
+        $category = wp_insert_term('Search Recovery Credentials Category', 'word-category');
+        $this->assertIsArray($wordset);
+        $this->assertIsArray($category);
+        $wordset_id = (int) $wordset['term_id'];
+        $category_id = (int) $category['term_id'];
+        $this->setCategoryOwner($category_id, $wordset_id);
+        for ($index = 1; $index <= 5; $index++) {
+            $this->createSearchWordWithAudio(
+                'Recovery Word ' . $index,
+                'Recovery Translation ' . $index,
+                $wordset_id,
+                [$category_id],
+                'search-recovery-' . $index . '.mp3'
+            );
+        }
+        $this->createVocabLesson($wordset_id, $category_id);
+
+        $previous_get = $_GET;
+        $previous_user_id = get_current_user_id();
+        wp_set_current_user(0);
+        try {
+            $marker = 'data-ll-wordset-page-search-credentials';
+            $args = ['show_title' => false, 'wrapper_tag' => 'div'];
+            foreach ([[], ['ll_category_search_recovery' => '0']] as $query) {
+                $_GET = $query;
+                $this->assertStringNotContainsString($marker, ll_tools_render_wordset_page_content($wordset_id, $args));
+            }
+
+            $_GET = ['ll_category_search_recovery' => '1'];
+            $html = ll_tools_render_wordset_page_content($wordset_id, $args);
+            $this->assertSame(1, preg_match('/<script type="application\/json" ' . $marker . '>([^<]+)<\/script>/', $html, $matches));
+            $credentials = json_decode($matches[1], true, 512, JSON_THROW_ON_ERROR);
+            $config = $this->extractLocalizedConfig((string) wp_scripts()->get_data('ll-wordset-pages-js', 'data'));
+            $this->assertSame([
+                'wordsetId' => $wordset_id,
+                'nonce' => $config['categorySearch']['nonce'],
+                'token' => $config['categorySearch']['token'],
+            ], $credentials);
+            $this->assertNotFalse(wp_verify_nonce($credentials['nonce'], 'll_tools_wordset_page_category_search'));
+
+            $payload = ll_tools_wordset_page_get_category_search_payload($credentials['token']);
+            $this->assertIsArray($payload);
+            $this->assertSame($wordset_id, $payload['wordset_id']);
+            $this->assertSame(0, $payload['user_id']);
+            $this->assertSame([$category_id], $payload['category_ids']);
+            $this->assertTrue(ll_tools_wordset_page_category_search_payload_scope_is_current($wordset_id, $payload['access_signature']));
+
+            update_term_meta($wordset_id, LL_TOOLS_WORDSET_VISIBILITY_META_KEY, 'private');
+            $this->assertStringNotContainsString($marker, ll_tools_render_wordset_page_content($wordset_id, $args));
+        } finally {
+            $_GET = $previous_get;
+            wp_set_current_user($previous_user_id);
+        }
+    }
+
     public function test_signed_in_category_search_survives_the_old_expiry_and_still_checks_owner_and_scope(): void
     {
         $previous_user_id = get_current_user_id();

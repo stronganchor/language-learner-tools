@@ -27640,6 +27640,17 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
         data-ll-wordset-view="<?php echo esc_attr($view === '' ? 'main' : $view); ?>"
         data-ll-visible-category-count="<?php echo esc_attr($visible_category_count); ?>"
         data-ll-wordset-id="<?php echo esc_attr($wordset_id); ?>">
+        <?php if (!empty($localized_category_search['enabled'])
+            && function_exists('ll_tools_public_static_cache_has_category_search_recovery_arg')
+            && ll_tools_public_static_cache_has_category_search_recovery_arg()) : ?>
+            <script type="application/json" data-ll-wordset-page-search-credentials><?php
+                echo wp_json_encode([
+                    'wordsetId' => $wordset_id,
+                    'nonce' => $localized_category_search['nonce'],
+                    'token' => $localized_category_search['token'],
+                ], JSON_HEX_TAG); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- JSON_HEX_TAG protects the script boundary.
+            ?></script>
+        <?php endif; ?>
         <?php if ($show_title) : ?>
             <?php
             $utility_current_area = 'wordset';
