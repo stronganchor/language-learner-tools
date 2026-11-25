@@ -63,6 +63,17 @@ files stay under ignored `_codex_temp/`, outside source and release packages.
 
 ## Observations recorded on 2026-11-25
 
+Final existing-account/activity smoke passed on **LL Tools 6.7.89**, tested
+commit `ac176c4d2dd29042c76b4b407b05079ee9b26d08`. The verified production ZIP
+SHA256 was `44f25c2bba4a4923eaf590df19bf2ba92b1de3b605d0acf51c49ee8f4014636a`.
+Moodle was **5.1.7 (Build: 20260914)** and WordPress **6.8.3**. Three real Moodle
+popup launches, the same permanent student account, existing selected grade,
+native gradebook record and learner gradebook page all passed after upgrading
+the isolated plugin. One identity, five word-progress rows and twelve events
+remained; the selected grade was 5/5 questions, scaled to 100/100, with a
+successful HTTP 200 grade delivery. The earlier full authoring/answer flow and
+the final upgrade smoke are separate checks.
+
 The initial manual-registration run against actual Moodle passed first signed
 launch, explicit learner linking, repeat practice launch and a five-answer
 assignment. It produced one durable Moodle identity, class membership, five
@@ -90,13 +101,17 @@ remains scoped. After repair both guided activity saves and grade return passed.
 Moodle's actual gradebook service probe supplies both an individual line item
 and score scope to an instructor and to a student for the graded activity.
 The cross-site guided run and its final outcomes are recorded separately in the
-current ignored evidence directory. Check `browser-checks.json`,
+current ignored evidence directory. A fresh full run writes `browser-checks.json`;
+the final candidate reuse check writes `final-smoke-check.json`. Also check
 `wordpress-verification.json`, `moodle-gradebook.json` and
 `gradebook-browser-check.json`; all required checks must be successful before
 claiming acceptance. `practice-progress-before.json` and
 `practice-progress-after.json` prove the separate practice update. `verify.php`
 exits nonzero if the durable link, membership, grade, progress or successful
 delivery is missing. Opening practice alone does not prove an answered prompt.
+`verified-runtime-sha256.json` and `source-provenance.json` identify the installed
+runtime. The scoped Docker project was removed with its generated private/data
+volumes after verification; redacted evidence remains in the ignored directory.
 
 This is representative local interoperability, not acceptance on Michael's
 Moodle, a mobile-browser matrix, iframe support or LTI certification. His exact
