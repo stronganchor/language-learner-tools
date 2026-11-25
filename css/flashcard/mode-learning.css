@@ -120,6 +120,11 @@
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.7);
 }
 
+/* The viewport fit measures the resting card without interrupting its pulse. */
+#ll-tools-flashcard.ll-image-options-measuring .ll-answer-option-image-card.introducing {
+    transform: none !important;
+}
+
 @keyframes pulse-card {
 
     0%,

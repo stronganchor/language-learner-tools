@@ -683,6 +683,39 @@ test('large embedded image quizzes keep the same image size as large standalone 
   expect(embedded.cards[0].imageRect.width).toBeCloseTo(250, 0);
 });
 
+test('resizing during a Learn introduction pulse fits both pictures at their resting size', async ({ page }) => {
+  await renderQuizFrame(page, {
+    width: 390,
+    height: 700,
+    imageSize: 'large',
+    isEmbed: false,
+    topLevel: true,
+    portaled: true
+  });
+
+  const grid = page.locator('#ll-tools-flashcard');
+  const cards = grid.locator('.ll-answer-option-image-card');
+  const restingWidths = () => cards.evaluateAll(nodes => nodes.map(card => card.offsetWidth));
+  expect(await restingWidths()).toEqual([173, 173]);
+
+  await cards.evaluateAll(nodes => {
+    nodes.forEach(card => card.classList.add('introducing'));
+    const activeCard = nodes[0];
+    activeCard.classList.add('introducing-active');
+    const pulse = activeCard.getAnimations().find(animation => animation.animationName === 'pulse-card');
+    pulse.pause();
+    pulse.currentTime = 500;
+  });
+  const pulseScale = () => cards.first().evaluate(card => new DOMMatrixReadOnly(getComputedStyle(card).transform).a);
+  expect(await pulseScale()).toBeCloseTo(1.08);
+
+  await page.setViewportSize({ width: 360, height: 700 });
+
+  await expect.poll(restingWidths, { timeout: 3000 }).toEqual([158, 158]);
+  await expect(grid).not.toHaveClass(/ll-image-options-scroll/);
+  expect(await pulseScale()).toBeCloseTo(1.08);
+});
+
 test('white image answer options retain a visible tile shadow', async ({ page }) => {
   const rendered = await renderQuizFrame(page, {
     width: 390,

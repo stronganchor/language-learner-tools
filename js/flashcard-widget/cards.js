@@ -482,6 +482,17 @@
         grid.classList.toggle('ll-phone-caption-choices', phoneChoices);
         if (!cards.length) return;
 
+        if (cards.some(card => card.classList.contains('introducing'))) {
+            grid.classList.add('ll-image-options-measuring');
+        }
+        try {
+            return fitImageAnswerOptions($root, grid, cards, phoneChoices);
+        } finally {
+            grid.classList.remove('ll-image-options-measuring');
+        }
+    }
+
+    function fitImageAnswerOptions($root, grid, cards, phoneChoices) {
         const viewport = getViewportSize();
         const baseSize = Math.max(...cards.map(getImageCardBaseSize));
         let bounds = getOptionContentBounds();
