@@ -519,7 +519,7 @@ final class WordsetPageDeferredStudyCatalogResourceTest extends LL_Tools_TestCas
 
         $user_id = max(0, (int) get_current_user_id());
         $category_key = ll_tools_wordset_page_build_cache_key('categories_user', [
-            'schema' => 9,
+            'schema' => 10,
             'wordset_id' => $wordset_id,
             'preview_limit' => 2,
             'preview_mode' => 'deferred',

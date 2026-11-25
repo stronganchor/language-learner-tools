@@ -71,6 +71,127 @@ final class LtiAccountsTest extends LL_Tools_TestCase {
 
     public function credentialKey(): string { return str_repeat('x', 32); }
 
+    public function test_first_resource_config_creator_wins_without_an_option_upsert(): void {
+        global $wpdb;
+        delete_option(LL_TOOLS_LTI_RESOURCES_OPTION);
+        $this->assertSame([], ll_tools_lti_get_resources());
+        $candidate = [$this->resource['id'] => $this->resource];
+        $winner = $candidate; $winner[$this->resource['id']]['context_id'] = 'Course-11';
+        $raced = false;
+        $collision = static function (string $sql) use ($wpdb, $winner, &$raced): string {
+            if (!$raced && stripos($sql, 'INSERT INTO') === 0 && strpos($sql, LL_TOOLS_LTI_RESOURCES_OPTION) !== false) {
+                $raced = true;
+                $wpdb->insert($wpdb->options, ['option_name' => LL_TOOLS_LTI_RESOURCES_OPTION, 'option_value' => maybe_serialize($winner), 'autoload' => 'no']);
+            }
+            return $sql;
+        };
+        $previous = $wpdb->suppress_errors(true);
+        add_filter('query', $collision);
+        try { $saved = ll_tools_lti_write_resources([], $candidate); }
+        finally { remove_filter('query', $collision); $wpdb->suppress_errors($previous); }
+        $this->assertTrue($raced);
+        $this->assertFalse($saved);
+        $this->assertSame($winner, ll_tools_lti_get_resources());
+        $this->assertSame('no', $wpdb->get_var($wpdb->prepare("SELECT autoload FROM {$wpdb->options} WHERE option_name = %s", LL_TOOLS_LTI_RESOURCES_OPTION)));
+    }
+
+    public function test_resource_config_compare_and_swap_preserves_a_case_only_concurrent_change(): void {
+        global $wpdb;
+        $before = ll_tools_lti_get_resources();
+        $after = $before; $after[$this->resource['id']]['enabled'] = false;
+        $winner = $before; $winner[$this->resource['id']]['context_id'] = 'Course-11';
+        $raced = false;
+        $collision = static function (string $sql) use ($wpdb, $winner, &$raced): string {
+            if (!$raced && str_starts_with($sql, "UPDATE {$wpdb->options} SET option_value = ") && strpos($sql, LL_TOOLS_LTI_RESOURCES_OPTION) !== false) {
+                $raced = true;
+                $wpdb->update($wpdb->options, ['option_value' => maybe_serialize($winner)], ['option_name' => LL_TOOLS_LTI_RESOURCES_OPTION]);
+            }
+            return $sql;
+        };
+        add_filter('query', $collision);
+        try { $saved = ll_tools_lti_write_resources($before, $after); }
+        finally { remove_filter('query', $collision); }
+        $this->assertTrue($raced);
+        $this->assertFalse($saved);
+        $this->assertSame($winner, ll_tools_lti_get_resources());
+        $this->assertFalse(ll_tools_lti_write_resources($before, $after), 'A fresh read also rejects an already stale caller snapshot.');
+    }
+
+    public function test_stale_cached_pinned_activity_cannot_admit_after_it_is_disabled(): void {
+        global $wpdb;
+        $this->linkLearner();
+        $cached = ll_tools_lti_get_resources();
+        $this->assertSame($this->context['resource_link_id'], $cached[$this->resource['id']]['resource_link_id']);
+        $disabled = $cached; $disabled[$this->resource['id']]['enabled'] = false;
+        $this->assertSame(1, $wpdb->update($wpdb->options, ['option_value' => maybe_serialize($disabled)], ['option_name' => LL_TOOLS_LTI_RESOURCES_OPTION]));
+        $this->assertSame($cached, ll_tools_lti_get_resources(), 'Preserve the stale request-local option cache for this admission.');
+        $result = ll_tools_lti_admit_account($this->context, $this->learner);
+        $this->assertWPError($result);
+        $this->assertSame('lti_resource_write_conflict', $result->get_error_code());
+        $this->assertFalse(ll_tools_lti_get_resources()[$this->resource['id']]['enabled']);
+        $this->assertTrue(ll_tools_teacher_class_user_is_student($this->class, $this->learner), 'Blocking the activity does not erase existing class membership.');
+    }
+
+    public function test_first_resource_link_pin_wins_despite_a_stale_option_cache(): void {
+        global $wpdb;
+        $cached = ll_tools_lti_get_resources();
+        $winner = $cached; $winner[$this->resource['id']]['resource_link_id'] = 'first-moodle-activity';
+        $this->assertSame(1, $wpdb->update($wpdb->options, ['option_value' => maybe_serialize($winner)], ['option_name' => LL_TOOLS_LTI_RESOURCES_OPTION]));
+        $this->assertSame($cached, ll_tools_lti_get_resources());
+        $this->assertWPError(ll_tools_lti_bind_resource_link($this->resource, $this->context));
+        $same = $this->context; $same['resource_link_id'] = 'first-moodle-activity';
+        $this->assertTrue(ll_tools_lti_bind_resource_link($this->resource, $same));
+        $actual = maybe_unserialize($wpdb->get_var($wpdb->prepare("SELECT option_value FROM {$wpdb->options} WHERE option_name = %s", LL_TOOLS_LTI_RESOURCES_OPTION)));
+        $this->assertSame($winner, $actual);
+    }
+
+    public function test_instructor_setup_uses_exact_signed_activity_and_student_keeps_account(): void {
+        $instructor = $this->context;
+        $instructor['roles'] = ['http://purl.imsglobal.org/vocab/lis/v2/membership#Instructor'];
+        $instructor['custom'] = [];
+        $this->assertWPError(ll_tools_lti_teacher_setup_ticket($instructor));
+        wp_set_current_user($this->teacher);
+        $this->assertWPError(ll_tools_lti_teacher_setup_ticket($this->context));
+        $ticket = ll_tools_lti_teacher_setup_ticket($instructor);
+        $this->assertIsString($ticket);
+        $scope = ll_tools_lti_teacher_setup_scope($ticket);
+        $this->assertSame('resource-31', $scope['resource_link_id']);
+        $this->assertFalse($scope['can_grade']);
+        wp_set_current_user(self::factory()->user->create(['role' => 'll_tools_teacher']));
+        $this->assertWPError(ll_tools_lti_teacher_setup_scope($ticket));
+        wp_set_current_user($this->teacher);
+        $input = $scope + ['setup_ticket' => $ticket, 'class_id' => $this->class,
+            'category_id' => $this->category, 'name' => 'Guided practice', 'kind' => 'practice'];
+        $student = $this->context;
+        $student['custom'] = [];
+        $this->assertWPError(ll_tools_lti_resolve_resource($student));
+        $this->assertWPError(ll_tools_lti_register_resource(array_merge($input, ['context_id' => 'wrong-course'])));
+        $this->assertSame('lti_grade_service_unavailable', ll_tools_lti_resource_preflight(array_merge($input, ['kind' => 'assignment']), $this->teacher)->get_error_code());
+        $graded = $instructor;
+        $graded['ags'] = ['lineitem' => 'https://moodle.example.org/grade/1', 'scope' => [LL_TOOLS_LTI_SCORE_SCOPE]];
+        $this->assertTrue(ll_tools_lti_teacher_setup_scope(ll_tools_lti_teacher_setup_ticket($graded))['can_grade']);
+        $row = ll_tools_lti_register_resource($input);
+        $this->assertIsArray($row);
+        $this->assertTrue($row['guided']);
+        $this->assertWPError(ll_tools_lti_teacher_setup_scope($ticket));
+        $input['setup_ticket'] = ll_tools_lti_teacher_setup_ticket($instructor);
+        $this->assertWPError(ll_tools_lti_register_resource($input));
+        wp_set_current_user($this->learner);
+        $this->assertSame($row, ll_tools_lti_resolve_resource($student));
+        foreach (['resource_link_id', 'context_id', 'deployment_id', 'issuer', 'client_id'] as $field) {
+            $this->assertWPError(ll_tools_lti_resolve_resource(array_merge($student, [$field => 'other'])));
+        }
+        foreach (['', [], 'invalid', str_repeat('b', 32)] as $invalid) {
+            $this->assertWPError(ll_tools_lti_resolve_resource(array_merge($student, ['custom' => ['ll_activity' => $invalid]])));
+        }
+        $confirmation = ll_tools_lti_prepare_account($student, $this->binding);
+        $this->assertIsString($confirmation);
+        $this->assertIsString(ll_tools_lti_confirm_account($confirmation, $this->binding, $this->learner));
+        $this->assertSame($this->learner, (int) ll_tools_lti_find_account_identity($student)['learner_user_id']);
+        $this->assertTrue(ll_tools_lti_disable_resource($row['id'], $this->teacher));
+        $this->assertWPError(ll_tools_lti_resolve_resource($student));
+    }
+
     protected function tearDown(): void {
         global $wpdb;
         foreach (ll_tools_grade_delivery_table_names() as $table) { $wpdb->query("DELETE FROM {$table}"); }

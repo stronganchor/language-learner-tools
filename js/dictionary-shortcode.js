@@ -27,10 +27,65 @@
     const entryErrorLabel = typeof config.entryErrorLabel === 'string' && config.entryErrorLabel
         ? config.entryErrorLabel
         : '';
+    const readErrorLabel = typeof config.readError === 'string' && config.readError
+        ? config.readError
+        : 'Dictionary results could not be loaded.';
+    const retryLabel = typeof config.retry === 'string' && config.retry
+        ? config.retry
+        : 'Retry';
+    const configuredRequestTimeout = Number(config.request_timeout_ms || config.requestTimeoutMs);
+    const requestTimeoutMs = Math.max(
+        3000,
+        Math.min(30000, Number.isFinite(configuredRequestTimeout) ? configuredRequestTimeout : 15000)
+    );
 
     if (!ajaxUrl) {
         return;
     }
+
+    const fetchJsonWithDeadline = (url, options = {}) => {
+        const requestOptions = Object.assign({}, options);
+        const upstreamSignal = requestOptions.signal || null;
+        const controller = new AbortController();
+        let timedOut = false;
+        let timeoutId = 0;
+
+        const abortFromUpstream = () => {
+            controller.abort();
+        };
+
+        if (upstreamSignal) {
+            if (upstreamSignal.aborted) {
+                controller.abort();
+            } else {
+                upstreamSignal.addEventListener('abort', abortFromUpstream, { once: true });
+            }
+        }
+
+        requestOptions.signal = controller.signal;
+        timeoutId = window.setTimeout(() => {
+            timedOut = true;
+            controller.abort();
+        }, requestTimeoutMs);
+
+        return fetch(url, requestOptions)
+            .then((response) => response.json()
+                .then((payload) => ({ response, payload })))
+            .catch((error) => {
+                if (timedOut) {
+                    const timeoutError = new Error('request_timeout');
+                    timeoutError.name = 'TimeoutError';
+                    throw timeoutError;
+                }
+                throw error;
+            })
+            .finally(() => {
+                window.clearTimeout(timeoutId);
+                if (upstreamSignal) {
+                    upstreamSignal.removeEventListener('abort', abortFromUpstream);
+                }
+            });
+    };
 
     const readAjaxMessage = (payload, fallback) => {
         if (payload && payload.data && typeof payload.data.message === 'string' && payload.data.message) {
@@ -40,6 +95,12 @@
             return payload.message;
         }
         return fallback;
+    };
+
+    const userFacingError = (message) => {
+        const error = new Error('request_failed');
+        error.llToolsUserMessage = String(message || '');
+        return error;
     };
 
     const escapeInlineHtml = (value) => String(value || '').replace(/[&<>"']/g, (char) => {
@@ -271,7 +332,7 @@
                 savePromise = postUpdateRequest(params, reason !== 'manual')
                     .then((payloadResponse) => {
                     if (!payloadResponse || payloadResponse.success !== true || !payloadResponse.data) {
-                        throw new Error(readAjaxMessage(payloadResponse, entryErrorLabel));
+                        throw userFacingError(readAjaxMessage(payloadResponse, entryErrorLabel));
                     }
 
                     if (!editor.isConnected) {
@@ -287,8 +348,8 @@
                         return;
                     }
 
-                    const message = error && error.message && error.message !== 'request_failed'
-                        ? error.message
+                    const message = error && error.llToolsUserMessage
+                        ? error.llToolsUserMessage
                         : entryErrorLabel;
                     setStatus(message, 'error');
                 })
@@ -417,7 +478,7 @@
                 }, true)
                     .then((payloadResponse) => {
                     if (!payloadResponse || payloadResponse.success !== true || !payloadResponse.data) {
-                        throw new Error(readAjaxMessage(payloadResponse, entryErrorLabel));
+                        throw userFacingError(readAjaxMessage(payloadResponse, entryErrorLabel));
                     }
 
                     if (!reviewState.isConnected) {
@@ -433,8 +494,8 @@
                         return;
                     }
 
-                    const message = error && error.message && error.message !== 'request_failed'
-                        ? error.message
+                    const message = error && error.llToolsUserMessage
+                        ? error.llToolsUserMessage
                         : entryErrorLabel;
                     setStatus(message, 'error');
                 })
@@ -493,6 +554,7 @@
         let detailActive = false;
         let detailController = null;
         let detailRequestId = 0;
+        let failedResultsRequest = null;
         let browseSnapshot = null;
         const detailHtmlCache = new Map();
         const resultScrollTopOffset = 72;
@@ -858,14 +920,26 @@
             }
         };
 
+        const focusWithoutScroll = (element) => {
+            if (!element || typeof element.focus !== 'function') {
+                return;
+            }
+            if (!element.matches('button, [href], input, select, textarea, [tabindex]')) {
+                element.setAttribute('tabindex', '-1');
+            }
+            try {
+                element.focus({ preventScroll: true });
+            } catch (error) {
+                element.focus();
+            }
+        };
+
         const requestToolbarBootstrap = (attempt) => {
-            return fetch(ajaxUrl, {
+            return fetchJsonWithDeadline(ajaxUrl, {
                 method: 'POST',
                 credentials: 'same-origin',
                 body: buildToolbarBootstrapPayload(),
             })
-                .then((response) => response.json()
-                    .then((payload) => ({ response, payload })))
                 .then(({ response, payload }) => {
                     const retryData = payload && !payload.success && payload.data
                         ? payload.data
@@ -926,7 +1000,16 @@
                 .catch((error) => {
                     toolbar.classList.remove('is-toolbar-loading');
                     if (toolbarPanel) {
-                        toolbarPanel.setAttribute('aria-label', toolbarLoadingLabel);
+                        toolbarPanel.removeAttribute('aria-busy');
+                        toolbarPanel.setAttribute('aria-label', readErrorLabel);
+                        toolbarPanel.innerHTML = [
+                            '<div class="ll-dictionary__read-error" role="alert">',
+                            '<p>', escapeHtml(readErrorLabel), '</p>',
+                            '<button type="button" class="ll-dictionary__retry" data-ll-dictionary-toolbar-retry>',
+                            escapeHtml(retryLabel),
+                            '</button>',
+                            '</div>',
+                        ].join('');
                     }
                     throw error;
                 })
@@ -1170,6 +1253,15 @@
             return markup.join('');
         };
 
+        const buildReadErrorMarkup = () => [
+            '<div class="ll-dictionary__read-error" role="alert">',
+            '<p>', escapeHtml(readErrorLabel), '</p>',
+            '<button type="button" class="ll-dictionary__retry" data-ll-dictionary-results-retry>',
+            escapeHtml(retryLabel),
+            '</button>',
+            '</div>',
+        ].join('');
+
         const getDetailPreviewFromLink = (link) => {
             const preview = {
                 title: '',
@@ -1243,6 +1335,7 @@
         const showLoadingState = () => {
             resetDetailState();
             cancelActiveRequest();
+            failedResultsRequest = null;
             results.innerHTML = buildLoadingMarkup();
             results.setAttribute('aria-busy', 'true');
             setActiveState(true);
@@ -1325,14 +1418,12 @@
         };
 
         const requestLiveSearchPayload = (page, signal, attempt = 0) => {
-            return fetch(ajaxUrl, {
+            return fetchJsonWithDeadline(ajaxUrl, {
                 method: 'POST',
                 credentials: 'same-origin',
                 body: buildPayload(page),
                 signal,
             })
-                .then((response) => response.json()
-                    .then((payload) => ({ response, payload })))
                 .then(({ response, payload }) => {
                     const retryData = payload && !payload.success && payload.data
                         ? payload.data
@@ -1446,19 +1537,16 @@
             setDetailMode(true);
             scrollDetailIntoView({ force: true });
 
-            fetch(ajaxUrl, {
+            fetchJsonWithDeadline(ajaxUrl, {
                 method: 'POST',
                 credentials: 'same-origin',
                 body: buildDetailPayload(link, entryId),
                 signal: detailController.signal,
             })
-                .then((response) => {
+                .then(({ response, payload }) => {
                     if (!response.ok) {
                         throw new Error('request_failed');
                     }
-                    return response.json();
-                })
-                .then((payload) => {
                     if (requestId !== detailRequestId || !payload || !payload.success || !payload.data) {
                         throw new Error('invalid_payload');
                     }
@@ -1494,6 +1582,7 @@
             const requestPage = Math.max(1, page || 1);
             const cacheKey = buildRequestCacheKey(requestPage);
             if (cacheSize > 0 && responseCache.has(cacheKey)) {
+                failedResultsRequest = null;
                 renderResponsePayload(responseCache.get(cacheKey));
                 results.removeAttribute('aria-busy');
                 return;
@@ -1514,6 +1603,7 @@
                     }
 
                     storeCachedResponse(cacheKey, payload);
+                    failedResultsRequest = null;
                     renderResponsePayload(payload);
                 })
                 .catch((error) => {
@@ -1521,9 +1611,16 @@
                         return;
                     }
 
-                    if (fallbackToFullSubmit) {
-                        form.submit();
+                    if (requestId !== activeRequestId) {
+                        return;
                     }
+
+                    failedResultsRequest = {
+                        page: requestPage,
+                        cacheKey,
+                    };
+                    results.innerHTML = buildReadErrorMarkup();
+                    results.removeAttribute('aria-busy');
                 })
                 .finally(() => {
                     if (requestId === activeRequestId) {
@@ -1571,8 +1668,16 @@
             primeToolbarBootstrap();
         };
 
-        toolbar.addEventListener('focusin', activateToolbar);
-        toolbar.addEventListener('pointerdown', activateToolbar, { passive: true });
+        toolbar.addEventListener('focusin', (event) => {
+            if (!event.target.closest('[data-ll-dictionary-toolbar-retry]')) {
+                activateToolbar();
+            }
+        });
+        toolbar.addEventListener('pointerdown', (event) => {
+            if (!event.target.closest('[data-ll-dictionary-toolbar-retry]')) {
+                activateToolbar();
+            }
+        }, { passive: true });
         searchInput.addEventListener('focus', () => {
             activateToolbar();
         }, { passive: true });
@@ -1668,6 +1773,42 @@
         });
 
         root.addEventListener('click', (event) => {
+            const toolbarRetry = event.target.closest('[data-ll-dictionary-toolbar-retry]');
+            if (toolbarRetry && root.contains(toolbarRetry)) {
+                event.preventDefault();
+                Promise.resolve(toolbarBootstrapPromise)
+                    .catch(() => {})
+                    .then(() => ensureToolbarBootstrap())
+                    .then(() => {
+                        if (toolbarPanel) {
+                            focusWithoutScroll(
+                                toolbarPanel.querySelector('[data-ll-dictionary-filter-menu] summary') || toolbarPanel
+                            );
+                        }
+                    })
+                    .catch(() => {
+                        if (toolbarPanel) {
+                            focusWithoutScroll(toolbarPanel.querySelector('[data-ll-dictionary-toolbar-retry]'));
+                        }
+                    });
+                return;
+            }
+
+            const resultsRetry = event.target.closest('[data-ll-dictionary-results-retry]');
+            if (resultsRetry && root.contains(resultsRetry)) {
+                event.preventDefault();
+                const failedRequest = failedResultsRequest;
+                if (!failedRequest || failedRequest.cacheKey !== buildRequestCacheKey(failedRequest.page)) {
+                    triggerLiveSearch(1);
+                    focusWithoutScroll(results);
+                    return;
+                }
+                showLoadingState();
+                focusWithoutScroll(results);
+                requestResults(failedRequest.page, false);
+                return;
+            }
+
             const textToggle = event.target.closest('[data-ll-dictionary-toggle]');
             if (textToggle) {
                 const textBlock = textToggle.closest('[data-ll-dictionary-text-block]');

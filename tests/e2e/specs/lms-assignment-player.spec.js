@@ -6,7 +6,7 @@ test.describe.configure({ timeout: 240000, mode: 'serial' });
 const fixturePath = path.resolve(__dirname, '..', 'fixtures', 'seed-lms-assignment-player.php');
 function fixture(command) { return runWpCliJson(['eval-file', fixturePath, command], { timeoutMs: 120000 }); }
 
-test('real player resumes an ambiguous start and saves first answers and vocabulary progress once', async ({ page }) => {
+test('real player resumes safely after lost answer and state responses and records progress once', async ({ page }) => {
   let seeded = false;
   try {
     seeded = true;
@@ -52,10 +52,31 @@ test('real player resumes an ambiguous start and saves first answers and vocabul
     expect(answerPayloads).toHaveLength(2);
     expect(answerPayloads[0]).toEqual(answerPayloads[1]);
     for (let index = 2; index <= 5; index += 1) {
+      if (index === 2) {
+        // The next POST will commit normally, then its following state GET is
+        // lost. Stale answer controls must stay frozen until a fresh read.
+        let lostStateRead = false;
+        await page.route('**/lms/assignments/*/player-state', async (route) => {
+          if (!lostStateRead) { lostStateRead = true; await route.abort('failed'); }
+          else { await route.continue(); }
+        });
+      }
       const prompt = await page.locator('.ll-assignment-player__prompt').innerText();
       const number = prompt.match(/Hebrew prompt (\d+)/)[1];
       await page.locator('.ll-assignment-player__choice').filter({ hasText: `Meaning ${number}` }).locator('input').check();
       await page.getByRole('button', { name: 'Save answer', exact: true }).click();
+      if (index === 2) {
+        await expect(page.getByRole('button', { name: 'Retry', exact: true })).toBeVisible();
+        await expect(page.getByRole('button', { name: 'Save answer', exact: true })).toBeDisabled();
+        for (const radio of await page.getByRole('radio').all()) { await expect(radio).toBeDisabled(); }
+        expect(fixture('snapshot').ledger).toBe(4);
+        const sentAnswers = answerPayloads.length;
+        await page.getByRole('button', { name: 'Retry', exact: true }).click();
+        await expect(page.locator('.ll-assignment-player__content')).toContainText('Question 3 of 5');
+        expect(answerPayloads).toHaveLength(sentAnswers);
+        expect(fixture('snapshot').ledger).toBe(4);
+        await page.unroute('**/lms/assignments/*/player-state');
+      }
       if (index < 5) { await expect(page.locator('.ll-assignment-player__content')).toContainText(`Question ${index + 1} of 5`); }
     }
     await expect(page.getByRole('button', { name: 'Finish assignment', exact: true })).toBeVisible();

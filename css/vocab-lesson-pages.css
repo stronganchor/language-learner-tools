@@ -848,6 +848,7 @@ body.ll-vocab-lesson-category-settings-open {
 }
 
 .ll-vocab-lesson-category-settings-panel.ll-tools-settings-panel select,
+.ll-vocab-lesson-category-settings-panel.ll-tools-settings-panel .ll-quiz-question-limit,
 .ll-vocab-lesson-category-settings-panel.ll-tools-settings-panel input[type="text"] {
     width: 100% !important;
     min-width: 0 !important;
@@ -861,6 +862,7 @@ body.ll-vocab-lesson-category-settings-open {
 }
 
 .ll-vocab-lesson-category-settings-panel.ll-tools-settings-panel select:focus,
+.ll-vocab-lesson-category-settings-panel.ll-tools-settings-panel .ll-quiz-question-limit:focus,
 .ll-vocab-lesson-category-settings-panel.ll-tools-settings-panel input[type="text"]:focus {
     border-color: #94a3b8 !important;
     outline: none !important;
@@ -3883,4 +3885,45 @@ body.ll-vocab-lesson-category-settings-open {
         padding-left: 0;
         padding-right: 0;
     }
+}
+
+
+/* An activity-first lesson reserves no space for the vocabulary answer grid. */
+.ll-vocab-lesson-page [data-ll-lesson-study-content][hidden],
+.ll-vocab-lesson-page [data-ll-lesson-activity-host][hidden],
+.ll-vocab-lesson-page .ll-vocab-lesson-modes[hidden] { display: none !important; }
+.ll-vocab-lesson-page .ll-vocab-lesson-embedded { width: 100%; min-width: 0; }
+/* Mask the child document from first paint until its activity is ready. */
+.ll-vocab-lesson-page .ll-vocab-lesson-embedded .ll-tools-iframe-state { background: transparent; }
+.ll-vocab-lesson-page .ll-vocab-lesson-embedded[data-iframe-state]:not([data-iframe-state="ready"]) .ll-vocab-lesson-activity-frame {
+    visibility: hidden !important;
+    pointer-events: none !important;
+}
+.ll-vocab-lesson-page .ll-vocab-lesson-embedded[data-iframe-state="loading"] .ll-tools-iframe-loading-status {
+    position: absolute !important;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+}
+.ll-vocab-lesson-page .ll-vocab-lesson-activity-frame {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: min(760px, 78svh);
+    min-height: 480px;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 12px;
+    background: transparent !important;
+}
+.ll-vocab-lesson-page .ll-vocab-lesson-mode-button[aria-pressed="true"] {
+    outline: 2px solid currentColor;
+    outline-offset: 2px;
 }

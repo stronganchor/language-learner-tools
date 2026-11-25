@@ -19,7 +19,7 @@ const onePixelPngDataUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAA
 function buildRecorderMarkup(view = 'category') {
   const isOverview = view === 'overview';
   const categoryOverviewMarkup = isOverview ? `
-      <section data-ll-recorder-category-overview aria-busy="true">
+      <section class="ll-recorder-category-overview" data-ll-recorder-category-overview aria-busy="true">
         <div data-ll-recorder-category-grid>
           <a class="ll-wordset-card ll-wordset-card--lazy-placeholder ll-wordset-recorder-queue-category-card ll-wordset-recorder-queue-category-card--loading ll-recorder-category-card" data-recorder-queue-category="trees" data-recorder-queue-category-name="Tree varieties" data-ll-recorder-queue-summary-placeholder="true" href="/record/?ll_record_wordset=11&ll_record_category=trees" aria-label="Tree varieties" aria-busy="true"><span class="ll-wordset-card__top ll-wordset-recorder-queue-category-card__top"><span class="ll-wordset-card__title ll-wordset-recorder-queue-category__name">Tree varieties</span><span class="ll-wordset-settings-card__pill ll-wordset-recorder-queue-category-card__count-skeleton" aria-hidden="true"></span></span><span class="ll-wordset-card__lesson-link ll-wordset-recorder-queue-category-card__preview-link" aria-hidden="true"><span class="ll-wordset-card__preview ll-wordset-recorder-queue-category__preview has-images"><span class="ll-wordset-preview-item ll-wordset-preview-item--lazy-skeleton"></span><span class="ll-wordset-preview-item ll-wordset-preview-item--lazy-skeleton"></span></span></span></a>
           <a class="ll-wordset-card ll-wordset-card--lazy-placeholder ll-wordset-recorder-queue-category-card ll-wordset-recorder-queue-category-card--loading ll-recorder-category-card" data-recorder-queue-category="baby-animals" data-recorder-queue-category-name="Baby animals" data-ll-recorder-queue-summary-placeholder="true" href="/record/?ll_record_wordset=11&ll_record_category=baby-animals" aria-label="Baby animals" aria-busy="true"><span class="ll-wordset-card__top ll-wordset-recorder-queue-category-card__top"><span class="ll-wordset-card__title ll-wordset-recorder-queue-category__name">Baby animals</span><span class="ll-wordset-settings-card__pill ll-wordset-recorder-queue-category-card__count-skeleton" aria-hidden="true"></span></span><span class="ll-wordset-card__lesson-link ll-wordset-recorder-queue-category-card__preview-link" aria-hidden="true"><span class="ll-wordset-card__preview ll-wordset-recorder-queue-category__preview has-images"><span class="ll-wordset-preview-item ll-wordset-preview-item--lazy-skeleton"></span><span class="ll-wordset-preview-item ll-wordset-preview-item--lazy-skeleton"></span></span></span></a>
@@ -157,12 +157,14 @@ async function mountRecorder(page, options = {}) {
     });
   }
 
-  await page.evaluate(({ categoryPages, categoryResponseDelays, categoryFailures, categoryOverviewResponse, categoryOverviewResponses, categoryOverviewDelay, categoryOverviewBodyDelay }) => {
+  await page.evaluate(({ categoryPages, categoryResponseDelays, categoryBodyDelays, categoryNativeFailures, categoryFailures, categoryOverviewResponse, categoryOverviewResponses, categoryOverviewDelay, categoryOverviewBodyDelay }) => {
     window.__requestedCategories = [];
     window.__requestedCategoryPages = [];
     window.__requestedQueueCursors = [];
     window.__categoryPages = categoryPages || {};
     window.__categoryResponseDelays = categoryResponseDelays || {};
+    window.__categoryBodyDelays = categoryBodyDelays || {};
+    window.__categoryNativeFailures = categoryNativeFailures || {};
     window.__categoryFailures = categoryFailures || {};
     window.__categoryOverviewResponse = categoryOverviewResponse || null;
     window.__categoryOverviewResponses = Array.isArray(categoryOverviewResponses) ? categoryOverviewResponses : null;
@@ -238,6 +240,9 @@ async function mountRecorder(page, options = {}) {
           ? configuredDelayConfig.shift()
           : configuredDelayConfig;
         const configuredFailure = window.__categoryFailures?.[category]?.[page];
+        const nativeFailureConfig = window.__categoryNativeFailures?.[category]?.[page];
+        const nativeFailure = Array.isArray(nativeFailureConfig) ? nativeFailureConfig.shift() : nativeFailureConfig;
+        if (nativeFailure && !nativeFailure.body) { return Promise.reject(new TypeError(String(nativeFailure))); }
         if (configuredFailure) {
           return Promise.resolve(makeJsonResponse({
             success: false,
@@ -245,10 +250,15 @@ async function mountRecorder(page, options = {}) {
           }));
         }
         if (configuredPage) {
+          const bodyDelayConfig = window.__categoryBodyDelays?.[category]?.[page];
+          const bodyDelay = Array.isArray(bodyDelayConfig) ? bodyDelayConfig.shift() : bodyDelayConfig;
           const response = makeJsonResponse({
             success: true,
             data: configuredPage
-          });
+          }, Number(bodyDelay) || 0);
+          if (nativeFailure && nativeFailure.body) {
+            response.json = async () => { throw new SyntaxError(nativeFailure.message); };
+          }
           return configuredDelay > 0
             ? new Promise(resolve => setTimeout(() => resolve(response), configuredDelay))
             : Promise.resolve(response);
@@ -325,6 +335,8 @@ async function mountRecorder(page, options = {}) {
   }, {
     categoryPages: options.categoryPages || null,
     categoryResponseDelays: options.categoryResponseDelays || null,
+    categoryBodyDelays: options.categoryBodyDelays || null,
+    categoryNativeFailures: options.categoryNativeFailures || null,
     categoryFailures: options.categoryFailures || null,
     categoryOverviewResponse: options.categoryOverviewResponse || null,
     categoryOverviewResponses: options.categoryOverviewResponses || null,
@@ -403,7 +415,9 @@ async function mountRecorder(page, options = {}) {
         category_overview_loading: 'Loading recording queues...',
         category_overview_loaded: 'Recording queues loaded.',
         category_overview_error: 'Some recording queues could not be loaded.',
-        invalid_response: 'Server returned invalid response format'
+        invalid_response: 'Server returned invalid response format',
+        switch_failed_message: 'Kategori değiştirilemedi. Lütfen yeniden deneyin.',
+        category_read_failed: 'Kelimeler yüklenemedi. Lütfen yeniden deneyin.'
       }
     };
   }, {
@@ -605,6 +619,23 @@ test('a stalled overview request times out and restores an explicit retry state'
   await expect(page.locator('[data-ll-recorder-queue-summary-loading="true"]')).toHaveCount(0);
   await page.waitForTimeout(150);
   await expect.poll(async () => page.evaluate(() => window.__categoryOverviewRequests.length)).toBe(1);
+});
+
+test('theme display rules cannot reveal the inactive overview retry button', async ({ page }) => {
+  await mountRecorder(page, {
+    categoryOverview: true,
+    categoryOverviewResponse: {
+      generation: 'theme-visibility-generation',
+      cards: [],
+      resolvedSlugs: ['trees', 'baby-animals', 'colors', 'foods', 'places'],
+      pendingSlugs: []
+    }
+  });
+  await page.addStyleTag({ content: '.ll-recording-interface button { display: inline-flex !important; }' });
+  await page.addStyleTag({ content: recorderCssSource });
+  await expect(page.locator('[data-ll-recorder-queue-summary-placeholder="true"]')).toHaveCount(0);
+  await expect(page.locator('[data-ll-recorder-category-overview]')).toHaveAttribute('aria-busy', 'false');
+  await expect(page.locator('[data-ll-recorder-category-retry]')).toBeHidden();
 });
 
 test('overview scheduling gives untouched visible categories a turn before retrying pending ones', async ({ page }) => {
@@ -1152,6 +1183,59 @@ test('hiding the last buffered item loads its continuation before completion', a
   await expect(page.locator('#ll-image-title')).toHaveText('foal');
   await expect(page.locator('.ll-recording-complete')).toBeHidden();
   await expect.poll(async () => page.evaluate(() => window.__requestedQueueCursors.join('|'))).toBe('hide.cursor');
+});
+
+test('focused queue JSON-body deadline retains the buffered prompt and cursor for an explicit retry', async ({ page }) => {
+  await mountRecorder(page, {
+    requestTimeoutMs: 100,
+    categoryQueue: {
+      category: 'baby-animals', page: 1, per_page: 1, next_page: 1,
+      cursor_token: 'kept.cursor', is_continuation: true, has_more: true
+    },
+    categoryBodyDelays: { 'baby-animals': { '1': [600, 0] } },
+    categoryPages: { 'baby-animals': { '1': {
+      images: [buildQueueItem('baby-animals', 'Baby animals', 'foal', { word_id: 402 })],
+      recording_types: [{ slug: 'isolation', name: 'Isolation', label: 'Isolation', icon: '' }],
+      pagination: { category: 'baby-animals', page: 1, per_page: 1, has_more: false }
+    } } }
+  });
+  await page.locator('#ll-skip-btn').click();
+  await expect(page.locator('#ll-upload-status')).toHaveText('Kelimeler yüklenemedi. Lütfen yeniden deneyin.');
+  await expect(page.locator('#ll-image-title')).toHaveText('calf');
+  await expect(page.locator('#ll-skip-btn')).toBeEnabled();
+  await expect(page.locator('.ll-recording-complete')).toBeHidden();
+  await page.waitForTimeout(650);
+  await expect(page.locator('#ll-image-title')).toHaveText('calf');
+  expect(await page.evaluate(() => window.__requestedQueueCursors)).toEqual(['kept.cursor']);
+  await page.locator('#ll-skip-btn').click();
+  await expect(page.locator('#ll-image-title')).toHaveText('foal');
+  expect(await page.evaluate(() => window.__requestedQueueCursors)).toEqual(['kept.cursor', 'kept.cursor']);
+});
+
+test('native focused-read errors use localized feedback and retain the current prompt before explicit retry', async ({ page }) => {
+  await mountRecorder(page, {
+    categoryQueue: {
+      category: 'baby-animals', page: 1, per_page: 1, next_page: 1,
+      cursor_token: 'retry.cursor', is_continuation: true, has_more: true
+    },
+    categoryNativeFailures: { 'baby-animals': { '1': ['Failed to fetch', { body: true, message: 'Unexpected token < in JSON' }, ''] } },
+    categoryPages: { 'baby-animals': { '1': {
+      images: [buildQueueItem('baby-animals', 'Baby animals', 'foal', { word_id: 403 })],
+      recording_types: [{ slug: 'isolation', name: 'Isolation', label: 'Isolation', icon: '' }],
+      pagination: { category: 'baby-animals', page: 1, per_page: 1, has_more: false }
+    } } }
+  });
+  for (let attempt = 0; attempt < 2; attempt++) {
+    await page.locator('#ll-skip-btn').click();
+    await expect(page.locator('#ll-upload-status')).toHaveText('Kelimeler yüklenemedi. Lütfen yeniden deneyin.');
+    await expect(page.locator('#ll-category-select')).toHaveValue('baby-animals');
+    await expect(page.locator('#ll-image-title')).toHaveText('calf');
+    await expect(page.locator('#ll-record-btn')).toBeEnabled();
+    await expect(page.locator('#ll-wordset-select')).toBeEnabled();
+  }
+  await page.locator('#ll-skip-btn').click();
+  await expect(page.locator('#ll-image-title')).toHaveText('foal');
+  expect(await page.evaluate(() => window.__requestedQueueCursors)).toEqual(['retry.cursor', 'retry.cursor', 'retry.cursor']);
 });
 
 test('recorder text setting hides image-backed word text but keeps text-only prompts usable', async ({ page }) => {

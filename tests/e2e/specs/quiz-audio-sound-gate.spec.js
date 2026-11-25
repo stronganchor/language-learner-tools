@@ -54,33 +54,14 @@ test('rapid sound-gate reactivation keeps its blocking overlay attached', async 
   }))).toEqual({ pointerEvents: 'auto', soundGateActive: false });
 });
 
-async function openModeMenu(page) {
-  const switcher = page.locator('#ll-tools-mode-switcher');
-  const menu = page.locator('#ll-tools-mode-menu');
-
-  await expect(switcher).toBeVisible();
-  if ((await menu.getAttribute('aria-hidden')) !== 'false') {
-    await switcher.click();
-  }
-  await expect(menu).toHaveAttribute('aria-hidden', 'false');
-}
-
-async function switchToListening(page) {
-  const option = page.locator('#ll-tools-mode-menu .ll-tools-mode-option.listening');
-  await openModeMenu(page);
-  await expect(option).toBeVisible();
-  await option.click();
-  await expect(option).toHaveClass(/active/);
-}
-
 async function waitForQuizControlsWithWarmingRecovery(page) {
   const popup = page.locator('#ll-tools-flashcard-quiz-popup');
-  const switcher = page.locator('#ll-tools-mode-switcher-wrap');
+  const header = page.locator('#ll-tools-flashcard-header');
   const retry = page.locator('#restart-quiz');
 
   for (let attempt = 0; attempt < 3; attempt += 1) {
     await expect.poll(async () => {
-      if (await switcher.isVisible()) {
+      if (await header.isVisible()) {
         return 'ready';
       }
       if (await retry.isVisible()) {
@@ -92,7 +73,7 @@ async function waitForQuizControlsWithWarmingRecovery(page) {
       intervals: [250, 500, 1000]
     }).not.toBe('loading');
 
-    if (await switcher.isVisible()) {
+    if (await header.isVisible()) {
       return;
     }
 
@@ -112,7 +93,7 @@ async function waitForQuizControlsWithWarmingRecovery(page) {
     await retry.click({ force: true });
   }
 
-  await expect(switcher).toBeVisible({ timeout: 60000 });
+  await expect(header).toBeVisible({ timeout: 60000 });
 }
 
 test('audio-required quiz rounds pause behind the speaker gate when quiz audio is muted', async ({ page }) => {
@@ -129,7 +110,7 @@ test('audio-required quiz rounds pause behind the speaker gate when quiz audio i
   // Keep the sound-gate assertions strict while allowing the documented
   // cache-warming recovery lifecycle to finish before the quiz controls appear.
   await waitForQuizControlsWithWarmingRecovery(page);
-  await switchToListening(page);
+  await expect(page.locator('#ll-tools-mode-switcher-wrap, #ll-tools-mode-switcher, #ll-tools-mode-menu')).toHaveCount(0);
 
   await page.waitForFunction(() => {
     const audioApi = window.FlashcardAudio;

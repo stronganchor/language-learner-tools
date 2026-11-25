@@ -3,6 +3,110 @@ declare(strict_types=1);
 
 final class SecurityHardeningRegressionTest extends LL_Tools_TestCase
 {
+    public function test_new_word_text_update_rejects_an_unconfirmed_translation_clear(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($user_id);
+        $wordset = wp_insert_term('Recorder failed clear', 'wordset');
+        $this->assertNotWPError($wordset);
+        update_term_meta((int) $wordset['term_id'], LL_TOOLS_WORDSET_TRANSLATION_LANGUAGE_META_KEY, 'Turkish');
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words', 'post_status' => 'draft', 'post_title' => 'Recorder target', 'post_author' => $user_id,
+        ]);
+        wp_set_post_terms($word_id, [(int) $wordset['term_id']], 'wordset');
+        ll_tools_update_word_target_text($word_id, 'Recorder target', true);
+        ll_tools_update_word_default_translation_text($word_id, 'Retained translation', true);
+        $block = static function ($check, $object_id, $key) use ($word_id) {
+            return (int) $object_id === $word_id && in_array($key, [LL_TOOLS_WORD_TRANSLATIONS_META_KEY, 'word_translation'], true)
+                ? false : $check;
+        };
+        add_filter('update_post_metadata', $block, 10, 3);
+        add_filter('delete_post_metadata', $block, 10, 3);
+        $_POST = [
+            'nonce' => wp_create_nonce('ll_upload_recording'), 'word_id' => $word_id,
+            'word_text_target' => 'Recorder target', 'word_text_translation' => '',
+        ];
+        $_REQUEST = $_POST;
+        try {
+            $response = $this->run_json_endpoint(static function (): void { ll_update_new_word_text_handler(); });
+        } finally {
+            remove_filter('update_post_metadata', $block, 10);
+            remove_filter('delete_post_metadata', $block, 10);
+            $_POST = [];
+            $_REQUEST = [];
+        }
+        $this->assertFalse($response['success']);
+        $this->assertSame('Failed to update word text', $response['data']);
+        $this->assertSame('Retained translation', ll_tools_word_grid_resolve_display_text($word_id)['translation_text']);
+    }
+
+    public function test_new_word_text_update_clears_explicit_translation_but_preserves_an_omitted_field(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($user_id);
+
+        foreach (['target', 'translation'] as $title_role) {
+            $wordset = wp_insert_term('Recorder clear ' . $title_role, 'wordset');
+            $this->assertNotWPError($wordset);
+            $wordset_id = (int) $wordset['term_id'];
+            update_term_meta($wordset_id, LL_TOOLS_WORDSET_WORD_TITLE_LANGUAGE_ROLE_META_KEY, $title_role);
+            update_term_meta($wordset_id, LL_TOOLS_WORDSET_TRANSLATION_LANGUAGE_META_KEY, 'Turkish');
+            $word_id = self::factory()->post->create([
+                'post_type' => 'words',
+                'post_status' => 'draft',
+                'post_title' => 'Recorder target',
+                'post_author' => $user_id,
+            ]);
+            wp_set_post_terms($word_id, [$wordset_id], 'wordset');
+            ll_tools_update_word_target_text($word_id, 'Recorder target', true);
+            ll_tools_update_word_default_translation_text($word_id, 'Wrong translation', true);
+            $translations = ll_tools_get_word_translation_map($word_id);
+            $translations['en'] = 'Keep other locale';
+            update_post_meta($word_id, LL_TOOLS_WORD_TRANSLATIONS_META_KEY, $translations);
+
+            $_POST = [
+                'nonce' => wp_create_nonce('ll_upload_recording'),
+                'word_id' => $word_id,
+                'word_text_target' => 'Recorder target',
+                'word_text_translation' => '',
+            ];
+            $_REQUEST = $_POST;
+            try {
+                $response = $this->run_json_endpoint(static function (): void {
+                    ll_update_new_word_text_handler();
+                });
+            } finally {
+                $_POST = [];
+                $_REQUEST = [];
+            }
+            $this->assertTrue($response['success']);
+            $this->assertSame('', $response['data']['word_translation']);
+            $this->assertSame('Recorder target', $response['data']['word_text_target']);
+            $this->assertSame('', ll_tools_word_grid_resolve_display_text($word_id)['translation_text']);
+            $this->assertSame('', (string) get_post_meta($word_id, 'word_translation', true));
+            $this->assertSame('Keep other locale', ll_tools_get_word_translation_map($word_id)['en']);
+
+            ll_tools_update_word_default_translation_text($word_id, 'Retain omitted translation', true);
+            $_POST = [
+                'nonce' => wp_create_nonce('ll_upload_recording'),
+                'word_id' => $word_id,
+                'word_text_target' => 'Changed target',
+            ];
+            $_REQUEST = $_POST;
+            try {
+                $response = $this->run_json_endpoint(static function (): void {
+                    ll_update_new_word_text_handler();
+                });
+            } finally {
+                $_POST = [];
+                $_REQUEST = [];
+            }
+            $this->assertTrue($response['success']);
+            $this->assertSame('Retain omitted translation', $response['data']['word_translation']);
+            $this->assertSame('Changed target', $response['data']['word_text_target']);
+        }
+    }
+
     public function test_update_new_word_text_blocks_recorder_from_editing_unrelated_word(): void
     {
         ll_tools_register_or_refresh_audio_recorder_role();

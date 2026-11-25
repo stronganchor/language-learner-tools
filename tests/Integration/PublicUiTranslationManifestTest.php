@@ -13,18 +13,63 @@ final class PublicUiTranslationManifestTest extends LL_Tools_TestCase
         $comparison = ll_tools_i18n_compare_source_to_checked_pot($this->pluginRoot());
         $missing = array_map('ll_tools_i18n_source_pot_entry_label', $comparison['missing']);
         $stale = array_map('ll_tools_i18n_source_pot_entry_label', $comparison['stale']);
+        $references = array_map('ll_tools_i18n_source_pot_reference_drift_label', $comparison['reference_drift']);
 
         $this->assertTrue(
             $comparison['ok'],
             sprintf(
-                "Refresh the checked-in POT from source (missing: %d; stale: %d).\nMissing:\n%s\nStale:\n%s",
+                "Refresh the checked-in POT from source (missing: %d; stale: %d; stale references: %d).\nMissing:\n%s\nStale:\n%s\nReferences:\n%s",
                 count($missing),
                 count($stale),
+                count($comparison['reference_drift']),
                 implode("\n", array_slice($missing, 0, 10)),
-                implode("\n", array_slice($stale, 0, 10))
+                implode("\n", array_slice($stale, 0, 10)),
+                implode("\n", array_slice($references, 0, 10))
             )
         );
         $this->assertSame($comparison['generated_count'], $comparison['checked_count']);
+    }
+
+    public function test_source_pot_guard_rejects_stale_locations_without_key_changes(): void
+    {
+        $entry = array_merge(ll_tools_public_i18n_empty_entry(), [
+            'msgid' => 'Retry',
+            'references' => ['includes/example.php:100', 'includes/other.php:20'],
+        ]);
+        $moved = $entry;
+        $moved['references'] = ['includes/example.php:200', 'includes/other.php:20'];
+        $comparison = ll_tools_i18n_source_pot_compare_entries([$moved], [$entry]);
+        $this->assertFalse($comparison['ok']);
+        $this->assertSame([], $comparison['missing']);
+        $this->assertSame([], $comparison['stale']);
+        $this->assertCount(1, $comparison['reference_drift']);
+        $entry['references'] = array_reverse($moved['references']);
+        $this->assertTrue(ll_tools_i18n_source_pot_compare_entries([$moved], [$entry])['ok']);
+    }
+
+    public function test_source_pot_normalizes_windows_reference_roots_before_splitting(): void
+    {
+        $path = tempnam(sys_get_temp_dir(), 'll-pot-reference-');
+        try {
+            file_put_contents($path, '#: C:\\Local Sites\\plugin\\includes\\example.php:20 C:/Local Sites/plugin/js/example.js:30'
+                . "\nmsgid \"Retry\"\nmsgstr \"\"\n");
+            $entries = ll_tools_public_i18n_parse_po_file($path, 'C:/Local Sites/plugin');
+            $this->assertSame(['includes/example.php:20', 'js/example.js:30'], $entries[0]['references']);
+        } finally {
+            unlink($path);
+        }
+    }
+
+    public function test_source_pot_guard_keeps_all_references_from_split_identity_entries(): void
+    {
+        $first = array_merge(ll_tools_public_i18n_empty_entry(), [
+            'msgid' => 'Retry', 'references' => ['includes/first.php:10'],
+        ]);
+        $second = array_merge($first, ['references' => ['includes/second.php:20']]);
+        $this->assertFalse(ll_tools_i18n_source_pot_compare_entries([$first, $second], [$second])['ok']);
+        $this->assertFalse(ll_tools_i18n_source_pot_compare_entries([$second], [$first, $second])['ok']);
+        $combined = array_merge($first, ['references' => ['includes/first.php:10', 'includes/second.php:20']]);
+        $this->assertTrue(ll_tools_i18n_source_pot_compare_entries([$first, $second], [$combined])['ok']);
     }
 
     public function test_source_pot_wp_cli_command_prefers_explicit_binary_over_local_autodiscovery(): void
@@ -304,7 +349,7 @@ final class PublicUiTranslationManifestTest extends LL_Tools_TestCase
             }
             if (preg_match('/\bquiz(?:zes)?\b/i', $msgid)) {
                 $this->assertDoesNotMatchRegularExpression(
-                    '/\b(?:sınav|test)(?:ler|lar|in|ın|un|ün|i|ı|u|ü)?\b/iu',
+                    '/\b(?:sınav|test)(?:ler|lar)?(?:in|ın|un|ün|i|ı|u|ü|de|da|den|dan)?\b/iu',
                     $translation,
                     'Keep the lightweight quiz feature named quiz in Turkish: ' . $msgid
                 );
@@ -377,6 +422,7 @@ final class PublicUiTranslationManifestTest extends LL_Tools_TestCase
             'The word "%1$s" was created but could not be assigned to the word set: %2$s' => '"%1$s" kelimesi oluşturuldu ancak kelime setine atanamadı: %2$s',
             'Row %d: the recording does not belong to the specified word.' => 'Satır %d: kayıt belirtilen kelimeye ait değil.',
             'No match yet.' => 'Henüz eşleşme yok.',
+            'Paste a Google Fonts CSS URL (or another font stylesheet URL) to make that font available to LL Tools admin previews, quizzes, and wordset font overrides.' => "Bir Google Fonts CSS URL'sini (veya başka bir yazı tipi stil sayfasının URL'sini) yapıştırarak bu yazı tipini LL Tools yönetici önizlemelerinde, quizlerde ve kelime setine özel yazı tipi ayarlarında kullanılabilir hâle getir.",
             'This game shows a picture or prompt text, listens for the learner to say the word, runs STT, and compares the result to the chosen target.' => 'Bu oyun bir resim veya metin gösterir, öğrencinin kelimeyi söylemesini dinler, STT\'yi çalıştırır ve sonucu seçilen hedefle karşılaştırır.',
         ];
         foreach ($expected as $msgid => $translation) {

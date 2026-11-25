@@ -733,10 +733,10 @@
             || String(rightWord && rightWord.similar_word_id) === String(leftId);
     }
 
-    function wordsCanShareRound(leftWord, rightWord) {
+    function wordsCanShareRound(leftWord, rightWord, recordingType) {
         const helper = getOptionConflicts();
         const hasConflict = (typeof helper.wordsConflictForOptions === 'function')
-            ? helper.wordsConflictForOptions(leftWord, rightWord)
+            ? helper.wordsConflictForOptions(leftWord, rightWord, { imageOptions: true, promptRecordingType: recordingType })
             : false;
         if (hasConflict) {
             return false;
@@ -826,6 +826,8 @@
             option_blocked_ids: uniqueIntList(word.option_blocked_ids || []),
             option_blocked_ids_by_recording_type: normalizeBlockedIdsByRecordingType(word.option_blocked_ids_by_recording_type),
             option_image_source_word_id: toInt(word.option_image_source_word_id || word.answer_word_id || word.id),
+            option_image_keys: Array.isArray(word.option_image_keys) ? word.option_image_keys : [],
+            option_blocked_image_keys: word.option_blocked_image_keys || {},
             option_image_hash: String(word.option_image_hash || ''),
             option_image_hash_threshold: Math.max(0, toInt(word.option_image_hash_threshold)),
             option_similar_image_allowed_ids: uniqueIntList(word.option_similar_image_allowed_ids || []),
@@ -3493,13 +3495,13 @@
         };
     }
 
-    function buildCompatiblePromptWordSet(targetWord, pool, requiredCount) {
+    function buildCompatiblePromptWordSet(targetWord, pool, requiredCount, recordingType) {
         const selected = [targetWord];
 
         for (let index = 0; index < pool.length; index += 1) {
             const candidate = pool[index];
             const compatible = selected.every(function (existingWord) {
-                return wordsCanShareRound(existingWord, candidate);
+                return wordsCanShareRound(existingWord, candidate, recordingType);
             });
             if (!compatible) {
                 continue;
@@ -3517,7 +3519,7 @@
         return selected;
     }
 
-    function selectCompatiblePromptWords(targetWord, words, requiredCount, strategy) {
+    function selectCompatiblePromptWords(targetWord, words, requiredCount, strategy, recordingType) {
         const distractorStrategy = String(strategy || 'mixed');
         const allDistractors = shuffle((Array.isArray(words) ? words : []).filter(function (word) {
             return toInt(word && word.id) !== toInt(targetWord && targetWord.id);
@@ -3538,36 +3540,25 @@
             pool = sameCategory.concat(otherCategories);
         }
 
-        return buildCompatiblePromptWordSet(targetWord, pool, requiredCount);
+        return buildCompatiblePromptWordSet(targetWord, pool, requiredCount, recordingType);
     }
 
-    function hasCompatibleSameCategoryDistractor(targetWord, words) {
+    function hasCompatibleSameCategoryDistractor(targetWord, words, recordingType) {
         return (Array.isArray(words) ? words : []).some(function (candidate) {
             return toInt(candidate && candidate.id) !== toInt(targetWord && targetWord.id)
                 && wordsShareCategory(targetWord, candidate)
-                && wordsCanShareRound(targetWord, candidate);
+                && wordsCanShareRound(targetWord, candidate, recordingType);
         });
     }
 
-    function selectDistractorStrategy(run, targetWord, words) {
-        const sameCategoryAvailable = hasCompatibleSameCategoryDistractor(targetWord, words);
-        const shouldPreferSameCategory = !!(run && run.useSameCategoryDistractorsNext);
-
-        if (!run) {
-            return sameCategoryAvailable ? 'same-category' : 'mixed';
-        }
-
-        if (!sameCategoryAvailable) {
-            run.useSameCategoryDistractorsNext = true;
-            return 'mixed';
-        }
-
-        run.useSameCategoryDistractorsNext = !shouldPreferSameCategory;
-        return shouldPreferSameCategory ? 'same-category' : 'mixed';
+    function selectDistractorStrategy(run, targetWord, words, recordingType) {
+        return run.useSameCategoryDistractorsNext && hasCompatibleSameCategoryDistractor(targetWord, words, recordingType)
+            ? 'same-category'
+            : 'mixed';
     }
 
-    function buildPromptCards(ctx, run, targetWord, words, promptId, distractorStrategy) {
-        const selected = selectCompatiblePromptWords(targetWord, words, run.cardCount, distractorStrategy);
+    function buildPromptCards(ctx, run, targetWord, words, promptId, distractorStrategy, recordingType) {
+        const selected = selectCompatiblePromptWords(targetWord, words, run.cardCount, distractorStrategy, recordingType);
         if (!selected) {
             return null;
         }
@@ -3621,7 +3612,9 @@
 
     function findPlayableTargets(words, cardCount) {
         return (Array.isArray(words) ? words : []).filter(function (word) {
-            return !!selectCompatiblePromptWords(word, words, cardCount);
+            return getGamePromptRecordingTypes(word).some(function (recordingType) {
+                return !!selectCompatiblePromptWords(word, words, cardCount, 'mixed', recordingType);
+            });
         });
     }
 
@@ -5353,26 +5346,25 @@
     }
 
     function buildPromptCandidate(ctx, run, targetWord) {
-        const promptAudio = selectPromptAudio(targetWord, shuffle(getGamePromptRecordingTypes(targetWord)));
-        if (!promptAudio.url) {
-            return null;
-        }
-
         const promptId = run.promptIdCounter + 1;
-        const distractorMode = selectDistractorStrategy(run, targetWord, run.words);
-        const cards = buildPromptCards(ctx, run, targetWord, run.words, promptId, distractorMode);
-        if (!cards) {
-            return null;
+        for (const type of shuffle(getGamePromptRecordingTypes(targetWord))) {
+            const promptAudio = selectPromptAudio(targetWord, [type]);
+            if (!promptAudio.url) continue;
+            const recordingType = promptAudio.recordingType;
+            const distractorMode = selectDistractorStrategy(run, targetWord, run.words, recordingType);
+            const cards = buildPromptCards(ctx, run, targetWord, run.words, promptId, distractorMode, recordingType);
+            if (cards) {
+                return {
+                    target: targetWord,
+                    promptId: promptId,
+                    audioUrl: promptAudio.url,
+                    recordingType: recordingType,
+                    cards: cards,
+                    distractorMode: distractorMode
+                };
+            }
         }
-
-        return {
-            target: targetWord,
-            promptId: promptId,
-            audioUrl: promptAudio.url,
-            recordingType: promptAudio.recordingType,
-            cards: cards,
-            distractorMode: distractorMode
-        };
+        return null;
     }
 
     function preloadPromptCandidate(ctx, candidate) {
@@ -5559,6 +5551,7 @@
         });
         const replayTiming = getPromptAutoReplayTiming(ctx, run, promptDurationMs, targetCard);
 
+        run.useSameCategoryDistractorsNext = candidate.distractorMode !== 'same-category';
         run.promptIdCounter = candidate.promptId;
         run.prompt = {
             target: candidate.target,

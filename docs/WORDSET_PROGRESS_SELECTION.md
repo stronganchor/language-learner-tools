@@ -7,17 +7,29 @@ It stays available at portrait phone widths even when the Last column is hidden.
   scope. In normal word-progress mode this includes words beyond the loaded page.
 - **Filtered** appears only while a search, summary pill, category filter, or
   column filter is active. It keeps those filters and selects every match.
-- **Learned**, **In progress**, **New**, **Starred**, **Hard**, and **Older than
-  30 days** replace the word filters/search with the named group and select it.
+- **Learned**, **In progress**, **New**, **Starred**, **Hard**, and **Due for
+  review** replace the word filters/search with the named group and select it.
   The existing selection bar launches the group in the chosen study mode.
 - Applying a summary pill, search, category filter, or column filter selects
   the matching scope and immediately reveals the study actions. Pills
   still toggle their filter off on a second tap. Clearing the selection hides
   the actions until another filter or selection action. The older-words pill
   uses purple and a clock icon.
-- **Older than 30 days** uses the same last-seen rule as the Last column's
-  **Older** option: a recorded last-seen time strictly more than 30 days ago.
-  Never-seen, recent, and future-dated words are excluded.
+- **Due for review** starts with words last studied over 30 days ago. A
+  previously studied, due phrase can represent its learned component words
+  in the current scope. A correct learning, practice, or self-check outcome
+  on that phrase covers them for 30 days. An exposure or an unsuccessful
+  attempt alone leaves the base word eligible for direct review. New and
+  hard base words retain their own progress. Links can compose through
+  learned intermediate cards. Each distinct due phrase keeps its own place.
+- The **Last** column, its date filters, and their totals use the later of
+  direct study and a correct review through a linked card. The date comes
+  from that learner's recorded outcome, including outcomes before a link
+  was added and outcomes in another lesson of the same wordset. A pending
+  phrase can represent a component in the queue without giving it a recent
+  study date. Removing a link recalculates these totals on the next request.
+  Direct answers, mastery, and study history retain their recorded values.
+  Use the wordset `context-review` automation route to maintain the links.
 
 ## Contracts and owners
 
@@ -26,6 +38,15 @@ It stays available at portrait phone widths even when the Last column is hidden.
 - `includes/user-progress.php` supplies `summary.older_words` in summary-only,
   paged, and selection-ID payloads. Count during existing aggregate passes; do
   not add another whole-wordset hydration or a per-pill request.
+- Word age is recalculated from UTC last-seen timestamps on every analytics
+  request; the membership cache does not freeze progress timestamps or counts.
+  An open Progress page refreshes hourly while visible and when returning to a
+  tab whose last successful analytics request is at least a minute old. Hidden
+  tabs skip automatic requests; open activities defer the refresh until close.
+- Exact selection snapshots for Older or Last filters expire after a minute,
+  measured from the request start. Launch must resolve fresh matching IDs after
+  expiry so words crossing an age boundary can enter the selection without a
+  new study event. Other filters retain their existing snapshot reuse.
 - A requested group immediately creates a filter-bound selection descriptor,
   without taking IDs from the previous table. Pure summary groups reuse the
   displayed summary count; combined filters show a loading count until their
@@ -33,6 +54,14 @@ It stays available at portrait phone widths even when the Last column is hidden.
   while table analytics loads. Launch uses the authoritative ID-only lookup,
   independently of the slower table refresh; an unknown count never borrows
   the previous filter's total. Known-empty selections hide the actions.
+- Summary pills and Select are available from the initial page shell, before
+  the first analytics response. Unresolved counts retain their loading mask;
+  choosing a group must not wait for counts or table rows before exposing
+  Practice and resolving its exact IDs independently.
+- Full analytics reuses the authoritative category catalog's effective
+  `prompt_type` and `option_type` for gender eligibility. Do not recount media
+  or resolve category fallbacks a second time for each category; missing
+  catalog configurations alone may use the compatibility resolver.
 - Another filter change cancels the previous intent. Failed table analytics
   preserves the descriptor and cannot block the independent launch lookup.
   Choosing the same preset after a failure also requests fresh table results.
@@ -47,14 +76,25 @@ It stays available at portrait phone widths even when the Last column is hidden.
 - Filtered gender-table selections retain the existing locally displayed
   gender-eligible selection behavior; named progress groups switch back to
   ordinary word progress, as summary pills do.
+- Fresh Learn launches order selected targets by the learner's last-seen time,
+  preferring unseen and least recently studied words. A recently studied set
+  moves behind remaining sets for Hard, Starred, other filters, and exact word
+  selections. Recency applies before bounded set formation and across compatible
+  presentation groups; every selected target remains in the plan. Small or
+  sparse selections can still need repeated words to form playable sets.
+- A Learn question hides its category heading when the displayed answer choices
+  mix categories. Introductions and questions with choices from one category
+  retain their heading.
 
 ## Focused verification
 
 `UserStudyAnalyticsTest` verifies older counts and equivalent Last/summary
-filters without hydrating selection rows. `wordset-page-progress-loading.spec.js`
+filters without hydrating selection rows, including fresh counts with a warm
+membership cache. `wordset-page-progress-loading.spec.js`
 verifies complete selection scopes, both older-word study modes, empty/failing
 filters, retry recovery, immediate actions before table responses, mobile refresh concurrency,
-pending selection, and bounded launches. `wordset-progress-mobile-layout.spec.js`
+pending selection, bounded launches, and age-based analytics/selection freshness.
+`wordset-progress-mobile-layout.spec.js`
 checks the native control and table layout across phone widths and themes.
 Both browser harnesses supply their own page and API responses and can run with
 the installed Playwright CLI while Local HTTP is stopped. PHP integration tests

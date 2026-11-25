@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import AdmZip from 'adm-zip';
+import sharp from 'sharp';
 import {
   buildCapacitorConfig,
   openValidatedArchive,
@@ -12,7 +13,7 @@ import {
   prepareBundle,
 } from '../scripts/prepare-bundle.mjs';
 import { resolveAndroidPackageConfig } from '../scripts/build-apk.mjs';
-import { resolvePreparedIcon } from '../scripts/apply-app-icon.mjs';
+import { applyBundledAppIcon, resolvePreparedIcon } from '../scripts/apply-app-icon.mjs';
 import { readTrainingBundleData } from '../scripts/inject-stt-bundle.mjs';
 
 test('persistent Capacitor config excludes release signing secrets', () => {
@@ -99,6 +100,84 @@ test('prepared icon resolver enforces type and size limits', () => {
       manifest: { app: { icon: { bundlePath: 'large.png' } } }
     }), /exceeds the .* limit/);
   } finally {
+    fs.removeSync(tempRoot);
+  }
+});
+
+test('disguised SVG and unsupported icon bytes are rejected before native metadata parsing', async (t) => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'll-tools-icon-header-'));
+  const bundleRoot = path.join(tempRoot, 'bundle');
+  const androidResDir = path.join(tempRoot, 'android-res');
+  fs.ensureDirSync(bundleRoot);
+  fs.ensureDirSync(androidResDir);
+  const metadata = t.mock.method(sharp.prototype, 'metadata', () => {
+    throw new Error('Native metadata parser must not see unsupported icon bytes');
+  });
+  try {
+    for (const bytes of [
+      Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"></svg>'),
+      Buffer.from('<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg"/>'),
+      Buffer.from('GIF89a'),
+      Buffer.from('not-an-image'),
+      Buffer.from([137, 80, 78]),
+      Buffer.from([0xd2, 0xc9, 0xc6, 0xc6, 0, 0, 0, 0, 0xd7, 0xc5, 0xc2, 0xd0]),
+      Buffer.alloc(0),
+    ]) {
+      for (const extension of ['png', 'jpg', 'webp']) {
+        const filename = `icon.${extension}`;
+        fs.writeFileSync(path.join(bundleRoot, filename), bytes);
+        await assert.rejects(
+          applyBundledAppIcon({ bundleRoot, manifest: { app: { icon: { bundlePath: filename } } } }, { androidResDir }),
+          /contents must be PNG, JPEG, or WebP/
+        );
+      }
+    }
+    assert.equal(metadata.mock.callCount(), 0);
+    assert.deepEqual(fs.readdirSync(androidResDir), []);
+  } finally {
+    t.mock.restoreAll();
+    fs.removeSync(tempRoot);
+  }
+});
+
+test('valid raster icons produce all launcher densities from the validated byte snapshot', async (t) => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'll-tools-icon-render-'));
+  const bundleRoot = path.join(tempRoot, 'bundle');
+  const androidResDir = path.join(tempRoot, 'android-res');
+  fs.ensureDirSync(bundleRoot);
+  fs.ensureDirSync(androidResDir);
+  const nativeMetadata = sharp.prototype.metadata;
+  const legacySizes = { mdpi: 48, hdpi: 72, xhdpi: 96, xxhdpi: 144, xxxhdpi: 192 };
+  const foregroundSizes = { mdpi: 108, hdpi: 162, xhdpi: 216, xxhdpi: 324, xxxhdpi: 432 };
+  try {
+    for (const format of ['png', 'jpeg', 'webp']) {
+      const filename = `icon.${format}`;
+      const iconPath = path.join(bundleRoot, filename);
+      const bytes = await sharp({ create: { width: 8, height: 8, channels: 4, background: '#3179c6' } })
+        .toFormat(format).toBuffer();
+      fs.writeFileSync(iconPath, bytes);
+      const mocked = t.mock.method(sharp.prototype, 'metadata', function (...args) {
+        // Replacement after header validation cannot enter a later render.
+        fs.writeFileSync(iconPath, '<svg xmlns="http://www.w3.org/2000/svg"/>');
+        return nativeMetadata.apply(this, args);
+      });
+      const outcome = await applyBundledAppIcon(
+        { bundleRoot, manifest: { app: { icon: { bundlePath: filename } } } },
+        { androidResDir }
+      );
+      mocked.mock.restore();
+      assert.deepEqual(outcome, { applied: true, iconPath });
+      for (const [density, size] of Object.entries(legacySizes)) {
+        for (const [name, expectedSize] of [['ic_launcher.png', size], ['ic_launcher_round.png', size], ['ic_launcher_foreground.png', foregroundSizes[density]]]) {
+          const metadata = await sharp(path.join(androidResDir, `mipmap-${density}`, name)).metadata();
+          assert.equal(metadata.format, 'png');
+          assert.equal(metadata.width, expectedSize);
+          assert.equal(metadata.height, expectedSize);
+        }
+      }
+    }
+  } finally {
+    t.mock.restoreAll();
     fs.removeSync(tempRoot);
   }
 });

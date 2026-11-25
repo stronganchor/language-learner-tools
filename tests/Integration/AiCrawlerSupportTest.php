@@ -253,6 +253,11 @@ final class AiCrawlerSupportTest extends LL_Tools_TestCase
 
         $this->createDictionaryEntry('Ava', $public_wordset_id, 'water');
         $this->createDictionaryEntry('Bero', $public_wordset_id, 'come');
+        $whitespace_protected_id = $this->createDictionaryEntry('Q-protected', $public_wordset_id, 'hidden Q definition');
+        wp_update_post([
+            'ID' => $whitespace_protected_id,
+            'post_password' => '   ',
+        ]);
         $this->createDictionaryEntry('A-secret', $private_wordset_id, 'hidden A definition');
         $this->createDictionaryEntry('Z-secret', $private_wordset_id, 'hidden Z definition');
         if (function_exists('ll_tools_bump_dictionary_browser_cache_version')) {
@@ -272,6 +277,7 @@ final class AiCrawlerSupportTest extends LL_Tools_TestCase
         $this->assertStringNotContainsString('hidden A definition', $content);
         $this->assertContains('A', $letters);
         $this->assertContains('B', $letters);
+        $this->assertNotContains('Q', $letters);
         $this->assertNotContains('Z', $letters);
     }
 

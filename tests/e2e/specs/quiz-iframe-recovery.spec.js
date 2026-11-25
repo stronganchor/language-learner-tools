@@ -52,7 +52,6 @@ test('shared quiz dialog portals to body, traps focus, isolates the page, and re
       Cards: {},
       Results: {},
       StateMachine: {},
-      ModeConfig: {}
     };
   });
   await page.addScriptTag({ path: jqueryScriptPath });
@@ -138,7 +137,6 @@ test('top-level mobile quiz keeps its established card, header, and audio sizing
       Cards: {},
       Results: {},
       StateMachine: {},
-      ModeConfig: {}
     };
   });
   await page.addScriptTag({ path: jqueryScriptPath });
@@ -186,7 +184,6 @@ test('embedded quiz dialog stays in its container with compact layout variables 
       Cards: {},
       Results: {},
       StateMachine: {},
-      ModeConfig: {}
     };
   });
   await page.addScriptTag({ path: jqueryScriptPath });
@@ -385,6 +382,27 @@ test('a late same-origin embed-ready signal clears the timeout state without a r
   await expect(page.locator('.ll-tools-iframe-loading-status')).toHaveText('Late quiz ready');
   await expect(page.locator('.ll-tools-quiz-iframe')).not.toHaveAttribute('tabindex');
   await expect(page.locator('.ll-tools-quiz-iframe')).not.toHaveAttribute('aria-hidden');
+});
+
+test('destroying an iframe watcher cancels its queued readiness probe', async ({ page }) => {
+  await page.route('https://ll-tools.test/**', route => route.fulfill({ contentType: 'text/html', body: '<!doctype html><body>Fixture</body>' }));
+  await page.goto('https://ll-tools.test/disposal-host');
+  await page.addScriptTag({ content: quizPagesScriptSource });
+  await page.evaluate(() => {
+    const wrapper = document.createElement('div');
+    wrapper.id = 'disposed-frame-host';
+    wrapper.innerHTML = '<iframe class="ll-tools-quiz-iframe" title="Quiz" src="about:blank"></iframe>';
+    document.body.appendChild(wrapper);
+    const iframe = wrapper.querySelector('iframe');
+    iframe.contentWindow.__LL_EMBED_STATE = 'll-embed-ready';
+    const controller = window.LLToolsQuizIframe.attach(wrapper, { url: '/embed/disposed' });
+    controller.destroy();
+    window.setTimeout(() => { wrapper.setAttribute('data-probe-flushed', 'true'); }, 10);
+  });
+  const wrapper = page.locator('#disposed-frame-host');
+  await expect(wrapper).toHaveAttribute('data-probe-flushed', 'true');
+  await expect(wrapper).toHaveAttribute('data-iframe-state', 'loading');
+  await expect(wrapper).not.toHaveAttribute('data-ll-iframe-wired');
 });
 
 test('reduced motion keeps static loading cues and suppresses quiz celebration motion', async ({ page }) => {

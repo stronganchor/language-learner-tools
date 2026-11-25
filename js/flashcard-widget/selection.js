@@ -634,32 +634,6 @@
         }
     }
 
-    function getGenderSafeBottomInset() {
-        const viewportWidth = Math.max(0, parseInt(root.innerWidth, 10) || 0);
-        const viewportHeight = Math.max(0, parseInt(root.innerHeight, 10) || 0);
-        if (viewportWidth > 420 && viewportHeight > 620) return 0;
-        const doc = root.document;
-        if (!doc) return 0;
-        const wrap = doc.getElementById('ll-tools-mode-switcher-wrap');
-        if (!wrap || typeof wrap.getBoundingClientRect !== 'function') return 0;
-        if (typeof root.getComputedStyle === 'function') {
-            const computed = root.getComputedStyle(wrap);
-            if (!computed || computed.display === 'none' || computed.visibility === 'hidden' || computed.opacity === '0') {
-                return 0;
-            }
-        }
-        const rect = wrap.getBoundingClientRect();
-        if (!rect || rect.top >= viewportHeight || rect.bottom <= 0) return 0;
-
-        // Keep the bottom safety inset bounded to the floating control's own footprint.
-        // On some mobile browsers `rect.top` can transiently report near 0 during URL-bar
-        // collapse/expand, which previously produced a viewport-sized inset and clipped
-        // gender choices out of view.
-        const overlapInset = Math.max(0, Math.ceil(viewportHeight - rect.top + 8));
-        const boundedInset = Math.max(0, Math.ceil((rect.height || 0) + 24));
-        return Math.min(overlapInset, boundedInset);
-    }
-
     function fitGenderLayoutToViewport() {
         const $ = root.jQuery;
         if (!$) return;
@@ -670,8 +644,6 @@
         const containerEl = $container[0];
         if (!contentEl || !containerEl || !contentEl.style || !containerEl.style) return;
 
-        const safeBottom = getGenderSafeBottomInset();
-        contentEl.style.setProperty('--ll-gender-safe-bottom', safeBottom + 'px');
 
         const MIN_LAYOUT_SCALE = 0.5;
         const SCALE_STEP = 0.04;
@@ -1586,7 +1558,37 @@
         return !!leftImage && leftImage === rightImage;
     }
 
+    function isModeAllowed(mode) {
+        const allowed = (root.llToolsFlashcardsData || {}).availableModes;
+        return !Array.isArray(allowed) || allowed.indexOf(mode) !== -1;
+    }
+
+    function isListeningSupportedForCategories(categoryNames) {
+        if (!isModeAllowed('listening')) return false;
+        const names = Array.isArray(categoryNames) && categoryNames.length ? categoryNames : State.categoryNames;
+        if (!Array.isArray(names) || !names.length) return false;
+        return names.some(function (name) {
+            const cfg = getCategoryConfig(name);
+            if (Object.prototype.hasOwnProperty.call(cfg, 'listening_supported')) {
+                return parseBooleanFlag(cfg.listening_supported);
+            }
+            // Older offline packs have no availability flag. Inspect only the
+            // already loaded rows; do not fetch categories to build a menu.
+            const words = (State.wordsByCategory || root.wordsByCategory || {})[name];
+            if (Array.isArray(words) && words.length) {
+                return words.some(function (word) {
+                    return !!(word && (String(word.audio || word.prompt_audio || '').trim()
+                        || (Array.isArray(word.audio_files) && word.audio_files.some(function (file) {
+                            return !!String((file && (file.url || file.audio)) || '').trim();
+                        }))));
+                });
+            }
+            return false;
+        });
+    }
+
     function isLearningSupportedForCategories(categoryNames) {
+        if (!isModeAllowed('learning')) return false;
         try {
             const names = Array.isArray(categoryNames) && categoryNames.length ? categoryNames : State.categoryNames;
             if (!Array.isArray(names) || !names.length) return true;
@@ -1600,6 +1602,7 @@
     }
 
     function isSelfCheckSupportedForCategories(categoryNames) {
+        if (!isModeAllowed('self-check')) return false;
         try {
             const names = Array.isArray(categoryNames) && categoryNames.length ? categoryNames : State.categoryNames;
             if (!Array.isArray(names) || !names.length) return true;
@@ -1613,6 +1616,7 @@
     }
 
     function isGenderSupportedForCategories(categoryNames) {
+        if (!isModeAllowed('gender')) return false;
         if (!isGenderModeEnabled()) return false;
         try {
             const names = Array.isArray(categoryNames) && categoryNames.length ? categoryNames : State.categoryNames;
@@ -2101,7 +2105,6 @@
         }
         if ($content.length && $content[0] && $content[0].style) {
             try { $content[0].style.setProperty('--ll-gender-layout-scale', '1'); } catch (_) { /* no-op */ }
-            try { $content[0].style.setProperty('--ll-gender-safe-bottom', '0px'); } catch (_) { /* no-op */ }
         }
         $('#ll-tools-prompt img').off('load.llGenderFit').on('load.llGenderFit', function () {
             scheduleGenderOptionTextScaleFit();
@@ -2227,7 +2230,6 @@
         }
         if ($layoutContent.length && $layoutContent[0] && $layoutContent[0].style) {
             try { $layoutContent[0].style.removeProperty('--ll-gender-layout-scale'); } catch (_) { /* no-op */ }
-            try { $layoutContent[0].style.removeProperty('--ll-gender-safe-bottom'); } catch (_) { /* no-op */ }
         }
 
         const targetCategoryName = getTargetCategoryName(targetWord) || State.currentCategoryName;
@@ -2245,6 +2247,8 @@
             }
         }
         const mode = config.option_type || getCategoryDisplayMode(targetCategoryName);
+        const cardsApi = root.LLFlashcards.Cards;
+        const phoneCaptions = cardsApi.usesPhoneCaptionChoices && cardsApi.usesPhoneCaptionChoices(mode);
         const promptType = getCategoryPromptType(targetCategoryName);
         State.currentOptionType = mode;
         State.currentPromptType = promptType;
@@ -2394,6 +2398,7 @@
         }
 
         const desiredCount = Math.max(MINIMUM_QUIZ_OPTIONS, parseInt(targetCount, 10) || MINIMUM_QUIZ_OPTIONS);
+        const canAddOption = () => phoneCaptions ? chosen.length < 6 : root.FlashcardOptions.canAddMoreCards();
         const addCandidate = function (candidate, rules) {
             if (!candidate || typeof candidate !== 'object') return false;
             const candidateId = String(candidate.id || '');
@@ -2418,6 +2423,15 @@
                 return String(word && word.id) === candidateId;
             });
             if (isDup) return false;
+
+            // A saved picture block still applies when other constraints are relaxed.
+            if (
+                optionTypeHasImage(mode) && OptionConflicts
+                && typeof OptionConflicts.wordsHaveBlockedOptionImages === 'function'
+                && chosen.some(function (word) {
+                    return OptionConflicts.wordsHaveBlockedOptionImages(word, candidate, activePromptRecordingType);
+                })
+            ) return false;
 
             if (enforceSimilarity) {
                 const isSim = chosen.some(function (word) {
@@ -2447,7 +2461,7 @@
                 seenOptionTexts.add(normalizedText);
             }
             prepareWordForOptionRendering(candidate, mode, promptType, activePromptRecordingType);
-            queueWordPreload(candidate);
+            if (!phoneCaptions) queueWordPreload(candidate);
             root.LLFlashcards.Cards.appendWordToContainer(candidate, mode, promptType);
             return true;
         };
@@ -2455,7 +2469,7 @@
             const maxLength = Math.max(MINIMUM_QUIZ_OPTIONS, parseInt(targetLength, 10) || MINIMUM_QUIZ_OPTIONS);
             for (let candidate of availableWords) {
                 if (chosen.length >= maxLength) break;
-                if (!root.FlashcardOptions.canAddMoreCards()) break;
+                if (!canAddOption()) break;
                 addCandidate(candidate, rules);
             }
         };
@@ -2468,7 +2482,7 @@
         if (optionRequiresAudio && hasSpecificWrongAnswerIds) {
             const lookup = buildWordLookupById();
             specificWrongAnswerIds.forEach(function (wrongId) {
-                if (!root.FlashcardOptions.canAddMoreCards()) return;
+                if (!canAddOption()) return;
                 const candidate = findWordById(wrongId, lookup);
                 if (!candidate || String(candidate.id) === String(targetWord.id)) return;
                 addCandidate(candidate, {
@@ -2480,7 +2494,7 @@
             });
         } else if (hasSpecificWrongAnswerTexts) {
             specificWrongAnswerTexts.forEach(function (wrongText, index) {
-                if (!root.FlashcardOptions.canAddMoreCards()) return;
+                if (!canAddOption()) return;
                 const syntheticId = String(targetWord.id) + '-wrong-text-' + String(index + 1);
                 const syntheticOption = {
                     id: syntheticId,
@@ -2498,7 +2512,7 @@
         } else if (hasSpecificWrongAnswerIds) {
             const lookup = buildWordLookupById();
             specificWrongAnswerIds.forEach(function (wrongId) {
-                if (!root.FlashcardOptions.canAddMoreCards()) return;
+                if (!canAddOption()) return;
                 const candidate = findWordById(wrongId, lookup);
                 if (!candidate || String(candidate.id) === String(targetWord.id)) return;
                 addCandidate(candidate, {
@@ -2554,6 +2568,19 @@
                 chosen.length,
                 desiredCount
             );
+        }
+
+        if (mode === 'image_text_translation' && cardsApi.prepareCaptionChoices) {
+            chosen = cardsApi.prepareCaptionChoices(chosen);
+            if (phoneCaptions) chosen.slice(1).forEach(queueWordPreload);
+        }
+
+        if (root.LLFlashcards.Dom && typeof root.LLFlashcards.Dom.updateCategoryNameDisplay === 'function') {
+            root.LLFlashcards.Dom.updateCategoryNameDisplay(targetCategoryName, {
+                hasMixedCategoryOptions: State.isLearningMode && chosen.some(function (word) {
+                    return getTargetCategoryName(word) !== targetCategoryName;
+                })
+            });
         }
 
         if (Util && typeof Util.isPromptCard === 'function' && Util.isPromptCard(targetWord)) {
@@ -2695,7 +2722,7 @@
     window.LLFlashcards = window.LLFlashcards || {};
     root.LLFlashcards = root.LLFlashcards || {};
     root.LLFlashcards.Selection = {
-        getCategoryConfig, getCategoryDisplayMode, getCurrentDisplayMode, getCategoryPromptType, getTargetCategoryName, categoryRequiresAudio, isLearningSupportedForCategories, isSelfCheckSupportedForCategories, isGenderSupportedForCategories,
+        getCategoryConfig, getCategoryDisplayMode, getCurrentDisplayMode, getCategoryPromptType, getTargetCategoryName, categoryRequiresAudio, isModeAllowed, isListeningSupportedForCategories, isLearningSupportedForCategories, isSelfCheckSupportedForCategories, isGenderSupportedForCategories,
         selectTargetWordAndCategory, fillQuizOptions, wordsConflictForOptions,
         getGenderOptions, normalizeGenderValue, getGenderVisualForOption, buildGenderSymbolMarkup, applyGenderStyleVariables,
         selectLearningModeWord, initializeLearningMode, renderPrompt,

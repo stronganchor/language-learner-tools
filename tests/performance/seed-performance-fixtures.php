@@ -274,6 +274,43 @@ function ll_tools_perf_seed_audio_per_word_count(array $manifest): int {
     return max(1, $count);
 }
 
+function ll_tools_perf_seed_attachment_preview_contract(array $manifest): array {
+    $raw = isset($manifest['media']['attachmentPreview']) && is_array($manifest['media']['attachmentPreview'])
+        ? $manifest['media']['attachmentPreview']
+        : [];
+    if (empty($raw['enabled'])) {
+        return ['enabled' => false];
+    }
+
+    $size_name = sanitize_key((string) ($raw['sizeName'] ?? ''));
+    $max_width = (int) ($raw['maxWidth'] ?? 0);
+    $max_height = (int) ($raw['maxHeight'] ?? 0);
+    $quality = (int) ($raw['quality'] ?? 0);
+    $max_source_images = (int) ($raw['maxSourceImages'] ?? 0);
+    if (
+        $size_name !== 'medium'
+        || $max_width < 64
+        || $max_width > 512
+        || $max_height < 64
+        || $max_height > 512
+        || $quality < 60
+        || $quality > 90
+        || $max_source_images < 1
+        || $max_source_images > 24
+    ) {
+        ll_tools_perf_seed_fail('Invalid bounded attachmentPreview performance fixture configuration.');
+    }
+
+    return [
+        'enabled' => true,
+        'size_name' => $size_name,
+        'max_width' => $max_width,
+        'max_height' => $max_height,
+        'quality' => $quality,
+        'max_source_images' => $max_source_images,
+    ];
+}
+
 function ll_tools_perf_seed_manifest_totals(array $manifest): array {
     $wordsets = (array) ($manifest['wordsets'] ?? []);
     $category_count = 0;
@@ -426,6 +463,51 @@ function ll_tools_perf_seed_get_current_fixture_summary(array $manifest): array 
     }
     if (!ll_tools_perf_manifest_stored_checksum_is_current($stored, $manifest_checksum)) {
         $reasons[] = 'fixture manifest checksum missing, legacy, or changed';
+    }
+
+    $attachment_preview = ll_tools_perf_seed_attachment_preview_contract($manifest);
+    if (!empty($attachment_preview['enabled'])) {
+        $stored_preview = isset($stored['media_sources']['attachment_preview'])
+            && is_array($stored['media_sources']['attachment_preview'])
+            ? $stored['media_sources']['attachment_preview']
+            : [];
+        foreach (['size_name', 'max_width', 'max_height', 'quality', 'max_source_images'] as $contract_key) {
+            if (($stored_preview[$contract_key] ?? null) !== ($attachment_preview[$contract_key] ?? null)) {
+                $reasons[] = 'fixture attachment preview contract mismatch';
+                break;
+            }
+        }
+        $stored_derivatives = array_values(array_filter(
+            (array) ($stored_preview['derivatives'] ?? []),
+            'is_array'
+        ));
+        if (
+            empty($stored_derivatives)
+            || count($stored_derivatives) > (int) $attachment_preview['max_source_images']
+            || (int) ($stored_preview['derivative_count'] ?? 0) !== count($stored_derivatives)
+        ) {
+            $reasons[] = 'fixture attachment preview derivative inventory mismatch';
+        } else {
+            $upload = wp_upload_dir();
+            $preview_dir = trailingslashit((string) ($upload['basedir'] ?? '')) . 'll-tools-performance-fixtures';
+            foreach ($stored_derivatives as $stored_derivative) {
+                $preview_basename = sanitize_file_name((string) ($stored_derivative['file'] ?? ''));
+                $preview_path = trailingslashit($preview_dir) . $preview_basename;
+                $preview_info = $preview_basename !== '' && basename($preview_basename) === $preview_basename
+                    ? wp_getimagesize($preview_path)
+                    : false;
+                if (
+                    !is_array($preview_info)
+                    || (int) ($preview_info[0] ?? 0) !== (int) ($stored_derivative['width'] ?? 0)
+                    || (int) ($preview_info[1] ?? 0) !== (int) ($stored_derivative['height'] ?? 0)
+                    || (int) ($preview_info[0] ?? 0) > (int) $attachment_preview['max_width']
+                    || (int) ($preview_info[1] ?? 0) > (int) $attachment_preview['max_height']
+                ) {
+                    $reasons[] = 'fixture attachment preview derivative missing or invalid';
+                    break;
+                }
+            }
+        }
     }
 
     $totals = ll_tools_perf_seed_manifest_totals($manifest);
@@ -1197,9 +1279,13 @@ function ll_tools_perf_seed_media_files(array $directories, array $extensions, i
 }
 
 function ll_tools_perf_seed_media_context(array $manifest): array {
+    $attachment_preview = ll_tools_perf_seed_attachment_preview_contract($manifest);
     $image_dirs = ll_tools_perf_seed_env_path_list('LL_PERF_SOURCE_IMAGE_DIRS');
     $audio_dirs = ll_tools_perf_seed_env_path_list('LL_PERF_SOURCE_AUDIO_DIRS');
     $image_limit = ll_tools_perf_seed_env_int('LL_PERF_SOURCE_IMAGE_LIMIT', 240);
+    if (!empty($attachment_preview['enabled'])) {
+        $image_limit = min($image_limit, (int) $attachment_preview['max_source_images']);
+    }
     $audio_limit = ll_tools_perf_seed_env_int('LL_PERF_SOURCE_AUDIO_LIMIT', 240);
     $image_files = ll_tools_perf_seed_media_files($image_dirs, ['webp', 'jpg', 'jpeg', 'png'], $image_limit);
     $audio_files = ll_tools_perf_seed_media_files($audio_dirs, ['wav', 'mp3', 'ogg', 'm4a'], $audio_limit);
@@ -1208,6 +1294,7 @@ function ll_tools_perf_seed_media_context(array $manifest): array {
     return [
         'images' => $image_files,
         'audio' => $audio_files,
+        'attachment_preview' => $attachment_preview,
         'summary' => [
             'image_dirs' => $image_dirs,
             'audio_dirs' => $audio_dirs,
@@ -1217,8 +1304,142 @@ function ll_tools_perf_seed_media_context(array $manifest): array {
             'image_per_word' => !empty($manifest['media']['imagePerWord']),
             'audio_per_word' => $audio_per_word_count > 0,
             'audio_per_word_count' => $audio_per_word_count,
+            'attachment_preview' => $attachment_preview,
         ],
     ];
+}
+
+function ll_tools_perf_seed_preflight_attachment_preview(array $media_context): void {
+    $contract = isset($media_context['attachment_preview']) && is_array($media_context['attachment_preview'])
+        ? $media_context['attachment_preview']
+        : [];
+    if (empty($contract['enabled'])) {
+        return;
+    }
+
+    if (!function_exists('wp_get_image_editor')) {
+        require_once ABSPATH . 'wp-admin/includes/image.php';
+    }
+    $sources = array_values(array_unique(array_filter(
+        (array) ($media_context['images'] ?? []),
+        'is_file'
+    )));
+    $preview_upload = ll_tools_perf_seed_fixture_upload_dir();
+    $preflight_root = trailingslashit(wp_normalize_path((string) $preview_upload['dir']));
+    $temporary_files = [];
+    $failure = '';
+    $write_probe = $preflight_root . wp_unique_filename(
+        $preflight_root,
+        'll-tools-performance-preview-write-probe.tmp'
+    );
+    $temporary_files[] = $write_probe;
+    $probe_bytes = 'll-tools-performance-preview-preflight';
+    if (
+        file_put_contents($write_probe, $probe_bytes) !== strlen($probe_bytes)
+        || file_get_contents($write_probe) !== $probe_bytes
+    ) {
+        $failure = 'The performance fixture upload directory failed preview preflight write/readback.';
+    }
+    if (empty($sources)) {
+        $temporary_source = $preflight_root . wp_unique_filename(
+            $preflight_root,
+            'll-tools-performance-preview-source.png'
+        );
+        if (file_put_contents($temporary_source, ll_tools_perf_seed_image_bytes()) === false) {
+            $failure = 'Unable to create the fixture preview preflight image in the fixture upload directory.';
+        } else {
+            $sources[] = $temporary_source;
+        }
+        $temporary_files[] = $temporary_source;
+    }
+
+    try {
+        foreach ($sources as $source_index => $source_file) {
+            if ($failure !== '') {
+                break;
+            }
+            $source_info = wp_getimagesize($source_file);
+            if (!is_array($source_info) || (int) ($source_info[0] ?? 0) <= 0 || (int) ($source_info[1] ?? 0) <= 0) {
+                $failure = 'Unable to read fixture preview source ' . ($source_index + 1) . ' during preflight.';
+                break;
+            }
+            if (
+                (int) $source_info[0] <= (int) $contract['max_width']
+                && (int) $source_info[1] <= (int) $contract['max_height']
+            ) {
+                // WordPress may reject a no-op resize. The materialized source
+                // is already a truthful bounded medium candidate, so reuse it.
+                continue;
+            }
+            $editor = wp_get_image_editor($source_file);
+            if (is_wp_error($editor)) {
+                $failure = 'The selected WordPress image editor cannot open fixture preview source '
+                    . ($source_index + 1) . ': ' . $editor->get_error_message();
+                break;
+            }
+            $quality_result = $editor->set_quality((int) $contract['quality']);
+            if (is_wp_error($quality_result)) {
+                $failure = 'The selected WordPress image editor rejected the fixture preview quality: '
+                    . $quality_result->get_error_message();
+                break;
+            }
+            $resize_result = $editor->resize(
+                (int) $contract['max_width'],
+                (int) $contract['max_height'],
+                false
+            );
+            if (is_wp_error($resize_result)) {
+                $failure = 'The selected WordPress image editor cannot resize fixture preview source '
+                    . ($source_index + 1) . ': ' . $resize_result->get_error_message();
+                break;
+            }
+
+            $source_extension = strtolower(pathinfo($source_file, PATHINFO_EXTENSION));
+            $temporary_output = $preflight_root . wp_unique_filename(
+                $preflight_root,
+                sprintf('ll-tools-performance-preview-%02d.%s', $source_index + 1, $source_extension)
+            );
+            $temporary_files[] = $temporary_output;
+            $saved = $editor->save($temporary_output);
+            if (is_wp_error($saved)) {
+                $failure = 'The selected WordPress image editor cannot save fixture preview source '
+                    . ($source_index + 1) . ': ' . $saved->get_error_message();
+                break;
+            }
+            $saved_path = (string) ($saved['path'] ?? $temporary_output);
+            if (wp_normalize_path($saved_path) !== wp_normalize_path($temporary_output)) {
+                $failure = 'The selected WordPress image editor returned an unexpected fixture preview path.';
+                break;
+            }
+            $saved_info = wp_getimagesize($saved_path);
+            if (
+                !is_file($saved_path)
+                || !is_array($saved_info)
+                || (int) ($saved_info[0] ?? 0) <= 0
+                || (int) ($saved_info[1] ?? 0) <= 0
+                || (int) ($saved_info[0] ?? 0) > (int) $contract['max_width']
+                || (int) ($saved_info[1] ?? 0) > (int) $contract['max_height']
+            ) {
+                $failure = 'The selected WordPress image editor failed fixture preview preflight readback.';
+                break;
+            }
+        }
+    } finally {
+        foreach (array_values(array_unique($temporary_files)) as $temporary_file) {
+            $normalized_temporary_file = wp_normalize_path($temporary_file);
+            if (
+                str_starts_with($normalized_temporary_file, $preflight_root)
+                && str_starts_with(basename($normalized_temporary_file), 'll-tools-performance-preview-')
+                && is_file($normalized_temporary_file)
+            ) {
+                @unlink($normalized_temporary_file);
+            }
+        }
+    }
+
+    if ($failure !== '') {
+        ll_tools_perf_seed_fail($failure . ' Enable GD or Imagick for the seeder PHP process before retrying.');
+    }
 }
 
 function ll_tools_perf_seed_media_source(array $files, int $index): string {
@@ -1282,25 +1503,157 @@ function ll_tools_perf_seed_materialized_media_file(string $source_file, string 
         $filename = sanitize_file_name(sprintf('source-%s-%s.%s', $kind, substr(hash('sha256', $source_file), 0, 16), $source_extension));
         $file = trailingslashit($upload['dir']) . $filename;
         if (!is_file($file) && !copy($source_file, $file)) {
-            $can_use_source = false;
+            ll_tools_perf_seed_fail('Unable to materialize performance fixture ' . $kind . ' source: ' . basename($source_file));
         }
-        if ($can_use_source && is_file($file)) {
+        if (is_file($file)) {
             $cache[$cache_key] = $file;
             return $file;
         }
+        ll_tools_perf_seed_fail('Materialized performance fixture ' . $kind . ' source is missing: ' . basename($source_file));
     }
 
     $filename = sanitize_file_name(sprintf('generated-%s.%s', $kind, $default_extension));
     $file = trailingslashit($upload['dir']) . $filename;
-    if (!is_file($file)) {
-        file_put_contents($file, $fallback_bytes);
+    if (!is_file($file) && file_put_contents($file, $fallback_bytes) !== strlen($fallback_bytes)) {
+        ll_tools_perf_seed_fail('Unable to write generated performance fixture ' . $kind . ' fallback.');
+    }
+    if (!is_file($file) || filesize($file) <= 0) {
+        ll_tools_perf_seed_fail('Generated performance fixture ' . $kind . ' fallback is missing or empty.');
     }
 
     $cache[$cache_key] = $file;
     return $file;
 }
 
-function ll_tools_perf_seed_attachment(string $slug, string $title, string $fixture_version, string $source_file = ''): int {
+/**
+ * @return array<string,array{file:string,width:int,height:int,mime_type:string}>
+ */
+function &ll_tools_perf_seed_attachment_preview_registry(): array {
+    static $registry = [];
+    return $registry;
+}
+
+/**
+ * @return array<string,array{full_width:int,full_height:int,size:array<string,mixed>}>
+ */
+function &ll_tools_perf_seed_attachment_preview_metadata_cache(): array {
+    static $cache = [];
+    return $cache;
+}
+
+/**
+ * Build one reusable derivative per materialized source image, not one per
+ * fixture attachment. Thousands of attachment rows intentionally point at the
+ * small source pool, so their metadata can safely share this physical file.
+ *
+ * @return array{full_width:int,full_height:int,size:array<string,mixed>}
+ */
+function ll_tools_perf_seed_attachment_preview_metadata(string $file, array $contract): array {
+    $metadata_cache =& ll_tools_perf_seed_attachment_preview_metadata_cache();
+    $metadata_cache_key = wp_normalize_path($file) . '|' . md5((string) wp_json_encode($contract));
+    if (isset($metadata_cache[$metadata_cache_key])) {
+        return $metadata_cache[$metadata_cache_key];
+    }
+
+    $full_info = wp_getimagesize($file);
+    if (!is_array($full_info) || (int) ($full_info[0] ?? 0) <= 0 || (int) ($full_info[1] ?? 0) <= 0) {
+        ll_tools_perf_seed_fail('Unable to read truthful dimensions for performance fixture image: ' . basename($file));
+    }
+
+    $source_hash = hash_file('sha256', $file);
+    if (!is_string($source_hash) || $source_hash === '') {
+        ll_tools_perf_seed_fail('Unable to checksum performance fixture image: ' . basename($file));
+    }
+    $source_extension = strtolower(pathinfo($file, PATHINFO_EXTENSION));
+    $preview_filename = sanitize_file_name(sprintf(
+        '%s-ll-perf-%s-%dx%d-%s.%s',
+        pathinfo($file, PATHINFO_FILENAME),
+        (string) $contract['size_name'],
+        (int) $contract['max_width'],
+        (int) $contract['max_height'],
+        substr($source_hash, 0, 12),
+        $source_extension
+    ));
+    $preview_file = trailingslashit(dirname($file)) . $preview_filename;
+    $registry =& ll_tools_perf_seed_attachment_preview_registry();
+    $registry_key = $metadata_cache_key;
+
+    if (!isset($registry[$registry_key])) {
+        if (count($registry) >= (int) $contract['max_source_images']) {
+            ll_tools_perf_seed_fail('Performance fixture preview source pool exceeded its bounded manifest limit.');
+        }
+        if (
+            (int) $full_info[0] <= (int) $contract['max_width']
+            && (int) $full_info[1] <= (int) $contract['max_height']
+        ) {
+            $saved_file = wp_normalize_path($file);
+            $saved_width = (int) $full_info[0];
+            $saved_height = (int) $full_info[1];
+            $saved_mime_type = sanitize_mime_type((string) ($full_info['mime'] ?? ''));
+        } else {
+            if (!function_exists('wp_get_image_editor')) {
+                require_once ABSPATH . 'wp-admin/includes/image.php';
+            }
+            $editor = wp_get_image_editor($file);
+            if (is_wp_error($editor)) {
+                ll_tools_perf_seed_fail('The selected WordPress image editor cannot open a performance fixture image: ' . $editor->get_error_message());
+            }
+            $quality_result = $editor->set_quality((int) $contract['quality']);
+            if (is_wp_error($quality_result)) {
+                ll_tools_perf_seed_fail('The selected WordPress image editor rejected the fixture preview quality: ' . $quality_result->get_error_message());
+            }
+            $resize_result = $editor->resize(
+                (int) $contract['max_width'],
+                (int) $contract['max_height'],
+                false
+            );
+            if (is_wp_error($resize_result)) {
+                ll_tools_perf_seed_fail('The selected WordPress image editor cannot build the fixture preview: ' . $resize_result->get_error_message());
+            }
+            $saved = $editor->save($preview_file);
+            if (is_wp_error($saved)) {
+                ll_tools_perf_seed_fail('The selected WordPress image editor cannot save the fixture preview: ' . $saved->get_error_message());
+            }
+
+            $saved_file = wp_normalize_path((string) ($saved['path'] ?? $preview_file));
+            $saved_width = (int) ($saved['width'] ?? 0);
+            $saved_height = (int) ($saved['height'] ?? 0);
+            $saved_mime_type = sanitize_mime_type((string) ($saved['mime-type'] ?? ''));
+        }
+        if (
+            !is_file($saved_file)
+            || dirname($saved_file) !== wp_normalize_path(dirname($file))
+            || $saved_width <= 0
+            || $saved_height <= 0
+            || $saved_width > (int) $contract['max_width']
+            || $saved_height > (int) $contract['max_height']
+            || $saved_mime_type === ''
+        ) {
+            ll_tools_perf_seed_fail('The generated performance fixture preview failed bounded readback verification.');
+        }
+        $registry[$registry_key] = [
+            'file' => basename($saved_file),
+            'width' => $saved_width,
+            'height' => $saved_height,
+            'mime_type' => $saved_mime_type,
+        ];
+    }
+
+    $metadata_cache[$metadata_cache_key] = [
+        'full_width' => (int) $full_info[0],
+        'full_height' => (int) $full_info[1],
+        'size' => $registry[$registry_key],
+    ];
+    return $metadata_cache[$metadata_cache_key];
+}
+
+function ll_tools_perf_seed_attachment(
+    string $slug,
+    string $title,
+    string $fixture_version,
+    string $source_file = '',
+    array $preview_contract = []
+): int {
     $upload = ll_tools_perf_seed_fixture_upload_dir();
     $file = ll_tools_perf_seed_materialized_media_file($source_file, 'image');
     $source_extension = strtolower(pathinfo($file, PATHINFO_EXTENSION));
@@ -1316,14 +1669,26 @@ function ll_tools_perf_seed_attachment(string $slug, string $title, string $fixt
         'post_mime_type' => ll_tools_perf_seed_attachment_mime_type($source_extension),
     ], $fixture_version);
     $relative_file = ltrim(substr(wp_normalize_path($file), strlen($upload['base_dir'])), '/');
+    $attachment_metadata = [
+        'width' => 64,
+        'height' => 64,
+        'file' => $relative_file,
+        'sizes' => [],
+    ];
+    if (!empty($preview_contract['enabled'])) {
+        $preview_metadata = ll_tools_perf_seed_attachment_preview_metadata($file, $preview_contract);
+        $attachment_metadata['width'] = (int) $preview_metadata['full_width'];
+        $attachment_metadata['height'] = (int) $preview_metadata['full_height'];
+        $attachment_metadata['sizes'][(string) $preview_contract['size_name']] = [
+            'file' => (string) $preview_metadata['size']['file'],
+            'width' => (int) $preview_metadata['size']['width'],
+            'height' => (int) $preview_metadata['size']['height'],
+            'mime-type' => (string) $preview_metadata['size']['mime_type'],
+        ];
+    }
     ll_tools_perf_seed_insert_post_meta_rows($attachment_id, [
         '_wp_attached_file' => $relative_file,
-        '_wp_attachment_metadata' => [
-            'width' => 64,
-            'height' => 64,
-            'file' => $relative_file,
-            'sizes' => [],
-        ],
+        '_wp_attachment_metadata' => $attachment_metadata,
         '_wp_attachment_image_alt' => $title,
     ]);
 
@@ -1401,12 +1766,19 @@ function ll_tools_perf_seed_create_category(array $wordset, int $wordset_id, int
     ];
 }
 
-function ll_tools_perf_seed_create_category_image(int $wordset_id, array $category, string $fixture_version, string $source_file = ''): int {
+function ll_tools_perf_seed_create_category_image(
+    int $wordset_id,
+    array $category,
+    string $fixture_version,
+    string $source_file = '',
+    array $preview_contract = []
+): int {
     $attachment_id = ll_tools_perf_seed_attachment(
         (string) $category['slug'] . '-image',
         (string) $category['name'] . ' Image',
         $fixture_version,
-        $source_file
+        $source_file,
+        $preview_contract
     );
 
     return ll_tools_perf_seed_create_word_image_post(
@@ -1442,8 +1814,22 @@ function ll_tools_perf_seed_create_word_image_post(int $wordset_id, array $categ
     return $image_id;
 }
 
-function ll_tools_perf_seed_create_word_image(int $wordset_id, array $category, string $slug, string $title, string $fixture_version, string $source_file = ''): array {
-    $attachment_id = ll_tools_perf_seed_attachment($slug . '-image', $title . ' Image', $fixture_version, $source_file);
+function ll_tools_perf_seed_create_word_image(
+    int $wordset_id,
+    array $category,
+    string $slug,
+    string $title,
+    string $fixture_version,
+    string $source_file = '',
+    array $preview_contract = []
+): array {
+    $attachment_id = ll_tools_perf_seed_attachment(
+        $slug . '-image',
+        $title . ' Image',
+        $fixture_version,
+        $source_file,
+        $preview_contract
+    );
     $image_id = ll_tools_perf_seed_create_word_image_post(
         $wordset_id,
         $category,
@@ -1479,7 +1865,8 @@ function ll_tools_perf_seed_create_word(array $wordset, int $wordset_id, array $
             $word_slug,
             $word_title,
             $fixture_version,
-            ll_tools_perf_seed_media_source((array) ($media_context['images'] ?? []), $word_sequence)
+            ll_tools_perf_seed_media_source((array) ($media_context['images'] ?? []), $word_sequence),
+            (array) ($media_context['attachment_preview'] ?? [])
         );
         $word_image_id = (int) $word_media['image_id'];
         $word_attachment_id = (int) $word_media['attachment_id'];
@@ -1644,6 +2031,7 @@ function ll_tools_perf_seed_create_pages(array $manifest, array $seeded_wordsets
 function ll_tools_perf_seed_run(): array {
     $manifest = ll_tools_perf_seed_load_manifest();
     $fixture_version = (string) $manifest['fixtureVersion'];
+    ll_tools_perf_seed_attachment_preview_contract($manifest);
     $current_fixture = ll_tools_perf_seed_get_current_fixture_summary($manifest);
     if (empty($current_fixture['current']) && !empty($current_fixture['reasons'])) {
         ll_tools_perf_seed_log('Performance fixture reseed required: ' . implode('; ', (array) $current_fixture['reasons']));
@@ -1653,10 +2041,14 @@ function ll_tools_perf_seed_run(): array {
         return (array) ($current_fixture['summary'] ?? []);
     }
 
+    // Prove the selected editor can open, resize, save, and read back every
+    // bounded source format before deleting the currently usable fixture.
+    $media_context = ll_tools_perf_seed_media_context($manifest);
+    ll_tools_perf_seed_preflight_attachment_preview($media_context);
+
     $bulk_state = ll_tools_perf_seed_begin_bulk_mode();
     try {
     $deleted = ll_tools_perf_seed_reset_fixture($manifest);
-    $media_context = ll_tools_perf_seed_media_context($manifest);
     ll_tools_perf_seed_log(sprintf(
         'Performance fixture media pool: %d image files, %d audio files.',
         (int) ($media_context['summary']['image_files'] ?? 0),
@@ -1698,7 +2090,8 @@ function ll_tools_perf_seed_run(): array {
                     $wordset_id,
                     $category,
                     $fixture_version,
-                    ll_tools_perf_seed_media_source((array) ($media_context['images'] ?? []), $category_index - 1)
+                    ll_tools_perf_seed_media_source((array) ($media_context['images'] ?? []), $category_index - 1),
+                    (array) ($media_context['attachment_preview'] ?? [])
                 );
                 $attachment_id = (int) get_post_thumbnail_id($image_id);
             }
@@ -1741,6 +2134,11 @@ function ll_tools_perf_seed_run(): array {
     $recorder = ll_tools_perf_seed_create_recorder($manifest, $seeded_wordsets);
     ll_tools_perf_seed_end_category_maintenance($bulk_state);
     $pages = ll_tools_perf_seed_create_pages($manifest, $seeded_wordsets);
+
+    $preview_registry = ll_tools_perf_seed_attachment_preview_registry();
+    ksort($preview_registry, SORT_STRING);
+    $media_context['summary']['attachment_preview']['derivative_count'] = count($preview_registry);
+    $media_context['summary']['attachment_preview']['derivatives'] = array_values($preview_registry);
 
     update_option(LL_TOOLS_PERF_FIXTURE_MANIFEST_OPTION, [
         'fixture_version' => $fixture_version,

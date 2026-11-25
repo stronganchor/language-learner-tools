@@ -25,6 +25,22 @@ if (!defined('LL_TOOLS_DICTIONARY_STATIC_CACHE_REBUILD_LOCK_OPTION_PREFIX')) {
     define('LL_TOOLS_DICTIONARY_STATIC_CACHE_REBUILD_LOCK_OPTION_PREFIX', '_ll_tools_dictionary_static_cache_lock_');
 }
 
+if (!defined('LL_TOOLS_DICTIONARY_STATIC_CACHE_SCHEMA')) {
+    define('LL_TOOLS_DICTIONARY_STATIC_CACHE_SCHEMA', 4);
+}
+
+if (!defined('LL_TOOLS_DICTIONARY_STATIC_CACHE_SCHEMA_OPTION')) {
+    define('LL_TOOLS_DICTIONARY_STATIC_CACHE_SCHEMA_OPTION', 'll_tools_dictionary_static_cache_schema');
+}
+
+if (!defined('LL_TOOLS_DICTIONARY_STATIC_CACHE_GENERATION_OPTION')) {
+    define('LL_TOOLS_DICTIONARY_STATIC_CACHE_GENERATION_OPTION', 'll_tools_dictionary_static_cache_generation');
+}
+
+if (!defined('LL_TOOLS_DICTIONARY_STATIC_CACHE_RETIRED_UPLOADS_OPTION')) {
+    define('LL_TOOLS_DICTIONARY_STATIC_CACHE_RETIRED_UPLOADS_OPTION', 'll_tools_dictionary_static_cache_retired_uploads');
+}
+
 /**
  * Return the anonymous dictionary static-cache storage TTL.
  */
@@ -405,7 +421,7 @@ function ll_tools_dictionary_static_cache_request_identity(): ?array {
     if (!($post instanceof WP_Post) || $post->post_type !== 'page') {
         return null;
     }
-    if (post_password_required($post)) {
+    if ((string) $post->post_password !== '') {
         return null;
     }
 
@@ -497,7 +513,7 @@ function ll_tools_dictionary_static_cache_entry_is_public(int $entry_id): bool {
     return $post instanceof WP_Post
         && $post->post_type === 'll_dictionary_entry'
         && $post->post_status === 'publish'
-        && !post_password_required($post);
+        && (string) $post->post_password === '';
 }
 
 /**
@@ -753,10 +769,24 @@ function ll_tools_dictionary_static_cache_maybe_redirect_canonical_request(): vo
 }
 add_action('template_redirect', 'll_tools_dictionary_static_cache_maybe_redirect_canonical_request', 0);
 
+/** Test the input independently of detail URL canonicalization. */
+function ll_tools_dictionary_static_cache_has_free_text(): bool {
+    $args = ['ll_dictionary_q' => $_GET['ll_dictionary_q'] ?? ''];
+    if (function_exists('ll_tools_dictionary_public_filter_bounded_request')) {
+        $args = ll_tools_dictionary_public_filter_bounded_request($args);
+    }
+    $query = $args['ll_dictionary_q'] ?? '';
+    return is_scalar($query) && strlen((string) $query) <= 1024
+        && trim((string) wp_unslash($query)) !== '';
+}
+
 /**
  * Determine whether the current request can use the anonymous dictionary static cache.
  */
 function ll_tools_is_cacheable_dictionary_request(): bool {
+    if ((int) get_option(LL_TOOLS_DICTIONARY_STATIC_CACHE_SCHEMA_OPTION, 0) < LL_TOOLS_DICTIONARY_STATIC_CACHE_SCHEMA) {
+        return false;
+    }
     if (!ll_tools_dictionary_static_cache_has_safe_request_shape()) {
         return false;
     }
@@ -769,19 +799,97 @@ function ll_tools_is_cacheable_dictionary_request(): bool {
         return false;
     }
 
-    return ll_tools_dictionary_static_cache_request_identity() !== null;
+    return ll_tools_dictionary_static_cache_request_identity() !== null
+        && !ll_tools_dictionary_static_cache_has_free_text();
 }
 
 /**
- * Return the uploads-backed static-cache directory.
+ * Return the private dictionary static-cache directory.
  */
 function ll_tools_dictionary_static_cache_dir(): string {
-    $uploads = wp_upload_dir(null, false, false);
-    if (!empty($uploads['error']) || empty($uploads['basedir'])) {
-        return '';
+    return ll_tools_static_cache_private_dir(LL_TOOLS_DICTIONARY_STATIC_CACHE_DIRNAME);
+}
+
+function ll_tools_dictionary_static_cache_quarantine_file(): string {
+    $dir = ll_tools_dictionary_static_cache_dir();
+    return $dir === '' ? '' : trailingslashit($dir) . '.ll-dictionary-static-quarantine';
+}
+
+function ll_tools_dictionary_static_cache_is_quarantined(?string $file = null): bool {
+    if (!empty($GLOBALS['ll_tools_dictionary_static_cache_quarantined'])) {
+        return true;
+    }
+    $file = $file ?? ll_tools_dictionary_static_cache_quarantine_file();
+    if ($file === '') {
+        return false;
+    }
+    clearstatcache(true, $file);
+    return file_exists($file) || is_link($file);
+}
+
+/** Serialize lease takeover, invalidation, and final publication. */
+function ll_tools_dictionary_static_cache_open_publication_lock(int $operation) {
+    $dir = ll_tools_dictionary_static_cache_dir();
+    if ($dir === '' || !wp_mkdir_p($dir)) {
+        return null;
     }
 
-    return trailingslashit((string) $uploads['basedir']) . LL_TOOLS_DICTIONARY_STATIC_CACHE_DIRNAME;
+    $file = trailingslashit($dir) . '.ll-dictionary-static-publish.lock';
+    if (is_link($file)) {
+        return null;
+    }
+
+    $handle = @fopen($file, 'c+');
+    if (!is_resource($handle)) {
+        return null;
+    }
+    if (!@flock($handle, $operation)) {
+        @fclose($handle);
+        return null;
+    }
+    return $handle;
+}
+
+function ll_tools_dictionary_static_cache_generation(): string {
+    $file = ll_tools_dictionary_static_cache_quarantine_file();
+    if ($file === '' || ll_tools_dictionary_static_cache_is_quarantined($file)) {
+        return '';
+    }
+    return ll_tools_public_static_cache_read_generation_option(LL_TOOLS_DICTIONARY_STATIC_CACHE_GENERATION_OPTION, true);
+}
+
+/** Rotate before deleting files so even an unremoved file becomes unreachable. */
+function ll_tools_dictionary_static_cache_invalidate_generation(bool $clear_rebuild_locks = false): bool {
+    $file = ll_tools_dictionary_static_cache_quarantine_file();
+    $lock = ll_tools_dictionary_static_cache_open_publication_lock(LOCK_EX);
+    try {
+        $rotated = ll_tools_public_static_cache_write_generation_option(
+            LL_TOOLS_DICTIONARY_STATIC_CACHE_GENERATION_OPTION,
+            ll_tools_public_static_cache_new_generation()
+        );
+        if ($clear_rebuild_locks) {
+            ll_tools_dictionary_static_cache_delete_rebuild_locks();
+        }
+        if ($rotated && is_resource($lock) && $file !== '') {
+            clearstatcache(true, $file);
+            if ((!file_exists($file) && !is_link($file)) || @unlink($file)) {
+                unset($GLOBALS['ll_tools_dictionary_static_cache_quarantined']);
+                return true;
+            }
+        }
+        if ($rotated && $file === '') {
+            return true;
+        }
+
+        $GLOBALS['ll_tools_dictionary_static_cache_quarantined'] = true;
+        if (!$rotated && is_resource($lock) && $file !== '' && !is_link($file)) {
+            @touch($file);
+        }
+        ll_tools_schedule_schema_maintenance('dictionary_static_cache', 30);
+        return false;
+    } finally {
+        ll_tools_public_static_cache_close_publication_lock($lock);
+    }
 }
 
 /**
@@ -790,7 +898,17 @@ function ll_tools_dictionary_static_cache_dir(): string {
  * @param array{page_id:int,path:string}|null $identity
  * @param array<string,mixed>|null            $raw_args
  */
-function ll_tools_dictionary_static_cache_key(?array $identity = null, ?array $raw_args = null, ?string $locale = null): string {
+function ll_tools_dictionary_static_cache_key(
+    ?array $identity = null,
+    ?array $raw_args = null,
+    ?string $locale = null,
+    ?string $generation = null
+): string {
+    $generation = $generation ?? ll_tools_dictionary_static_cache_generation();
+    if ($generation === '') {
+        return '';
+    }
+
     if ($identity === null) {
         $identity = ll_tools_dictionary_static_cache_request_identity() ?: ['page_id' => 0, 'path' => ll_tools_dictionary_static_cache_request_path()];
     }
@@ -800,7 +918,8 @@ function ll_tools_dictionary_static_cache_key(?array $identity = null, ?array $r
     }
 
     $payload = [
-        'schema' => 2,
+        'schema' => LL_TOOLS_DICTIONARY_STATIC_CACHE_SCHEMA,
+        'generation' => $generation,
         'plugin_version' => defined('LL_TOOLS_VERSION') ? (string) LL_TOOLS_VERSION : '',
         'site' => home_url('/'),
         'identity' => [
@@ -846,25 +965,85 @@ function ll_tools_dictionary_static_cache_rebuild_lock_ttl(): int {
 }
 
 function ll_tools_dictionary_static_cache_acquire_rebuild_lock(string $key): bool {
-    $option_name = ll_tools_dictionary_static_cache_rebuild_lock_option($key);
-    $now = time();
-    $expires_at = $now + ll_tools_dictionary_static_cache_rebuild_lock_ttl();
-
-    if (add_option($option_name, (string) $expires_at, '', false)) {
-        return true;
-    }
-
-    $current_expires_at = (int) get_option($option_name, 0);
-    if ($current_expires_at > $now) {
+    global $wpdb;
+    $lock = ll_tools_dictionary_static_cache_open_publication_lock(LOCK_EX | LOCK_NB);
+    if (!is_resource($lock)) {
         return false;
     }
 
-    delete_option($option_name);
-    return add_option($option_name, (string) $expires_at, '', false);
+    $option = ll_tools_dictionary_static_cache_rebuild_lock_option($key);
+    $now = time();
+    $lease_value = ($now + ll_tools_dictionary_static_cache_rebuild_lock_ttl()) . '|' . wp_generate_uuid4();
+    try {
+        $inserted = $wpdb->query($wpdb->prepare(
+            "INSERT IGNORE INTO {$wpdb->options} (option_name, option_value, autoload) VALUES (%s, %s, 'no')",
+            $option,
+            $lease_value
+        ));
+        if ($inserted === false) {
+            return false;
+        }
+        if ($inserted !== 1) {
+            $current = ll_tools_public_static_cache_read_generation_option($option);
+            if ($current === '' || (int) $current > $now) {
+                return false;
+            }
+
+            // Accept the former expiry-only format for a lease left by an older worker.
+            $updated = $wpdb->query($wpdb->prepare(
+                "UPDATE {$wpdb->options} SET option_value = %s WHERE option_name = %s AND option_value = %s",
+                $lease_value,
+                $option,
+                $current
+            ));
+            if ($updated !== 1) {
+                return false;
+            }
+        }
+
+        wp_cache_delete($option, 'options');
+        wp_cache_delete('notoptions', 'options');
+        $GLOBALS['ll_tools_dictionary_static_cache_rebuild_leases'][$key] = $lease_value;
+        return true;
+    } finally {
+        ll_tools_public_static_cache_close_publication_lock($lock);
+    }
 }
 
-function ll_tools_dictionary_static_cache_release_rebuild_lock(string $key): void {
-    delete_option(ll_tools_dictionary_static_cache_rebuild_lock_option($key));
+function ll_tools_dictionary_static_cache_get_rebuild_lease_value(string $key): string {
+    return (string) ($GLOBALS['ll_tools_dictionary_static_cache_rebuild_leases'][$key] ?? '');
+}
+
+function ll_tools_dictionary_static_cache_release_rebuild_lock(string $key, ?string $lease_value = null): void {
+    global $wpdb;
+    $tracked_value = ll_tools_dictionary_static_cache_get_rebuild_lease_value($key);
+    $lease_value = $lease_value ?? $tracked_value;
+    if ($lease_value === '') {
+        return;
+    }
+
+    $option = ll_tools_dictionary_static_cache_rebuild_lock_option($key);
+    $wpdb->query($wpdb->prepare(
+        "DELETE FROM {$wpdb->options} WHERE option_name = %s AND option_value = %s",
+        $option,
+        $lease_value
+    ));
+    wp_cache_delete($option, 'options');
+    if (hash_equals($lease_value, $tracked_value)) {
+        unset($GLOBALS['ll_tools_dictionary_static_cache_rebuild_leases'][$key]);
+    }
+}
+
+function ll_tools_dictionary_static_cache_publication_is_current(array $context): bool {
+    $generation = (string) ($context['generation'] ?? '');
+    $lease_value = (string) ($context['lease_value'] ?? '');
+    if ($generation === '' || $lease_value === '' || empty($context['key'])
+        || !hash_equals($generation, ll_tools_dictionary_static_cache_generation())) {
+        return false;
+    }
+
+    $option = ll_tools_dictionary_static_cache_rebuild_lock_option((string) $context['key']);
+    return hash_equals($lease_value, ll_tools_public_static_cache_read_generation_option($option));
 }
 
 function ll_tools_dictionary_static_cache_delete_rebuild_locks(): void {
@@ -953,14 +1132,23 @@ function ll_tools_dictionary_static_cache_prepare_html_for_output(string $html):
     return $html;
 }
 
-function ll_tools_dictionary_static_cache_read_prepared_file(string $file): ?string {
-    if ($file === '' || !is_readable($file)) {
+function ll_tools_dictionary_static_cache_read_prepared_file(string $file, string $generation): ?string {
+    if ($file === '' || $generation === '' || is_link($file) || !is_readable($file)) {
         return null;
     }
 
-    $html = file_get_contents($file);
-    if (!is_string($html)) {
+    $lock = ll_tools_dictionary_static_cache_open_publication_lock(LOCK_SH | LOCK_NB);
+    if (!is_resource($lock)) {
         return null;
+    }
+
+    try {
+        $html = @file_get_contents($file);
+        if (!is_string($html) || !hash_equals($generation, ll_tools_dictionary_static_cache_generation())) {
+            return null;
+        }
+    } finally {
+        ll_tools_public_static_cache_close_publication_lock($lock);
     }
 
     return ll_tools_dictionary_static_cache_prepare_html_for_output($html);
@@ -1011,7 +1199,7 @@ function ll_tools_dictionary_static_cache_send_headers(string $cache_status, boo
 /**
  * Send no-store headers for non-default anonymous dictionary locale variants.
  */
-function ll_tools_dictionary_static_cache_send_locale_bypass_headers(string $reason): void {
+function ll_tools_dictionary_static_cache_send_bypass_headers(string $reason): void {
     if (headers_sent()) {
         return;
     }
@@ -1024,11 +1212,25 @@ function ll_tools_dictionary_static_cache_send_locale_bypass_headers(string $rea
     header('Vary: Accept-Language, Cookie', false);
 }
 
+function ll_tools_dictionary_static_cache_send_retry(int $status, int $retry_after): void {
+    if (!headers_sent()) {
+        header('Retry-After: ' . max(1, $retry_after));
+        header('Cache-Control: ' . ll_tools_dictionary_static_cache_bypass_cache_control_value());
+        header('CDN-Cache-Control: no-store');
+        header('Cloudflare-CDN-Cache-Control: no-store');
+        header('X-LL-Dictionary-Cache: ' . ($status === 429 ? 'RATE_LIMITED' : 'WARMING'));
+    }
+    $message = $status === 429
+        ? __('Too many requests. Please wait a moment and try again.', 'll-tools-text-domain')
+        : __('Dictionary data is temporarily unavailable. Please try again in a moment.', 'll-tools-text-domain');
+    wp_die($message, '', ['response' => $status]);
+}
+
 /**
  * Serve or start capturing one anonymous public dictionary page request.
  */
 function ll_tools_serve_dictionary_static_cache(): void {
-    if (!ll_tools_dictionary_static_cache_has_safe_request_shape()) {
+    if (!ll_tools_dictionary_static_cache_has_safe_canonical_request_shape()) {
         return;
     }
 
@@ -1042,8 +1244,28 @@ function ll_tools_serve_dictionary_static_cache(): void {
     }
 
     $locale_bypass_reason = ll_tools_dictionary_static_cache_locale_bypass_reason();
+    $front_page = is_front_page() || is_home();
+    if (ll_tools_dictionary_static_cache_has_free_text()) {
+        if (!$front_page && $locale_bypass_reason === '') {
+            ll_tools_dictionary_static_cache_maybe_redirect_canonical($identity);
+        }
+        // Free-text input has unbounded cardinality. Keep its HTML off disk
+        // and charge expensive origin renders even on the dictionary homepage.
+        $defaults = ['window' => MINUTE_IN_SECONDS, 'ip_limit' => 30, 'site_limit' => 120];
+        $config = apply_filters('ll_tools_dictionary_static_search_throttle', $defaults);
+        $reservation = ll_tools_reserve_static_render_budget('ll_dict_static_search_', is_array($config) ? $config + $defaults : $defaults);
+        if (!$reservation['allowed']) {
+            ll_tools_dictionary_static_cache_send_retry(429, $reservation['retry_after']);
+            return;
+        }
+        ll_tools_dictionary_static_cache_send_bypass_headers('free-text-search');
+        return;
+    }
+    if ($front_page) {
+        return;
+    }
     if ($locale_bypass_reason !== '') {
-        ll_tools_dictionary_static_cache_send_locale_bypass_headers($locale_bypass_reason);
+        ll_tools_dictionary_static_cache_send_bypass_headers($locale_bypass_reason);
         ll_tools_dictionary_static_cache_debug_log('locale_bypass', [
             'reason' => $locale_bypass_reason,
             'current_locale' => ll_tools_dictionary_static_cache_current_public_locale(),
@@ -1054,13 +1276,20 @@ function ll_tools_serve_dictionary_static_cache(): void {
 
     ll_tools_dictionary_static_cache_maybe_redirect_canonical($identity);
 
-    $key = ll_tools_dictionary_static_cache_key($identity);
+    $generation = ll_tools_dictionary_static_cache_generation();
+    if ($generation === ''
+        || (int) get_option(LL_TOOLS_DICTIONARY_STATIC_CACHE_SCHEMA_OPTION, 0) < LL_TOOLS_DICTIONARY_STATIC_CACHE_SCHEMA) {
+        ll_tools_dictionary_static_cache_send_bypass_headers('cache-unavailable');
+        return;
+    }
+
+    $key = ll_tools_dictionary_static_cache_key($identity, null, null, $generation);
     $file = ll_tools_dictionary_static_cache_file_path($key);
     $ttl = ll_tools_dictionary_static_cache_ttl();
     $method = isset($_SERVER['REQUEST_METHOD']) ? strtoupper((string) $_SERVER['REQUEST_METHOD']) : 'GET';
 
     if (ll_tools_dictionary_static_cache_file_is_fresh($file, $ttl)) {
-        $output_html = ll_tools_dictionary_static_cache_read_prepared_file($file);
+        $output_html = ll_tools_dictionary_static_cache_read_prepared_file($file, $generation);
         if (is_string($output_html)) {
             ll_tools_dictionary_static_cache_debug_log('hit', [
                 'key' => $key,
@@ -1074,7 +1303,7 @@ function ll_tools_serve_dictionary_static_cache(): void {
     if ($file !== '') {
         $lock_acquired = ll_tools_dictionary_static_cache_acquire_rebuild_lock($key);
         if (!$lock_acquired && ll_tools_dictionary_static_cache_file_is_stale($file, $ttl)) {
-            $output_html = ll_tools_dictionary_static_cache_read_prepared_file($file);
+            $output_html = ll_tools_dictionary_static_cache_read_prepared_file($file, $generation);
             if (is_string($output_html)) {
                 ll_tools_dictionary_static_cache_debug_log('stale', [
                     'key' => $key,
@@ -1083,6 +1312,19 @@ function ll_tools_serve_dictionary_static_cache(): void {
                 ]);
                 ll_tools_dictionary_static_cache_send_prepared_file_response($output_html, 'STALE', false, $method);
             }
+        }
+        if (!$lock_acquired) {
+            $wait_ms = max(0, min(300, (int) apply_filters('ll_tools_dictionary_static_cache_wait_ms', 150)));
+            $output_html = ll_tools_public_ajax_wait_for_value(static function () use ($file, $ttl, $generation): ?string {
+                clearstatcache(true, $file);
+                return ll_tools_dictionary_static_cache_file_is_fresh($file, $ttl)
+                    ? ll_tools_dictionary_static_cache_read_prepared_file($file, $generation) : null;
+            }, $wait_ms, 50);
+            if (is_string($output_html)) {
+                ll_tools_dictionary_static_cache_send_prepared_file_response($output_html, 'HIT', true, $method);
+            }
+            ll_tools_dictionary_static_cache_send_retry(503, 1);
+            return;
         }
     }
 
@@ -1102,6 +1344,8 @@ function ll_tools_serve_dictionary_static_cache(): void {
         'key' => $key,
         'file' => $file,
         'lock_acquired' => true,
+        'generation' => $generation,
+        'lease_value' => ll_tools_dictionary_static_cache_get_rebuild_lease_value($key),
         'buffer_level' => ob_get_level(),
     ];
 
@@ -1152,6 +1396,14 @@ function ll_tools_store_dictionary_static_cache(): void {
     $release_lock = !empty($context['lock_acquired']) && !empty($context['key']);
 
     try {
+        if ((int) get_option(LL_TOOLS_DICTIONARY_STATIC_CACHE_SCHEMA_OPTION, 0) < LL_TOOLS_DICTIONARY_STATIC_CACHE_SCHEMA
+            || ll_tools_dictionary_static_cache_has_free_text()) {
+            return;
+        }
+        if (!ll_tools_dictionary_static_cache_publication_is_current($context)) {
+            ll_tools_dictionary_static_cache_send_bypass_headers('cache-invalidated');
+            return;
+        }
         $status = ll_tools_dictionary_static_cache_current_status_code();
         if ($status < 200 || $status >= 300) {
             ll_tools_dictionary_static_cache_debug_log('skip_status', [
@@ -1221,12 +1473,24 @@ function ll_tools_store_dictionary_static_cache(): void {
         }
 
         @chmod($tmp, 0644);
-        if (!@rename($tmp, $file)) {
+        $publication_lock = ll_tools_dictionary_static_cache_open_publication_lock(LOCK_EX | LOCK_NB);
+        if (!is_resource($publication_lock)) {
             @unlink($tmp);
-            ll_tools_dictionary_static_cache_debug_log('rename_failed', [
-                'file' => basename($file),
-            ]);
-        } else {
+            return;
+        }
+
+        try {
+            if (!ll_tools_dictionary_static_cache_publication_is_current($context)) {
+                @unlink($tmp);
+                ll_tools_dictionary_static_cache_send_bypass_headers('cache-invalidated');
+                return;
+            }
+            if (!@rename($tmp, $file)) {
+                @unlink($tmp);
+                ll_tools_dictionary_static_cache_debug_log('rename_failed', ['file' => basename($file)]);
+                return;
+            }
+
             if (!headers_sent()) {
                 header('Cache-Control: ' . ll_tools_dictionary_static_cache_cache_control_value(true));
             }
@@ -1234,42 +1498,39 @@ function ll_tools_store_dictionary_static_cache(): void {
                 'file' => basename($file),
                 'bytes' => (int) $written,
             ]);
+        } finally {
+            ll_tools_public_static_cache_close_publication_lock($publication_lock);
         }
     } finally {
         if ($method === 'HEAD' && ob_get_level() > $buffer_level) {
             ob_clean();
         }
         if ($release_lock) {
-            ll_tools_dictionary_static_cache_release_rebuild_lock((string) $context['key']);
+            ll_tools_dictionary_static_cache_release_rebuild_lock(
+                (string) $context['key'],
+                (string) ($context['lease_value'] ?? '')
+            );
         }
     }
 }
 add_action('shutdown', 'll_tools_store_dictionary_static_cache', 0);
 
 /**
- * Delete static dictionary HTML cache files.
+ * Delete static dictionary HTML cache files after advancing the generation.
  */
 function ll_tools_purge_dictionary_static_cache(): int {
+    ll_tools_dictionary_static_cache_invalidate_generation(true);
     $dir = ll_tools_dictionary_static_cache_dir();
     $deleted = 0;
-    if ($dir === '' || !is_dir($dir)) {
-        $deleted = 0;
-    } else {
-        $patterns = [
-            trailingslashit($dir) . 'dictionary-*.html',
-            trailingslashit($dir) . 'dictionary-*.html.tmp-*',
-        ];
-
-        foreach ($patterns as $pattern) {
-            foreach (glob($pattern) ?: [] as $file) {
+    if ($dir !== '' && is_dir($dir)) {
+        foreach (['dictionary-*.html', 'dictionary-*.html.tmp-*'] as $pattern) {
+            foreach (ll_tools_static_cache_generated_files(trailingslashit($dir) . $pattern) ?: [] as $file) {
                 if (is_file($file) && @unlink($file)) {
                     $deleted++;
                 }
             }
         }
     }
-
-    ll_tools_dictionary_static_cache_delete_rebuild_locks();
 
     if (
         empty($GLOBALS['ll_tools_static_cache_suppress_edge_purge'])
@@ -1282,6 +1543,49 @@ function ll_tools_purge_dictionary_static_cache(): int {
 }
 
 /**
+ * Initialize private cache storage and retire uploads files independently.
+ */
+function ll_tools_dictionary_static_cache_maybe_purge_legacy_schema(): void {
+    $private_is_current = static function (): bool {
+        return (int) get_option(LL_TOOLS_DICTIONARY_STATIC_CACHE_SCHEMA_OPTION, 0) >= LL_TOOLS_DICTIONARY_STATIC_CACHE_SCHEMA
+            && !ll_tools_dictionary_static_cache_is_quarantined();
+    };
+    $legacy_is_retired = static fn(): bool => (bool) get_option(LL_TOOLS_DICTIONARY_STATIC_CACHE_RETIRED_UPLOADS_OPTION, false);
+
+    ll_tools_maybe_run_static_cache_maintenance(
+        'dictionary_static_cache',
+        static fn(): bool => $private_is_current() && $legacy_is_retired(),
+        static function () use ($private_is_current, $legacy_is_retired): bool {
+            if (!$private_is_current()) {
+                $private_ready = true;
+                $dir = ll_tools_dictionary_static_cache_dir();
+                if ($dir !== '') {
+                    ll_tools_purge_dictionary_static_cache();
+                    $private_ready = !ll_tools_dictionary_static_cache_is_quarantined();
+                    foreach (['dictionary-*.html', 'dictionary-*.html.tmp-*'] as $pattern) {
+                        $remaining = ll_tools_static_cache_generated_files(trailingslashit($dir) . $pattern);
+                        if ($remaining === false || !empty($remaining)) {
+                            $private_ready = false;
+                            break;
+                        }
+                    }
+                }
+                if ($private_ready) {
+                    update_option(LL_TOOLS_DICTIONARY_STATIC_CACHE_SCHEMA_OPTION, LL_TOOLS_DICTIONARY_STATIC_CACHE_SCHEMA, false);
+                }
+            }
+
+            if (!$legacy_is_retired() && ll_tools_static_cache_retire_legacy_files(LL_TOOLS_DICTIONARY_STATIC_CACHE_DIRNAME, 'dictionary')) {
+                update_option(LL_TOOLS_DICTIONARY_STATIC_CACHE_RETIRED_UPLOADS_OPTION, '1', false);
+            }
+
+            return $private_is_current() && $legacy_is_retired();
+        }
+    );
+}
+add_action('init', 'll_tools_dictionary_static_cache_maybe_purge_legacy_schema', 2);
+
+/**
  * Delete static dictionary HTML cache files at most once in one request.
  *
  * Bulk imports can bump the dictionary browser cache version many times. The
@@ -1290,7 +1594,7 @@ function ll_tools_purge_dictionary_static_cache(): int {
  */
 function ll_tools_purge_dictionary_static_cache_once(): int {
     if (!empty($GLOBALS['ll_tools_dictionary_static_cache_purged_this_request'])) {
-        return 0;
+        return ll_tools_dictionary_static_cache_invalidate_generation() ? 0 : ll_tools_purge_dictionary_static_cache();
     }
 
     $GLOBALS['ll_tools_dictionary_static_cache_purged_this_request'] = true;
@@ -1305,5 +1609,8 @@ function ll_tools_purge_dictionary_static_cache_once(): int {
  * independent requests in one PHP process.
  */
 function ll_tools_reset_dictionary_static_cache_purge_once_state(): void {
-    unset($GLOBALS['ll_tools_dictionary_static_cache_purged_this_request']);
+    unset(
+        $GLOBALS['ll_tools_dictionary_static_cache_purged_this_request'],
+        $GLOBALS['ll_tools_dictionary_static_cache_quarantined']
+    );
 }

@@ -82,6 +82,133 @@ final class LtiFoundationTest extends LL_Tools_TestCase {
         $this->assertCount(0, $this->requests);
     }
 
+    public function test_registration_scope_cannot_be_rebound_even_when_disabled(): void {
+        foreach ([true, false] as $enabled) {
+            $original = $this->config();
+            $original['enabled'] = $enabled;
+            $this->assertIsArray(ll_tools_lti_register_platform($original));
+            foreach (['issuer', 'client_id', 'deployment_id'] as $key) {
+                $changed = $original;
+                if ($key === 'issuer') {
+                    foreach (['issuer', 'authorization_url', 'jwks_url', 'token_url'] as $url) { $changed[$url] = str_replace('moodle.example.org', 'other-moodle.example.org', $changed[$url]); }
+                } else { $changed[$key] .= '-replacement'; }
+                $result = ll_tools_lti_register_platform($changed);
+                $this->assertWPError($result);
+                $this->assertSame('lti_registration_scope_immutable', $result->get_error_code());
+                $this->assertSame($original, ll_tools_lti_get_platform($original['id']));
+            }
+        }
+        $updated = $this->config();
+        $updated['name'] = 'Updated Moodle';
+        $updated['jwks_url'] .= '?rotation=2';
+        $this->assertSame($updated, ll_tools_lti_register_platform($updated), 'Endpoint maintenance preserves the registered launch identity.');
+        $new = $this->config(); $new['id'] = 'other-registration'; $new['deployment_id'] = 'another-deployment';
+        $this->assertSame($new, ll_tools_lti_register_platform($new));
+    }
+
+    public function test_moodle_configuration_details_accept_official_lines_and_json_without_fetching_urls(): void {
+        $meta = ['id' => 'copied-moodle', 'name' => 'Copied Moodle', 'enabled' => true];
+        $expected = array_merge($this->config(), $meta, ['deployment_id' => '17']);
+        $json = ['platformid' => $expected['issuer'], 'clientid' => $expected['client_id'], 'deploymentid' => 17,
+            'urls' => ['publickeyset' => $expected['jwks_url'], 'accesstoken' => $expected['token_url'], 'authrequest' => $expected['authorization_url']]];
+        $this->assertSame($expected, ll_tools_lti_parse_moodle_platform_details(wp_json_encode($json), $meta));
+        $lines = "Platform ID: {$expected['issuer']}\r\nClient ID: {$expected['client_id']}\r\nDeployment ID: 17\r\n"
+            . "Public keyset URL: {$expected['jwks_url']}\r\nAccess token URL: {$expected['token_url']}\r\nAuthentication request URL: {$expected['authorization_url']}";
+        $this->assertSame($expected, ll_tools_lti_parse_moodle_platform_details($lines, $meta));
+        $this->assertSame($expected, ll_tools_lti_parse_moodle_platform_details(wp_json_encode($expected), $meta));
+        $auto = ll_tools_lti_parse_moodle_platform_details($lines, ['enabled' => true]);
+        $this->assertIsArray($auto);
+        $this->assertSame($auto, ll_tools_lti_parse_moodle_platform_details($lines, ['enabled' => true]), 'Omitted local IDs are deterministic for the exact Moodle registration.');
+        foreach (['', 'Platform ID: https://moodle.example.org', $lines . "\nClient ID: duplicate", '{"platformid":"https://moodle.example.org","urls":"not-an-object"}', str_repeat('x', 16385),
+            str_replace($expected['jwks_url'], 'https://foreign.example.org/keys', $lines), str_replace('Deployment ID: 17', 'Deployment ID: ', $lines)] as $bad) {
+            $this->assertWPError(ll_tools_lti_parse_moodle_platform_details($bad, $meta));
+        }
+        $this->assertCount(1, ll_tools_lti_get_platforms(), 'Parsing does not save a registration or silently modify an existing one.');
+        $this->assertCount(0, $this->requests);
+    }
+
+    public function test_concurrent_registration_cannot_rebind_the_winning_local_identity(): void {
+        global $wpdb;
+        $candidate = $this->config(); $candidate['id'] = 'racing-moodle'; $candidate['deployment_id'] = 'candidate-deployment';
+        $winner = $candidate; $winner['deployment_id'] = 'Candidate-deployment';
+        $raced = false;
+        $collision = function (string $query) use ($wpdb, $winner, &$raced): string {
+            if (!$raced && str_starts_with($query, "UPDATE {$wpdb->options} SET option_value = ") && strpos($query, LL_TOOLS_LTI_PLATFORMS_OPTION) !== false) {
+                $raced = true;
+                $concurrent = ll_tools_lti_get_platforms(); $concurrent[$winner['id']] = $winner;
+                $wpdb->update($wpdb->options, ['option_value' => maybe_serialize($concurrent)], ['option_name' => LL_TOOLS_LTI_PLATFORMS_OPTION]);
+            }
+            return $query;
+        };
+        add_filter('query', $collision);
+        try { $result = ll_tools_lti_register_platform($candidate); }
+        finally { remove_filter('query', $collision); }
+        $this->assertTrue($raced, 'The collision must occur after the initial snapshot and before its conditional write.');
+        $this->assertWPError($result);
+        $this->assertSame($winner, ll_tools_lti_get_platform($winner['id']));
+        $this->assertSame($this->platform, ll_tools_lti_get_platform($this->platform['id']));
+        $this->assertSame('lti_registration_scope_immutable', ll_tools_lti_register_platform($candidate)->get_error_code());
+    }
+
+    public function test_setup_tickets_are_short_lived_one_use_records(): void {
+        $ticket = ll_tools_lti_ticket_put('setup', ['context_id' => 'course-proof', 'resource_link_id' => 'resource-proof'], 120);
+        $this->assertIsString($ticket);
+        $this->assertSame(['context_id' => 'course-proof', 'resource_link_id' => 'resource-proof'], ll_tools_lti_ticket_get('setup', $ticket));
+        $this->assertIsArray(ll_tools_lti_ticket_consume('setup', $ticket));
+        $this->assertWPError(ll_tools_lti_ticket_consume('setup', $ticket));
+    }
+
+    public function test_classroom_launch_burst_is_atomic_bounded_and_independent_per_deployment(): void {
+        global $wpdb;
+        $other = $this->config();
+        $other['id'] = 'other-classroom';
+        $other['deployment_id'] = 'other-deployment';
+        $this->assertIsArray(ll_tools_lti_register_platform($other));
+        $clock = time();
+        $clock_filter = static function () use (&$clock): int { return $clock; };
+        add_filter('ll_tools_lti_login_now', $clock_filter);
+        try {
+            $this->assertFalse(ll_tools_lti_login_admit('unregistered-platform'));
+            for ($index = 0; $index < 179; $index++) {
+                $this->assertTrue(ll_tools_lti_login_admit($this->platform['id']), 'The complete classroom burst must fit in one minute.');
+            }
+            $raced = false;
+            $last_slot_winner = null;
+            $counter_name = 'll_tools_lti_login_window_' . hash('sha256', $this->platform['id']);
+            $collision = function (string $query) use ($wpdb, $counter_name, &$raced, &$last_slot_winner): string {
+                if (!$raced && str_starts_with($query, "UPDATE {$wpdb->options}") && str_contains($query, $counter_name)) {
+                    $raced = true;
+                    $last_slot_winner = ll_tools_lti_login_admit($this->platform['id']);
+                }
+                return $query;
+            };
+            add_filter('query', $collision);
+            try { $last_slot_loser = ll_tools_lti_login_admit($this->platform['id']); }
+            finally { remove_filter('query', $collision); }
+            $this->assertTrue($raced);
+            $this->assertTrue($last_slot_winner, 'The competing launch takes the final allowance.');
+            $this->assertFalse($last_slot_loser, 'A launch whose SQL update loses the last slot must be denied.');
+            $this->assertFalse(ll_tools_lti_login_admit($this->platform['id']));
+            $request = new WP_REST_Request('POST', '/ll-tools/v1/lti/login');
+            $request->set_body_params(['iss' => $this->platform['issuer'], 'client_id' => $this->platform['client_id'],
+                'lti_deployment_id' => $this->platform['deployment_id'], 'login_hint' => 'classroom-student',
+                'target_link_uri' => ll_tools_lti_tool_urls()['resource']]);
+            $blocked = ll_tools_lti_rest_login($request);
+            $this->assertWPError($blocked);
+            $this->assertSame('lti_login_rate_limited', $blocked->get_error_code());
+            $this->assertSame(429, $blocked->get_error_data()['status']);
+            $request->set_param('lti_deployment_id', $other['deployment_id']);
+            $this->assertInstanceOf(WP_REST_Response::class, ll_tools_lti_rest_login($request), 'Another trusted deployment has its own classroom allowance.');
+            $rows = $wpdb->get_results($wpdb->prepare("SELECT option_value, autoload FROM {$wpdb->options} WHERE option_name LIKE %s", $wpdb->esc_like('ll_tools_lti_login_window_') . '%'), ARRAY_A);
+            $this->assertCount(2, $rows, 'Storage is fixed per registration, not per launch or minute.');
+            foreach ($rows as $row) { $this->assertSame('no', $row['autoload']); }
+            $clock += 60;
+            $this->assertTrue(ll_tools_lti_login_admit($this->platform['id']), 'The next minute resets the same counter.');
+            $this->assertSame(2, (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$wpdb->options} WHERE option_name LIKE %s", $wpdb->esc_like('ll_tools_lti_login_window_') . '%')));
+            $this->assertCount(0, $this->requests, 'Admission does not contact Moodle.');
+        } finally { remove_filter('ll_tools_lti_login_now', $clock_filter); }
+    }
+
     public function test_one_use_records_are_encrypted_context_bound_and_atomic(): void {
         global $wpdb;
         $ticket = ll_tools_lti_ticket_put('account', ['subject' => 'private-moodle-student']);
@@ -116,6 +243,30 @@ final class LtiFoundationTest extends LL_Tools_TestCase {
         $this->assertCount(0, $this->requests, 'Login redirects without fetching any user-selected URL.');
     }
 
+    public function test_moodle_deployment_login_hint_selects_scope_but_never_overrides_signed_claims(): void {
+        $second = $this->config(); $second['id'] = 'second-deployment'; $second['deployment_id'] = 'deployment-two';
+        $this->assertIsArray(ll_tools_lti_register_platform($second));
+        $request = new WP_REST_Request('POST');
+        $request->set_body_params(['iss' => $this->platform['issuer'], 'client_id' => $this->platform['client_id'],
+            'login_hint' => 'student', 'lti_message_hint' => '{"launchid":"moodle-launch"}', 'target_link_uri' => ll_tools_lti_tool_urls()['resource']]);
+        $this->assertSame('lti_unknown_registration', ll_tools_lti_rest_login($request)->get_error_code());
+        $request->set_param('lti_deployment_id', $second['deployment_id']);
+        $response = ll_tools_lti_rest_login($request);
+        $this->assertInstanceOf(WP_REST_Response::class, $response);
+        parse_str((string) wp_parse_url($response->get_headers()['Location'], PHP_URL_QUERY), $params);
+        $state = ll_tools_lti_ticket_consume('state', $params['state']);
+        $this->assertSame($second['id'], $state['platform_id']);
+        [, $claims] = $this->stateAndClaims(); $claims['nonce'] = $state['nonce'];
+        $this->assertSame('lti_invalid_launch_claims', ll_tools_lti_validate_claims($claims, $second, $state)->get_error_code());
+        $claims['https://purl.imsglobal.org/spec/lti/claim/deployment_id'] = $second['deployment_id'];
+        $this->assertIsArray(ll_tools_lti_validate_claims($claims, $second, $state));
+        $request->set_param('lti_deployment_id', 'unregistered');
+        $this->assertSame('lti_unknown_registration', ll_tools_lti_rest_login($request)->get_error_code());
+        $request->set_param('lti_deployment_id', ['array']);
+        $this->assertSame('lti_invalid_login', ll_tools_lti_rest_login($request)->get_error_code());
+        $this->assertCount(0, $this->requests);
+    }
+
     public function test_signed_launch_creates_browser_bound_ticket_and_replays_fail(): void {
         [$state, $payload] = $this->stateAndClaims();
         $request = $this->launchRequest($state, $payload);
@@ -137,6 +288,37 @@ final class LtiFoundationTest extends LL_Tools_TestCase {
         $this->assertSame(0, $args['redirection']);
         $this->assertTrue($args['sslverify']);
         $this->assertTrue($args['reject_unsafe_urls']);
+    }
+
+    public function test_moodle_key_rotation_refreshes_cached_keys_once_for_new_kid_or_changed_signature(): void {
+        $old = openssl_pkey_new(['private_key_bits' => 2048, 'private_key_type' => OPENSSL_KEYTYPE_RSA]);
+        $oldDetails = openssl_pkey_get_details($old);
+        $encode = static fn(string $value): string => rtrim(strtr(base64_encode($value), '+/', '-_'), '=');
+        foreach (['old-moodle-kid', LL_TOOLS_LTI_KEY_ID] as $kid) {
+            $cached = ['keys' => [['kty' => 'RSA', 'use' => 'sig', 'alg' => 'RS256', 'kid' => $kid,
+                'n' => $encode($oldDetails['rsa']['n']), 'e' => $encode($oldDetails['rsa']['e'])]]];
+            set_transient('ll_tools_lti_jwks_' . hash('sha256', $this->platform['jwks_url']), $cached, 300);
+            $before = count($this->requests);
+            [$state, $payload] = $this->stateAndClaims();
+            $response = ll_tools_lti_rest_launch($this->launchRequest($state, $payload));
+            $this->assertInstanceOf(WP_REST_Response::class, $response);
+            $this->assertSame($before + 1, count($this->requests));
+            $this->assertSame($this->platform['jwks_url'], $this->requests[$before]['url']);
+            $this->assertSame(0, $this->requests[$before]['args']['redirection']);
+        }
+    }
+
+    public function test_expired_future_and_bad_algorithm_tokens_never_refresh_valid_cached_keys(): void {
+        set_transient('ll_tools_lti_jwks_' . hash('sha256', $this->platform['jwks_url']), ['keys' => [ll_tools_lti_signing_material()['jwk']]], 300);
+        foreach ([['exp' => time() - 1], ['iat' => time() + 120]] as $change) {
+            [$state, $payload] = $this->stateAndClaims();
+            $this->assertSame('lti_invalid_signature', ll_tools_lti_rest_launch($this->launchRequest($state, array_replace($payload, $change)))->get_error_code());
+        }
+        [$state, $payload] = $this->stateAndClaims();
+        $request = new WP_REST_Request('POST');
+        $request->set_body_params(['state' => $state, 'id_token' => JWT::encode($payload, str_repeat('secret-fixture-', 3), 'HS256', LL_TOOLS_LTI_KEY_ID)]);
+        $this->assertSame('lti_invalid_signature', ll_tools_lti_rest_launch($request)->get_error_code());
+        $this->assertCount(0, $this->requests);
     }
 
     public function test_login_csrf_wrong_browser_cannot_use_valid_signed_launch(): void {

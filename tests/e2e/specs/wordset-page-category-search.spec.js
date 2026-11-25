@@ -313,6 +313,13 @@ async function mountWordsetPage(page, options = {}) {
   await page.addScriptTag({ content: jquerySource });
 
   const config = buildConfig();
+  (options.categoryOverrides || []).forEach((override) => {
+    const category = config.categories.find((row) => row.id === override.id);
+    if (category) {
+      Object.assign(category, override);
+    }
+  });
+  config.categorySearch.testWordMatchesByQuery = options.wordMatchesByQuery || {};
   config.categorySearch.testWarmFailures = Math.max(
     0,
     Number(options.warmFailures || (options.warmOnce ? 1 : 0)) || 0
@@ -502,7 +509,10 @@ async function mountWordsetPage(page, options = {}) {
 
         let categoryIds = [];
         let wordMatches = {};
-        if (
+        if (Object.prototype.hasOwnProperty.call(config.categorySearch.testWordMatchesByQuery, query)) {
+          wordMatches = config.categorySearch.testWordMatchesByQuery[query];
+          categoryIds = Object.keys(wordMatches).map(Number);
+        } else if (
           query.indexOf('app') !== -1
           || query.indexOf('elma') !== -1
           || query === config.categorySearch.testWarmQuery
@@ -1443,7 +1453,7 @@ test('main wordset search hides the add category card while filtering', async ({
   await expect(addCategoryCard).toBeVisible();
 });
 
-test('main wordset search ranks category title matches above word matches and shows matched word context', async ({ page }) => {
+test('main wordset search ranks stronger category title matches above weaker word matches and shows matched word context', async ({ page }) => {
   await mountWordsetPage(page);
 
   await setSearchValue(page, 'din');
@@ -1457,6 +1467,93 @@ test('main wordset search ranks category title matches above word matches and sh
   await expect(page.locator('.ll-wordset-card[data-cat-id="44"] [data-ll-wordset-search-match]')).toHaveCount(0);
   await expect(page.locator('.ll-wordset-card[data-cat-id="33"] [data-ll-wordset-search-match]')).toContainText('dinner');
   await expect(page.locator('.ll-wordset-card[data-cat-id="33"] [data-ll-wordset-search-match] mark')).toHaveText('din');
+});
+
+test('main wordset search puts an exact base word before partial category labels', async ({ page }) => {
+  await mountWordsetPage(page, {
+    categoryOverrides: [
+      { id: 11, name: 'Güzel şeyler', translation: '' },
+      { id: 22, name: 'Elbiseler', translation: '' },
+      { id: 33, name: 'El ve ayak', translation: '' },
+      { id: 44, name: 'Eller', translation: '' }
+    ],
+    wordMatchesByQuery: {
+      el: { 44: [{ id: 4401, title: 'el', translation: 'hand', match_rank: 400 }] }
+    }
+  });
+
+  await setSearchValue(page, 'el');
+
+  await expect.poll(() => page.locator('.ll-wordset-card[data-cat-id]').evaluateAll((cards) => cards
+    .filter((card) => !card.hidden)
+    .map((card) => Number(card.dataset.catId)))).toEqual([44, 33, 22, 11]);
+  await expect(page.locator('.ll-wordset-card[data-cat-id="44"] [data-ll-wordset-search-match] mark')).toHaveText('el');
+});
+
+test('main wordset search separates whole word translations from phrase tokens and partial words', async ({ page }) => {
+  await mountWordsetPage(page, {
+    wordMatchesByQuery: {
+      el: {
+        11: [{ id: 1101, title: 'güzel', translation: 'beautiful', match_rank: 100 }],
+        22: [{ id: 2201, title: 'elma', translation: 'apple', match_rank: 200 }],
+        33: [{ id: 3301, title: 'el ele', translation: 'hand in hand', match_rank: 300 }],
+        44: [{ id: 4401, title: 'hand', translation: 'el' }]
+      }
+    }
+  });
+
+  await setSearchValue(page, 'el');
+
+  await expect.poll(() => page.locator('.ll-wordset-card[data-cat-id]').evaluateAll((cards) => cards
+    .filter((card) => !card.hidden)
+    .map((card) => Number(card.dataset.catId)))).toEqual([44, 33, 22, 11]);
+  await expect(page.locator('.ll-wordset-card[data-cat-id="44"] [data-ll-wordset-search-match] mark')).toHaveText('el');
+});
+
+test('main wordset search prefers equally strong category labels and preserves normal order after clearing', async ({ page }) => {
+  await mountWordsetPage(page, {
+    categoryOverrides: [
+      { id: 11, name: 'EL', translation: '' },
+      { id: 33, name: 'Hands', translation: 'el' }
+    ],
+    wordMatchesByQuery: {
+      el: {
+        22: [{ id: 2201, title: 'el', translation: 'hand', match_rank: 400 }],
+        44: [{ id: 4401, title: 'hand', translation: 'el', match_rank: 400 }]
+      }
+    }
+  });
+
+  await setSearchValue(page, 'el');
+
+  await expect.poll(() => page.locator('.ll-wordset-card[data-cat-id]').evaluateAll((cards) => cards
+    .filter((card) => !card.hidden)
+    .map((card) => Number(card.dataset.catId)))).toEqual([11, 33, 22, 44]);
+
+  await setSearchValue(page, '');
+
+  await expect.poll(() => page.locator('.ll-wordset-card[data-cat-id]').evaluateAll((cards) => cards
+    .filter((card) => !card.hidden)
+    .map((card) => Number(card.dataset.catId)))).toEqual([11, 22, 33, 44]);
+});
+
+test('main wordset search normalizes repeated whitespace in multiword queries and category text', async ({ page }) => {
+  await mountWordsetPage(page, {
+    categoryOverrides: [
+      { id: 11, search_text: '  él   ele  ' },
+      { id: 22, name: 'ÉL   ELE', translation: '' },
+      { id: 44, name: 'El ele phrase', translation: '' }
+    ],
+    wordMatchesByQuery: {
+      'el   ele': { 33: [{ id: 3301, title: 'el ele', translation: 'hand in hand', match_rank: 400 }] }
+    }
+  });
+
+  await setSearchValue(page, '  EL   ELE  ');
+
+  await expect.poll(() => page.locator('.ll-wordset-card[data-cat-id]').evaluateAll((cards) => cards
+    .filter((card) => !card.hidden)
+    .map((card) => Number(card.dataset.catId)))).toEqual([22, 11, 33, 44]);
 });
 
 test('main wordset search clear button appears only for active filters and resets visible cards', async ({ page }) => {

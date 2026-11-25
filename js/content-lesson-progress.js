@@ -112,7 +112,9 @@
                 var errorMessage = response && response.data && response.data.message
                     ? String(response.data.message)
                     : getString('error', 'Lesson progress could not be saved.');
-                throw new Error(errorMessage);
+                var responseError = new Error('progress_save_rejected');
+                responseError.llToolsUserMessage = errorMessage;
+                throw responseError;
             }
             applyState(button, response.data.completed === true);
             setRetryState(button, false);
@@ -127,8 +129,8 @@
                 timedOut ? 'timeout' : 'error',
                 timedOut
                     ? getString('timeout', 'Saving took too long. Please retry.')
-                    : error && error.message
-                    ? String(error.message)
+                    : error && error.llToolsUserMessage
+                    ? String(error.llToolsUserMessage)
                     : getString('error', 'Lesson progress could not be saved.')
             );
         }).finally(function () {

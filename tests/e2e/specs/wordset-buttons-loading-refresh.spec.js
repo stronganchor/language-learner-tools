@@ -335,7 +335,83 @@ test('anonymous status polling honors a rate-limit delay without spending its fa
   expect(requestTimes[1] - requestTimes[0]).toBeGreaterThanOrEqual(150);
 });
 
-test('invalid anonymous status scope stops polling at the retry control', async ({ page }) => {
+test('anonymous status renews an authentic stale token without losing its scope or reloading', async ({ page }) => {
+  const requests = [];
+  let activeRequests = 0;
+  let maxActiveRequests = 0;
+  await page.route('**/wp-admin/admin-ajax.php', async (route) => {
+    requests.push(Object.fromEntries(new URLSearchParams(route.request().postData() || '')));
+    activeRequests += 1;
+    maxActiveRequests = Math.max(maxActiveRequests, activeRequests);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    activeRequests -= 1;
+    const stale = requests.length === 1;
+    await route.fulfill({
+      status: stale ? 409 : 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: !stale,
+        data: stale
+          ? { code: 'stale_status_token', statusToken: 'renewed-public-status-token', retryAfterMs: 10 }
+          : { complete: true, html: '<div>Renewed public counts</div>', retryAfterMs: 0 }
+      })
+    });
+  });
+
+  await page.setContent(anonymousStatusMarkup(), { waitUntil: 'domcontentloaded' });
+  await page.evaluate(() => {
+    window.llToolsWordsetButtonsRefresh = {
+      retryMs: 10,
+      requestTimeoutMs: 1000,
+      maxFailures: 1,
+      maxWaitMs: 1000
+    };
+    window.statusRecoveryPageMarker = 'same-document';
+  });
+  await page.addScriptTag({ content: refreshScriptSource });
+
+  await expect(page.getByText('Renewed public counts')).toBeVisible();
+  expect(await page.evaluate(() => window.statusRecoveryPageMarker)).toBe('same-document');
+  expect(maxActiveRequests).toBe(1);
+  expect(requests).toEqual([
+    { action: 'll_tools_wordset_buttons_status', token: 'signed-public-status-token' },
+    { action: 'll_tools_wordset_buttons_status', token: 'renewed-public-status-token' }
+  ]);
+});
+
+test('successful incomplete batches reset the consecutive token renewal limit during ongoing content changes', async ({ page }) => {
+  let requestCount = 0;
+  await page.route('**/wp-admin/admin-ajax.php', async (route) => {
+    requestCount += 1;
+    const stale = requestCount % 2 === 1;
+    await route.fulfill({
+      status: stale ? 409 : 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: !stale,
+        data: stale
+          ? { code: 'stale_status_token', statusToken: `renewed-token-${requestCount}`, retryAfterMs: 10 }
+          : { complete: requestCount === 12, html: requestCount === 12 ? '<div>Ongoing changes recovered</div>' : '', retryAfterMs: 10 }
+      })
+    });
+  });
+
+  await page.setContent(anonymousStatusMarkup(), { waitUntil: 'domcontentloaded' });
+  await page.evaluate(() => {
+    window.llToolsWordsetButtonsRefresh = {
+      retryMs: 10,
+      requestTimeoutMs: 1000,
+      maxFailures: 1,
+      maxWaitMs: 2000
+    };
+  });
+  await page.addScriptTag({ content: refreshScriptSource });
+
+  await expect(page.getByText('Ongoing changes recovered')).toBeVisible();
+  expect(requestCount).toBe(12);
+});
+
+test('repeated anonymous token changes stop at the bounded retry control', async ({ page }) => {
   let requestCount = 0;
   await page.route('**/wp-admin/admin-ajax.php', async (route) => {
     requestCount += 1;
@@ -344,7 +420,44 @@ test('invalid anonymous status scope stops polling at the retry control', async 
       contentType: 'application/json',
       body: JSON.stringify({
         success: false,
-        data: { code: 'stale_status_token' }
+        data: { code: 'stale_status_token', statusToken: `renewed-token-${requestCount}`, retryAfterMs: 10 }
+      })
+    });
+  });
+
+  await page.setContent(anonymousStatusMarkup(), { waitUntil: 'domcontentloaded' });
+  await page.evaluate(() => {
+    window.llToolsWordsetButtonsRefresh = {
+      retryMs: 10,
+      requestTimeoutMs: 1000,
+      maxFailures: 2,
+      maxWaitMs: 1000,
+      errorMessage: 'Something went wrong',
+      retryLabel: 'Try again'
+    };
+  });
+  await page.addScriptTag({ content: refreshScriptSource });
+
+  await expect(page.getByRole('button', { name: 'Try again' })).toBeVisible();
+  await page.waitForTimeout(50);
+  expect(requestCount).toBe(3);
+});
+
+for (const rejection of [
+  { code: 'stale_status_token', status: 409 },
+  { code: 'invalid_status_token', status: 403, statusToken: 'untrusted-replacement' },
+  { code: 'expired_status_token', status: 410, statusToken: 'untrusted-replacement' }
+]) {
+test(`anonymous ${rejection.code} without authorized renewal stops polling at the retry control`, async ({ page }) => {
+  let requestCount = 0;
+  await page.route('**/wp-admin/admin-ajax.php', async (route) => {
+    requestCount += 1;
+    await route.fulfill({
+      status: rejection.status,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: false,
+        data: { code: rejection.code, statusToken: rejection.statusToken }
       })
     });
   });
@@ -367,6 +480,7 @@ test('invalid anonymous status scope stops polling at the retry control', async 
   await page.waitForTimeout(50);
   expect(requestCount).toBe(1);
 });
+}
 
 test('transient request failure retries without overlapping requests', async ({ page }) => {
   let requestCount = 0;

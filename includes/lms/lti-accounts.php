@@ -58,13 +58,23 @@ function ll_tools_lti_get_resources(): array {
 function ll_tools_lti_write_resources(array $before, array $after): bool {
     global $wpdb;
     if (count($after) > 100) { return false; }
-    if ($before === [] && add_option(LL_TOOLS_LTI_RESOURCES_OPTION, $after, '', false)) { return true; }
-    $updated = $wpdb->query($wpdb->prepare(
-        "UPDATE {$wpdb->options} SET option_value = %s WHERE option_name = %s AND option_value = %s",
-        maybe_serialize($after), LL_TOOLS_LTI_RESOURCES_OPTION, maybe_serialize($before)
-    ));
-    wp_cache_delete(LL_TOOLS_LTI_RESOURCES_OPTION, 'options');
-    return $updated === 1 || ($updated === 0 && $before === $after);
+    try {
+        $wpdb->last_error = '';
+        $stored = $wpdb->get_var($wpdb->prepare("SELECT option_value FROM {$wpdb->options} WHERE option_name = %s", LL_TOOLS_LTI_RESOURCES_OPTION));
+        if ($wpdb->last_error !== '' || ($stored !== null && !is_string($stored))) { return false; }
+        $current = $stored === null ? [] : maybe_unserialize($stored);
+        if (!is_array($current) || count($current) > 100 || $current !== $before) { return false; }
+        if ($before === $after) { return true; }
+        $encoded = maybe_serialize($after);
+        // A plain unique INSERT preserves the first creator; add_option() may upsert on newer WordPress.
+        return $stored === null
+            ? $wpdb->insert($wpdb->options, ['option_name' => LL_TOOLS_LTI_RESOURCES_OPTION, 'option_value' => $encoded, 'autoload' => 'no'], ['%s', '%s', '%s']) === 1
+            : $wpdb->query($wpdb->prepare("UPDATE {$wpdb->options} SET option_value = %s WHERE option_name = %s AND BINARY option_value = BINARY %s", $encoded, LL_TOOLS_LTI_RESOURCES_OPTION, $stored)) === 1;
+    } finally {
+        wp_cache_delete(LL_TOOLS_LTI_RESOURCES_OPTION, 'options');
+        wp_cache_delete('alloptions', 'options');
+        wp_cache_delete('notoptions', 'options');
+    }
 }
 
 /** Read-only authoring admission, performed before creating a new assignment. */
@@ -80,6 +90,20 @@ function ll_tools_lti_resource_preflight(array $input, int $actor_user_id) {
         || !is_string($link) || strlen($link) > 255 || ($link !== '' && !ll_tools_lti_opaque($link))
         || !in_array($input['kind'] ?? '', ['practice', 'assignment'], true)
         || !ll_tools_lms_assignment_user_can_manage_class($class_id, $actor_user_id)) { return ll_tools_lti_account_error('lti_resource_scope_invalid'); }
+    if (!empty($input['setup_ticket'])) {
+        if ($actor_user_id !== get_current_user_id() || !is_string($input['setup_ticket'])) { return ll_tools_lti_account_error('lti_resource_forbidden'); }
+        $verified = ll_tools_lti_teacher_setup_scope($input['setup_ticket']);
+        if (is_wp_error($verified) || $verified['platform_id'] !== $platform_id
+            || $verified['context_id'] !== $context || $verified['resource_link_id'] !== $link) {
+            return ll_tools_lti_account_error('lti_resource_scope_mismatch');
+        }
+        if (ll_tools_lti_guided_matches(ll_tools_lti_get_resources(), $verified)) {
+            return ll_tools_lti_account_error('lti_resource_already_configured');
+        }
+        if ($input['kind'] === 'assignment' && empty($verified['can_grade'])) {
+            return ll_tools_lti_account_error('lti_grade_service_unavailable');
+        }
+    }
     $choices = ll_tools_lms_assignment_category_choices($class_id, $actor_user_id);
     if (is_wp_error($choices) || !in_array($category_id, array_map('intval', array_column($choices, 'id')), true)) { return ll_tools_lti_account_error('lti_resource_category_invalid'); }
     return count(ll_tools_lti_get_resources()) < 100 ? true : ll_tools_lti_account_error('lti_resource_limit');
@@ -127,8 +151,14 @@ function ll_tools_lti_register_resource(array $input, int $actor_user_id = 0) {
         'created_by' => $actor_user_id,
     ];
     $after = $rows;
+    if (!empty($input['setup_ticket'])) {
+        if (ll_tools_lti_guided_matches($rows, $row)) { return ll_tools_lti_account_error('lti_resource_already_configured'); }
+        $row['guided'] = true;
+    }
     $after[$id] = $row;
-    return ll_tools_lti_write_resources($rows, $after) ? $row : ll_tools_lti_account_error('lti_resource_write_conflict');
+    if (!ll_tools_lti_write_resources($rows, $after)) { return ll_tools_lti_account_error('lti_resource_write_conflict'); }
+    if (!empty($input['setup_ticket'])) { ll_tools_lti_ticket_consume('setup', $input['setup_ticket']); }
+    return $row;
 }
 
 function ll_tools_lti_disable_resource(string $resource_id, int $actor_user_id = 0) {
@@ -142,11 +172,60 @@ function ll_tools_lti_disable_resource(string $resource_id, int $actor_user_id =
     return ll_tools_lti_write_resources($rows, $after) ? true : ll_tools_lti_account_error('lti_resource_write_conflict');
 }
 
-/** Signed custom activity ID selects a locally configured course mapping. */
+/** A verified Moodle instructor can configure this exact activity from its first launch. */
+function ll_tools_lti_teacher_setup_ticket(array $context) {
+    $actor = get_current_user_id();
+    if (!$actor || !current_user_can('view_ll_tools') || !ll_tools_user_can_manage_classes($actor)
+        || !in_array('http://purl.imsglobal.org/vocab/lis/v2/membership#Instructor', $context['roles'] ?? [], true)) {
+        return ll_tools_lti_account_error('lti_resource_forbidden');
+    }
+    $scope = array_intersect_key($context, array_flip(['platform_id', 'issuer', 'client_id', 'deployment_id', 'context_id', 'resource_link_id']));
+    $scope['can_grade'] = !empty($context['ags']['lineitem']) && in_array(LL_TOOLS_LTI_SCORE_SCOPE, $context['ags']['scope'] ?? [], true);
+    $scope['activity_title'] = $context['resource_title'] ?? '';
+    return ll_tools_lti_ticket_put('setup', [
+        'user' => $actor,
+        'session' => wp_create_nonce('ll_lti_teacher_setup'),
+        'scope' => $scope,
+    ]);
+}
+
+function ll_tools_lti_teacher_setup_scope(string $ticket) {
+    $setup = ll_tools_lti_ticket_get('setup', $ticket);
+    if (!$setup || ($setup['user'] ?? 0) !== get_current_user_id()
+        || !current_user_can('view_ll_tools') || !ll_tools_user_can_manage_classes(get_current_user_id())
+        || !wp_verify_nonce($setup['session'] ?? '', 'll_lti_teacher_setup')) {
+        return ll_tools_lti_account_error('lti_resource_forbidden');
+    }
+    $scope = $setup['scope'];
+    $platform = ll_tools_lti_get_platform($scope['platform_id']);
+    if (empty($platform['enabled']) || $platform['issuer'] !== $scope['issuer']
+        || $platform['client_id'] !== $scope['client_id'] || $platform['deployment_id'] !== $scope['deployment_id']) {
+        return ll_tools_lti_account_error('lti_resource_scope_mismatch');
+    }
+    return $scope;
+}
+
+function ll_tools_lti_guided_matches(array $resources, array $scope): array {
+    return array_filter($resources, static function ($row) use ($scope): bool {
+        return !empty($row['enabled']) && !empty($row['guided'])
+            && $row['platform_id'] === ($scope['platform_id'] ?? null)
+            && $row['deployment_id'] === ($scope['deployment_id'] ?? null)
+            && $row['context_id'] === ($scope['context_id'] ?? null)
+            && $row['resource_link_id'] !== '' && $row['resource_link_id'] === ($scope['resource_link_id'] ?? null);
+    });
+}
+
+/** Resolve explicitly selected activities or an exact link previously configured by its instructor. */
 function ll_tools_lti_resolve_resource(array $context) {
-    $id = $context['custom']['ll_activity'] ?? '';
-    if (!is_string($id) || preg_match('/^[a-f0-9]{32}$/D', $id) !== 1) { return ll_tools_lti_account_error('lti_resource_missing'); }
-    $row = ll_tools_lti_get_resources()[$id] ?? null;
+    $resources = ll_tools_lti_get_resources();
+    if (array_key_exists('ll_activity', $context['custom'] ?? [])) {
+        $id = $context['custom']['ll_activity'];
+        if (!is_string($id) || preg_match('/^[a-f0-9]{32}$/D', $id) !== 1) { return ll_tools_lti_account_error('lti_resource_missing'); }
+        $row = $resources[$id] ?? null;
+    } else {
+        $matches = ll_tools_lti_guided_matches($resources, $context);
+        $row = count($matches) === 1 ? reset($matches) : null;
+    }
     $platform = ll_tools_lti_get_platform((string) ($context['platform_id'] ?? ''));
     if (!is_array($row) || empty($row['enabled']) || !is_array($platform) || empty($platform['enabled'])
         || $row['platform_id'] !== ($context['platform_id'] ?? '') || $row['deployment_id'] !== ($context['deployment_id'] ?? '')
@@ -165,16 +244,25 @@ function ll_tools_lti_resolve_resource(array $context) {
 
 /** Bind the first verified Moodle resource link once, without allowing later cross-activity reuse. */
 function ll_tools_lti_bind_resource_link(array $resource, array $context) {
-    $rows = ll_tools_lti_get_resources();
-    $id = (string) $resource['id'];
-    if (!isset($rows[$id])) { return ll_tools_lti_account_error('lti_resource_write_conflict'); }
+    global $wpdb;
+    // Admission holds the outer transaction: current locking read also covers an already pinned link.
+    $wpdb->last_error = '';
+    $stored = $wpdb->get_var($wpdb->prepare("SELECT option_value FROM {$wpdb->options} WHERE option_name = %s FOR UPDATE", LL_TOOLS_LTI_RESOURCES_OPTION));
+    $rows = is_string($stored) ? maybe_unserialize($stored) : null;
+    $id = (string) ($resource['id'] ?? '');
+    if ($wpdb->last_error !== '' || !is_array($rows) || count($rows) > 100 || !is_array($rows[$id] ?? null)
+        || empty($rows[$id]['enabled']) || !ll_tools_lti_opaque($context['resource_link_id'] ?? '')) {
+        return ll_tools_lti_account_error('lti_resource_write_conflict');
+    }
     if ($rows[$id] !== $resource) {
         $original = $rows[$id];
         $original['resource_link_id'] = $resource['resource_link_id'];
         return $original === $resource && $rows[$id]['resource_link_id'] === $context['resource_link_id']
             ? true : ll_tools_lti_account_error('lti_resource_write_conflict');
     }
-    if ($resource['resource_link_id'] !== '') { return true; }
+    if ($resource['resource_link_id'] !== '') {
+        return $resource['resource_link_id'] === $context['resource_link_id'] ? true : ll_tools_lti_account_error('lti_resource_write_conflict');
+    }
     $after = $rows;
     $after[$id]['resource_link_id'] = $context['resource_link_id'];
     return ll_tools_lti_write_resources($rows, $after) ? true : ll_tools_lti_account_error('lti_resource_write_conflict');
@@ -271,8 +359,7 @@ function ll_tools_lti_admit_account(array $context, int $learner_user_id, bool $
     if (is_wp_error($result)) {
         wp_cache_delete(LL_TOOLS_LTI_RESOURCES_OPTION, 'options');
         wp_cache_delete($learner_user_id, 'user_meta');
-        $id = $context['custom']['ll_activity'] ?? '';
-        $resource = is_string($id) ? (ll_tools_lti_get_resources()[$id] ?? null) : null;
+        $resource = ll_tools_lti_resolve_resource($context);
         if (is_array($resource)) { clean_post_cache((int) $resource['class_id']); }
     }
     return $result;
@@ -506,9 +593,18 @@ function ll_tools_lti_render_scope_diagnostic(array $context): void {
     nocache_headers();
     header('Referrer-Policy: no-referrer');
     header('X-Robots-Tag: noindex, nofollow');
-    ?><!doctype html><html <?php language_attributes(); ?>><head><meta charset="<?php bloginfo('charset'); ?>"><meta name="viewport" content="width=device-width, initial-scale=1"><title><?php esc_html_e('Moodle activity setup', 'll-tools-text-domain'); ?></title><?php wp_head(); ?></head><body class="ll-lti-account-page"><main class="ll-lti-account-panel"><h1><?php esc_html_e('Moodle activity setup', 'll-tools-text-domain'); ?></h1><p><?php esc_html_e('This instructor launch was verified. Copy its course and resource identifiers into your Moodle / LTI activity configuration.', 'll-tools-text-domain'); ?></p><dl>
+    ?><!doctype html><html <?php language_attributes(); ?>><head><meta charset="<?php bloginfo('charset'); ?>"><meta name="viewport" content="width=device-width, initial-scale=1"><title><?php esc_html_e('Moodle activity setup', 'll-tools-text-domain'); ?></title><?php wp_head(); ?></head><body class="ll-lti-account-page"><main class="ll-lti-account-panel"><h1><?php esc_html_e('Moodle activity setup', 'll-tools-text-domain'); ?></h1><p><?php esc_html_e('This Moodle launch was verified. Choose a Wordboat class and lesson for this activity.', 'll-tools-text-domain'); ?></p><dl>
     <?php foreach (['issuer' => __('Platform issuer', 'll-tools-text-domain'), 'client_id' => __('Client ID', 'll-tools-text-domain'), 'deployment_id' => __('Deployment ID', 'll-tools-text-domain'), 'context_id' => __('Moodle course context ID', 'll-tools-text-domain'), 'resource_link_id' => __('Moodle resource link ID', 'll-tools-text-domain')] as $key => $label): ?><dt><?php echo esc_html($label); ?></dt><dd><code><?php echo esc_html((string) ($context[$key] ?? '')); ?></code></dd><?php endforeach; ?>
-    </dl><p><a href="<?php echo esc_url(admin_url('admin.php?page=ll-tools-lti')); ?>"><?php esc_html_e('Open Moodle / LTI settings', 'll-tools-text-domain'); ?></a></p></main><?php wp_footer(); ?></body></html><?php
+    </dl><?php
+    $resource = ll_tools_lti_resolve_resource($context);
+    $setup = null;
+    if (is_wp_error($resource)) {
+        if (!array_key_exists('ll_activity', $context['custom'] ?? [])) { $setup = ll_tools_lti_teacher_setup_ticket($context); }
+    } elseif (ll_tools_lms_assignment_user_can_manage_class((int) $resource['class_id'], get_current_user_id())) {
+        echo '<p>' . esc_html__('Configured activity', 'll-tools-text-domain') . ' &mdash; ' . esc_html($resource['name']) . '</p>';
+    }
+    ?>
+    <p><a href="<?php echo esc_url(add_query_arg(is_string($setup) ? ['page' => 'll-tools-lti', 'll_lti_setup' => $setup] : ['page' => 'll-tools-lti'], admin_url('admin.php'))); ?>"><?php esc_html_e('Open Moodle / LTI settings', 'll-tools-text-domain'); ?></a></p></main><?php wp_footer(); ?></body></html><?php
 }
 
 function ll_tools_lti_confirm_account_action(): void {

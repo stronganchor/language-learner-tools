@@ -404,118 +404,116 @@
         return 150;
     }
 
-    function getOuterHeightWithMargins($el) {
-        if (!$el || !$el.length || !$el[0]) {
-            return 0;
+    function getOptionContentBounds() {
+        const viewport = getViewportSize();
+        const visual = root.visualViewport || {};
+        const viewportTop = parseCssPixels(visual.offsetTop, 0);
+        const viewportLeft = parseCssPixels(visual.offsetLeft, 0);
+        const content = document.getElementById('ll-tools-flashcard-content');
+        if (!content) {
+            return { top: viewportTop, left: viewportLeft, bottom: viewportTop + viewport.height, right: viewportLeft + viewport.width };
         }
-        const rect = $el[0].getBoundingClientRect();
-        if (!rect || rect.height <= 0) {
-            return 0;
-        }
-        const styles = root.getComputedStyle ? root.getComputedStyle($el[0]) : null;
-        return rect.height
-            + (styles ? parseCssPixels(styles.marginTop, 0) + parseCssPixels(styles.marginBottom, 0) : 0);
+        const rect = content.getBoundingClientRect();
+        const styles = root.getComputedStyle(content);
+        const innerTop = rect.top + content.clientTop;
+        const innerLeft = rect.left + content.clientLeft;
+        return {
+            top: Math.max(viewportTop, innerTop) + parseCssPixels(styles.paddingTop, 0),
+            bottom: Math.min(viewportTop + viewport.height, innerTop + content.clientHeight) - parseCssPixels(styles.paddingBottom, 0),
+            left: Math.max(viewportLeft, innerLeft) + parseCssPixels(styles.paddingLeft, 0),
+            right: Math.min(viewportLeft + viewport.width, innerLeft + content.clientWidth) - parseCssPixels(styles.paddingRight, 0)
+        };
     }
 
-    function getGridGapPx($grid) {
-        if (!$grid || !$grid.length || !$grid[0] || !root.getComputedStyle) {
-            return 0;
-        }
-        const styles = root.getComputedStyle($grid[0]);
-        return Math.max(0, parseCssPixels(styles.gap || styles.rowGap, 0));
+    const captionChoiceRanks = new WeakMap();
+
+    function usesPhoneCaptionChoices(mode) {
+        return mode === 'image_text_translation' && root.innerWidth <= 520
+            && !!document.getElementById('ll-tools-flashcard-quiz-popup') && !isEmbeddedQuizRuntime();
     }
 
-    function resetImageAnswerOptionViewportFit($root) {
-        if (!$root || !$root.length || !$root[0] || !$root[0].style) {
-            return;
+    function prepareCaptionChoices(words) {
+        // Selection order starts with the answer, even when the DOM is shuffled.
+        const ranks = new Map(words.map((word, index) => [String(word.id), index]));
+        const cards = Array.from(document.querySelectorAll('#ll-tools-flashcard .ll-answer-option-image-caption-card'));
+        cards.forEach(card => captionChoiceRanks.set(card, ranks.get(card.dataset.wordId)));
+        if (!usesPhoneCaptionChoices('image_text_translation')) return words;
+
+        // The preparing grid is invisible. Lay out the actual captions before reveal.
+        const displays = cards.map(card => card.style.display);
+        try {
+            cards.forEach(card => { card.style.display = 'flex'; });
+            applyImageAnswerOptionFitPass();
+        } finally {
+            cards.forEach((card, i) => { card.style.display = displays[i]; });
         }
-        $root
-            .removeClass('ll-compact-quiz-layout ll-micro-quiz-layout ll-image-options-scaled')
-            .removeAttr('data-ll-image-fit-size');
-        $root[0].style.removeProperty('--ll-answer-option-fit-size');
+        const retained = new Set(cards.filter(card => card.isConnected).map(card => card.dataset.wordId));
+        return words.filter(word => retained.has(String(word.id)));
     }
 
-    function getMaxCaptionExtra($cards) {
-        let maxExtra = 0;
-        $cards.each(function () {
-            const media = this.querySelector ? this.querySelector('.ll-answer-option-image-caption-media') : null;
-            if (!media) {
-                return;
-            }
-            const cardRect = this.getBoundingClientRect();
-            const mediaRect = media.getBoundingClientRect();
-            if (cardRect.height > 0 && mediaRect.height > 0) {
-                maxExtra = Math.max(maxExtra, Math.ceil(cardRect.height - mediaRect.height));
-            }
-        });
-        return Math.max(0, maxExtra);
+    function captionExtraLines(card) {
+        const label = card.querySelector('.ll-answer-option-image-caption');
+        if (!label || !label.offsetHeight) return 0;
+        const style = root.getComputedStyle(label);
+        const textHeight = label.getBoundingClientRect().height - parseCssPixels(style.paddingTop) - parseCssPixels(style.paddingBottom);
+        return Math.max(0, Math.round(textHeight / parseCssPixels(style.lineHeight, 16)) - 1);
     }
 
-    function getAvailableOptionHeight($content, viewport) {
-        if (!$content || !$content.length || !$content[0]) {
-            return viewport.height;
-        }
-        const contentEl = $content[0];
-        const styles = root.getComputedStyle ? root.getComputedStyle(contentEl) : null;
-        const paddingTop = styles ? parseCssPixels(styles.paddingTop, 0) : 0;
-        const paddingBottom = styles ? parseCssPixels(styles.paddingBottom, 0) : 0;
-        let height = Math.max(1, Math.floor(contentEl.clientHeight || contentEl.getBoundingClientRect().height || viewport.height));
-        height -= paddingTop + paddingBottom;
-
-        const $prompt = $('#ll-tools-prompt');
-        if ($prompt.length && $prompt[0].getClientRects().length) {
-            height -= getOuterHeightWithMargins($prompt);
-        }
-
-        return Math.max(1, Math.floor(height));
-    }
-
-    function imageOptionGridOverflows($grid, $content, viewport) {
-        if (!$grid || !$grid.length || !$grid[0] || !$grid[0].getClientRects().length) {
-            return false;
-        }
-        const gridRect = $grid[0].getBoundingClientRect();
-        const contentRect = ($content && $content.length && $content[0])
-            ? $content[0].getBoundingClientRect()
-            : { bottom: viewport.height, top: 0, left: 0, right: viewport.width };
-        const maxBottom = Math.min(viewport.height, contentRect.bottom) - 1;
-        const minTop = Math.max(0, contentRect.top) - 1;
-        return gridRect.bottom > maxBottom
-            || gridRect.top < minTop
-            || gridRect.left < -1
-            || gridRect.right > viewport.width + 1;
+    function enableImageGridScroll(grid, bounds) {
+        const available = Math.max(1, Math.floor(bounds.bottom - grid.getBoundingClientRect().top));
+        grid.classList.add('ll-image-options-scroll');
+        grid.style.setProperty('--ll-image-grid-scroll-height', available + 'px');
     }
 
     function applyImageAnswerOptionFitPass() {
         const $root = $('#ll-tools-flashcard-container');
-        const $grid = $('#ll-tools-flashcard');
-        const $content = $('#ll-tools-flashcard-content');
-        const $cards = $grid.find('.flashcard-container.ll-answer-option-image-card');
-        if (!$root.length || !$grid.length || !$cards.length) {
-            resetImageAnswerOptionViewportFit($root);
-            return { fitSize: 0, compact: false };
-        }
+        const grid = document.getElementById('ll-tools-flashcard');
+        if (!$root.length || !grid || document.hidden || (root.visualViewport && root.visualViewport.scale > 1.01)) return;
 
-        const renderedCards = $cards.filter(function () {
-            return !!this.getClientRects().length;
-        });
-        if (!renderedCards.length) {
-            return { fitSize: 0, compact: false };
-        }
-
-        resetImageAnswerOptionViewportFit($root);
+        const cards = Array.from(grid.querySelectorAll('.ll-answer-option-image-card'))
+            .filter(card => card.getClientRects().length);
+        $root.removeClass('ll-compact-quiz-layout ll-micro-quiz-layout ll-image-options-scaled')
+            .removeAttr('data-ll-image-fit-size');
+        grid.style.removeProperty('--ll-answer-option-fit-size');
+        grid.classList.remove('ll-image-options-scroll');
+        grid.style.removeProperty('--ll-image-grid-scroll-height');
+        const phoneChoices = cards.length > 0 && captionChoiceRanks.has(cards[0])
+            && usesPhoneCaptionChoices('image_text_translation');
+        grid.classList.toggle('ll-phone-caption-choices', phoneChoices);
+        if (!cards.length) return;
 
         const viewport = getViewportSize();
-        const baseSize = renderedCards.toArray().reduce(function (max, card) {
-            return Math.max(max, getImageCardBaseSize(card));
-        }, 150);
-        const embeddedRuntime = isEmbeddedQuizRuntime();
-        const constrainedViewport = viewport.width <= 520 || viewport.height <= 640;
-        const constrainedEmbed = embeddedRuntime && (viewport.width <= 640 || viewport.height <= 700);
-        const overflowsAtBase = imageOptionGridOverflows($grid, $content, viewport);
-        const shouldCompact = overflowsAtBase || constrainedViewport || constrainedEmbed;
+        const baseSize = Math.max(...cards.map(getImageCardBaseSize));
+        let bounds = getOptionContentBounds();
+        function cardsFit(items = cards) {
+            return items.every(card => {
+                const rect = card.getBoundingClientRect();
+                return rect.bottom <= bounds.bottom && rect.top >= bounds.top - 1
+                    && rect.left >= bounds.left - 1 && rect.right <= bounds.right + 1;
+            });
+        }
 
-        if (!shouldCompact) {
+        if (phoneChoices) {
+            // Only width limits the picture size. Height decides if we admit row three.
+            const gap = parseCssPixels(root.getComputedStyle(grid).columnGap);
+            const size = Math.min(baseSize, Math.floor((grid.clientWidth - gap) / 2));
+            if (size <= 0) return;
+            grid.style.setProperty('--ll-answer-option-fit-size', size + 'px');
+            const ranked = cards.slice().sort((a, b) => captionChoiceRanks.get(a) - captionChoiceRanks.get(b));
+            ranked.splice(6).forEach(card => card.remove());
+            const extraLines = ranked.reduce((total, card) => total + captionExtraLines(card), 0);
+            if (ranked.length > 4 && (extraLines > 1 || !cardsFit(ranked))) {
+                ranked.splice(4).forEach(card => card.remove());
+            }
+            if (ranked.some(card => card.getBoundingClientRect().bottom > bounds.bottom)) {
+                enableImageGridScroll(grid, bounds);
+            }
+            return { fitSize: size, compact: true };
+        }
+
+        const overflowsAtBase = !cardsFit();
+        if (!overflowsAtBase && viewport.width > 520 && viewport.height > 640
+            && !(isEmbeddedQuizRuntime() && (viewport.width <= 640 || viewport.height <= 700))) {
             return { fitSize: baseSize, compact: false };
         }
 
@@ -523,57 +521,41 @@
         if (viewport.width <= 340 || viewport.height <= 560 || overflowsAtBase) {
             $root.addClass('ll-micro-quiz-layout');
         }
+        bounds = getOptionContentBounds();
+        const gap = parseCssPixels(root.getComputedStyle(grid).columnGap, 0);
+        const columns = Math.min(cards.length, Math.max(2, Math.ceil(cards.length / 3)));
+        const widthCap = Math.floor((grid.clientWidth - gap * (columns - 1)) / columns);
+        const minSize = 52;
+        let size = Math.max(minSize, Math.min(widthCap, baseSize));
 
-        const count = Math.max(1, renderedCards.length);
-        const gap = getGridGapPx($grid);
-        const containerWidth = Math.max(
-            1,
-            Math.floor($grid.innerWidth() || ($content.length ? $content.innerWidth() : 0) || viewport.width)
-        );
-        const availableHeight = getAvailableOptionHeight($content, viewport);
-        const captionExtra = getMaxCaptionExtra(renderedCards);
-        const oneRowWidthCap = Math.floor((containerWidth - gap * (count - 1)) / count);
-        const targetRows = (count <= 2 && oneRowWidthCap >= 56)
-            ? 1
-            : (count <= 4 ? 2 : Math.min(3, Math.ceil(count / 3)));
-        const cols = Math.max(1, Math.ceil(count / targetRows));
-        const widthCap = Math.floor((containerWidth - gap * (cols - 1)) / cols);
-        const heightCap = Math.floor(((availableHeight - gap * (targetRows - 1)) / targetRows) - captionExtra);
-        const hardMin = 52;
-        let fitSize = Math.floor(Math.min(
-            baseSize,
-            widthCap > 0 ? widthCap : baseSize,
-            heightCap > 0 ? heightCap : baseSize
-        ));
-        fitSize = Math.max(hardMin, fitSize);
-
-        if (fitSize < baseSize) {
-            $root
-                .addClass('ll-image-options-scaled')
-                .attr('data-ll-image-fit-size', String(fitSize));
-            $root[0].style.setProperty('--ll-answer-option-fit-size', fitSize + 'px');
-        }
-
-        if (imageOptionGridOverflows($grid, $content, viewport) && fitSize > hardMin) {
-            const gridRect = $grid[0].getBoundingClientRect();
-            const contentRect = $content.length && $content[0]
-                ? $content[0].getBoundingClientRect()
-                : { bottom: viewport.height };
-            const allowedBottom = Math.min(viewport.height, contentRect.bottom) - 1;
-            const overflowRatio = gridRect.height > 0
-                ? Math.max(0.35, Math.min(1, (allowedBottom - gridRect.top) / gridRect.height))
-                : 1;
-            const refinedSize = Math.max(hardMin, Math.floor(fitSize * overflowRatio));
-            if (refinedSize < fitSize) {
-                fitSize = refinedSize;
-                $root
-                    .addClass('ll-image-options-scaled')
-                    .attr('data-ll-image-fit-size', String(fitSize));
-                $root[0].style.setProperty('--ll-answer-option-fit-size', fitSize + 'px');
+        // The popup can move to body. Set the size on the grid that owns these cards.
+        const setSize = value => grid.style.setProperty('--ll-answer-option-fit-size', value + 'px');
+        setSize(size);
+        if (!cardsFit()) {
+            // Measure actual flex rows, including captions that wrap again as images shrink.
+            // The 52–250px size range bounds this search to eight layout reads.
+            let low = minSize;
+            let high = size - 1;
+            size = minSize;
+            while (low <= high) {
+                const candidate = Math.floor((low + high) / 2);
+                setSize(candidate);
+                if (cardsFit()) {
+                    size = candidate;
+                    low = candidate + 1;
+                } else {
+                    high = candidate - 1;
+                }
+            }
+            setSize(size);
+            if (size === minSize && !cardsFit()) {
+                enableImageGridScroll(grid, bounds);
             }
         }
-
-        return { fitSize: fitSize, compact: true };
+        if (size < baseSize) {
+            $root.addClass('ll-image-options-scaled').attr('data-ll-image-fit-size', String(size));
+        }
+        return { fitSize: size, compact: true };
     }
 
     function fitImageAnswerOptionCardsForViewport() {
@@ -590,17 +572,20 @@
         if (imageFitResizeBound || !root || typeof root.addEventListener !== 'function') {
             return;
         }
-        root.addEventListener('resize', function () {
-            if (imageFitResizeTimer) {
-                clearTimeout(imageFitResizeTimer);
-            }
+        function scheduleFit() {
+            if (document.hidden) return;
+            clearTimeout(imageFitResizeTimer);
             imageFitResizeTimer = setTimeout(function () {
-                imageFitResizeTimer = null;
-                if ($('#ll-tools-flashcard .flashcard-container.ll-answer-option-image-card').length) {
+                if ($('#ll-tools-flashcard .ll-answer-option-image-card:visible').length) {
                     fitImageAnswerOptionCardsForViewport();
                 }
-            }, 120);
-        });
+            }, 80);
+        }
+        root.addEventListener('resize', scheduleFit);
+        root.addEventListener('pageshow', scheduleFit);
+        root.addEventListener('focus', scheduleFit);
+        document.addEventListener('visibilitychange', scheduleFit);
+        if (root.visualViewport) root.visualViewport.addEventListener('resize', scheduleFit);
         imageFitResizeBound = true;
     }
 
@@ -929,6 +914,8 @@
     root.LLFlashcards = root.LLFlashcards || {};
     root.LLFlashcards.Cards = {
         appendWordToContainer,
+        usesPhoneCaptionChoices,
+        prepareCaptionChoices,
         addClickEventToCard,
         playOptionAudio,
         playPromptAudio,

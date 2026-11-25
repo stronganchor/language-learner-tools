@@ -6,6 +6,8 @@
 
 if (!defined('WPINC')) { die; }
 
+require_once dirname(__DIR__) . '/lib/recorder-mutations.php';
+
 /**
  * Get translatable name for a recording type by slug
  */
@@ -669,6 +671,14 @@ function ll_tools_normalize_recording_hide_title($title): string {
 /**
  * Build the canonical hide key for a recording item.
  */
+function ll_tools_recorder_add_missing_tasks(array &$tasks, string $identity, array $types): void {
+    foreach ($types as $type) {
+        if ($identity !== '' && $type !== '') {
+            $tasks[$identity][$type] = true;
+        }
+    }
+}
+
 function ll_tools_build_recording_hide_key(int $word_id = 0, int $image_id = 0, string $title = '', int $prompt_card_id = 0): string {
     if ($prompt_card_id > 0) {
         return 'prompt_card:' . $prompt_card_id;
@@ -1357,8 +1367,7 @@ function ll_audio_recording_interface_shortcode($atts) {
     $recorder_summary_cached_group_lookup = [];
     $recorder_summary_resolved_slug_lookup = [];
     if (
-        $requested_category === ''
-        && !empty($wordset_term_ids)
+        !empty($wordset_term_ids)
         && function_exists('ll_tools_wordset_page_get_recorder_queue_summary_categories')
     ) {
         $recorder_summary_categories = ll_tools_wordset_page_get_recorder_queue_summary_categories(
@@ -1505,7 +1514,7 @@ function ll_audio_recording_interface_shortcode($atts) {
         function_exists('ll_tools_get_current_request_url') ? ll_tools_get_current_request_url() : ''
     );
     if (
-        $recorder_view === 'overview'
+        !empty($wordset_term_ids)
         && $recorder_summary_catalog_complete
         && function_exists('ll_tools_wordset_page_get_recorder_queue_cached_overview')
     ) {
@@ -1537,6 +1546,12 @@ function ll_audio_recording_interface_shortcode($atts) {
             'sanitize_title',
             (array) ($recorder_summary_cached_overview['pending_slugs'] ?? [])
         )));
+        ll_tools_wordset_page_track_active_recorder_overview(
+            (int) $wordset_term_ids[0],
+            $current_user_id,
+            (string) $atts['include_recording_types'],
+            (string) $atts['exclude_recording_types']
+        );
         if (!empty($pending_summary_slugs) && function_exists('ll_tools_wordset_page_schedule_recorder_queue_summary_warmup')) {
             ll_tools_wordset_page_schedule_recorder_queue_summary_warmup(
                 (int) $wordset_term_ids[0],
@@ -1544,7 +1559,8 @@ function ll_audio_recording_interface_shortcode($atts) {
                 (string) $atts['include_recording_types'],
                 (string) $atts['exclude_recording_types'],
                 (string) ($recorder_summary_cached_overview['generation'] ?? ''),
-                0
+                0,
+                $pending_summary_slugs
             );
         }
     }
@@ -1631,6 +1647,7 @@ function ll_audio_recording_interface_shortcode($atts) {
             'request_failed' => __('Request failed', 'll-tools-text-domain'),
             'switching_category' => __('Switching category...', 'll-tools-text-domain'),
             'loading_more_category' => __('Loading more words in this category...', 'll-tools-text-domain'),
+            'category_read_failed' => __('Unable to load words right now. Please try again.', 'll-tools-text-domain'),
             'skipping'            => __('Skipping...', 'll-tools-text-domain'),
             'skip_failed'         => __('Skip failed:', 'll-tools-text-domain'),
             'no_images_in_category'=> __('No images need audio in this category.', 'll-tools-text-domain'),
@@ -1646,6 +1663,18 @@ function ll_audio_recording_interface_shortcode($atts) {
             'new_word_failed'     => __('New word setup failed:', 'll-tools-text-domain'),
             'new_word_update_text_failed' => __('Failed to update word text', 'll-tools-text-domain'),
             'new_word_prepare_failed' => __('Failed to prepare new word', 'll-tools-text-domain'),
+            'new_word_prepare_unknown' => __('New word creation could not be confirmed. Check for an existing draft before recording this word again.', 'll-tools-text-domain'),
+            'new_word_prepare_retry' => __('Retry preparation', 'll-tools-text-domain'),
+            'new_word_download_recording' => __('Download recording', 'll-tools-text-domain'),
+            'new_word_prepare_recovering' => __('Checking new word...', 'll-tools-text-domain'),
+            'new_word_text_conflict' => __('This word changed elsewhere. Review the saved text before choosing which changes to keep.', 'll-tools-text-domain'),
+            'new_word_saved_text' => __('Current saved text', 'll-tools-text-domain'),
+            'new_word_use_saved_text' => __('Use saved text', 'll-tools-text-domain'),
+            'new_word_save_my_changes' => __('Save my changes', 'll-tools-text-domain'),
+            'new_word_check_saved_text' => __('Check saved text', 'll-tools-text-domain'),
+            'new_word_text_read_failed' => __('The saved word text could not be checked. Please try again.', 'll-tools-text-domain'),
+            'new_word_saving' => __('Saving...', 'll-tools-text-domain'),
+            'new_word_saved' => __('Saved', 'll-tools-text-domain'),
             'new_word_missing_data' => __('Missing word data', 'll-tools-text-domain'),
             'new_word_label'      => __('New word', 'll-tools-text-domain'),
             'new_word_missing_category' => __('Enter a category name or disable "Create new category".', 'll-tools-text-domain'),
@@ -1743,6 +1772,14 @@ function ll_audio_recording_interface_shortcode($atts) {
             </div>
             <?php endif; ?>
 
+            <?php if (!empty($wordset_term_ids)) :
+                $remaining = $recorder_summary_cached_overview['recording_total'] ?? null;
+                ?>
+                <span class="ll-recording-remaining" role="status">
+                    <?php esc_html_e('Recordings remaining', 'll-tools-text-domain'); ?>
+                    <strong data-ll-recording-remaining aria-busy="<?php echo $remaining === null ? 'true' : 'false'; ?>"><?php echo $remaining === null ? '…' : esc_html(number_format_i18n($remaining)); ?></strong>
+                </span>
+            <?php endif; ?>
             <?php if ($allow_new_words): ?>
             <div class="ll-new-word-toggle">
                 <button
@@ -1843,7 +1880,7 @@ function ll_audio_recording_interface_shortcode($atts) {
                     ]); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
                     ?>
                 <?php endforeach; ?>
-                <span class="ll-recorder-category-overview__more" data-ll-recorder-category-more aria-hidden="true"<?php echo count($recorder_summary_pending_slugs) > 3 ? '' : ' hidden'; ?>>&hellip;</span>
+                <span class="ll-recorder-category-overview__more" data-ll-recorder-category-more aria-hidden="true" hidden>&hellip;</span>
             </div>
             <p class="ll-recorder-category-overview__empty" data-ll-recorder-category-empty<?php echo $recorder_summary_cache_complete && empty($recorder_summary_cached_groups) ? '' : ' hidden'; ?>>
                 <?php esc_html_e('No words currently need recordings.', 'll-tools-text-domain'); ?>
@@ -2831,7 +2868,7 @@ function ll_tools_recorder_get_legacy_category_ids_for_wordset(int $wordset_id, 
     return $category_ids;
 }
 
-function ll_tools_recorder_get_category_terms_for_wordsets(array $wordset_ids, int $user_id = 0, ?bool &$complete = null): array {
+function ll_tools_recorder_get_category_terms_for_wordsets(array $wordset_ids, int $user_id = 0, ?bool &$complete = null, bool $sort_by_label = true): array {
     global $wpdb;
 
     $complete = true;
@@ -2900,15 +2937,21 @@ function ll_tools_recorder_get_category_terms_for_wordsets(array $wordset_ids, i
                 $wpdb->last_error = '';
                 update_meta_cache('term', $remap_validation_ids);
                 $bulk_remap_complete = $wpdb->last_error === '';
+                $privacy_source_ids = [];
                 foreach ($remap_validation_ids as $validation_category_id) {
                     $owner_complete = true;
                     $origin_complete = true;
                     ll_tools_get_category_wordset_owner_id($validation_category_id, $owner_complete);
-                    ll_tools_get_category_isolation_source_id($validation_category_id, $origin_complete);
+                    $privacy_source_ids[] = ll_tools_get_category_isolation_source_id($validation_category_id, $origin_complete);
                     if (!$owner_complete || !$origin_complete) {
                         $bulk_remap_complete = false;
                         break;
                     }
+                }
+                if ($bulk_remap_complete && $privacy_source_ids) {
+                    $wpdb->last_error = '';
+                    update_meta_cache('term', array_unique($privacy_source_ids));
+                    $bulk_remap_complete = $wpdb->last_error === '';
                 }
             }
             if ($bulk_remap_complete) {
@@ -2999,6 +3042,9 @@ function ll_tools_recorder_get_category_terms_for_wordsets(array $wordset_ids, i
         return [];
     }
 
+    if (!$sort_by_label) {
+        return $terms;
+    }
     if (function_exists('ll_tools_get_category_cache_versions')) {
         $wpdb->last_error = '';
         ll_tools_get_category_cache_versions(array_map('intval', wp_list_pluck($terms, 'term_id')));
@@ -3057,7 +3103,7 @@ function ll_tools_recorder_get_category_id_map_for_wordsets(array $wordset_ids, 
     }
 
     $terms_complete = true;
-    $terms = ll_tools_recorder_get_category_terms_for_wordsets($normalized_wordset_ids, $user_id, $terms_complete);
+    $terms = ll_tools_recorder_get_category_terms_for_wordsets($normalized_wordset_ids, $user_id, $terms_complete, false);
     if (!$terms_complete) {
         $complete = false;
     }
@@ -4803,7 +4849,8 @@ function ll_tools_recorder_queue_summaries_handler(): void {
     $requested_slugs = function_exists('ll_tools_wordset_page_normalize_recorder_queue_summary_slugs')
         ? ll_tools_wordset_page_normalize_recorder_queue_summary_slugs((array) $requested_slugs)
         : array_values(array_unique(array_filter(array_map('sanitize_title', (array) $requested_slugs))));
-    if (empty($requested_slugs)) {
+    $total_only = !empty($_POST['recording_total_only']);
+    if (empty($requested_slugs) && !$total_only) {
         wp_send_json_error([
             'message' => __('No queue categories were requested.', 'll-tools-text-domain'),
         ], 400);
@@ -4824,6 +4871,20 @@ function ll_tools_recorder_queue_summaries_handler(): void {
             sanitize_text_field(wp_unslash((string) $_POST['exclude_recording_types']))
         ))
         : '';
+    if ($total_only) {
+        $user_id = get_current_user_id();
+        $categories = ll_tools_wordset_page_get_recorder_queue_summary_categories($wordset_id, $user_id, $catalog_complete);
+        $overview = ll_tools_wordset_page_get_recorder_queue_cached_overview(
+            $wordset_id, $user_id, $categories, $include_types, $exclude_types, $catalog_complete
+        );
+        if (!empty($overview['pending_slugs']) && $catalog_complete) {
+            ll_tools_wordset_page_schedule_recorder_queue_summary_warmup(
+                $wordset_id, $user_id, $include_types, $exclude_types, $overview['generation'], 0, $overview['pending_slugs']
+            );
+        }
+        $total = $overview['recording_total'] ?? null;
+        wp_send_json_success(['total' => $total, 'formatted' => $total === null ? '' : number_format_i18n($total)]);
+    }
     $category_url_base = isset($_POST['category_url_base']) && !is_array($_POST['category_url_base'])
         ? wp_validate_redirect(
             esc_url_raw(wp_unslash((string) $_POST['category_url_base'])),
@@ -5017,22 +5078,70 @@ function ll_get_recording_types_for_category_handler() {
 // AJAX: prepare a new word (and optional category) for recording
 add_action('wp_ajax_ll_prepare_new_word_recording', 'll_prepare_new_word_recording_handler');
 
+/**
+ * Reject preparation before a draft exists without changing legacy error data.
+ *
+ * Category setup may have happened already; the marker authorizes only an
+ * explicit retry of draft preparation, never automatic mutation replay.
+ */
+function ll_tools_recorder_send_prepare_error($data, $status_code = null): void {
+    wp_send_json([
+        'success' => false,
+        'data' => $data,
+        'safe_to_retry' => true,
+    ], $status_code);
+}
+
 function ll_prepare_new_word_recording_handler() {
+    check_ajax_referer('ll_upload_recording', 'nonce');
+    ll_tools_recorder_apply_ajax_locale();
+    if (!is_user_logged_in() || !ll_tools_user_can_record()) {
+        ll_tools_recorder_send_prepare_error(__('Forbidden.', 'll-tools-text-domain'), 403);
+    }
+    $config = ll_get_user_recording_config(get_current_user_id());
+    if (empty($config['allow_new_words']) && !current_user_can('manage_options')) {
+        ll_tools_recorder_send_prepare_error(__('New word recording is not enabled for your account.', 'll-tools-text-domain'), 403);
+    }
+    $context = ll_tools_recorder_prepare_begin($_POST);
+    if (is_wp_error($context)) {
+        ll_tools_recorder_send_protocol_error($context);
+    }
+    try {
+        if (isset($context['response'])) {
+            wp_send_json_success($context['response']);
+        }
+        $response = ll_tools_recorder_prepare_new_word_payload();
+        if ($context) {
+            $receipt = $context['receipt'];
+            $receipt['state'] = 'complete';
+            $receipt['response'] = $response;
+            if (!ll_tools_recorder_prepare_receipt_write($context['key'], $receipt, $context['receipt'])) {
+                ll_tools_recorder_send_protocol_error(ll_tools_recorder_protocol_error('recorder_receipt_unavailable',
+                    __('New word creation could not be confirmed. Check for an existing draft before recording this word again.', 'll-tools-text-domain')));
+            }
+        }
+        wp_send_json_success($response);
+    } finally {
+        ll_tools_recorder_mutation_unlock((string) ($context['lock'] ?? ''));
+    }
+}
+
+function ll_tools_recorder_prepare_new_word_payload(): array {
     check_ajax_referer('ll_upload_recording', 'nonce');
     ll_tools_recorder_apply_ajax_locale();
 
     if (!is_user_logged_in()) {
-        wp_send_json_error(__('You must be logged in.', 'll-tools-text-domain'));
+        ll_tools_recorder_send_prepare_error(__('You must be logged in.', 'll-tools-text-domain'));
     }
 
     if (!ll_tools_user_can_record()) {
-        wp_send_json_error(__('You do not have permission to record audio.', 'll-tools-text-domain'));
+        ll_tools_recorder_send_prepare_error(__('You do not have permission to record audio.', 'll-tools-text-domain'));
     }
 
     $config = function_exists('ll_get_user_recording_config') ? ll_get_user_recording_config(get_current_user_id()) : [];
     $allow_new = is_array($config) && !empty($config['allow_new_words']);
     if (!$allow_new && !current_user_can('manage_options')) {
-        wp_send_json_error(__('New word recording is not enabled for your account.', 'll-tools-text-domain'));
+        ll_tools_recorder_send_prepare_error(__('New word recording is not enabled for your account.', 'll-tools-text-domain'));
     }
 
     $target_text_raw = sanitize_text_field($_POST['word_text_target'] ?? '');
@@ -5049,7 +5158,7 @@ function ll_prepare_new_word_recording_handler() {
     $type_filters = ll_tools_get_recording_type_filters_from_request();
     $all_types = $type_filters['all_types'];
     if (empty($all_types)) {
-        wp_send_json_error(__('No recording types are configured.', 'll-tools-text-domain'));
+        ll_tools_recorder_send_prepare_error(__('No recording types are configured.', 'll-tools-text-domain'));
     }
 
     $category_term = null;
@@ -5060,13 +5169,13 @@ function ll_prepare_new_word_recording_handler() {
 
     if ($create_category) {
         if ($new_category_name === '') {
-            wp_send_json_error(__('Missing new category name.', 'll-tools-text-domain'));
+            ll_tools_recorder_send_prepare_error(__('Missing new category name.', 'll-tools-text-domain'));
         }
         $target_wordset_id = (int) ($posted_ids[0] ?? 0);
         if (function_exists('ll_tools_create_or_get_wordset_category')) {
             $created = ll_tools_create_or_get_wordset_category($new_category_name, $target_wordset_id);
             if (is_wp_error($created)) {
-                wp_send_json_error(sprintf(
+                ll_tools_recorder_send_prepare_error(sprintf(
                     /* translators: %s: category creation error message */
                     __('Failed to create category: %s', 'll-tools-text-domain'),
                     $created->get_error_message()
@@ -5083,7 +5192,7 @@ function ll_prepare_new_word_recording_handler() {
             } else {
                 $created = wp_insert_term($new_category_name, 'word-category');
                 if (is_wp_error($created)) {
-                    wp_send_json_error(sprintf(
+                    ll_tools_recorder_send_prepare_error(sprintf(
                         /* translators: %s: category creation error message */
                         __('Failed to create category: %s', 'll-tools-text-domain'),
                         $created->get_error_message()
@@ -5096,7 +5205,7 @@ function ll_prepare_new_word_recording_handler() {
 
         if (!$created_category && $category_term_id > 0 && function_exists('ll_tools_user_can_view_category')) {
             if (!ll_tools_user_can_view_category($category_term_id, get_current_user_id())) {
-                wp_send_json_error(__('You do not have access to that category.', 'll-tools-text-domain'), 403);
+                ll_tools_recorder_send_prepare_error(__('You do not have access to that category.', 'll-tools-text-domain'), 403);
             }
         }
 
@@ -5127,7 +5236,7 @@ function ll_prepare_new_word_recording_handler() {
         if (is_wp_error($settings_result)) {
             $error_data = $settings_result->get_error_data();
             $status = is_array($error_data) ? (int) ($error_data['status'] ?? 503) : 503;
-            wp_send_json_error([
+            ll_tools_recorder_send_prepare_error([
                 'message' => $settings_result->get_error_message(),
                 'error' => ll_tools_get_vocab_lesson_category_settings_error_code($settings_result),
             ], max(400, min(599, $status)));
@@ -5151,12 +5260,12 @@ function ll_prepare_new_word_recording_handler() {
 
     if ($category_term_id > 0 && function_exists('ll_tools_user_can_view_category')) {
         if (!ll_tools_user_can_view_category($category_term_id, get_current_user_id())) {
-            wp_send_json_error(__('You do not have access to that category.', 'll-tools-text-domain'), 403);
+            ll_tools_recorder_send_prepare_error(__('You do not have access to that category.', 'll-tools-text-domain'), 403);
         }
     }
 
     if ($category_term_id && function_exists('ll_tools_is_category_recording_disabled') && ll_tools_is_category_recording_disabled($category_term_id)) {
-        wp_send_json_error(__('Recording is disabled for this category.', 'll-tools-text-domain'));
+        ll_tools_recorder_send_prepare_error(__('Recording is disabled for this category.', 'll-tools-text-domain'));
     }
 
     $desired_types = [];
@@ -5170,7 +5279,7 @@ function ll_prepare_new_word_recording_handler() {
     $filtered_types = ll_sort_recording_type_slugs(array_values(array_intersect($desired_types, $type_filters['filtered_types'])));
 
     if (empty($filtered_types)) {
-        wp_send_json_error(__('No recording types are available for this category.', 'll-tools-text-domain'));
+        ll_tools_recorder_send_prepare_error(__('No recording types are available for this category.', 'll-tools-text-domain'));
     }
 
     $placeholder = sprintf(
@@ -5187,7 +5296,7 @@ function ll_prepare_new_word_recording_handler() {
 
     if (is_wp_error($word_id) || !$word_id) {
         $err = is_wp_error($word_id) ? $word_id->get_error_message() : 'Unknown error';
-        wp_send_json_error(sprintf(
+        ll_tools_recorder_send_prepare_error(sprintf(
             /* translators: %s: word creation error */
             __('Failed to create word: %s', 'll-tools-text-domain'),
             $err
@@ -5234,7 +5343,25 @@ function ll_prepare_new_word_recording_handler() {
         'is_text_only'     => true,
     ];
 
-    wp_send_json_success([
+    $snapshot = ll_tools_recorder_word_text_snapshot((int) $word_id);
+    if (is_wp_error($snapshot)) {
+        ll_tools_recorder_send_protocol_error($snapshot);
+    }
+    $saved_categories = wp_get_object_terms((int) $word_id, 'word-category', ['fields' => 'ids']);
+    $saved_wordsets = wp_get_object_terms((int) $word_id, 'wordset', ['fields' => 'ids']);
+    if (is_wp_error($saved_categories) || is_wp_error($saved_wordsets)
+        || ($category_term_id && !in_array($category_term_id, array_map('intval', $saved_categories), true))
+        || array_diff(array_map('intval', $posted_ids), array_map('intval', $saved_wordsets))
+        || ($target_text !== '' && $snapshot['word_text_target'] !== ll_tools_sanitize_word_target_text($target_text))
+        || $snapshot['word_translation'] !== ll_tools_sanitize_word_translation_text($translation_text)) {
+        ll_tools_recorder_send_protocol_error(ll_tools_recorder_protocol_error('recorder_preparation_incomplete',
+            __('New word creation could not be confirmed. Check for an existing draft before recording this word again.', 'll-tools-text-domain')));
+    }
+    $item['word_text_target'] = $snapshot['word_text_target'];
+    $item['word_translation'] = $snapshot['word_translation'];
+    $item['text_revision'] = $snapshot['text_revision'];
+
+    return [
         'word' => $item,
         'recording_types' => $dropdown_types,
         'category' => [
@@ -5242,7 +5369,7 @@ function ll_prepare_new_word_recording_handler() {
             'name' => $category_name,
             'term_id' => $category_term_id,
         ],
-    ]);
+    ];
 }
 
 /**
@@ -5536,12 +5663,52 @@ function ll_update_new_word_text_handler() {
         wp_send_json_error(__('Forbidden.', 'll-tools-text-domain'), 403);
     }
 
+    $lock = ll_tools_recorder_mutation_lock('word:' . $word_id);
+    if ($lock === '') {
+        ll_tools_recorder_send_protocol_error(ll_tools_recorder_protocol_error('recorder_text_busy', __('Failed to update word text', 'll-tools-text-domain')));
+    }
+    try {
+        $before = ll_tools_recorder_word_text_snapshot($word_id);
+        if (is_wp_error($before)) {
+            ll_tools_recorder_send_protocol_error($before);
+        }
+        if (array_key_exists('expected_text_revision', $_POST)
+            && (!is_string($_POST['expected_text_revision'])
+                || !hash_equals($before['text_revision'], $_POST['expected_text_revision']))) {
+            wp_send_json_error([
+                'code' => 'recorder_text_conflict',
+                'message' => __('This word changed elsewhere. Review the saved text before choosing which changes to keep.', 'll-tools-text-domain'),
+                'current' => $before,
+            ], 409);
+        }
+        ll_tools_recorder_update_new_word_text_payload($word_id, $word_post, $before);
+    } finally {
+        ll_tools_recorder_mutation_unlock($lock);
+    }
+}
+
+function ll_tools_recorder_update_new_word_text_payload(int $word_id, WP_Post $word_post, array $before): void {
     $target_text_raw = sanitize_text_field($_POST['word_text_target'] ?? '');
     $target_text = ll_sanitize_word_title_text($target_text_raw);
     $translation_text = sanitize_text_field($_POST['word_text_translation'] ?? '');
     $translation_text = trim($translation_text);
+    $expected_target = ll_tools_sanitize_word_target_text($target_text);
+    $expected_translation = ll_tools_sanitize_word_translation_text($translation_text);
 
-    if ($target_text !== '') {
+    // The revision has already been checked under the word lock. Compare
+    // stored values too, so matching display text does not skip legacy repair.
+    $write_target = $target_text !== '' && ($before['word_text_target'] !== $expected_target
+        || get_post_field('post_title', $word_id, 'raw') !== $expected_target
+        || get_post_meta($word_id, LL_TOOLS_WORD_TARGET_TEXT_META_KEY, true) !== $expected_target);
+    $has_translation = array_key_exists('word_text_translation', $_POST);
+    $write_translation = $has_translation && ($write_target
+        || $before['word_translation'] !== $expected_translation
+        || !ll_tools_recorder_default_translation_matches_storage($word_id, $expected_translation));
+    if (!$write_target && !$write_translation) {
+        wp_send_json_success($before);
+    }
+
+    if ($write_target) {
         if (function_exists('ll_tools_update_word_target_text')) {
             ll_tools_update_word_target_text($word_id, $target_text, true);
         } elseif ($target_text !== $word_post->post_title) {
@@ -5552,9 +5719,11 @@ function ll_update_new_word_text_handler() {
         }
     }
 
-    if ($translation_text !== '') {
+    if ($write_translation) {
         if (function_exists('ll_tools_update_word_default_translation_text')) {
             ll_tools_update_word_default_translation_text($word_id, $translation_text, true);
+        } elseif ($translation_text === '') {
+            delete_post_meta($word_id, 'word_translation');
         } else {
             update_post_meta($word_id, 'word_translation', $translation_text);
         }
@@ -5568,12 +5737,20 @@ function ll_update_new_word_text_handler() {
             'store_in_title' => true,
         ];
 
-    wp_send_json_success([
-        'word_id'         => $word_id,
-        'post_title'      => (string) get_the_title($word_id),
-        'word_translation'=> (string) ($display_values['translation_text'] ?? ''),
-        'store_in_title'  => (bool) ($display_values['store_in_title'] ?? true),
-    ]);
+    if (($target_text !== '' && (string) ($display_values['word_text'] ?? '') !== $expected_target)
+        || ($has_translation && (string) ($display_values['translation_text'] ?? '') !== $expected_translation)) {
+        wp_send_json_error(__('Failed to update word text', 'll-tools-text-domain'), 503);
+    }
+
+    $snapshot = ll_tools_recorder_word_text_snapshot($word_id);
+    if (is_wp_error($snapshot)) {
+        ll_tools_recorder_send_protocol_error($snapshot);
+    }
+    if (($target_text !== '' && $snapshot['word_text_target'] !== $expected_target)
+        || ($has_translation && $snapshot['word_translation'] !== $expected_translation)) {
+        wp_send_json_error(__('Failed to update word text', 'll-tools-text-domain'), 503);
+    }
+    wp_send_json_success($snapshot);
 }
 
 /**
@@ -6702,6 +6879,9 @@ function ll_tools_get_legacy_missing_audio_instances_page($category_slug = '', $
                     $items[] = $item;
                 }
             }
+            if (isset($options['on_eligible_item']) && is_callable($options['on_eligible_item'])) {
+                $options['on_eligible_item']($item);
+            }
             $eligible_seen++;
         }
 
@@ -7048,6 +7228,9 @@ function ll_tools_get_prompt_cards_needing_audio_page($category_slug = '', $word
                 if (count($items) < $collect_limit) {
                     $items[] = $item;
                 }
+            }
+            if (isset($options['on_eligible_item']) && is_callable($options['on_eligible_item'])) {
+                $options['on_eligible_item']($item);
             }
             $eligible_seen++;
         }
@@ -8963,10 +9146,7 @@ function ll_tools_handle_prompt_card_recording_upload(int $prompt_card_id, array
     ]);
 }
 
-/**
- * Enqueue recording interface assets
- */
-function ll_enqueue_recording_assets($auto_process_recordings = false) {
+function ll_tools_enqueue_recording_styles(): void {
     // Enqueue flashcard styles first so recording interface can use them
     ll_enqueue_asset_by_timestamp('/css/flashcard/base.css', 'll-flashcard-style');
     ll_enqueue_asset_by_timestamp('/css/flashcard/mode-practice.css', 'll-flashcard-mode-practice', ['ll-flashcard-style']);
@@ -8982,7 +9162,23 @@ function ll_enqueue_recording_assets($auto_process_recordings = false) {
             'll-flashcard-mode-listening'
         ]
     );
+}
 
+// Shortcodes render after wp_head on classic themes. Queue the recorder layout
+// during the normal head pass so the first paint has the final grid geometry.
+add_action('wp_enqueue_scripts', static function (): void {
+    $post = get_queried_object();
+    if (is_singular() && $post instanceof WP_Post && has_shortcode($post->post_content, 'audio_recording_interface')) {
+        ll_enqueue_asset_by_timestamp('/css/frontend-utility-menu.css', 'll-tools-frontend-utility-menu-css');
+        if (ll_tools_user_can_record()) {
+            ll_tools_enqueue_recording_styles();
+            ll_enqueue_asset_by_timestamp('/css/recording-history.css', 'll-recording-history');
+        }
+    }
+}, 101);
+
+function ll_enqueue_recording_assets($auto_process_recordings = false) {
+    ll_tools_enqueue_recording_styles();
     if ($auto_process_recordings) {
         ll_enqueue_asset_by_timestamp('/css/audio-processor.css', 'll-audio-processor-css', ['ll-recording-interface']);
     }
@@ -9405,8 +9601,13 @@ function ll_tools_get_recording_notification_category_summary_lines(array $state
     return $lines;
 }
 
+function ll_tools_recording_notification_is_due(array $state): bool {
+    $last_upload = (int) ($state['last_upload_unix'] ?? 0);
+    return $last_upload <= 0 || time() >= $last_upload + ll_tools_get_recording_notification_delay_seconds();
+}
+
 /**
- * Clear the pending recording notification batch when the audio processor page is opened.
+ * A processor visit acknowledges uploads only during their quiet window.
  */
 function ll_tools_acknowledge_recording_notification_batch_from_processor_page() {
     $state = get_option('ll_tools_recording_notification_state', []);
@@ -9416,6 +9617,14 @@ function ll_tools_acknowledge_recording_notification_batch_from_processor_page()
 
     $total_count = max(0, (int) ($state['total_count'] ?? 0));
     if ($total_count < 1) {
+        return;
+    }
+
+    if (ll_tools_recording_notification_is_due($state)) {
+        // A delayed cron runner still owes this summary, even if someone opens the processor.
+        if (false === wp_next_scheduled('ll_tools_send_recording_notification_event')) {
+            wp_schedule_single_event(time(), 'll_tools_send_recording_notification_event');
+        }
         return;
     }
 
@@ -9508,9 +9717,7 @@ function ll_tools_send_recording_notification_email() {
         return;
     }
 
-    $last_upload_unix = isset($state['last_upload_unix']) ? (int) $state['last_upload_unix'] : 0;
-    $delay_seconds = ll_tools_get_recording_notification_delay_seconds();
-    if ($last_upload_unix > 0 && (time() - $last_upload_unix) < $delay_seconds) {
+    if (!ll_tools_recording_notification_is_due($state)) {
         ll_tools_schedule_recording_notification_event();
         return;
     }

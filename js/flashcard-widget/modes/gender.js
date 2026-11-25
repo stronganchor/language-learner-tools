@@ -1948,7 +1948,6 @@
             $content.removeClass('audio-line-mode ll-gender-options-mode ll-gender-layout-compact');
             if ($content[0] && $content[0].style) {
                 try { $content[0].style.removeProperty('--ll-gender-layout-scale'); } catch (_) { /* no-op */ }
-                try { $content[0].style.removeProperty('--ll-gender-safe-bottom'); } catch (_) { /* no-op */ }
             }
         }
     }

@@ -6,6 +6,7 @@
     var fetchAction = String(cfg.fetchAction || 'll_tools_get_category_lineup_candidates');
     var updateAction = String(cfg.updateAction || 'll_tools_update_category_lineup_sequence');
     var pageSize = Math.max(5, Math.min(50, parseInt(cfg.pageSize, 10) || 25));
+    var requestTimeoutMs = Math.max(3000, Math.min(30000, parseInt(cfg.requestTimeoutMs, 10) || 15000));
     var i18n = (cfg.i18n && typeof cfg.i18n === 'object') ? cfg.i18n : {};
 
     function message(key, fallback) {
@@ -47,13 +48,18 @@
         return context;
     }
 
-    function managerRequest(action, context, data) {
-        return $.ajax({
+    function managerRequest(action, context, data, requestOptions) {
+        var ajaxOptions = {
             url: ajaxUrl,
             method: 'POST',
             dataType: 'json',
             data: $.extend({ action: action }, context, data || {})
-        });
+        };
+        var timeout = requestOptions && parseInt(requestOptions.timeout, 10);
+        if (timeout > 0) {
+            ajaxOptions.timeout = timeout;
+        }
+        return $.ajax(ajaxOptions);
     }
 
     function pageSummary(page, totalPages) {
@@ -220,6 +226,49 @@
         }
     }
 
+    function setReadStatus($manager, view, text, state) {
+        var $status = $manager.find('[data-ll-lineup-read-status="' + view + '"]').first();
+        $status
+            .empty()
+            .attr('data-state', String(state || 'idle'));
+        if (!text) {
+            $status.attr('hidden', 'hidden');
+            return;
+        }
+
+        $('<span>', {
+            class: 'll-category-lineup-manager__read-status-message',
+            text: String(text)
+        }).appendTo($status);
+        if (state === 'error') {
+            $('<button>', {
+                type: 'button',
+                class: 'll-category-lineup-manager__retry-button',
+                text: message('retry', 'Retry'),
+                'data-ll-lineup-retry-view': view
+            }).appendTo($status);
+        }
+        $status.removeAttr('hidden');
+    }
+
+    function focusReadView($manager, view) {
+        var selector = view === 'sequence'
+            ? '[data-ll-lineup-sequence-list]'
+            : '[data-ll-lineup-candidate-list]';
+        var element = $manager.find(selector).first().get(0);
+        if (!element || typeof element.focus !== 'function') {
+            return;
+        }
+        if (!element.hasAttribute('tabindex')) {
+            element.setAttribute('tabindex', '-1');
+        }
+        try {
+            element.focus({ preventScroll: true });
+        } catch (error) {
+            element.focus();
+        }
+    }
+
     function setBusy($manager, busy) {
         $manager.attr('aria-busy', busy ? 'true' : 'false');
         $manager.toggleClass('is-busy', !!busy);
@@ -246,6 +295,13 @@
         $('<p>', {
             class: 'll-category-lineup-manager__help',
             text: message('sequenceHelp', 'Custom-positioned words are used first in the order shown.')
+        }).appendTo($sequence);
+        $('<div>', {
+            class: 'll-category-lineup-manager__read-status',
+            role: 'status',
+            'aria-live': 'polite',
+            'data-ll-lineup-read-status': 'sequence',
+            hidden: 'hidden'
         }).appendTo($sequence);
         $('<ol>', {
             class: 'll-category-lineup-manager__list',
@@ -295,6 +351,13 @@
             hidden: 'hidden'
         }).appendTo($search);
         $search.appendTo($candidates);
+        $('<div>', {
+            class: 'll-category-lineup-manager__read-status',
+            role: 'status',
+            'aria-live': 'polite',
+            'data-ll-lineup-read-status': 'candidates',
+            hidden: 'hidden'
+        }).appendTo($candidates);
         $('<ul>', {
             class: 'll-category-lineup-manager__list',
             'data-ll-lineup-candidate-list': '1'
@@ -347,19 +410,21 @@
             var token = state[tokenKey];
             state.pendingRequests += 1;
             setBusy($manager, true);
-            setStatus($manager, message('loading', 'Loading Line-Up words...'), 'loading');
+            setReadStatus($manager, view, message('loading', 'Loading Line-Up words...'), 'loading');
 
             return managerRequest(fetchAction, context, {
                 view: view,
                 page: page,
                 per_page: pageSize,
                 search: isSequence ? '' : state.candidateSearch
+            }, {
+                timeout: requestTimeoutMs
             }).done(function (response) {
                 if (token !== state[tokenKey]) {
                     return;
                 }
                 if (!response || response.success !== true || !response.data) {
-                    setStatus($manager, responseMessage(response, message('loadError', 'Unable to load Line-Up words right now.')), 'error');
+                    setReadStatus($manager, view, responseMessage(response, message('loadError', 'Unable to load Line-Up words right now.')), 'error');
                     return;
                 }
                 if (isSequence) {
@@ -371,13 +436,14 @@
                     state.candidatePage = Math.max(1, parseInt(response.data.page, 10) || 1);
                     renderCandidates($manager, response.data);
                 }
-                setStatus($manager, '', 'idle');
+                setReadStatus($manager, view, '', 'idle');
             }).fail(function (jqXHR) {
                 if (token !== state[tokenKey]) {
                     return;
                 }
-                setStatus(
+                setReadStatus(
                     $manager,
+                    view,
                     responseMessage(jqXHR && jqXHR.responseJSON, message('loadError', 'Unable to load Line-Up words right now.')),
                     'error'
                 );
@@ -459,6 +525,13 @@
         });
         $manager.on('click', '[data-ll-lineup-mutation]', function () {
             mutate($(this));
+        });
+        $manager.on('click', '[data-ll-lineup-retry-view]', function () {
+            var view = String($(this).attr('data-ll-lineup-retry-view') || '');
+            if (view === 'sequence' || view === 'candidates') {
+                loadView(view);
+                focusReadView($manager, view);
+            }
         });
         $manager.on('click', '[data-ll-lineup-search]', function () {
             state.candidateSearch = String($manager.find('[data-ll-lineup-search-input]').val() || '').trim();

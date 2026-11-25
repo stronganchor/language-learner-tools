@@ -36,8 +36,10 @@ function ll_tools_lti_admin_post_text(string $key): string {
     return is_string($value) ? trim(wp_unslash($value)) : '';
 }
 
-function ll_tools_lti_admin_redirect($result, int $class_id = 0, string $retained_uuid = ''): void {
-    wp_safe_redirect(ll_tools_lti_admin_url(['class_id' => $class_id, 'lti_notice' => is_wp_error($result) ? 'failed' : 'saved', 'lti_retained_assignment' => $retained_uuid]));
+function ll_tools_lti_admin_redirect($result, int $class_id = 0, string $retained_uuid = '', string $setup_ticket = ''): void {
+    $args = ['class_id' => $class_id, 'lti_notice' => is_wp_error($result) ? 'failed' : 'saved', 'lti_retained_assignment' => $retained_uuid];
+    if (is_wp_error($result) && $setup_ticket !== '') { $args['ll_lti_setup'] = $setup_ticket; }
+    wp_safe_redirect(ll_tools_lti_admin_url($args));
     exit;
 }
 
@@ -48,6 +50,11 @@ function ll_tools_lti_admin_platform_action(): void {
     $input = ['enabled' => !empty($_POST['enabled'])];
     foreach (['id', 'name', 'issuer', 'client_id', 'deployment_id', 'authorization_url', 'jwks_url', 'token_url'] as $key) {
         $input[$key] = ll_tools_lti_admin_post_text($key);
+    }
+    $details = ll_tools_lti_admin_post_text('platform_details');
+    if ($details !== '') {
+        $input = ll_tools_lti_parse_moodle_platform_details($details, $input);
+        if (is_wp_error($input)) { ll_tools_lti_admin_redirect($input); }
     }
     ll_tools_lti_admin_redirect(ll_tools_lti_register_platform($input));
 }
@@ -66,8 +73,14 @@ function ll_tools_lti_admin_resource_action(): void {
         'resource_link_id' => ll_tools_lti_admin_post_text('resource_link_id'), 'class_id' => $class_id,
         'category_id' => $category_id, 'kind' => $kind, 'assignment_uuid' => $uuid, 'name' => ll_tools_lti_admin_post_text('name'),
     ];
+    $setup_ticket = ll_tools_lti_admin_post_text('ll_lti_setup');
+    if (isset($_POST['ll_lti_setup'])) {
+        $scope = ll_tools_lti_teacher_setup_scope($setup_ticket);
+        if (is_wp_error($scope)) { ll_tools_lti_admin_redirect($scope, $class_id, $uuid, 'expired'); }
+        $input = array_merge($input, $scope, ['setup_ticket' => $setup_ticket]);
+    }
     $preflight = ll_tools_lti_resource_preflight($input, $actor);
-    if (is_wp_error($preflight)) { ll_tools_lti_admin_redirect($preflight, $class_id); }
+    if (is_wp_error($preflight)) { ll_tools_lti_admin_redirect($preflight, $class_id, $uuid, $setup_ticket); }
     $created_uuid = '';
     if ($kind === 'assignment' && $uuid === '') {
         $created = ll_tools_lms_assignment_create_from_category($class_id, $category_id, [
@@ -76,15 +89,15 @@ function ll_tools_lti_admin_resource_action(): void {
             'attempt_limit' => (int) ($_POST['attempt_limit'] ?? 1),
             'grade_policy' => ll_tools_lti_admin_post_text('grade_policy'),
         ], $actor);
-        if (is_wp_error($created)) { ll_tools_lti_admin_redirect($created, $class_id); }
+        if (is_wp_error($created)) { ll_tools_lti_admin_redirect($created, $class_id, '', $setup_ticket); }
         $published = ll_tools_lms_assignment_publish((int) $created['id'], $actor);
-        if (is_wp_error($published)) { ll_tools_lti_admin_redirect($published, $class_id); }
+        if (is_wp_error($published)) { ll_tools_lti_admin_redirect($published, $class_id, '', $setup_ticket); }
         $uuid = (string) $created['assignment_uuid'];
         $created_uuid = $uuid;
     }
     $input['assignment_uuid'] = $uuid;
     $result = ll_tools_lti_register_resource($input, $actor);
-    ll_tools_lti_admin_redirect($result, $class_id, is_wp_error($result) ? $created_uuid : '');
+    ll_tools_lti_admin_redirect($result, $class_id, is_wp_error($result) ? ($created_uuid ?: $uuid) : '', $setup_ticket);
 }
 add_action('admin_post_ll_tools_lti_register_resource', 'll_tools_lti_admin_resource_action');
 
@@ -99,9 +112,17 @@ add_action('admin_post_ll_tools_lti_disable_resource', 'll_tools_lti_admin_disab
 function ll_tools_lti_render_admin_page(): void {
     $actor = ll_tools_lti_admin_require_access();
     $urls = ll_tools_lti_tool_urls();
+    $setup_ticket = isset($_GET['ll_lti_setup']) && is_string($_GET['ll_lti_setup']) ? wp_unslash($_GET['ll_lti_setup']) : '';
+    $setup_scope = isset($_GET['ll_lti_setup']) ? ll_tools_lti_teacher_setup_scope($setup_ticket) : null;
+    if (is_wp_error($setup_scope)) {
+        wp_die(esc_html__('Open this activity again from Moodle to resume setup.', 'll-tools-text-domain'), '', ['response' => 403]);
+    }
     $platforms = ll_tools_lti_get_platforms();
-    $classes = ll_tools_teacher_classes_for_user($actor, 0, ['posts_per_page' => 100]);
+    $editing_id = is_string($_GET['lti_platform'] ?? null) ? $_GET['lti_platform'] : '';
+    $editing = $platforms[$editing_id] ?? [];
+    $classes = ll_tools_teacher_classes_for_user($actor, 0, ['number' => 100]);
     $class_id = (int) ($_GET['class_id'] ?? 0);
+    if ($setup_scope && !isset($_GET['class_id']) && count($classes) === 1) { $class_id = (int) reset($classes)->ID; }
     if ($class_id > 0 && !ll_tools_lms_assignment_user_can_manage_class($class_id, $actor)) { $class_id = 0; }
     $choices = $class_id > 0 ? ll_tools_lms_assignment_category_choices($class_id, $actor) : [];
     $storage = ll_tools_lti_account_storage_status();
@@ -112,29 +133,42 @@ function ll_tools_lti_render_admin_page(): void {
     <p><?php esc_html_e('Use Moodle’s External tool activity with LTI 1.3. Choose a new-window launch so students can connect their permanent learner accounts. Practice saves personal progress; graded assignments can return the selected result to Moodle.', 'll-tools-text-domain'); ?></p>
     <?php if (!ll_tools_lms_credential_store_is_available()): ?><div class="notice notice-error"><p><?php esc_html_e('A configuration-only LMS credential encryption key is required before Moodle launches or account linking are available.', 'll-tools-text-domain'); ?></p></div><?php endif; ?>
     <?php if (empty($storage['ready'])): ?><div class="notice notice-error"><p><?php esc_html_e('Moodle account linking and enrollment are paused. The core users, usermeta, posts, postmeta and options tables must all be InnoDB so account, class and grade changes can roll back together. Ask the database administrator to prepare a backed-up migration; this plugin will not convert core tables.', 'll-tools-text-domain'); ?></p><ul><?php foreach ($storage['tables'] as $table => $engine): if (strcasecmp($engine, 'InnoDB') === 0) { continue; } ?><li><code><?php echo esc_html($table); ?></code>: <?php echo $engine !== '' ? esc_html($engine) : esc_html__('Unavailable', 'll-tools-text-domain'); ?></li><?php endforeach; ?></ul></div><?php endif; ?>
+    <?php if (!$setup_scope): ?>
     <h2><?php esc_html_e('Tool details for the Moodle administrator', 'll-tools-text-domain'); ?></h2><table class="widefat striped"><tbody>
     <?php foreach (['resource' => __('Tool URL', 'll-tools-text-domain'), 'login' => __('Initiate login URL', 'll-tools-text-domain'), 'launch' => __('Redirection URI', 'll-tools-text-domain'), 'jwks' => __('Public keyset URL', 'll-tools-text-domain')] as $key => $label): ?><tr><th scope="row"><?php echo esc_html($label); ?></th><td><code><?php echo esc_html((string) ($urls[$key] ?? '')); ?></code></td></tr><?php endforeach; ?>
     </tbody></table>
     <h2><?php esc_html_e('Registered Moodle platforms', 'll-tools-text-domain'); ?></h2><table class="widefat striped"><thead><tr><th><?php esc_html_e('Name', 'll-tools-text-domain'); ?></th><th><?php esc_html_e('Platform issuer', 'll-tools-text-domain'); ?></th><th><?php esc_html_e('Client ID', 'll-tools-text-domain'); ?></th><th><?php esc_html_e('Deployment ID', 'll-tools-text-domain'); ?></th><th><?php esc_html_e('Status', 'll-tools-text-domain'); ?></th></tr></thead><tbody>
-    <?php foreach ($platforms as $platform): ?><tr><td><?php echo esc_html($platform['name']); ?></td><td><code><?php echo esc_html($platform['issuer']); ?></code></td><td><code><?php echo esc_html($platform['client_id']); ?></code></td><td><code><?php echo esc_html($platform['deployment_id']); ?></code></td><td><?php echo !empty($platform['enabled']) ? esc_html__('Enabled', 'll-tools-text-domain') : esc_html__('Disabled', 'll-tools-text-domain'); ?></td></tr><?php endforeach; ?>
+    <?php foreach ($platforms as $platform): ?><tr><td><?php echo esc_html($platform['name']); ?><?php if (current_user_can('manage_options')): ?> <a href="<?php echo esc_url(ll_tools_lti_admin_url(['lti_platform' => $platform['id']])); ?>"><?php esc_html_e('Edit', 'll-tools-text-domain'); ?></a><?php endif; ?></td><td><code><?php echo esc_html($platform['issuer']); ?></code></td><td><code><?php echo esc_html($platform['client_id']); ?></code></td><td><code><?php echo esc_html($platform['deployment_id']); ?></code></td><td><?php echo !empty($platform['enabled']) ? esc_html__('Enabled', 'll-tools-text-domain') : esc_html__('Disabled', 'll-tools-text-domain'); ?></td></tr><?php endforeach; ?>
     </tbody></table>
     <?php if (current_user_can('manage_options')): ?>
+    <h2><?php esc_html_e('Paste Moodle configuration details', 'll-tools-text-domain'); ?></h2>
+    <p><?php esc_html_e('Paste the six lines from Moodle’s View configuration details in English, or its platform-details JSON. URLs are checked before saving. Use a new local registration ID when changing the issuer, client ID or deployment ID.', 'll-tools-text-domain'); ?></p>
+    <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>"><input type="hidden" name="action" value="ll_tools_lti_register_platform"><?php wp_nonce_field('ll_tools_lti_register_platform'); ?><input type="hidden" name="enabled" value="1">
+    <p><label for="ll-lti-platform-details"><?php esc_html_e('Moodle configuration details', 'll-tools-text-domain'); ?></label><br><textarea id="ll-lti-platform-details" name="platform_details" rows="7" class="large-text code" maxlength="16384" required></textarea></p>
+    <p><label for="ll-lti-pasted-name"><?php esc_html_e('Display name', 'll-tools-text-domain'); ?></label> <input id="ll-lti-pasted-name" name="name" type="text" value="Moodle" class="regular-text" maxlength="255"></p>
+    <?php submit_button(__('Save platform', 'll-tools-text-domain')); ?></form>
     <h2><?php esc_html_e('Register or update a platform', 'll-tools-text-domain'); ?></h2><p><?php esc_html_e('Copy these values from Moodle’s tool configuration. Registration is limited to the Moodle issuer’s HTTPS origin. Reusing an ID updates that registration; uncheck Enabled to stop its launches.', 'll-tools-text-domain'); ?></p>
     <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>"><input type="hidden" name="action" value="ll_tools_lti_register_platform"><?php wp_nonce_field('ll_tools_lti_register_platform'); ?><table class="form-table"><tbody>
-    <?php foreach (['id' => __('Local registration ID', 'll-tools-text-domain'), 'name' => __('Display name', 'll-tools-text-domain'), 'issuer' => __('Platform issuer', 'll-tools-text-domain'), 'client_id' => __('Client ID', 'll-tools-text-domain'), 'deployment_id' => __('Deployment ID', 'll-tools-text-domain'), 'authorization_url' => __('Authentication request URL', 'll-tools-text-domain'), 'jwks_url' => __('Platform public keyset URL', 'll-tools-text-domain'), 'token_url' => __('Access token URL', 'll-tools-text-domain')] as $key => $label): ?><tr><th><label for="ll-lti-<?php echo esc_attr($key); ?>"><?php echo esc_html($label); ?></label></th><td><input class="regular-text" id="ll-lti-<?php echo esc_attr($key); ?>" type="<?php echo str_ends_with($key, '_url') || $key === 'issuer' ? 'url' : 'text'; ?>" name="<?php echo esc_attr($key); ?>" maxlength="<?php echo str_ends_with($key, '_url') || $key === 'issuer' ? 2048 : 255; ?>" required></td></tr><?php endforeach; ?>
-    <tr><th><?php esc_html_e('Enabled', 'll-tools-text-domain'); ?></th><td><label><input type="checkbox" name="enabled" value="1" checked> <?php esc_html_e('Allow launches', 'll-tools-text-domain'); ?></label></td></tr>
+    <?php foreach (['id' => __('Local registration ID', 'll-tools-text-domain'), 'name' => __('Display name', 'll-tools-text-domain'), 'issuer' => __('Platform issuer', 'll-tools-text-domain'), 'client_id' => __('Client ID', 'll-tools-text-domain'), 'deployment_id' => __('Deployment ID', 'll-tools-text-domain'), 'authorization_url' => __('Authentication request URL', 'll-tools-text-domain'), 'jwks_url' => __('Platform public keyset URL', 'll-tools-text-domain'), 'token_url' => __('Access token URL', 'll-tools-text-domain')] as $key => $label): ?><tr><th><label for="ll-lti-<?php echo esc_attr($key); ?>"><?php echo esc_html($label); ?></label></th><td><input class="regular-text" id="ll-lti-<?php echo esc_attr($key); ?>" type="<?php echo str_ends_with($key, '_url') || $key === 'issuer' ? 'url' : 'text'; ?>" name="<?php echo esc_attr($key); ?>" value="<?php echo esc_attr((string) ($editing[$key] ?? '')); ?>" maxlength="<?php echo str_ends_with($key, '_url') || $key === 'issuer' ? 2048 : ($key === 'id' ? 64 : 255); ?>" <?php if ($key === 'id' && $editing !== []): ?>readonly<?php endif; ?> required></td></tr><?php endforeach; ?>
+    <tr><th><?php esc_html_e('Enabled', 'll-tools-text-domain'); ?></th><td><label><input type="checkbox" name="enabled" value="1" <?php checked($editing === [] || !empty($editing['enabled'])); ?>> <?php esc_html_e('Allow launches', 'll-tools-text-domain'); ?></label></td></tr>
     </tbody></table><?php submit_button(__('Save platform', 'll-tools-text-domain')); ?></form>
     <?php endif; ?>
+    <?php endif; ?>
     <h2><?php esc_html_e('Class activities', 'll-tools-text-domain'); ?></h2><p><?php esc_html_e('Create the class in LL Tools first. Students are enrolled on their first trusted launch; removing them from the LL Tools class blocks later launches without deleting their personal accounts.', 'll-tools-text-domain'); ?></p>
-    <form method="get" action="<?php echo esc_url(admin_url('admin.php')); ?>"><input type="hidden" name="page" value="ll-tools-lti"><label for="ll-lti-class"><?php esc_html_e('Class', 'll-tools-text-domain'); ?></label> <select id="ll-lti-class" name="class_id"><option value="0"><?php esc_html_e('Select class', 'll-tools-text-domain'); ?></option><?php foreach ($classes as $class): ?><option value="<?php echo (int) $class->ID; ?>" <?php selected($class_id, $class->ID); ?>><?php echo esc_html($class->post_title); ?></option><?php endforeach; ?></select> <?php submit_button(__('Choose class', 'll-tools-text-domain'), 'secondary', '', false); ?></form>
+    <form method="get" action="<?php echo esc_url(admin_url('admin.php')); ?>"><input type="hidden" name="page" value="ll-tools-lti"><?php if ($setup_scope): ?><input type="hidden" name="ll_lti_setup" value="<?php echo esc_attr($setup_ticket); ?>"><?php endif; ?><label for="ll-lti-class"><?php esc_html_e('Class', 'll-tools-text-domain'); ?></label> <select id="ll-lti-class" name="class_id"><option value="0"><?php esc_html_e('Select class', 'll-tools-text-domain'); ?></option><?php foreach ($classes as $class): ?><option value="<?php echo (int) $class->ID; ?>" <?php selected($class_id, $class->ID); ?>><?php echo esc_html($class->post_title); ?></option><?php endforeach; ?></select> <?php submit_button(__('Choose class', 'll-tools-text-domain'), 'secondary', '', false); ?></form>
     <?php if ($class_id > 0 && is_array($choices) && $choices !== []): ?>
-    <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>"><input type="hidden" name="action" value="ll_tools_lti_register_resource"><input type="hidden" name="class_id" value="<?php echo $class_id; ?>"><?php wp_nonce_field('ll_tools_lti_register_resource'); ?><table class="form-table"><tbody>
+    <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>"><input type="hidden" name="action" value="ll_tools_lti_register_resource"><input type="hidden" name="class_id" value="<?php echo $class_id; ?>"><?php if ($setup_scope): ?><input type="hidden" name="ll_lti_setup" value="<?php echo esc_attr($setup_ticket); ?>"><?php endif; ?><?php wp_nonce_field('ll_tools_lti_register_resource'); ?><table class="form-table"><tbody>
+    <?php if ($setup_scope): ?>
+    <tr><th><?php esc_html_e('Moodle platform', 'll-tools-text-domain'); ?></th><td><?php echo esc_html($platforms[$setup_scope['platform_id']]['name']); ?></td></tr>
+    <?php else: ?>
     <tr><th><label for="ll-lti-platform"><?php esc_html_e('Moodle platform', 'll-tools-text-domain'); ?></label></th><td><select id="ll-lti-platform" name="platform_id" required><?php foreach ($platforms as $platform): if (empty($platform['enabled'])) { continue; } ?><option value="<?php echo esc_attr($platform['id']); ?>"><?php echo esc_html($platform['name']); ?></option><?php endforeach; ?></select></td></tr>
     <tr><th><label for="ll-lti-context"><?php esc_html_e('Moodle course context ID', 'll-tools-text-domain'); ?></label></th><td><input id="ll-lti-context" name="context_id" class="regular-text" required maxlength="255"><p class="description"><?php esc_html_e('Use the exact LTI context ID sent by this Moodle course.', 'll-tools-text-domain'); ?></p></td></tr>
     <tr><th><label for="ll-lti-resource-link"><?php esc_html_e('Moodle resource link ID', 'll-tools-text-domain'); ?></label></th><td><input id="ll-lti-resource-link" name="resource_link_id" class="regular-text" maxlength="255"><p class="description"><?php esc_html_e('Optional before the first launch. The first verified launch pins the resource link, preventing reuse by a different Moodle activity.', 'll-tools-text-domain'); ?></p></td></tr>
-    <tr><th><label for="ll-lti-name"><?php esc_html_e('Activity name', 'll-tools-text-domain'); ?></label></th><td><input id="ll-lti-name" name="name" class="regular-text" required maxlength="200"></td></tr>
+    <?php endif; ?>
+    <tr><th><label for="ll-lti-name"><?php esc_html_e('Activity name', 'll-tools-text-domain'); ?></label></th><td><input id="ll-lti-name" name="name" class="regular-text" value="<?php echo esc_attr($setup_scope['activity_title'] ?? ''); ?>" required maxlength="200"></td></tr>
     <tr><th><label for="ll-lti-category"><?php esc_html_e('Lesson category', 'll-tools-text-domain'); ?></label></th><td><select id="ll-lti-category" name="category_id"><?php foreach ($choices as $category): ?><option value="<?php echo (int) $category['id']; ?>"><?php echo esc_html($category['name']); ?></option><?php endforeach; ?></select></td></tr>
-    <tr><th><label for="ll-lti-kind"><?php esc_html_e('Activity type', 'll-tools-text-domain'); ?></label></th><td><select id="ll-lti-kind" name="kind"><option value="practice"><?php esc_html_e('Practice — personal progress, no Moodle grade', 'll-tools-text-domain'); ?></option><option value="assignment"><?php esc_html_e('Graded assignment', 'll-tools-text-domain'); ?></option></select></td></tr>
+    <tr><th><label for="ll-lti-kind"><?php esc_html_e('Activity type', 'll-tools-text-domain'); ?></label></th><td><select id="ll-lti-kind" name="kind"><option value="practice"><?php esc_html_e('Practice — personal progress, no Moodle grade', 'll-tools-text-domain'); ?></option><option value="assignment" <?php disabled($setup_scope && empty($setup_scope['can_grade'])); ?>><?php esc_html_e('Graded assignment', 'll-tools-text-domain'); ?></option></select>
+    <?php if ($setup_scope && empty($setup_scope['can_grade'])): ?><p class="description"><?php esc_html_e('To enable a graded assignment, allow grade sync and accept grades in Moodle, set a numeric grade for this activity, and open it again.', 'll-tools-text-domain'); ?></p><?php endif; ?></td></tr>
     <tr><th><label for="ll-lti-assignment"><?php esc_html_e('Existing assignment UUID', 'll-tools-text-domain'); ?></label></th><td><input id="ll-lti-assignment" name="assignment_uuid" value="<?php echo esc_attr($retained_uuid); ?>" class="regular-text" maxlength="36"><p class="description"><?php esc_html_e('Optional. Leave blank to create and publish a fixed assignment from this category.', 'll-tools-text-domain'); ?></p></td></tr>
     <tr><th><label for="ll-lti-points"><?php esc_html_e('Maximum grade', 'll-tools-text-domain'); ?></label></th><td><input id="ll-lti-points" name="points_maximum" type="number" value="100" min="1" max="1000000"></td></tr>
     <tr><th><label for="ll-lti-attempts"><?php esc_html_e('Attempt limit', 'll-tools-text-domain'); ?></label></th><td><input id="ll-lti-attempts" name="attempt_limit" type="number" value="3" min="1" max="100"></td></tr>
@@ -142,6 +176,6 @@ function ll_tools_lti_render_admin_page(): void {
     </tbody></table><?php submit_button(__('Create Moodle activity', 'll-tools-text-domain')); ?></form>
     <?php elseif ($class_id > 0): ?><p><?php esc_html_e('No eligible lesson categories are available for this class wordset.', 'll-tools-text-domain'); ?></p><?php endif; ?>
     <h2><?php esc_html_e('Configured activities', 'll-tools-text-domain'); ?></h2><table class="widefat striped"><thead><tr><th><?php esc_html_e('Activity', 'll-tools-text-domain'); ?></th><th><?php esc_html_e('Course context', 'll-tools-text-domain'); ?></th><th><?php esc_html_e('Moodle custom parameter', 'll-tools-text-domain'); ?></th><th><?php esc_html_e('Type / assignment', 'll-tools-text-domain'); ?></th><th><?php esc_html_e('Actions', 'll-tools-text-domain'); ?></th></tr></thead><tbody>
-    <?php foreach (ll_tools_lti_get_resources() as $row): if (!ll_tools_lms_assignment_user_can_manage_class((int) $row['class_id'], $actor) || ($class_id > 0 && (int) $row['class_id'] !== $class_id)) { continue; } ?><tr><td><?php echo esc_html($row['name']); ?></td><td><code><?php echo esc_html($row['context_id']); ?></code></td><td><code>ll_activity=<?php echo esc_html($row['id']); ?></code></td><td><?php echo $row['kind'] === 'practice' ? esc_html__('Practice', 'll-tools-text-domain') : '<code>' . esc_html($row['assignment_uuid']) . '</code>'; ?></td><td><?php if (!empty($row['enabled'])): ?><form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>"><input type="hidden" name="action" value="ll_tools_lti_disable_resource"><input type="hidden" name="resource_id" value="<?php echo esc_attr($row['id']); ?>"><?php wp_nonce_field('ll_tools_lti_disable_resource_' . $row['id']); ?><button type="submit" class="button"><?php esc_html_e('Disable', 'll-tools-text-domain'); ?></button></form><?php else: esc_html_e('Disabled', 'll-tools-text-domain'); endif; ?></td></tr><?php endforeach; ?>
+    <?php foreach (ll_tools_lti_get_resources() as $row): if (!ll_tools_lms_assignment_user_can_manage_class((int) $row['class_id'], $actor) || ($class_id > 0 && (int) $row['class_id'] !== $class_id)) { continue; } ?><tr><td><?php echo esc_html($row['name']); ?></td><td><code><?php echo esc_html($row['context_id']); ?></code></td><td><?php if (!empty($row['guided'])): echo esc_html__('Configured from Moodle', 'll-tools-text-domain'); else: ?><code>ll_activity=<?php echo esc_html($row['id']); ?></code><?php endif; ?></td><td><?php echo $row['kind'] === 'practice' ? esc_html__('Practice', 'll-tools-text-domain') : '<code>' . esc_html($row['assignment_uuid']) . '</code>'; ?></td><td><?php if (!empty($row['enabled'])): ?><form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>"><input type="hidden" name="action" value="ll_tools_lti_disable_resource"><input type="hidden" name="resource_id" value="<?php echo esc_attr($row['id']); ?>"><?php wp_nonce_field('ll_tools_lti_disable_resource_' . $row['id']); ?><button type="submit" class="button"><?php esc_html_e('Disable', 'll-tools-text-domain'); ?></button></form><?php else: esc_html_e('Disabled', 'll-tools-text-domain'); endif; ?></td></tr><?php endforeach; ?>
     </tbody></table></div><?php
 }

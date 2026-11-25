@@ -341,6 +341,44 @@ final class VocabLessonCategorySettingsTest extends LL_Tools_TestCase
         $this->assertSame('Another category deletion batch is already running for this word set. Please try again shortly.', $busyNotice['message']);
     }
 
+    public function test_manager_can_change_sampling_and_invalid_counts_do_not_mutate_settings(): void
+    {
+        $this->ensureRecordingType('Isolation', 'isolation');
+        $manager = $this->createManagerUser();
+        wp_set_current_user($manager);
+        $fixture = $this->createManagedLessonFixture($manager);
+        $client = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+        $request = $this->buildLessonCategorySettingsRequest($fixture, 0, $client, 1, [
+            'll_vocab_lesson_quiz_sample_enabled' => '1',
+            'll_vocab_lesson_quiz_question_limit' => '15',
+        ]);
+        $saved = ll_tools_save_vocab_lesson_category_settings_from_request($request);
+        if (is_wp_error($saved)) { $this->fail($saved->get_error_code() . ': ' . wp_json_encode($saved->get_error_data())); }
+        $this->assertNotWPError($saved);
+        $this->assertSame(15, $saved['question_limit']);
+        $this->completeLlToolsSimulatedRequest();
+        $request['ll_vocab_lesson_category_settings_revision'] = (string) $saved['revision'];
+        $request['ll_vocab_lesson_category_settings_sequence'] = '2';
+        $request['ll_vocab_lesson_quiz_question_limit'] = '4';
+        $this->assertWPError(ll_tools_save_vocab_lesson_category_settings_from_request($request));
+        $this->assertSame(15, ll_tools_get_quiz_question_limit($fixture['category_id']));
+        $request['ll_vocab_lesson_quiz_question_limit'] = '5';
+        $saved = ll_tools_save_vocab_lesson_category_settings_from_request($request);
+        $this->assertNotWPError($saved);
+        $this->assertSame(5, $saved['question_limit']);
+        $this->completeLlToolsSimulatedRequest();
+        $request['ll_vocab_lesson_category_settings_revision'] = (string) $saved['revision'];
+        $request['ll_vocab_lesson_category_settings_sequence'] = '3';
+        unset($request['ll_vocab_lesson_quiz_sample_enabled'], $request['ll_vocab_lesson_quiz_question_limit']);
+        $saved = ll_tools_save_vocab_lesson_category_settings_from_request($request);
+        $this->assertNotWPError($saved);
+        $this->assertSame(5, $saved['question_limit']);
+        wp_set_current_user(0);
+        $request['ll_vocab_lesson_quiz_question_limit'] = '20';
+        $this->assertWPError(ll_tools_save_vocab_lesson_category_settings_from_request($request));
+        $this->assertSame(5, ll_tools_get_quiz_question_limit($fixture['category_id']));
+    }
+
     public function test_wordset_manager_can_save_category_settings_from_lesson_page(): void
     {
         wp_insert_term('Isolation', 'recording_type', ['slug' => 'isolation']);

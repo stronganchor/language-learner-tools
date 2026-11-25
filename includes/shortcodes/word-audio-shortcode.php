@@ -194,7 +194,8 @@ function ll_word_audio_can_render_word_post($word_post): bool {
     }
 
     if ($word_post->post_status === 'publish') {
-        return true;
+        return !function_exists('ll_tools_user_can_view_vocab_post')
+            || ll_tools_user_can_view_vocab_post($word_post);
     }
 
     return current_user_can('edit_post', (int) $word_post->ID);
@@ -215,35 +216,32 @@ function ll_word_audio_get_controls_data() {
 }
 
 /**
- * Resolve the post ID hosting this shortcode, cached per request to avoid cross-shortcode contamination.
+ * Resolve the main-query post hosting this shortcode without caching an empty
+ * or earlier query context. WP_Query already memoizes its queried object.
  *
  * @return int
  */
 function ll_word_audio_get_host_post_id() {
-    static $cached_host_id = null;
-
-    if ($cached_host_id !== null) {
-        return $cached_host_id;
-    }
+    $host_id = 0;
 
     // Prefer the main query's object; this stays stable even when other shortcodes run nested queries.
     if (isset($GLOBALS['wp_the_query']) && $GLOBALS['wp_the_query'] instanceof WP_Query) {
-        $cached_host_id = (int) $GLOBALS['wp_the_query']->get_queried_object_id();
+        $host_id = (int) $GLOBALS['wp_the_query']->get_queried_object_id();
     }
 
-    if (!$cached_host_id) {
-        $cached_host_id = (int) get_queried_object_id();
+    if (!$host_id) {
+        $host_id = (int) get_queried_object_id();
     }
 
-    if (!$cached_host_id && isset($GLOBALS['post']) && $GLOBALS['post'] instanceof WP_Post) {
-        $cached_host_id = (int) $GLOBALS['post']->ID;
+    if (!$host_id && isset($GLOBALS['post']) && $GLOBALS['post'] instanceof WP_Post) {
+        $host_id = (int) $GLOBALS['post']->ID;
     }
 
-    if (!$cached_host_id) {
-        $cached_host_id = (int) get_the_ID();
+    if (!$host_id) {
+        $host_id = (int) get_the_ID();
     }
 
-    return $cached_host_id;
+    return $host_id;
 }
 
 /**

@@ -114,6 +114,40 @@ test('content lesson completion keeps its prior state when saving fails', async 
   await expect(button).toBeEnabled();
 });
 
+test('content lesson completion localizes transport and malformed response failures', async ({ page }) => {
+  let attempt = 0;
+  await page.route('https://example.test/**', async (route) => {
+    if (!route.request().url().includes('/wp-admin/admin-ajax.php')) {
+      await route.fulfill({ status: 200, contentType: 'text/html', body: '<!doctype html>' });
+      return;
+    }
+    attempt += 1;
+    if (attempt === 1) {
+      await route.abort('failed');
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: '<html>not json</html>'
+    });
+  });
+
+  await mountProgressControl(page);
+  const button = page.locator('[data-ll-content-lesson-progress]');
+  const status = page.locator('[data-ll-content-lesson-progress-status]');
+
+  await button.click();
+  await expect(status).toHaveText('Lesson progress could not be saved.');
+  await expect(status).not.toContainText('Failed to fetch');
+  await expect(button.locator('[data-ll-content-lesson-progress-label]')).toHaveText('Retry');
+
+  await button.click();
+  await expect(status).toHaveText('Lesson progress could not be saved.');
+  await expect(status).not.toContainText('JSON');
+  await expect(button).toHaveAttribute('data-completed', '0');
+});
+
 test('content lesson completion times out, restores retry, and fences the stale attempt', async ({ page }) => {
   let attempt = 0;
   await page.route('https://example.test/**', async (route) => {

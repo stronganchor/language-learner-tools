@@ -59,6 +59,43 @@ function ll_tools_lti_normalize_platform(array $config) {
     ];
 }
 
+/** Accept Moodle's six English modal lines or its documented platform-details JSON, without URL guessing. */
+function ll_tools_lti_parse_moodle_platform_details(string $details, array $metadata = []) {
+    if ($details === '' || strlen($details) > 16384) { return ll_tools_lti_error('lti_invalid_platform_details'); }
+    $details = trim($details);
+    $fields = [];
+    if (str_starts_with($details, '{')) {
+        $json = json_decode($details, true, 8);
+        if (!is_array($json) || json_last_error() !== JSON_ERROR_NONE) { return ll_tools_lti_error('lti_invalid_platform_details'); }
+        if (array_key_exists('platformid', $json)) {
+            $fields = ['issuer' => $json['platformid'], 'client_id' => $json['clientid'] ?? null,
+                'deployment_id' => $json['deploymentid'] ?? null, 'jwks_url' => $json['urls']['publickeyset'] ?? null,
+                'token_url' => $json['urls']['accesstoken'] ?? null, 'authorization_url' => $json['urls']['authrequest'] ?? null];
+        } else {
+            foreach (['issuer', 'client_id', 'deployment_id', 'authorization_url', 'jwks_url', 'token_url'] as $key) { $fields[$key] = $json[$key] ?? null; }
+        }
+        // Moodle's external API declares deploymentid as an integer; the signed launch serializes it as text.
+        if (is_int($fields['deployment_id']) && $fields['deployment_id'] > 0) { $fields['deployment_id'] = (string) $fields['deployment_id']; }
+    } else {
+        $labels = ['platform id' => 'issuer', 'client id' => 'client_id', 'deployment id' => 'deployment_id',
+            'authentication request url' => 'authorization_url', 'public keyset url' => 'jwks_url', 'access token url' => 'token_url'];
+        foreach (preg_split('/\R/u', $details) ?: [] as $line) {
+            $line = trim($line);
+            if ($line === '') { continue; }
+            $line = preg_replace('/^[\x{2022}\-*]\s*/u', '', $line);
+            $pair = explode(':', $line, 2);
+            $key = $labels[strtolower(trim($pair[0]))] ?? '';
+            if ($key === '' || count($pair) !== 2 || array_key_exists($key, $fields)) { return ll_tools_lti_error('lti_invalid_platform_details'); }
+            $fields[$key] = trim($pair[1]);
+        }
+    }
+    if (count($fields) !== 6) { return ll_tools_lti_error('lti_invalid_platform_details'); }
+    $fields['name'] = !empty($metadata['name']) && is_string($metadata['name']) ? $metadata['name'] : 'Moodle';
+    if (isset($metadata['id']) && $metadata['id'] !== '') { $fields['id'] = $metadata['id']; }
+    $fields['enabled'] = !empty($metadata['enabled']);
+    return ll_tools_lti_normalize_platform($fields);
+}
+
 function ll_tools_lti_get_platforms(): array {
     $stored = get_option(LL_TOOLS_LTI_PLATFORMS_OPTION, []);
     if (!is_array($stored) || count($stored) > 10) { return []; }
@@ -76,18 +113,41 @@ function ll_tools_lti_get_platform(string $id): ?array {
 }
 
 function ll_tools_lti_register_platform(array $config) {
+    global $wpdb;
     if (!current_user_can('manage_options')) { return ll_tools_lti_error('lti_registration_forbidden', 403); }
     $row = ll_tools_lti_normalize_platform($config);
     if (is_wp_error($row)) { return $row; }
-    $rows = ll_tools_lti_get_platforms();
+    // Identity checks and the conditional write share the exact current option snapshot.
+    $wpdb->last_error = '';
+    $stored = $wpdb->get_var($wpdb->prepare("SELECT option_value FROM {$wpdb->options} WHERE option_name = %s", LL_TOOLS_LTI_PLATFORMS_OPTION));
+    if ($wpdb->last_error !== '') { return ll_tools_lti_error('lti_registration_read_failed', 503); }
+    $before = $stored === null ? [] : maybe_unserialize($stored);
+    if (!is_array($before) || count($before) > 10) { return ll_tools_lti_error('lti_registration_storage_invalid', 503); }
+    $rows = [];
+    foreach ($before as $id => $existing) {
+        $normalized = is_array($existing) ? ll_tools_lti_normalize_platform($existing) : ll_tools_lti_error('lti_invalid_platform');
+        if (is_wp_error($normalized) || $normalized['id'] !== $id) { return ll_tools_lti_error('lti_registration_storage_invalid', 503); }
+        $rows[$id] = $normalized;
+    }
+    if (isset($rows[$row['id']])) {
+        foreach (['issuer', 'client_id', 'deployment_id'] as $key) {
+            if ($rows[$row['id']][$key] !== $row[$key]) { return ll_tools_lti_error('lti_registration_scope_immutable', 409); }
+        }
+    }
     if (!isset($rows[$row['id']]) && count($rows) >= 10) { return ll_tools_lti_error('lti_platform_limit'); }
     foreach ($rows as $id => $other) {
         if ($id !== $row['id'] && $other['issuer'] === $row['issuer'] && $other['client_id'] === $row['client_id']
             && $other['deployment_id'] === $row['deployment_id']) { return ll_tools_lti_error('lti_duplicate_platform'); }
     }
     $rows[$row['id']] = $row;
-    update_option(LL_TOOLS_LTI_PLATFORMS_OPTION, $rows, false);
-    return ll_tools_lti_get_platform($row['id']) === $row ? $row : ll_tools_lti_error('lti_registration_write_failed', 503);
+    $encoded = maybe_serialize($rows);
+    $changed = $stored === $encoded ? 1 : ($stored === null
+        ? $wpdb->insert($wpdb->options, ['option_name' => LL_TOOLS_LTI_PLATFORMS_OPTION, 'option_value' => $encoded, 'autoload' => 'no'], ['%s', '%s', '%s'])
+        : $wpdb->query($wpdb->prepare("UPDATE {$wpdb->options} SET option_value = %s WHERE option_name = %s AND BINARY option_value = BINARY %s", $encoded, LL_TOOLS_LTI_PLATFORMS_OPTION, $stored)));
+    wp_cache_delete(LL_TOOLS_LTI_PLATFORMS_OPTION, 'options');
+    wp_cache_delete('alloptions', 'options');
+    wp_cache_delete('notoptions', 'options');
+    return $changed === 1 && ll_tools_lti_get_platform($row['id']) === $row ? $row : ll_tools_lti_error('lti_registration_write_failed', 503);
 }
 
 /** Encrypted non-autoload records; raw provider identity never enters generic hash-only rows. */
@@ -140,7 +200,7 @@ function ll_tools_lti_record_replace(string $name, array $before, array $after) 
 }
 
 function ll_tools_lti_ticket_name(string $kind, string $ticket): string {
-    if (!in_array($kind, ['state', 'launch', 'account'], true) || preg_match('/^[a-f0-9]{64}$/D', $ticket) !== 1) { return ''; }
+    if (!in_array($kind, ['state', 'launch', 'account', 'setup'], true) || preg_match('/^[a-f0-9]{64}$/D', $ticket) !== 1) { return ''; }
     return 'll_tools_lti_ticket_' . $kind . '_' . $ticket;
 }
 
@@ -253,31 +313,49 @@ function ll_tools_lti_redirect_response(string $url, int $status = 302): WP_REST
     return $response;
 }
 
-/** Anonymous login admission is globally bounded; atomic INSERT limits concurrency too. */
-function ll_tools_lti_login_admit(): bool {
-    if (!wp_next_scheduled('ll_tools_lti_cleanup_tickets')) { wp_schedule_single_event(time() + 60, 'll_tools_lti_cleanup_tickets'); }
-    $slot = (string) intdiv(time(), 60);
-    for ($i = 0; $i < 30; $i++) {
-        $name = 'll_tools_lti_admission_' . $slot . '_' . $i;
-        if (add_option($name, time(), '', false)) { return true; }
-    }
-    return false;
+/** Admit 180 launches per registered deployment/minute with one fixed, atomic counter. */
+function ll_tools_lti_login_admit(string $platform_id): bool {
+    global $wpdb;
+    $platform = ll_tools_lti_get_platform($platform_id);
+    if (!is_array($platform) || empty($platform['enabled'])) { return false; }
+    $name = 'll_tools_lti_login_window_' . hash('sha256', $platform['id']);
+    $minute = intdiv(max(1, (int) apply_filters('ll_tools_lti_login_now', time())), 60);
+    // The low three digits hold the count (0–180); upper digits identify the minute.
+    // A different namespace leaves legacy admission slots to their existing cleanup.
+    $base = $minute * 1000;
+    $wpdb->last_error = '';
+    if ($wpdb->query($wpdb->prepare(
+        "INSERT IGNORE INTO {$wpdb->options} (option_name, option_value, autoload) VALUES (%s, %s, 'no')",
+        $name, (string) $base
+    )) === false) { return false; }
+    // The predicate and increment share one SQL statement, so concurrent requests
+    // cannot reserve the same remaining slot. Never allocate a row per launch/window.
+    return $wpdb->query($wpdb->prepare(
+        "UPDATE {$wpdb->options}
+         SET option_value = IF(CAST(option_value AS UNSIGNED) DIV 1000 = %d, CAST(option_value AS UNSIGNED) + 1, %s)
+         WHERE option_name = %s
+           AND (CAST(option_value AS UNSIGNED) DIV 1000 <> %d OR MOD(CAST(option_value AS UNSIGNED), 1000) < 180)",
+        $minute, (string) ($base + 1), $name, $minute
+    )) === 1;
 }
 
 function ll_tools_lti_rest_login(WP_REST_Request $request) {
     if (is_wp_error(ll_tools_lti_signing_material())) { return ll_tools_lti_error('lti_signing_unavailable', 503); }
     $issuer = $request->get_param('iss');
     $client = $request->get_param('client_id');
+    $deployment = $request->get_param('lti_deployment_id');
     $hint = $request->get_param('login_hint');
     $target = $request->get_param('target_link_uri');
-    if (!ll_tools_lti_opaque($hint, 1024) || $target !== ll_tools_lti_tool_urls()['resource']) { return ll_tools_lti_error('lti_invalid_login'); }
+    if (!ll_tools_lti_opaque($hint, 1024) || $target !== ll_tools_lti_tool_urls()['resource']
+        || ($deployment !== null && !ll_tools_lti_opaque($deployment))) { return ll_tools_lti_error('lti_invalid_login'); }
     $matches = [];
     foreach (ll_tools_lti_get_platforms() as $platform) {
-        if ($platform['enabled'] && $platform['issuer'] === $issuer && ($client === null || $client === $platform['client_id'])) { $matches[] = $platform; }
+        if ($platform['enabled'] && $platform['issuer'] === $issuer && ($client === null || $client === $platform['client_id'])
+            && ($deployment === null || $deployment === $platform['deployment_id'])) { $matches[] = $platform; }
     }
     if (count($matches) !== 1) { return ll_tools_lti_error('lti_unknown_registration', 403); }
-    if (!ll_tools_lti_login_admit()) { return ll_tools_lti_error('lti_login_rate_limited', 429); }
     $platform = $matches[0];
+    if (!ll_tools_lti_login_admit($platform['id'])) { return ll_tools_lti_error('lti_login_rate_limited', 429); }
     if (ll_tools_lti_url_origin(ll_tools_lti_tool_urls()['launch']) === '') { return ll_tools_lti_error('lti_tool_https_required', 503); }
     $browser_cookie = $_COOKIE['__Host-ll-tools-lti'] ?? '';
     if (!is_string($browser_cookie) || preg_match('/^[a-f0-9]{64}$/D', $browser_cookie) !== 1) {
@@ -300,10 +378,10 @@ function ll_tools_lti_rest_login(WP_REST_Request $request) {
     return ll_tools_lti_redirect_response(add_query_arg($params, $platform['authorization_url']));
 }
 
-function ll_tools_lti_jwks(array $platform) {
+function ll_tools_lti_jwks(array $platform, bool $refresh = false) {
     $cache_key = 'll_tools_lti_jwks_' . hash('sha256', $platform['jwks_url']);
     $cached = get_transient($cache_key);
-    if (is_array($cached)) { return $cached; }
+    if (!$refresh && is_array($cached)) { return $cached; }
     $response = ll_tools_lti_http($platform, $platform['jwks_url'], ['method' => 'GET', 'headers' => ['Accept' => 'application/json']]);
     if (is_wp_error($response) || wp_remote_retrieve_response_code($response) !== 200) { return ll_tools_lti_error('lti_keys_unavailable', 503); }
     $data = json_decode(wp_remote_retrieve_body($response), true, 8);
@@ -319,6 +397,30 @@ function ll_tools_lti_jwks(array $platform) {
     $valid = ['keys' => array_values($keys)];
     set_transient($cache_key, $valid, 300);
     return $valid;
+}
+
+/** A rotated Moodle key can replace cached keys once; claim/time failures never trigger a refresh. */
+function ll_tools_lti_verify_launch_jwt(string $token, array $platform) {
+    $segments = explode('.', $token);
+    if (count($segments) !== 3 || strlen($segments[0]) > 2048 || preg_match('/^[a-zA-Z0-9_-]+$/D', $segments[0]) !== 1) { return ll_tools_lti_error('lti_invalid_signature', 403); }
+    $header = json_decode((string) base64_decode(strtr($segments[0], '-_', '+/'), true), true, 4);
+    if (!is_array($header) || ($header['alg'] ?? '') !== 'RS256' || !ll_tools_lti_opaque($header['kid'] ?? '', 128)) { return ll_tools_lti_error('lti_invalid_signature', 403); }
+    $had_cached_keys = is_array(get_transient('ll_tools_lti_jwks_' . hash('sha256', $platform['jwks_url'])));
+    for ($attempt = 0; $attempt < ($had_cached_keys ? 2 : 1); $attempt++) {
+        $jwks = ll_tools_lti_jwks($platform, $attempt > 0);
+        if (is_wp_error($jwks)) { return $jwks; }
+        try {
+            $claims_object = JWT::decode($token, JWK::parseKeySet($jwks, 'RS256'));
+            $claims = json_decode(wp_json_encode($claims_object), true, 16);
+            return is_array($claims) ? $claims : ll_tools_lti_error('lti_invalid_launch', 403);
+        } catch (\LLTools\Vendor\Firebase\JWT\ExpiredException | \LLTools\Vendor\Firebase\JWT\BeforeValidException $error) {
+            return ll_tools_lti_error('lti_invalid_signature', 403);
+        } catch (\LLTools\Vendor\Firebase\JWT\SignatureInvalidException | UnexpectedValueException $error) {
+            // Only the already registered same-origin JWKS URL can be fetched; never a token's jku/x5u.
+            if (!$had_cached_keys || $attempt > 0) { return ll_tools_lti_error('lti_invalid_signature', 403); }
+        } catch (Throwable $error) { return ll_tools_lti_error('lti_invalid_signature', 403); }
+    }
+    return ll_tools_lti_error('lti_invalid_signature', 403);
 }
 
 /** Verified JSON claims become a deliberately small, provider-neutral launch context. */
@@ -366,6 +468,7 @@ function ll_tools_lti_validate_claims(array $claims, array $platform, array $sta
     if ($return_url !== '' && ll_tools_lti_url_origin($return_url) !== ll_tools_lti_url_origin($platform['issuer'])) { $return_url = ''; }
     return ['platform_id' => $platform['id'], 'issuer' => $platform['issuer'], 'client_id' => $platform['client_id'], 'deployment_id' => $platform['deployment_id'],
         'subject' => $claims['sub'], 'roles' => $roles, 'context_id' => $context['id'], 'resource_link_id' => $resource['id'],
+        'resource_title' => is_string($resource['title'] ?? null) ? wp_html_excerpt(sanitize_text_field($resource['title']), 200) : '',
         'target_uri' => $state['target_uri'], 'custom' => $custom, 'ags' => $ags, 'return_url' => $return_url];
 }
 
@@ -378,14 +481,8 @@ function ll_tools_lti_rest_launch(WP_REST_Request $request) {
     if (!ll_tools_lti_browser_matches($state)) { return ll_tools_lti_error('lti_browser_binding_failed', 403); }
     $platform = ll_tools_lti_get_platform((string) ($state['platform_id'] ?? ''));
     if (!is_array($platform) || !$platform['enabled'] || !class_exists(JWT::class)) { return ll_tools_lti_error('lti_unknown_registration', 403); }
-    $jwks = ll_tools_lti_jwks($platform);
-    if (is_wp_error($jwks)) { return $jwks; }
-    try {
-        $keys = JWK::parseKeySet($jwks, 'RS256');
-        $claims_object = JWT::decode($token, $keys);
-        $claims = json_decode(wp_json_encode($claims_object), true, 16);
-    } catch (Throwable $error) { return ll_tools_lti_error('lti_invalid_signature', 403); }
-    if (!is_array($claims)) { return ll_tools_lti_error('lti_invalid_launch', 403); }
+    $claims = ll_tools_lti_verify_launch_jwt($token, $platform);
+    if (is_wp_error($claims)) { return $claims; }
     $context = ll_tools_lti_validate_claims($claims, $platform, $state);
     if (is_wp_error($context)) { return $context; }
     $context['_browser_binding'] = $state['_browser_binding'];

@@ -1,5 +1,5 @@
 {
-  "fixtureVersion": "2026-07-13-genc.1",
+  "fixtureVersion": "2026-09-25-genc.2",
   "description": "Opt-in Genç-shaped LL Tools performance fixture: 209 categories, about 13 words per category, per-word images, three audio rows per word, and one assigned recorder with a meaningful missing-question queue.",
   "benchmarkTargetSize": "genc",
   "sourceScaleReference": {
@@ -22,7 +22,15 @@
     "imagePerCategory": false,
     "imagePerWord": true,
     "audioPerWord": true,
-    "audioPerWordCount": 3
+    "audioPerWordCount": 3,
+    "attachmentPreview": {
+      "enabled": true,
+      "sizeName": "medium",
+      "maxWidth": 300,
+      "maxHeight": 300,
+      "quality": 82,
+      "maxSourceImages": 24
+    }
   },
   "recorderQueue": {
     "enabled": true,

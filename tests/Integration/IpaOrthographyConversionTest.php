@@ -157,6 +157,35 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
         $this->assertSame('arra', (string) ($prediction['text'] ?? ''));
     }
 
+    public function test_opted_in_reflexive_preserves_only_its_high_vowel(): void
+    {
+        $wordset_id = $this->createWordset('Current reflexive spelling');
+        update_term_meta($wordset_id, ll_tools_ipa_orthography_profile_meta_key(), 'zazaki_genc_palu');
+        $this->setOrthographySettings($wordset_id, ['word_overrides' => ['xwı' => 'xwı'], 'sentence_case' => false]);
+        $rules = ll_tools_ipa_orthography_prepare_engine_rules([], ll_tools_ipa_orthography_get_profile_default_manual_rules($wordset_id), $wordset_id);
+        foreach (['χʷɨ' => 'xwı', 'χʷɪ' => 'xwı', 'xʷɨ' => 'xwı', 'xʷɪ' => 'xwı', 'χʷɛ' => 'xwe', 'χʷe' => 'xwê', 'χo' => 'xo', 'χʷɛʃ' => 'xweş', 'χʷɛnɪ' => 'xwene', 'χʷɨ χʷɛ' => 'xwı xwe'] as $ipa => $expected) {
+            $prediction = ll_tools_ipa_orthography_convert_ipa_to_text($ipa, $rules, $wordset_id);
+            $this->assertTrue($prediction['complete'], $ipa);
+            $this->assertSame($expected, $prediction['text'], $ipa);
+        }
+    }
+
+    public function test_reflexive_high_vowel_requires_explicit_wordset_opt_in(): void
+    {
+        $wordset_id = $this->createWordset('Other reflexive convention');
+        update_term_meta($wordset_id, ll_tools_ipa_orthography_profile_meta_key(), 'zazaki_genc_palu');
+        $rules = ll_tools_ipa_orthography_prepare_engine_rules([], ll_tools_ipa_orthography_get_profile_default_manual_rules($wordset_id), $wordset_id);
+        foreach ([[], ['xwı' => 'xwe']] as $overrides) {
+            $this->setOrthographySettings($wordset_id, ['word_overrides' => $overrides, 'sentence_case' => false]);
+            $prediction = ll_tools_ipa_orthography_convert_ipa_to_text('χʷɨ', $rules, $wordset_id);
+            $this->assertSame('xwe', $prediction['text']);
+        }
+        $other_id = $this->createWordset('Unrelated language');
+        $this->setOrthographySettings($other_id, ['word_overrides' => ['xwı' => 'xwı']]);
+        $this->assertSame('xwe', ll_tools_ipa_orthography_apply_configured_reflexive_vowel('xwe', ['χʷ', 'ɨ'], $other_id));
+        $this->assertSame('xweda', ll_tools_ipa_orthography_apply_configured_reflexive_vowel('xweda', ['χʷ', 'ɨ', 'd', 'a'], $wordset_id));
+    }
+
     public function test_wordset_phrase_override_drives_conversion_and_flags_mismatch(): void
     {
         $wordset_id = $this->createWordset('Phrase Override');
@@ -795,8 +824,8 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
                 'be' => "b\u{0131}",
                 'ye' => "y\u{0131}",
                 "\u{00e7}en" => "\u{00e7}end",
-                "mi\u{00e7}\u{0131}k\u{00fb}" => "mir\u{00e7}\u{0131}k\u{00fb}",
-                "mi\u{00e7}k\u{00fb}" => "mir\u{00e7}\u{0131}k\u{00fb}",
+                "mi\u{00e7}\u{0131}ku" => "mir\u{00e7}\u{0131}ku",
+                "mi\u{00e7}ku" => "mir\u{00e7}\u{0131}ku",
                 'mere' => 'merre',
                 'mwerik' => "mw\u{00ea}rik",
                 "\u{00e7}ate" => "\u{00e7}at\u{0131}",
@@ -910,7 +939,7 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
         );
 
         $this->assertSame(
-            'Mirçıkû',
+            'Mirçıku',
             (string) (ll_tools_ipa_orthography_convert_ipa_to_best_text("mit̪͡ʃkʰu", $engine_rules, $wordset_id)['text'] ?? '')
         );
 
@@ -1157,13 +1186,13 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
         $wordset_id = $this->createWordset('Bread Final N Exception');
         update_term_meta($wordset_id, 'll_language', 'zza');
         update_term_meta($wordset_id, ll_tools_ipa_orthography_profile_meta_key(), 'zazaki_genc_palu');
-        $bread_entry_id = $this->createDictionaryEntry('nûn bread');
-        $other_entry_id = $this->createDictionaryEntry('nû other');
+        $bread_entry_id = $this->createDictionaryEntry('nun bread');
+        $other_entry_id = $this->createDictionaryEntry('nu other');
         $this->setOrthographySettings($wordset_id, [
             'word_overrides' => [
                 [
-                    'from' => 'nû',
-                    'to' => 'nûn',
+                    'from' => 'nu',
+                    'to' => 'nun',
                     'dictionary_entry_id' => $bread_entry_id,
                 ],
             ],
@@ -1172,19 +1201,19 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
 
         $engine_rules = ll_tools_ipa_orthography_build_engine_rules_for_wordset($wordset_id);
 
-        $bread_word_id = $this->createWord($wordset_id, 'Bread', 'Nûn');
+        $bread_word_id = $this->createWord($wordset_id, 'Bread', 'Nun');
         $this->linkWordToDictionaryEntry($bread_word_id, $bread_entry_id);
-        $bread_recording_id = $this->createRecording($bread_word_id, 'Nûn', 'nu');
+        $bread_recording_id = $this->createRecording($bread_word_id, 'Nun', 'nu');
         $bread_prediction = ll_tools_ipa_orthography_convert_ipa_to_best_text('nu', $engine_rules, $wordset_id, $bread_recording_id);
-        $this->assertSame('Nûn', (string) ($bread_prediction['text'] ?? ''));
+        $this->assertSame('Nun', (string) ($bread_prediction['text'] ?? ''));
         ll_tools_ipa_keyboard_update_recording_validation($bread_recording_id);
         $this->assertNotContains('orthography_mismatch', $this->validationCodes($bread_recording_id, $wordset_id));
 
-        $other_word_id = $this->createWord($wordset_id, 'Other nû', 'Nû');
+        $other_word_id = $this->createWord($wordset_id, 'Other nu', 'Nu');
         $this->linkWordToDictionaryEntry($other_word_id, $other_entry_id);
-        $other_recording_id = $this->createRecording($other_word_id, 'Nû', 'nu');
+        $other_recording_id = $this->createRecording($other_word_id, 'Nu', 'nu');
         $other_prediction = ll_tools_ipa_orthography_convert_ipa_to_best_text('nu', $engine_rules, $wordset_id, $other_recording_id);
-        $this->assertSame('Nû', (string) ($other_prediction['text'] ?? ''));
+        $this->assertSame('Nu', (string) ($other_prediction['text'] ?? ''));
     }
 
     public function test_dictionary_bound_word_override_can_resolve_sentence_token_decision(): void
@@ -1192,32 +1221,32 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
         $wordset_id = $this->createWordset('Zazaki Genç-Palu Bread Sentence Exception');
         update_term_meta($wordset_id, 'll_language', 'zza');
         update_term_meta($wordset_id, ll_tools_ipa_orthography_profile_meta_key(), 'zazaki_genc_palu');
-        $bread_entry_id = $this->createDictionaryEntry('nûn bread');
+        $bread_entry_id = $this->createDictionaryEntry('nun bread');
         $this->setOrthographySettings($wordset_id, [
             'word_overrides' => [
                 [
-                    'from' => 'nû',
-                    'to' => 'nûn',
+                    'from' => 'nu',
+                    'to' => 'nun',
                     'dictionary_entry_id' => $bread_entry_id,
                 ],
                 [
-                    'from' => 'miçkû',
-                    'to' => 'mirçıkû',
+                    'from' => 'miçku',
+                    'to' => 'mirçıku',
                 ],
             ],
             'sentence_case' => true,
         ]);
 
         $engine_rules = ll_tools_ipa_orthography_build_engine_rules_for_wordset($wordset_id);
-        $sentence_word_id = $this->createWord($wordset_id, 'Bread sentence', 'Nûn mirçıkû');
+        $sentence_word_id = $this->createWord($wordset_id, 'Bread sentence', 'Nun mirçıku');
         $sentence_ipa = 'nu mit̪͡ʃkʰu';
-        $sentence_recording_id = $this->createRecording($sentence_word_id, 'Nûn mirçıkû', $sentence_ipa);
+        $sentence_recording_id = $this->createRecording($sentence_word_id, 'Nun mirçıku', $sentence_ipa);
         $sentence_prediction = ll_tools_ipa_orthography_convert_ipa_to_best_text($sentence_ipa, $engine_rules, $wordset_id, $sentence_recording_id);
 
-        $this->assertSame('Nû mirçıkû', (string) ($sentence_prediction['text'] ?? ''));
+        $this->assertSame('Nu mirçıku', (string) ($sentence_prediction['text'] ?? ''));
 
         $sentence_detail = ll_tools_ipa_orthography_profile_mismatch_detail(
-            'Nûn mirçıkû',
+            'Nun mirçıku',
             $sentence_ipa,
             $wordset_id,
             'isolation',
@@ -1225,7 +1254,7 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
         );
         $this->assertTrue((bool) ($sentence_detail['matches'] ?? false));
         $this->assertFalse((bool) ($sentence_detail['requires_lexical_decision'] ?? true));
-        $this->assertSame('Nûn mirçıkû', (string) ($sentence_detail['suggested_text'] ?? ''));
+        $this->assertSame('Nun mirçıku', (string) ($sentence_detail['suggested_text'] ?? ''));
 
         ll_tools_ipa_keyboard_update_recording_validation($sentence_recording_id);
         $this->assertNotContains('orthography_mismatch', $this->validationCodes($sentence_recording_id, $wordset_id));

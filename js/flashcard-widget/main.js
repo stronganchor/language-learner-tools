@@ -4,12 +4,13 @@
     if (window.__LLFlashcardsMainLoaded) { return; }
     window.__LLFlashcardsMainLoaded = true;
 
-    const { Util, State, Dom, Effects, Selection, Cards, Results, StateMachine, ModeConfig } = root.LLFlashcards;
+    const { Util, State, Dom, Effects, Selection, Cards, Results, StateMachine } = root.LLFlashcards;
     const { STATES } = State;
 
     // Timer & Session guards
     let __LLTimers = new Set();
     let __LLSession = 0;
+    let roundMediaGeneration = 0;
     let closingCleanupPromise = null;
     let initInProgressPromise = null; // prevents concurrent initializations
     let __LastWordsetKey = null;
@@ -910,7 +911,6 @@
         State.learningWordSets = [];
         State.learningWordSetIndex = 0;
         State.learningWordSetSignature = '';
-        State.roundMediaFailureCounts = {};
     }
 
     function roundRequiresAudio(options) {
@@ -1804,7 +1804,9 @@
                 return;
             }
             matchedCount += 1;
-            total += count;
+            const limit = root.FlashcardLoader && typeof root.FlashcardLoader.getQuestionLimit === 'function'
+                ? root.FlashcardLoader.getQuestionLimit(name) : 0;
+            total += limit ? Math.min(count, limit) : count;
         });
 
         if (matchedCount !== names.length || total <= 0) {
@@ -2522,10 +2524,39 @@
     root.FlashcardLoader.loadAudio(root.FlashcardAudio.getCorrectAudioURL());
     root.FlashcardLoader.loadAudio(root.FlashcardAudio.getWrongAudioURL());
 
-    function updateModeSwitcherButton() { updateModeSwitcherButtons(); }
-    function updateModeSwitcherPanel() { updateModeSwitcherButtons(); }
+
+    function isModeAllowed(mode) {
+        const allowed = (root.llToolsFlashcardsData || {}).availableModes;
+        return !Array.isArray(allowed) || allowed.indexOf(mode) !== -1;
+    }
+
+    function isListeningSupportedForCategories(categoryNames) {
+        if (!isModeAllowed('listening')) return false;
+        if (Selection && typeof Selection.isListeningSupportedForCategories === 'function') {
+            return Selection.isListeningSupportedForCategories(categoryNames);
+        }
+        return (Array.isArray(categoryNames) ? categoryNames : []).some(function (name) {
+            const cfg = findCategoryConfigByName(name);
+            return !!(cfg && cfg.listening_supported);
+        });
+    }
+
+    function resolveAllowedMode(mode, categoryNames, preserveGenderPlan) {
+        const requested = isSelfCheckMode(mode) ? 'self-check' : mode;
+        const supported = function (candidate) {
+            if (!isModeAllowed(candidate)) return false;
+            if (candidate === 'learning') return isLearningSupportedForCategories(categoryNames);
+            if (candidate === 'self-check') return isSelfCheckSupportedForCategories(categoryNames);
+            if (candidate === 'gender') return !!preserveGenderPlan || isGenderSupportedForSelection(categoryNames);
+            if (candidate === 'listening') return isListeningSupportedForCategories(categoryNames);
+            return candidate === 'practice';
+        };
+        if (supported(requested)) return requested;
+        return ['practice', 'learning', 'self-check', 'gender', 'listening'].find(supported) || '';
+    }
 
     function isLearningSupportedForCategories(categoryNames) {
+        if (!isModeAllowed('learning')) return false;
         const names = Array.isArray(categoryNames) ? categoryNames : [];
         try {
             if (Selection && typeof Selection.isLearningSupportedForCategories === 'function') {
@@ -2547,6 +2578,7 @@
     }
 
     function isSelfCheckSupportedForCategories(categoryNames) {
+        if (!isModeAllowed('self-check')) return false;
         const names = Array.isArray(categoryNames) ? categoryNames : [];
         try {
             if (Selection && typeof Selection.isSelfCheckSupportedForCategories === 'function') {
@@ -2568,6 +2600,7 @@
     }
 
     function isGenderSupportedForSelection(categoryNames) {
+        if (!isModeAllowed('gender')) return false;
         try {
             if (Selection && typeof Selection.isGenderSupportedForCategories === 'function') {
                 return Selection.isGenderSupportedForCategories(categoryNames);
@@ -2961,45 +2994,6 @@
 
 
 
-    const MODE_SWITCH_CONFIG = (ModeConfig && typeof ModeConfig.getSwitchConfig === 'function') ?
-        ModeConfig.getSwitchConfig() : {
-            practice: {
-                label: getMessage('practiceSwitchLabel'),
-                resultsButtonText: getMessage('practiceModeText'),
-                modeLabel: getMessage('practiceModeShort'),
-                icon: '❓',
-                className: 'practice-mode'
-            },
-            learning: {
-                label: getMessage('learningSwitchLabel'),
-                resultsButtonText: getMessage('learningModeText'),
-                modeLabel: getMessage('learningModeShort'),
-                icon: '🎓',
-                className: 'learning-mode'
-            },
-            'self-check': {
-                label: getMessage('selfCheckSwitchLabel'),
-                resultsButtonText: getMessage('selfCheckModeText'),
-                modeLabel: getMessage('selfCheckModeShort'),
-                icon: '',
-                className: 'self-check-mode'
-            },
-            listening: {
-                label: getMessage('listeningSwitchLabel'),
-                resultsButtonText: getMessage('listeningModeText'),
-                modeLabel: getMessage('listeningModeShort'),
-                icon: '🎧',
-                className: 'listening-mode'
-            },
-            gender: {
-                label: getMessage('genderSwitchLabel'),
-                resultsButtonText: getMessage('genderModeText'),
-                modeLabel: getMessage('genderModeShort'),
-                icon: '',
-                className: 'gender-mode'
-            }
-        };
-
     function getActiveModeModule() {
         const Modes = root.LLFlashcards && root.LLFlashcards.Modes;
         if (!Modes) return null;
@@ -3034,7 +3028,7 @@
 
     function getSettingsElements() {
         return {
-            $wrap: $('#ll-tools-mode-switcher-wrap'),
+            $wrap: $('#ll-tools-settings-control'),
             $panel: $('#ll-tools-settings-panel'),
             $button: $('#ll-tools-settings-button')
         };
@@ -3386,6 +3380,11 @@
         return prefs;
     }
 
+    function refreshSettingsPanel() {
+        bindSettingsPanel();
+        syncSettingsPanelSelections();
+    }
+
     function bindSettingsPanel() {
         const { $wrap, $panel, $button } = getSettingsElements();
         if (!$wrap.length || !$button.length || !$panel.length) return;
@@ -3410,7 +3409,6 @@
             e.preventDefault();
             const open = $panel.attr('aria-hidden') === 'false';
             setSettingsOpen(!open);
-            setMenuOpen(false);
         });
 
         $panel.off('.llSettings')
@@ -3438,116 +3436,11 @@
         });
     }
 
-    function setMenuOpen(isOpen) {
-        const $wrap = $('#ll-tools-mode-switcher-wrap');
-        const $toggle = $('#ll-tools-mode-switcher');
-        if (!$wrap.length || !$toggle.length) return;
-        $wrap.attr('aria-expanded', isOpen ? 'true' : 'false');
-        $wrap.attr('data-menu-open', isOpen ? 'true' : 'false');
-        $toggle.attr('aria-expanded', isOpen ? 'true' : 'false');
-        $('#ll-tools-mode-menu').attr('aria-hidden', isOpen ? 'false' : 'true');
-        if (isOpen) {
-            setSettingsOpen(false);
-        }
-    }
-
-    function refreshModeMenuOptions() {
-        const current = getCurrentModeKey();
-        const $wrap = $('#ll-tools-mode-switcher-wrap');
-        const $menu = $('#ll-tools-mode-menu');
-        if (!$wrap.length || !$menu.length) return;
-        const learningAllowed = isLearningSupportedForCurrentSelection();
-        const selfCheckAllowed = isSelfCheckSupportedForCurrentSelection();
-        const genderAllowed = isGenderSupportedForCurrentSelection();
-
-        // Ensure wrapper is visible when widget active
-        $wrap.css('display', 'block');
-
-        // Update icons/labels and active state
-        ['learning', 'practice', 'listening', 'gender', 'self-check'].forEach(function (mode) {
-            const cfg = MODE_SWITCH_CONFIG[mode] || {};
-            const $btn = $menu.find('.ll-tools-mode-option.' + mode);
-            if (!$btn.length) return;
-            // Update icon emoji
-            const $icon = $btn.find('.mode-icon');
-            if ($icon.length) {
-                if (cfg.svg) {
-                    $icon.html(cfg.svg);
-                    $icon.removeAttr('data-emoji');
-                } else if (cfg.icon) {
-                    $icon.empty();
-                    $icon.attr('data-emoji', cfg.icon);
-                } else {
-                    $icon.empty();
-                    $icon.removeAttr('data-emoji');
-                }
-            }
-            const shouldHide = (mode === 'gender' && !genderAllowed);
-            $btn.toggleClass('hidden', shouldHide);
-            if (shouldHide) {
-                $btn.attr('aria-hidden', 'true');
-                $btn.removeClass('active disabled');
-                $btn.removeAttr('disabled').removeAttr('aria-checked').removeAttr('aria-disabled');
-                return;
-            }
-            $btn.removeAttr('aria-hidden');
-            // Active vs inactive
-            const isActive = (mode === current);
-            const isDisabled = (mode === 'learning' && !learningAllowed)
-                || (mode === 'self-check' && !selfCheckAllowed)
-                || (mode === 'gender' && !genderAllowed);
-            $btn.toggleClass('active', isActive);
-            $btn.toggleClass('disabled', isDisabled);
-            if (isActive || isDisabled) { $btn.attr({ 'disabled': 'disabled', 'aria-checked': isActive ? 'true' : 'false', 'aria-disabled': 'true' }); }
-            else { $btn.removeAttr('disabled').attr({ 'aria-checked': 'false' }).removeAttr('aria-disabled'); }
-        });
-    }
-
-    function bindModeMenuHandlers() {
-        const $wrap = $('#ll-tools-mode-switcher-wrap');
-        const $toggle = $('#ll-tools-mode-switcher');
-        const $menu = $('#ll-tools-mode-menu');
-        if (!$wrap.length || !$toggle.length || !$menu.length) return;
-
-        // Toggle open/close
-        $toggle.off('.llModeMenu').on('click.llModeMenu', function (e) {
-            e.preventDefault();
-            const open = $wrap.attr('aria-expanded') === 'true';
-            setMenuOpen(!open);
-        });
-
-        // Select a mode from menu
-        $menu.off('.llModeMenu').on('click.llModeMenu', '.ll-tools-mode-option', function (e) {
-            e.preventDefault();
-            const mode = String($(this).data('mode') || '');
-            if (!mode) return;
-            if ($(this).hasClass('disabled')) { return; }
-            // Keep menu open even after switching; ignore clicks on active option
-            if ($(this).hasClass('active')) { return; }
-            switchMode(mode);
-        });
-
-        // Outside click / Escape closes
-        $(document).off('.llModeMenu').on('pointerdown.llModeMenu', function (e) {
-            const open = $wrap.attr('aria-expanded') === 'true';
-            if (!open) return;
-            if ($(e.target).closest('#ll-tools-mode-switcher-wrap').length) return;
-            setMenuOpen(false);
-        }).on('keydown.llModeMenu', function (e) {
-            if (e.key === 'Escape') { setMenuOpen(false); }
-        });
-    }
-
-    function updateModeSwitcherButtons() {
-        refreshModeMenuOptions();
-        bindModeMenuHandlers();
-        bindSettingsPanel();
-        syncSettingsPanelSelections();
-    }
-
     function switchMode(newMode, options) {
         const opts = (options && typeof options === 'object') ? options : {};
         const preserveGenderPlan = !!opts.preserveGenderPlan;
+        newMode = resolveAllowedMode(newMode, State.categoryNames, preserveGenderPlan);
+        if (!newMode) return;
         if (!State.canSwitchMode()) {
             console.warn('Cannot switch mode in state:', State.getState());
             return;
@@ -3555,16 +3448,8 @@
 
         // Mode changes happen from user interaction; use that gesture window to
         // unlock the analyser AudioContext for listen-mode visualizer updates.
-        warmupVisualizerContext();
+        if (newMode === 'listening') warmupVisualizerContext();
 
-        if (newMode === 'learning' && !isLearningSupportedForCurrentSelection()) {
-            console.warn('Learning mode is disabled for the selected categories. Falling back to practice.');
-            newMode = 'practice';
-        }
-        if (isSelfCheckMode(newMode) && !isSelfCheckSupportedForCurrentSelection()) {
-            console.warn('Self-check mode is disabled for the selected categories. Falling back to practice.');
-            newMode = 'practice';
-        }
         if (!preserveGenderPlan) {
             const flashData = root.llToolsFlashcardsData || {};
             try { delete flashData.boundedSessionContinuation; } catch (_) { /* no-op */ }
@@ -3585,14 +3470,9 @@
         }
         if (isSelfCheckMode(newMode)) {
             if (triggerSelfCheckFlowFromFlashcard()) {
-                setMenuOpen(false);
                 return;
             }
             newMode = 'self-check';
-        }
-        if (newMode === 'gender' && !preserveGenderPlan && !isGenderSupportedForCurrentSelection()) {
-            console.warn('Gender mode is disabled for the selected categories. Falling back to practice.');
-            newMode = 'practice';
         }
         try {
             const tracker = getProgressTracker();
@@ -3607,8 +3487,6 @@
             }
         } catch (_) { /* no-op */ }
 
-        const $btn = $('#ll-tools-mode-switcher');
-        if ($btn.length) $btn.prop('disabled', true).attr('aria-busy', 'true');
 
         // Hide any listening-mode specific UI when switching away
         try {
@@ -3645,6 +3523,9 @@
             // Self-check should always review all words once, independent of star prefs.
             setStarModeOverride(targetMode === 'self-check' ? 'normal' : getSessionStarModeOverride());
             restoreCategorySelection();
+            if (root.FlashcardLoader && root.FlashcardLoader.beginQuizAttempt) {
+                root.FlashcardLoader.beginQuizAttempt(targetMode);
+            }
             updateProgressTrackerContext(targetMode);
 
             const activeModule = getActiveModeModule();
@@ -3658,21 +3539,15 @@
 
             $('#ll-tools-flashcard').empty();
             Dom.restoreHeaderUI();
-            updateModeSwitcherPanel();
+            refreshSettingsPanel();
 
             // Kick off fresh load
             State.transitionTo(STATES.LOADING, 'Mode switch complete, reloading');
             startQuizRound();
 
-            setTimeout(function () {
-                if ($btn.length) {
-                    $btn.prop('disabled', false).removeAttr('aria-busy');
-                }
-            }, 1500);
         }).catch(function (err) {
             console.error('Error during mode switch:', err);
             State.forceTransitionTo(STATES.IDLE, 'Mode switch error');
-            if ($btn.length) $btn.prop('disabled', false).removeAttr('aria-busy');
         });
     }
 
@@ -3998,7 +3873,7 @@
                     numberOfOptions: number_of_options
                 });
 
-                updateModeSwitcherPanel();
+                refreshSettingsPanel();
                 if (!State.is(STATES.QUIZ_READY)) {
                     const ready = State.transitionTo(STATES.QUIZ_READY, 'Resources loaded');
                     if (!ready) {
@@ -4081,137 +3956,6 @@
         if (Number.isFinite(parsed) && parsed > 0) return parsed;
         if (value === null || typeof value === 'undefined' || value === '') return null;
         return value;
-    }
-
-    function clearRoundMediaFailure(wordId) {
-        const normalized = normalizeRoundWordId(wordId);
-        if (!normalized) return;
-        if (!State.roundMediaFailureCounts || typeof State.roundMediaFailureCounts !== 'object') {
-            State.roundMediaFailureCounts = {};
-        }
-        delete State.roundMediaFailureCounts[String(normalized)];
-    }
-
-    function incrementRoundMediaFailure(wordId) {
-        const normalized = normalizeRoundWordId(wordId);
-        if (!normalized) return 0;
-        if (!State.roundMediaFailureCounts || typeof State.roundMediaFailureCounts !== 'object') {
-            State.roundMediaFailureCounts = {};
-        }
-        const key = String(normalized);
-        State.roundMediaFailureCounts[key] = (State.roundMediaFailureCounts[key] || 0) + 1;
-        return State.roundMediaFailureCounts[key];
-    }
-
-    function removeWordFromListById(list, normalizedWordId) {
-        if (!Array.isArray(list) || !normalizedWordId) return Array.isArray(list) ? list : [];
-        return list.filter(function (item) {
-            const id = normalizeRoundWordId(item && item.id);
-            return String(id) !== String(normalizedWordId);
-        });
-    }
-
-    function removeWordIdFromIdList(list, normalizedWordId) {
-        if (!Array.isArray(list) || !normalizedWordId) return Array.isArray(list) ? list : [];
-        return list.filter(function (value) {
-            const id = normalizeRoundWordId(value);
-            return String(id) !== String(normalizedWordId);
-        });
-    }
-
-    function recomputeWordTotalsAfterSkip() {
-        const seen = {};
-        let count = 0;
-        const byCategory = State.wordsByCategory || {};
-        Object.keys(byCategory).forEach(function (name) {
-            const rows = Array.isArray(byCategory[name]) ? byCategory[name] : [];
-            rows.forEach(function (word) {
-                const id = normalizeRoundWordId(word && word.id);
-                if (!id || seen[id]) return;
-                seen[id] = true;
-                count += 1;
-            });
-        });
-        State.totalWordCount = count;
-    }
-
-    function dropWordFromCurrentSession(wordId) {
-        const normalized = normalizeRoundWordId(wordId);
-        if (!normalized) return false;
-        let removed = false;
-
-        const stripFromMap = function (map) {
-            if (!map || typeof map !== 'object') return;
-            Object.keys(map).forEach(function (key) {
-                const current = map[key];
-                if (!Array.isArray(current)) return;
-                const next = removeWordFromListById(current, normalized);
-                if (next.length !== current.length) {
-                    removed = true;
-                }
-                map[key] = next;
-            });
-        };
-
-        stripFromMap(State.wordsByCategory);
-        stripFromMap(root.wordsByCategory);
-        stripFromMap(root.optionWordsByCategory);
-
-        if (Array.isArray(State.currentCategory)) {
-            State.currentCategory = removeWordFromListById(State.currentCategory, normalized);
-        }
-        if (Array.isArray(State.introducedWordIDs)) {
-            State.introducedWordIDs = removeWordIdFromIdList(State.introducedWordIDs, normalized);
-        }
-        if (Array.isArray(State.wordsToIntroduce)) {
-            State.wordsToIntroduce = removeWordIdFromIdList(State.wordsToIntroduce, normalized);
-        }
-        if (Array.isArray(State.usedWordIDs)) {
-            State.usedWordIDs = removeWordIdFromIdList(State.usedWordIDs, normalized);
-        }
-        if (Array.isArray(State.wordsLinear)) {
-            const before = State.wordsLinear.length;
-            State.wordsLinear = removeWordFromListById(State.wordsLinear, normalized);
-            if (State.wordsLinear.length !== before) {
-                removed = true;
-                State.listenIndex = Math.min(State.listenIndex || 0, State.wordsLinear.length);
-            }
-        }
-        if (Array.isArray(State.listeningHistory)) {
-            State.listeningHistory = removeWordFromListById(State.listeningHistory, normalized);
-            State.listenIndex = Math.max(0, Math.min(State.listenIndex || 0, State.listeningHistory.length));
-        }
-        if (Array.isArray(State.wrongAnswerQueue)) {
-            State.wrongAnswerQueue = State.wrongAnswerQueue.filter(function (entry) {
-                const id = normalizeRoundWordId(entry && typeof entry === 'object' ? entry.id : entry);
-                return String(id) !== String(normalized);
-            });
-        }
-        if (Array.isArray(State.learningWordSets)) {
-            State.learningWordSets = State.learningWordSets
-                .map(function (set) { return removeWordIdFromIdList(set, normalized); })
-                .filter(function (set) { return Array.isArray(set) && set.length > 0; });
-            if (State.learningWordSetIndex >= State.learningWordSets.length) {
-                State.learningWordSetIndex = Math.max(0, State.learningWordSets.length - 1);
-            }
-        }
-        if (State.wordCorrectCounts && typeof State.wordCorrectCounts === 'object') {
-            delete State.wordCorrectCounts[String(normalized)];
-            delete State.wordCorrectCounts[normalized];
-        }
-        if (State.wordIntroductionProgress && typeof State.wordIntroductionProgress === 'object') {
-            delete State.wordIntroductionProgress[String(normalized)];
-            delete State.wordIntroductionProgress[normalized];
-        }
-        if (State.listeningCurrentTarget && String(normalizeRoundWordId(State.listeningCurrentTarget.id)) === String(normalized)) {
-            State.listeningCurrentTarget = null;
-        }
-        if (String(normalizeRoundWordId(State.lastWordShownId)) === String(normalized)) {
-            State.lastWordShownId = null;
-        }
-
-        recomputeWordTotalsAfterSkip();
-        return removed;
     }
 
     function waitForImageElementReady(imageElement, timeoutMs) {
@@ -4308,7 +4052,10 @@
         const targetKey = targetWordId === null ? '' : String(targetWordId);
         const failedCards = [];
         const failedWordIds = [];
-        let distractorOnly = failedImages.length > 0 && !!targetKey;
+        // Only replace images with a completed failure. An unfinished download
+        // keeps its option and uses the same-round Retry UI after the deadline.
+        let distractorOnly = failedImages.length > 0 && !!targetKey
+            && failedImages.every(function (imageElement) { return imageElement.complete; });
 
         failedImages.forEach(function (imageElement, index) {
             const detail = failedDetails[index] || {};
@@ -4562,13 +4309,23 @@
         return String(targetWord.__runtimePromptAudio || targetWord.prompt_audio || '').trim();
     }
 
-    function retryPromptAudioForRound(targetWord) {
+    function retryPromptAudioForRound(targetWord, forceReload) {
         const explicitPromptAudioUrl = getExplicitPromptCardAudioUrl(targetWord);
         const promptAudioUrl = explicitPromptAudioUrl || ((Util && typeof Util.getPromptAudioUrl === 'function')
             ? Util.getPromptAudioUrl(targetWord)
             : String((targetWord && targetWord.audio) || '').trim());
         if (!targetWord || !promptAudioUrl || !root.FlashcardAudio || typeof root.FlashcardAudio.setTargetWordAudio !== 'function') {
             return Promise.resolve(false);
+        }
+
+        const mountedAudio = root.FlashcardAudio.getCurrentTargetAudio
+            ? root.FlashcardAudio.getCurrentTargetAudio()
+            : null;
+        if (mountedAudio && !mountedAudio.error && mountedAudio.networkState !== 3) {
+            if (mountedAudio.readyState >= 2) return Promise.resolve(true);
+            // A readiness deadline is not a failed request. Replacing an active
+            // download discards its progress and can keep slow connections stuck.
+            if (!forceReload) return waitForTargetAudioReady('audio', 5200);
         }
 
         const audioOptions = { autoplay: false };
@@ -4591,43 +4348,6 @@
             .catch(function () { return false; });
     }
 
-    function skipWordAfterMediaFailure(targetWord, reason, details) {
-        const normalized = normalizeRoundWordId(targetWord && targetWord.id);
-        if (!normalized) return false;
-        if (isInteractiveQuizRoundState()) {
-            console.warn('Ignoring stale media skip after the question became interactive', {
-                wordId: normalized,
-                reason: reason || '',
-                details: details || {}
-            });
-            return false;
-        }
-        const attempts = incrementRoundMediaFailure(normalized);
-        const shouldDropWord = attempts >= 2;
-        let dropped = false;
-        if (shouldDropWord) {
-            dropped = dropWordFromCurrentSession(normalized);
-        }
-
-        console.warn('Skipping quiz word because media was not ready', {
-            wordId: normalized,
-            reason: reason || '',
-            attempts: attempts,
-            droppedFromSession: dropped || shouldDropWord,
-            details: details || {}
-        });
-
-        const movedToReady = State.transitionTo(STATES.QUIZ_READY, 'Skipping unready media word');
-        if (!movedToReady) {
-            State.forceTransitionTo(STATES.QUIZ_READY, 'Forced skip for unready media word');
-        }
-        setGuardedTimeout(function () {
-            if (!State.widgetActive) return;
-            runQuizRound();
-        }, 120);
-        return true;
-    }
-
     function escapeErrorText(raw) {
         return String(raw === null || raw === undefined ? '' : raw)
             .replace(/&/g, '&amp;')
@@ -4642,6 +4362,7 @@
             console.warn('Cannot start quiz round in state:', State.getState());
             return;
         }
+        const currentRoundGeneration = ++roundMediaGeneration;
 
         updateProgressTrackerContext();
 
@@ -4761,7 +4482,14 @@
                 State.currentCategoryName = categoryNameForRound;
                 State.currentCategory = State.wordsByCategory[categoryNameForRound] || State.currentCategory;
             }
-            try { Dom.updateCategoryNameDisplay(categoryNameForRound); } catch (_) { /* no-op */ }
+            try {
+                // Target media can load asynchronously before options are built.
+                // Do not expose a Learning answer's category during that wait;
+                // fillQuizOptions restores it for actual same-category choices.
+                Dom.updateCategoryNameDisplay(categoryNameForRound, {
+                    pendingQuestion: State.isLearningMode && !Array.isArray(target)
+                });
+            } catch (_) { /* no-op */ }
         }
 
         if (modeModule && typeof modeModule.handlePostSelection === 'function') {
@@ -4799,7 +4527,8 @@
         const roundSessionToken = __LLSession;
         let distractorRefillGeneration = 0;
         const isStaleRound = function () {
-            return roundSessionToken !== __LLSession || !State.widgetActive;
+            return roundSessionToken !== __LLSession || !State.widgetActive
+                || currentRoundGeneration !== roundMediaGeneration;
         };
 
         if (target && typeof target === 'object') {
@@ -4880,7 +4609,6 @@
             const finalizeQuestionDisplay = function () {
                 if (isStaleRound()) { return; }
                 hideLoadingThenPlayPromptAudio(promptType, isStaleRound);
-                clearRoundMediaFailure(target && target.id);
                 State.transitionTo(STATES.SHOWING_QUESTION, 'Question displayed');
                 const handledAfterRender = modeModule && typeof modeModule.afterQuestionShown === 'function'
                     ? !!modeModule.afterQuestionShown({
@@ -4896,6 +4624,45 @@
                 if (!handledAfterRender) {
                     scheduleAutoplayAfterOptionsReady();
                 }
+            };
+
+            const showRoundMediaRetry = function (word, reason, details) {
+                if (isStaleRound() || isInteractiveQuizRoundState()) return;
+                console.warn('Quiz media unavailable; retaining the current round for Retry', {
+                    wordId: word && word.id, reason: reason, details: details || {}
+                });
+                const messages = root.llToolsFlashcardsMessages || {};
+                const progressWasVisible = $('#ll-tools-learning-progress').is(':visible');
+                showLoadingError({ reason: 'round-media-retry', preserveRoundMedia: true });
+                $('#restart-quiz').text(messages.retry || 'Retry').prop('disabled', false).show()
+                    .off('click').on('click.llRoundMediaRetry', function (event) {
+                        event.preventDefault();
+                        if (isStaleRound() || !State.is(STATES.SHOWING_RESULTS)) return;
+                        $(this).prop('disabled', true).hide();
+                        $('#ll-tools-flashcard-quiz-popup, #quiz-results').removeClass('ll-tools-error-state');
+                        $('#quiz-results').hide();
+                        Dom.restoreHeaderUI({ preserveProgress: true });
+                        $('#ll-tools-learning-progress').toggle(progressWasVisible);
+                        Dom.updateCategoryNameDisplay(categoryNameForRound);
+                        $('#ll-tools-flashcard').show();
+                        Dom.showLoading();
+                        State.forceTransitionTo(STATES.QUIZ_READY, 'Retrying the same round media');
+                        applyRoundSoundRequirement(roundRequiresAudio({ promptType: promptType, optionType: displayMode }));
+                        Promise.all([
+                            retryRenderedImagesForRound(6200),
+                            needsPromptAudio ? retryPromptAudioForRound(target, true) : Promise.resolve(true)
+                        ]).then(function (ready) {
+                            if (isStaleRound()) return;
+                            if (!ready[0] || !ready[1]) {
+                                showRoundMediaRetry(target, 'explicit-media-retry');
+                                return;
+                            }
+                            if (needsPromptAudio) Dom.enableRepeatButton();
+                            finalizeQuestionDisplay();
+                        }).catch(function () {
+                            showRoundMediaRetry(target, 'explicit-media-retry-exception');
+                        });
+                    });
             };
 
                 const needsPromptAudio = promptTypeHasAudio(promptType) && !!(
@@ -4961,7 +4728,7 @@
                         retryPromptAudioForRound(target).then(function (retryReady) {
                             if (isStaleRound()) { return; }
                             if (!retryReady) {
-                                skipWordAfterMediaFailure(target, 'prompt-audio-not-ready', {
+                                showRoundMediaRetry(target, 'prompt-audio-not-ready', {
                                     targetMediaStatus: targetMediaStatus,
                                     optionStatus: optionStatus,
                                     renderedStatus: readyRenderedStatus
@@ -4992,11 +4759,10 @@
                     });
                 };
 
-                const showDistractorMinimumOptionsError = function (recovery, errorMessage, errorDetails) {
+                const showDistractorMediaRetry = function (recovery, errorMessage, errorDetails) {
                     const recoveryDetails = (recovery && typeof recovery === 'object') ? recovery : {};
                     const suppliedDetails = (errorDetails && typeof errorDetails === 'object') ? errorDetails : {};
-                    showLoadingError({
-                        reason: 'minimum-options',
+                    showRoundMediaRetry(target, 'distractor-images-not-ready', {
                         errorMessage: errorMessage || '',
                         details: Object.assign({
                             chosenCount: Math.max(0, parseInt(recoveryDetails.remainingCount, 10) || 0),
@@ -5016,7 +4782,21 @@
                     const refillGeneration = ++distractorRefillGeneration;
                     let refillOptionPromise;
 
-                    $flashcardContainer.empty();
+                    // Keep the original complete option set until its replacement
+                    // has passed construction. A failed refill can leave only the
+                    // target mounted; Retry must never reveal that one-card set.
+                    const originalPreparing = $flashcardContainer.hasClass('ll-options-preparing');
+                    const originalRevealToken = $flashcardContainer.attr('data-ll-option-reveal-token');
+                    const $originalOptions = $flashcardContainer.children().detach();
+                    const restoreOriginalOptions = function () {
+                        $flashcardContainer.empty().append($originalOptions)
+                            .toggleClass('ll-options-preparing', originalPreparing);
+                        if (originalRevealToken) {
+                            $flashcardContainer.attr('data-ll-option-reveal-token', originalRevealToken);
+                        } else {
+                            $flashcardContainer.removeAttr('data-ll-option-reveal-token');
+                        }
+                    };
                     Dom.showLoading();
 
                     try {
@@ -5025,7 +4805,8 @@
                         }));
                     } catch (refillBuildError) {
                         if (refillBuildError && refillBuildError.code === 'LL_MINIMUM_OPTIONS_VIOLATION') {
-                            showDistractorMinimumOptionsError(
+                            restoreOriginalOptions();
+                            showDistractorMediaRetry(
                                 recovery,
                                 refillBuildError.message || '',
                                 refillBuildError.details || {}
@@ -5055,7 +4836,8 @@
                         const refillRenderedStatus = refillStatuses[1] || {};
 
                         if (refillOptionStatus && refillOptionStatus.errorCode === 'LL_MINIMUM_OPTIONS_VIOLATION') {
-                            showDistractorMinimumOptionsError(
+                            restoreOriginalOptions();
+                            showDistractorMediaRetry(
                                 recovery,
                                 refillOptionStatus.errorMessage || '',
                                 refillOptionStatus.details || {}
@@ -5070,6 +4852,7 @@
                             });
                             return;
                         }
+                        $originalOptions.remove();
                         if (refillRenderedStatus.imagesReady) {
                             continueAfterImageRetry(refillRenderedStatus);
                             return;
@@ -5097,10 +4880,10 @@
                                 return;
                             }
                             if (finalRecovery.distractorOnly) {
-                                showDistractorMinimumOptionsError(finalRecovery);
+                                showDistractorMediaRetry(finalRecovery);
                                 return;
                             }
-                            skipWordAfterMediaFailure(target, 'round-images-not-ready-after-distractor-refill', {
+                            showRoundMediaRetry(target, 'round-images-not-ready-after-distractor-refill', {
                                 initialRecovery: recovery,
                                 optionStatus: refillOptionStatus,
                                 renderedStatus: retriedRefillStatus,
@@ -5111,10 +4894,10 @@
                             console.warn('Round distractor refill image retry failed', refillRetryError);
                             const exceptionRecovery = recoverRoundFromUnreadyDistractorImages(target);
                             if (exceptionRecovery.distractorOnly) {
-                                showDistractorMinimumOptionsError(exceptionRecovery);
+                                showDistractorMediaRetry(exceptionRecovery);
                                 return;
                             }
-                            skipWordAfterMediaFailure(target, 'round-distractor-refill-retry-exception', {
+                            showRoundMediaRetry(target, 'round-distractor-refill-retry-exception', {
                                 initialRecovery: recovery,
                                 unreadyImages: getUnreadyRenderedImageDetails()
                             });
@@ -5122,7 +4905,8 @@
                     }).catch(function (refillError) {
                         if (isStaleRound() || refillGeneration !== distractorRefillGeneration) { return; }
                         if (refillError && refillError.code === 'LL_MINIMUM_OPTIONS_VIOLATION') {
-                            showDistractorMinimumOptionsError(
+                            restoreOriginalOptions();
+                            showDistractorMediaRetry(
                                 recovery,
                                 refillError.message || '',
                                 refillError.details || {}
@@ -5157,7 +4941,7 @@
                                 refillFailedDistractorOptions(distractorRecovery);
                                 return;
                             }
-                            skipWordAfterMediaFailure(target, 'round-images-not-ready', {
+                            showRoundMediaRetry(target, 'round-images-not-ready', {
                                 targetMediaStatus: targetMediaStatus,
                                 optionStatus: optionStatus,
                                 renderedStatus: retryRenderedStatus,
@@ -5178,7 +4962,7 @@
                     retryPromptAudioForRound(target).then(function (retryReady) {
                         if (isStaleRound()) { return; }
                         if (!retryReady) {
-                            skipWordAfterMediaFailure(target, 'prompt-audio-readiness-exception');
+                            showRoundMediaRetry(target, 'prompt-audio-readiness-exception');
                             return;
                         }
                         finalizeQuestionDisplay();
@@ -5188,6 +4972,7 @@
                 finalizeQuestionDisplay();
             });
         }).catch(function (err) {
+            if (isStaleRound()) return;
             console.error('Error in runQuizRound:', err);
             showLoadingError({
                 reason: 'round-runtime',
@@ -5208,10 +4993,10 @@
                 root.FlashcardAudio.pauseAllAudio();
                 root.FlashcardAudio.pauseAllAudio(-1);
             }
-            if (root.FlashcardAudio && typeof root.FlashcardAudio.setTargetWordAudio === 'function') {
+            if (!opts.preserveRoundMedia && root.FlashcardAudio && typeof root.FlashcardAudio.setTargetWordAudio === 'function') {
                 root.FlashcardAudio.setTargetWordAudio(null);
             }
-            if (root.FlashcardAudio && typeof root.FlashcardAudio.suspendPlayback === 'function') {
+            if (!opts.preserveRoundMedia && root.FlashcardAudio && typeof root.FlashcardAudio.suspendPlayback === 'function') {
                 root.FlashcardAudio.suspendPlayback();
             }
         } catch (_) { /* no-op */ }
@@ -5242,7 +5027,7 @@
                 escapeErrorText(summaryLine) +
                 '<br>' +
                 escapeErrorText(msgs.minimumOptionsInvariantMessage || msgs.noContentAvailable || 'No content available.');
-        } else if (isBoundedSessionContinuationError || isInitialCategoryRetryError) {
+        } else if (isBoundedSessionContinuationError || isInitialCategoryRetryError || reason === 'round-media-retry') {
             errorMessage = detailHtml
                 ? detailHtml.replace(/<br>$/, '')
                 : escapeErrorText(msgs.sessionContinuationError || msgs.somethingWentWrong || 'Please try again.');
@@ -5261,7 +5046,7 @@
         Dom.hideLoading();
         $('#ll-tools-repeat-flashcard').hide();
         $('#ll-tools-category-stack, #ll-tools-category-display').hide();
-        $('#ll-tools-learning-progress, #ll-tools-mode-switcher-wrap').hide();
+        $('#ll-tools-learning-progress').hide();
         State.forceTransitionTo(STATES.SHOWING_RESULTS, 'Error state');
     }
 
@@ -5445,7 +5230,7 @@
                 State.forceTransitionTo(STATES.QUIZ_READY, 'Forcing bounded quiz continuation ready');
             }
             clearContinuationPromise();
-            $('#ll-tools-mode-switcher-wrap').show();
+
             runQuizRound();
         }).catch(function (error) {
             if (currentSession !== __LLSession || !State.widgetActive) {
@@ -5499,7 +5284,7 @@
         // It also clears launchers that marked the popup busy before main.js ran.
         try {
             $('#ll-tools-flashcard-quiz-popup')
-                .removeClass('ll-round-loading-active ll-round-loading-instant')
+                .removeClass('ll-round-media-pending ll-round-loading-active ll-round-loading-instant')
                 .removeAttr('aria-busy');
             $('#ll-tools-loading-status').prop('hidden', true);
             $('#ll-tools-loading-animation').hide();
@@ -5569,7 +5354,7 @@
                 } catch (_) { /* no-op */ }
 
                 Promise.resolve().then(function () {
-                    return initFlashcardWidget(retryCategories, retryMode);
+                    return initFlashcardWidget(retryCategories, retryMode, { preserveSample: true });
                 }).catch(function (retryError) {
                     console.error('Failed to retry flashcard widget initialization:', retryError);
                     showInitialCategoryRetryError(
@@ -5638,10 +5423,10 @@
         });
     }
 
-    function initFlashcardWidget(selectedCategories, mode) {
+    function initFlashcardWidget(selectedCategories, mode, attemptOptions) {
         // Launch is user-initiated (button click). Warm up visualizer AudioContext
         // here so listening autoplay can use analyser data instead of fallback waves.
-        warmupVisualizerContext();
+        if (mode === 'listening') warmupVisualizerContext();
 
         // Deduplicate concurrent init calls; reuse in-flight promise
         if (initInProgressPromise) {
@@ -5649,6 +5434,7 @@
         }
 
         const proceed = () => {
+            const preserveVisibleResults = $('#quiz-results').is(':visible');
             activateInlineQuizDialog('#ll-tools-flashcard-quiz-popup');
             // Protect the visible loading state immediately. Resource hydration
             // may still be in flight, but back navigation, selection, and zoom
@@ -5687,7 +5473,17 @@
                 }
             }
 
+            // A cold category/audio load can take time. Keep the first launch
+            // visibly busy and closable before either asynchronous step starts.
+            // A replacement chunk retains its existing results until ready.
+            State.widgetActive = true;
+            $('#ll-tools-close-flashcard').off('click').on('click', closeFlashcard);
+            if (!preserveVisibleResults) {
+                Dom.showLoading();
+            }
+
             return root.FlashcardAudio.startNewSession().then(function () {
+                if (launchSession !== __LLSession || !State.widgetActive) { return; }
                 const requestedCategoriesRaw = normalizeCategoryNameList(selectedCategories);
                 let requestedMode = mode;
                 if (isSelfCheckMode(requestedMode)) {
@@ -5698,14 +5494,6 @@
                     : filterCategoryNamesByAspectBucket(requestedCategoriesRaw, {
                         preferCategoryName: requestedCategoriesRaw[0] || ''
                     });
-                if (requestedMode === 'learning' && !isLearningSupportedForCategories(requestedCategories)) {
-                    console.warn('Learning mode is disabled for the selected categories. Using practice mode instead.');
-                    requestedMode = 'practice';
-                }
-                if (isSelfCheckMode(requestedMode) && !isSelfCheckSupportedForCategories(requestedCategories)) {
-                    console.warn('Self-check mode is disabled for the selected categories. Using practice mode instead.');
-                    requestedMode = 'practice';
-                }
                 const launchFlashData = root.llToolsFlashcardsData || {};
                 const launchGenderPlan = launchFlashData.genderSessionPlan;
                 const hasArmedGenderPlan = !!(
@@ -5721,13 +5509,10 @@
                     && Array.isArray(launchGenderPlan.word_ids)
                     && launchGenderPlan.word_ids.length > 0
                 );
-                if (
-                    requestedMode === 'gender'
-                    && !hasExplicitGenderPlan
-                    && !isGenderSupportedForSelection(requestedCategories)
-                ) {
-                    console.warn('Gender mode is disabled for the selected categories. Using practice mode instead.');
-                    requestedMode = 'practice';
+                requestedMode = resolveAllowedMode(requestedMode, requestedCategories, hasExplicitGenderPlan);
+                if (!requestedMode) {
+                    closeFlashcard();
+                    return;
                 }
                 if (requestedMode === 'gender') {
                     const flashData = root.llToolsFlashcardsData || {};
@@ -5759,6 +5544,9 @@
                 // Self-check should always review all words once, independent of star prefs.
                 setStarModeOverride(State.isSelfCheckMode ? 'normal' : getSessionStarModeOverride());
                 updateProgressTrackerContext(requestedMode);
+                if (root.FlashcardLoader && root.FlashcardLoader.beginQuizAttempt) {
+                    root.FlashcardLoader.beginQuizAttempt(requestedMode, attemptOptions);
+                }
 
                 if (State.widgetActive) {
                     State.clearActiveTimeouts();
@@ -5788,6 +5576,7 @@
                     try { activeModule.initialize(); } catch (err) { console.error('Mode initialization failed:', err); }
                 }
                 return prepareInitialCategoryLoad(State.categoryNames).then(function () {
+                    if (launchSession !== __LLSession || !State.widgetActive) { return; }
                     // Keep the completed-session results visible until the replacement
                     // chunk is fully validated and ready. If bounded handoff or the first
                     // category load rejects, callers can leave the same retry controls on
@@ -5826,9 +5615,8 @@
                     }
                 });
 
-                // Initialize mode switcher UI (single toggle + expanding menu)
-                $('#ll-tools-mode-switcher-wrap').show();
-                updateModeSwitcherPanel();
+                // Initialize quiz settings and results actions.
+                refreshSettingsPanel();
                 $('#restart-practice-mode').off('click').on('click', () => switchMode('practice'));
                 $('#restart-learning-mode').off('click').on('click', () => {
                     if (!continueLearningSetIfAvailable()) {
@@ -5870,7 +5658,7 @@
                 $('#restart-quiz').off('click').on('click', restartQuiz);
 
                 Dom.showLoading();
-                updateModeSwitcherPanel();
+                refreshSettingsPanel();
                 startQuizRound();
 
                 // One-time "kick" to start audio on first user gesture if autoplay was blocked
@@ -5878,7 +5666,7 @@
                     .off('.llAutoplayKick')
                     .on('pointerdown.llAutoplayKick keydown.llAutoplayKick', function () {
                         const $content = $('#ll-tools-flashcard-content');
-                        warmupVisualizerContext();
+                        if (State.isListeningMode) warmupVisualizerContext();
                         try {
                             const audioApi = root.FlashcardAudio;
                             const audio = audioApi && typeof audioApi.getCurrentTargetAudio === 'function'
@@ -5915,12 +5703,20 @@
                     });
                 });
             }).catch(function (err) {
+                if (launchSession !== __LLSession || !State.widgetActive) { return; }
                 if (isRetryableInitialCategoryWarmupTimeout(err)) {
                     console.warn('Flashcard category cache is still warming; waiting for user retry.', err.result);
                     showInitialCategoryRetryError(err, selectedCategories, mode, launchSession);
                     return;
                 }
+                if (!preserveVisibleResults && isFlashcardPopupVisible()) {
+                    // First-launch failures have no previous results to fall
+                    // back to. Keep the same scoped launch available for Retry.
+                    showInitialCategoryRetryError(err, selectedCategories, mode, launchSession);
+                    return;
+                }
                 console.error('Failed to initialize flashcard widget:', err);
+                hideInitialCategoryWarmupLoading();
                 State.forceTransitionTo(STATES.IDLE, 'Initialization error');
                 throw err;
             });
@@ -5935,9 +5731,12 @@
         );
 
         // Track in-flight init; clear when finished (success or failure)
-        initInProgressPromise = kickoff.finally(() => {
-            initInProgressPromise = null;
+        const trackedInit = kickoff.finally(() => {
+            if (initInProgressPromise === trackedInit) {
+                initInProgressPromise = null;
+            }
         });
+        initInProgressPromise = trackedInit;
 
         return initInProgressPromise;
     }
@@ -5966,6 +5765,11 @@
         }
 
         const closeOptions = (options && typeof options === 'object') ? options : {};
+        // A pending resource request belongs to the closing session. It must
+        // neither block a new launch nor clear its in-flight promise later.
+        initInProgressPromise = null;
+        root.__LL_QPG_OPEN_IN_PROGRESS = false;
+        root.__LL_QPG_OPEN_PROMISE = null;
 
         try {
             const tracker = getProgressTracker();
@@ -6109,10 +5913,8 @@
             $('#ll-tools-flashcard-quiz-popup').hide();
             $('#ll-tools-flashcard-popup').hide();
             $('#ll-tools-listening-controls').remove();
-            // Hide mode switcher and unbind menu handlers
-            $('#ll-tools-mode-switcher-wrap').hide();
+
             setSettingsOpen(false);
-            $(document).off('.llModeMenu');
             $('#ll-tools-learning-progress').hide().empty();
             restorePageScroll();
 
@@ -6159,6 +5961,9 @@
         State.isGenderMode = wasGender;
         State.isSelfCheckMode = wasSelfCheck;
         restoreCategorySelection();
+        if (root.FlashcardLoader && root.FlashcardLoader.beginQuizAttempt) {
+            root.FlashcardLoader.beginQuizAttempt(wasLearning ? 'learning' : wasListening ? 'listening' : wasGender ? 'gender' : wasSelfCheck ? 'self-check' : 'practice');
+        }
         const module = getActiveModeModule();
         if (module && typeof module.initialize === 'function') {
             try { module.initialize(); } catch (err) { console.error('Mode initialization failed during restart:', err); }
@@ -6166,7 +5971,7 @@
         root.LLFlashcards.Results.hideResults();
         $('#ll-tools-flashcard').empty();
         Dom.restoreHeaderUI();
-        updateModeSwitcherPanel();
+        refreshSettingsPanel();
         State.transitionTo(STATES.QUIZ_READY, 'Quiz restarted');
         startQuizRound();
     }
@@ -6199,7 +6004,7 @@
         }
         $('#ll-tools-flashcard').empty();
         Dom.restoreHeaderUI();
-        updateModeSwitcherPanel();
+        refreshSettingsPanel();
 
         const ready = State.transitionTo(STATES.QUIZ_READY, 'Continue learning set');
         if (!ready) {

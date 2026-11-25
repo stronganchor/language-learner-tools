@@ -38,12 +38,55 @@
 
 .ll-category-lineup-manager__help,
 .ll-category-lineup-manager__empty,
-.ll-category-lineup-manager__status {
+.ll-category-lineup-manager__status,
+.ll-category-lineup-manager__read-status {
     margin: 0;
     color: #50575e;
     font-size: 12px;
     line-height: 1.45;
     letter-spacing: 0;
+}
+
+.ll-category-lineup-manager__read-status {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.ll-category-lineup-manager__read-status[hidden] {
+    display: none;
+}
+
+.ll-category-lineup-manager__read-status[data-state="error"] {
+    color: #b32d2e;
+}
+
+.ll-category-lineup-manager .ll-category-lineup-manager__retry-button {
+    box-sizing: border-box !important;
+    min-height: 32px !important;
+    margin: 0 !important;
+    padding: 6px 10px !important;
+    border: 1px solid #8c8f94 !important;
+    border-radius: 4px !important;
+    background: #ffffff !important;
+    color: #2c3338 !important;
+    box-shadow: none !important;
+    font: inherit !important;
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    line-height: 1.2 !important;
+    letter-spacing: 0 !important;
+    cursor: pointer !important;
+    appearance: none !important;
+}
+
+.ll-category-lineup-manager .ll-category-lineup-manager__retry-button:hover,
+.ll-category-lineup-manager .ll-category-lineup-manager__retry-button:focus-visible {
+    border-color: #2271b1 !important;
+    color: #135e96 !important;
+    outline: 2px solid #72aee6 !important;
+    outline-offset: 1px !important;
 }
 
 .ll-category-lineup-manager__list {

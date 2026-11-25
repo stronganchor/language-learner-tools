@@ -24,6 +24,8 @@ function ll_tools_schema_maintenance_callbacks(): array {
         'lms_assignments' => 'll_tools_maybe_upgrade_lms_assignment_schema',
         'grade_delivery' => 'll_tools_maybe_upgrade_grade_delivery_schema',
         'google_classroom' => 'll_tools_maybe_upgrade_google_classroom_schema',
+        'dictionary_static_cache' => 'll_tools_dictionary_static_cache_maybe_purge_legacy_schema',
+        'public_static_cache' => 'll_tools_public_static_cache_maybe_purge_legacy_schema',
     ];
 
     /**

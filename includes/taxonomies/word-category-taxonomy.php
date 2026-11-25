@@ -1615,6 +1615,8 @@ function ll_tools_word_category_shared_settings_request_has_fields(array $reques
         '_ll_vocab_lesson_category_settings_taxonomy_submitted',
         'll_quiz_prompt_type',
         'll_quiz_option_type',
+        'll_quiz_question_limit',
+        'll_quiz_sample_enabled',
         'll_lesson_grid_text_visibility_override',
         'll_category_enabled_games_submitted',
         'll_category_lineup_config_submitted',
@@ -1715,6 +1717,11 @@ function ll_tools_apply_word_category_shared_settings_mutation(int $term_id, arr
     }
 
     $writes = [];
+    $question_limit = ll_tools_quiz_question_limit_from_request($request, 'll_');
+    if (is_wp_error($question_limit)) { return $question_limit; }
+    if ($question_limit !== null) {
+        $writes[] = ['key' => 'll_quiz_question_limit', 'value' => (string) $question_limit, 'delete' => false];
+    }
     if (array_key_exists('ll_category_visibility', $request)) {
         $valid = true;
         $visibility = ll_tools_word_category_settings_request_scalar($request, 'll_category_visibility', 7, $valid);
@@ -3026,6 +3033,7 @@ function ll_tools_get_category_quiz_config($term, ?bool &$complete = null): arra
         'use_titles'         => false,
         'learning_supported' => true,
         'self_check_supported' => true,
+        'question_limit' => 0,
     ];
 
     if (!($term instanceof WP_Term)) {
@@ -3042,6 +3050,9 @@ function ll_tools_get_category_quiz_config($term, ?bool &$complete = null): arra
 
     $term_id = (int) $term->term_id;
     $use_titles_complete = true;
+    $question_limit_complete = true;
+    $question_limit = ll_tools_get_quiz_question_limit($term, $question_limit_complete);
+    $complete = $complete && $question_limit_complete;
     $use_titles_legacy = ll_tools_get_category_meta_with_source_fallback(
         $term,
         'use_word_titles_for_audio',
@@ -3087,6 +3098,7 @@ function ll_tools_get_category_quiz_config($term, ?bool &$complete = null): arra
         'use_titles_legacy' => $use_titles_legacy ? 1 : 0,
         'stored_option_type' => $stored_option_type,
         'stored_prompt_type' => $stored_prompt_type,
+        'question_limit' => $question_limit,
         'content_fallback_epoch' => $content_fallback_epoch,
         'schema' => 4,
     ]));
@@ -3147,6 +3159,7 @@ function ll_tools_get_category_quiz_config($term, ?bool &$complete = null): arra
         'use_titles'         => ($option_type === 'text_title') || $use_titles_legacy,
         'learning_supported' => $learning_supported,
         'self_check_supported' => !$is_prompt_card_question_style,
+        'question_limit' => $question_limit,
     ];
 
     if ($complete) {
@@ -3651,6 +3664,7 @@ function ll_tools_get_category_lineup_manager_i18n(): array {
         'moveUp' => __('Move earlier', 'll-tools-text-domain'),
         'moveDown' => __('Move later', 'll-tools-text-domain'),
         'loadError' => __('Unable to load Line-Up words right now.', 'll-tools-text-domain'),
+        'retry' => __('Retry', 'll-tools-text-domain'),
         'updateError' => __('Unable to update the Line-Up sequence right now.', 'll-tools-text-domain'),
         'updating' => __('Updating sequence...', 'll-tools-text-domain'),
         'updated' => __('Sequence updated.', 'll-tools-text-domain'),
@@ -3677,6 +3691,7 @@ function ll_tools_enqueue_category_lineup_manager_assets(array $context = []): v
         'updateAction' => 'll_tools_update_category_lineup_sequence',
         'nonce' => isset($context['nonce']) ? (string) $context['nonce'] : '',
         'pageSize' => ll_tools_category_lineup_page_size(),
+        'requestTimeoutMs' => max(3000, min(30000, (int) apply_filters('ll_tools_category_lineup_request_timeout_ms', 15000))),
         'i18n' => ll_tools_get_category_lineup_manager_i18n(),
     ]);
 }
@@ -4479,6 +4494,7 @@ function ll_add_quiz_prompt_option_fields($term) {
         </select>
         <p class="description"><?php esc_html_e('Use text options for text-only quizzes (no audio/images), or choose audio options to play recordings.', 'll-tools-text-domain'); ?></p>
     </div>
+    <div class="form-field"><?php ll_tools_render_quiz_question_limit_fields(0); ?></div>
     <div class="form-field term-lesson-grid-text-visibility-wrap">
         <label for="ll_lesson_grid_text_visibility_override"><?php esc_html_e('Lesson/Grid Text Visibility', 'll-tools-text-domain'); ?></label>
         <select name="ll_lesson_grid_text_visibility_override" id="ll_lesson_grid_text_visibility_override">
@@ -4594,6 +4610,7 @@ function ll_edit_quiz_prompt_option_fields($term) {
             <p class="description"><?php esc_html_e('Use text options for text-only quizzes (no audio/images), or choose audio options to play recordings.', 'll-tools-text-domain'); ?></p>
         </td>
     </tr>
+    <tr class="form-field"><th scope="row"><?php esc_html_e('Practice length', 'll-tools-text-domain'); ?></th><td><?php ll_tools_render_quiz_question_limit_fields((int) ($config['question_limit'] ?? 0)); ?></td></tr>
     <tr class="form-field term-lesson-grid-text-visibility-wrap">
         <th scope="row" valign="top">
             <label for="ll_lesson_grid_text_visibility_override"><?php esc_html_e('Lesson/Grid Text Visibility', 'll-tools-text-domain'); ?></label>
@@ -4848,6 +4865,10 @@ function ll_tools_save_category_lineup_field($term_id): void {
  * Save prompt + answer option preferences.
  */
 function ll_save_quiz_prompt_option_fields($term_id, $taxonomy) {
+    $question_limit = ll_tools_quiz_question_limit_from_request($_POST, 'll_');
+    if ($question_limit !== null && !is_wp_error($question_limit)) {
+        ll_tools_write_vocab_lesson_category_settings_taxonomy_meta($term_id, 'll_quiz_question_limit', (string) $question_limit);
+    }
     $use_titles = get_term_meta($term_id, 'use_word_titles_for_audio', true) === '1';
     $prompt_for_option = ll_tools_normalize_quiz_prompt_type(
         get_term_meta($term_id, 'll_quiz_prompt_type', true),
@@ -5480,6 +5501,8 @@ function ll_tools_epoch_request_cache_set(string $cache_key, int $epoch): int {
 function ll_tools_epoch_request_cache_reset_for_option(string $option_name): void {
     if (in_array($option_name, [
         'll_tools_wc_cache_epoch',
+        'll_tools_category_dependency_epoch',
+        'll_tools_recorder_category_eligibility_epoch',
         'll_tools_wordset_cache_epoch',
         'll_tools_structural_failsafe_epoch',
         'll_tools_quiz_content_cache_epoch',
@@ -5504,6 +5527,7 @@ function ll_tools_epoch_request_cache_reset_for_term_meta($meta_id, int $term_id
     if (in_array($meta_key, [
         '_ll_wc_cache_version',
         '_ll_quiz_content_epoch',
+        '_ll_quiz_unmapped_content_epoch',
         'll_category_aspect_cache_version',
     ], true)) {
         ll_tools_epoch_request_cache_reset(ll_tools_epoch_request_cache_key('term', $term_id, $meta_key));
@@ -5857,8 +5881,26 @@ function ll_tools_get_quiz_content_fallback_epoch(): string {
 }
 
 /**
- * Return the quiz/content epoch for one valid wordset.
+ * Category-versioned consumers can reuse their exact results after another category changes.
+ * Legacy source IDs may resolve to a different category and need the broader generation.
  */
+function ll_tools_get_category_versioned_content_epoch(array $wordset_ids, array $category_ids = []): string {
+    if (count($wordset_ids) !== 1 || (int) reset($wordset_ids) <= 0) {
+        return ll_tools_get_quiz_content_cache_epoch($wordset_ids);
+    }
+    $wordset_id = (int) reset($wordset_ids);
+    if ($category_ids && ll_tools_is_wordset_isolation_enabled()) {
+        update_meta_cache('term', $category_ids);
+        foreach ($category_ids as $id) {
+            if (ll_tools_get_category_wordset_owner_id($id, $complete) !== $wordset_id || !$complete) {
+                return ll_tools_get_quiz_content_cache_epoch($wordset_ids) . ':s' . ll_tools_get_category_cache_epoch();
+            }
+        }
+    }
+    return ll_tools_get_quiz_content_fallback_epoch() . ':w' . $wordset_id . ':'
+        . ll_tools_read_term_meta_epoch($wordset_id, '_ll_quiz_unmapped_content_epoch');
+}
+
 function ll_tools_get_wordset_quiz_content_epoch(int $wordset_id): int {
     $wordset_id = max(0, $wordset_id);
     $wordset = $wordset_id > 0 ? get_term($wordset_id, 'wordset') : null;
@@ -5906,7 +5948,7 @@ function ll_tools_get_quiz_content_cache_epoch($wordset_ids = []): string {
  * @param array|int $wordset_ids
  * @return array{global_epoch:int,unknown_epoch:int,wordset_epochs:array<int,int>,scope_complete:bool}
  */
-function ll_tools_bump_quiz_content_cache_epoch($wordset_ids = [], bool $scope_complete = true): array {
+function ll_tools_bump_quiz_content_cache_epoch($wordset_ids = [], bool $scope_complete = true, bool $category_versions_advanced = false): array {
     $requested_wordset_ids = ll_tools_normalize_quiz_content_wordset_ids($wordset_ids);
     $valid_wordset_ids = [];
     foreach ($requested_wordset_ids as $wordset_id) {
@@ -5931,6 +5973,14 @@ function ll_tools_bump_quiz_content_cache_epoch($wordset_ids = [], bool $scope_c
     $wordset_epochs = [];
     $wordset_epochs_advanced = true;
     foreach ($valid_wordset_ids as $wordset_id) {
+        // An import or repair can know the wordset without knowing which category changed.
+        if (!$category_versions_advanced) {
+            $previous = ll_tools_read_term_meta_epoch($wordset_id, '_ll_quiz_unmapped_content_epoch', true);
+            if (ll_tools_atomic_increment_term_meta_epoch($wordset_id, '_ll_quiz_unmapped_content_epoch') <= $previous) {
+                $wordset_epochs_advanced = false;
+                $scope_complete = false;
+            }
+        }
         $before = ll_tools_get_wordset_quiz_content_epoch($wordset_id);
         $epoch = ll_tools_atomic_increment_term_meta_epoch($wordset_id, '_ll_quiz_content_epoch');
         $wordset_epochs[$wordset_id] = $epoch;
@@ -5965,8 +6015,8 @@ function ll_tools_bump_quiz_content_cache_epoch($wordset_ids = [], bool $scope_c
                 : []
         );
     }
-    if (function_exists('ll_tools_purge_wordset_buttons_shortcode_cache_once')) {
-        ll_tools_purge_wordset_buttons_shortcode_cache_once();
+    if (function_exists('ll_tools_purge_wordset_buttons_shortcode_content_cache_once')) {
+        ll_tools_purge_wordset_buttons_shortcode_content_cache_once();
     }
 
     $result = [
@@ -6022,7 +6072,18 @@ function ll_tools_get_quiz_content_wordset_scope_for_categories($term_ids): arra
     return ['wordset_ids' => $wordset_ids, 'complete' => $complete];
 }
 
-function ll_tools_bump_category_cache_epoch($wordset_ids = []) {
+/** For caches that already validate their exact category IDs and versions. */
+function ll_tools_get_category_dependency_epoch(): int {
+    return ll_tools_compose_structural_cache_epoch(ll_tools_read_option_epoch('ll_tools_category_dependency_epoch'));
+}
+
+function ll_tools_bump_category_cache_epoch($wordset_ids = [], bool $category_versions_advanced = false) {
+    if (!$category_versions_advanced) {
+        $before = ll_tools_read_option_epoch('ll_tools_category_dependency_epoch', true);
+        if (ll_tools_atomic_increment_option_epoch('ll_tools_category_dependency_epoch') <= $before) {
+            ll_tools_bump_structural_failsafe_epoch();
+        }
+    }
     $before = ll_tools_read_option_epoch('ll_tools_wc_cache_epoch', true);
     $after = ll_tools_atomic_increment_option_epoch('ll_tools_wc_cache_epoch');
     if ($after <= $before) {
@@ -6117,7 +6178,7 @@ function ll_tools_bump_category_cache_version($term_ids, $wordset_ids = null, ?b
         ];
     }
 
-    ll_tools_bump_quiz_content_cache_epoch($scope['wordset_ids'], !empty($scope['complete']));
+    ll_tools_bump_quiz_content_cache_epoch($scope['wordset_ids'], !empty($scope['complete']), $all_categories_resolved);
 }
 
 /**
@@ -6150,7 +6211,7 @@ function ll_tools_bump_single_category_cache_version($term_id) {
     }
     // Structural term edits are rare and owner metadata alone cannot prove
     // every legacy/direct wordset that renders this category.
-    ll_tools_bump_category_cache_epoch();
+    ll_tools_bump_category_cache_epoch([], in_array($term_id, $bumped_ids, true));
 }
 
 function ll_tools_bump_deleted_category_cache_epoch($term_id): void {
@@ -6220,14 +6281,14 @@ function ll_tools_default_option_type_for_category(
             (int) $min_word_count
         );
         $text_title_complete = true;
-        $text_title_count = ll_get_words_by_category_count(
+        $text_title_count = $use_titles ? ll_get_words_by_category_count(
             $term,
             'text',
             $wordset_ids,
             $cfg_text_title,
             $text_title_complete,
             (int) $min_word_count
-        );
+        ) : 0;
         $text_translation_complete = true;
         $text_translation_count = ll_get_words_by_category_count(
             $term,
@@ -8257,7 +8318,15 @@ function ll_tools_count_category_rows_to_threshold_bounded(
         $candidate_ids = array_values(array_unique(array_filter(array_map('intval', $candidate_ids), static function (int $word_id): bool {
             return $word_id > 0;
         })));
-        foreach (array_chunk($candidate_ids, 50) as $candidate_chunk) {
+        // Most image categories qualify in the first few words. Only resolve the
+        // remaining media if that first group does not establish eligibility.
+        $first_size = min(50, max(1, $stop_at - $count));
+        $first_candidates = array_splice($candidate_ids, 0, $first_size);
+        $candidate_chunks = array_chunk($candidate_ids, 50);
+        if ($first_candidates) {
+            array_unshift($candidate_chunks, $first_candidates);
+        }
+        foreach ($candidate_chunks as $candidate_chunk) {
             $candidate_config = $config;
             $candidate_config['__skip_quiz_config_merge'] = true;
             $candidate_config['__candidate_word_ids'] = $candidate_chunk;
@@ -8880,6 +8949,18 @@ function ll_get_words_by_category_count(
 
     $stop_at = max(0, $stop_at);
     if ($stop_at > 0) {
+        // Eligibility is a lower bound. Keep it separate from exact counts, and
+        // let cursor-based maintenance own its budget and checkpoints.
+        $minimum_key = 'll_wc_min_' . md5($count_cache_key);
+        if ($resume_context === null) {
+            $known_minimum = wp_cache_get($minimum_key, $count_cache_group);
+            if ($known_minimum === false) {
+                $known_minimum = get_transient($minimum_key);
+            }
+            if ((int) $known_minimum >= $stop_at) {
+                return $stop_at;
+            }
+        }
         $bounded_complete = true;
         $bounded = ll_tools_count_category_rows_to_threshold_bounded(
             $categoryName,
@@ -8902,8 +8983,12 @@ function ll_get_words_by_category_count(
 
         $bounded_count = max(0, (int) ($bounded['count'] ?? 0));
         if (!empty($bounded['reached'])) {
-            // Threshold hits are intentionally capped and are not persisted as
-            // exact totals. The caller only compares them with the threshold.
+            if ($resume_context === null) {
+                wp_cache_set($minimum_key, $stop_at, $count_cache_group, WEEK_IN_SECONDS);
+                if (apply_filters('ll_tools_words_count_persist_transient', true, 'quiz', $minimum_key, $term_id, $wordset_terms)) {
+                    set_transient($minimum_key, $stop_at, WEEK_IN_SECONDS);
+                }
+            }
             return $stop_at;
         }
 
@@ -9616,6 +9701,9 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
         'include_plurality'    => true,
         'source_complete_schema' => 2,
     ];
+    if (!$eligibility_projection && $require_option_image) {
+        $cache_flags['picture_answer_rule_schema'] = 1;
+    }
     $cache_key = ll_tools_get_words_cache_key($term_id, $wordset_terms, $prompt_type, $option_type, $cache_flags);
     $cache_ttl = 6 * HOUR_IN_SECONDS;
 
@@ -9946,6 +10034,24 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
         count($all_word_ids)
     )));
     $images_required = $require_prompt_image || $require_option_image;
+    $include_option_image_keys = !$eligibility_projection && $require_option_image;
+    $image_keys_by_word = [];
+    $blocked_word_image_keys = static function (int $blocked_id) use (&$image_keys_by_word, &$legacy_image_lookups_remaining, &$sources_complete): array {
+        if (!isset($image_keys_by_word[$blocked_id])) {
+            $attachment_id = 0;
+            if (get_post_status($blocked_id) === 'publish') {
+                $attachment_id = ll_tools_get_effective_word_image_attachment_id_for_word($blocked_id);
+                if (!$attachment_id && $legacy_image_lookups_remaining > 0) {
+                    $legacy_image_lookups_remaining--;
+                    $attachment_id = ll_tools_get_effective_word_image_attachment_id_for_word($blocked_id, true);
+                } elseif (!$attachment_id) {
+                    $sources_complete = false;
+                }
+            }
+            $image_keys_by_word[$blocked_id] = ll_tools_get_attachment_image_identity_keys($attachment_id);
+        }
+        return $image_keys_by_word[$blocked_id];
+    };
 
     $build_word_row = function (int $word_id) use (
         $display_text_by_word,
@@ -9966,7 +10072,10 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
         $prompt_card_support_role_map,
         $prompt_text_type,
         $images_required,
+        $include_option_image_keys,
+        $blocked_word_image_keys,
         $eligibility_projection,
+        &$image_keys_by_word,
         &$legacy_image_lookups_remaining,
         &$sources_complete,
         $wpdb
@@ -10320,6 +10429,31 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
         }
 
         $sources_complete = $sources_complete && $wpdb->last_error === '';
+        if ($include_option_image_keys) {
+            // Use the effective answer image even in a partial candidate page.
+            // Only saved manual rules contribute image keys.
+            $wpdb->last_error = '';
+            $word_data['option_image_keys'] = ll_tools_get_attachment_image_identity_keys($image_id);
+            if ($word_data['option_image_keys']) {
+                $image_keys_by_word[$word_id] = $word_data['option_image_keys'];
+            }
+            $word_data['option_blocked_image_keys'] = [];
+            $blocks_by_type = ['' => $blocked_map[$word_id] ?? []] + ($blocked_map_by_recording_type[$word_id] ?? []);
+            foreach ($blocks_by_type as $recording_type => $blocked_ids) {
+                $type_keys = [];
+                foreach ($blocked_ids as $blocked_id) {
+                    foreach ($blocked_word_image_keys($blocked_id) as $image_key) {
+                        $type_keys[$image_key] = true;
+                    }
+                    $sources_complete = $sources_complete && $wpdb->last_error === '';
+                }
+                if ($type_keys) {
+                    $word_data['option_blocked_image_keys'][$recording_type] = array_keys($type_keys);
+                }
+            }
+            $sources_complete = $sources_complete && $wpdb->last_error === '';
+        }
+
         return $word_data;
     };
 

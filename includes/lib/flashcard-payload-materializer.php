@@ -7,7 +7,7 @@ if (!defined('LL_TOOLS_FLASHCARD_PAYLOAD_TABLE_VERSION')) {
 if (!defined('LL_TOOLS_FLASHCARD_PAYLOAD_BUILDER_SCHEMA')) {
     // Bump this whenever stored row shape, eligibility, or presentation
     // semantics change. Ordinary plugin releases must not invalidate payloads.
-    define('LL_TOOLS_FLASHCARD_PAYLOAD_BUILDER_SCHEMA', 1);
+    define('LL_TOOLS_FLASHCARD_PAYLOAD_BUILDER_SCHEMA', 4);
 }
 if (!defined('LL_TOOLS_FLASHCARD_PAYLOAD_VERSION_OPTION')) {
     define('LL_TOOLS_FLASHCARD_PAYLOAD_VERSION_OPTION', 'll_tools_flashcard_payload_table_version');
@@ -335,6 +335,78 @@ function ll_tools_flashcard_payload_normalize_locale($locale): string {
     }
 
     return $locale !== '' ? substr($locale, 0, 40) : 'en_US';
+}
+
+/**
+ * Enter the payload's locale and return its restoration callback.
+ *
+ * Public plugin translations do not require WordPress core language packs.
+ * Keep the override local to this read/build instead of adding public-only
+ * languages to WordPress' installed staff-language list.
+ *
+ * @return callable|WP_Error
+ */
+function ll_tools_flashcard_payload_enter_locale(string $locale) {
+    $locale = ll_tools_flashcard_payload_normalize_locale($locale);
+    if ($locale === get_locale()) {
+        return static function (): void {};
+    }
+
+    $public_locale = function_exists('ll_tools_is_available_public_locale') && ll_tools_is_available_public_locale($locale);
+    if (!$public_locale && !in_array($locale, array_merge(['en_US'], get_available_languages()), true)) {
+        return new WP_Error('invalid_flashcard_payload_locale', __('Invalid flashcard locale.', 'll-tools-text-domain'));
+    }
+
+    $previous_locale = (string) determine_locale();
+    $previous_switcher = $GLOBALS['wp_locale_switcher'];
+    // Core snapshots installed languages in its constructor. Give only this
+    // isolated context the already-validated plugin locale, without changing
+    // the installed-language list or the caller's existing locale stack.
+    $context_languages = static function (array $languages) use ($locale): array {
+        return array_values(array_unique(array_merge($languages, [$locale])));
+    };
+    add_filter('get_available_languages', $context_languages, PHP_INT_MAX);
+    try {
+        $context_switcher = new WP_Locale_Switcher();
+    } finally {
+        remove_filter('get_available_languages', $context_languages, PHP_INT_MAX);
+    }
+    $context_switcher->init();
+    $GLOBALS['wp_locale_switcher'] = $context_switcher;
+    $force_locale = static function () use ($locale): string { return $locale; };
+    $restored = false;
+    $restore = static function () use ($force_locale, $context_switcher, $previous_switcher, $previous_locale, &$restored): void {
+        if ($restored) {
+            return;
+        }
+        $restored = true;
+        remove_filter('locale', $force_locale, PHP_INT_MAX);
+        remove_filter('pre_determine_locale', $force_locale, PHP_INT_MAX);
+        try {
+            $context_switcher->restore_current_locale();
+        } finally {
+            remove_filter('locale', [$context_switcher, 'filter_locale']);
+            remove_filter('determine_locale', [$context_switcher, 'filter_locale']);
+            $GLOBALS['wp_locale_switcher'] = $previous_switcher;
+            // A nested caller may itself use a plugin-only locale. Restore its
+            // text domain after Core changes the translation controller locale.
+            unload_textdomain('ll-tools-text-domain', true);
+            load_textdomain('ll-tools-text-domain', LL_TOOLS_BASE_PATH . 'languages/ll-tools-text-domain-' . $previous_locale . '.mo');
+        }
+    };
+    try {
+        $context_switcher->switch_to_locale($locale);
+        add_filter('locale', $force_locale, PHP_INT_MAX);
+        add_filter('pre_determine_locale', $force_locale, PHP_INT_MAX);
+        // Match the aggregate worker's explicit plugin translation loading;
+        // an outer locale override may have shadowed Core's domain reload.
+        unload_textdomain('ll-tools-text-domain', true);
+        load_textdomain('ll-tools-text-domain', LL_TOOLS_BASE_PATH . 'languages/ll-tools-text-domain-' . $locale . '.mo');
+    } catch (Throwable $error) {
+        $restore();
+        throw $error;
+    }
+    return $restore;
 }
 
 function ll_tools_flashcard_payload_normalize_scope(array $scope): array {
@@ -1438,6 +1510,18 @@ function ll_tools_flashcard_payload_merge_rows(array $existing, array $incoming)
         }
     }
     $merged['option_blocked_ids_by_recording_type'] = $recording_maps;
+    if (isset($existing['option_blocked_image_keys']) || isset($incoming['option_blocked_image_keys'])) {
+        $image_blocks = [];
+        foreach ([$existing['option_blocked_image_keys'] ?? [], $incoming['option_blocked_image_keys'] ?? []] as $map) {
+            foreach ($map as $recording_type => $keys) {
+                $image_blocks[$recording_type] = ll_tools_flashcard_payload_unique_strings(
+                    $image_blocks[$recording_type] ?? [],
+                    $keys
+                );
+            }
+        }
+        $merged['option_blocked_image_keys'] = $image_blocks;
+    }
     foreach ([
         'is_specific_wrong_answer_only',
         'is_prompt_card_support_only',
@@ -1554,7 +1638,9 @@ function ll_tools_flashcard_payload_upsert_rows(
         $normalized[$key] = [
             'row_kind' => $row_kind,
             'row_id' => $row_id,
-            'sort_group' => $row_kind === 'prompt' ? 1 : ($phase === 'primary' ? 0 : 2),
+            'sort_group' => ll_tools_quiz_sample_row_is_target($row)
+                ? ($row_kind === 'prompt' ? 1 : ($phase === 'primary' ? 0 : 2))
+                : 2,
             'payload' => $row,
         ];
     }
@@ -2606,7 +2692,7 @@ function ll_tools_flashcard_payload_process_rebuild_batch(
     $locks = [&$global_lock, &$scope_lock];
 
     $previous_user_id = (int) get_current_user_id();
-    $locale_switched = false;
+    $restore_locale = null;
     try {
         $state = ll_tools_get_flashcard_payload_state($scope_hash);
         if (
@@ -2707,14 +2793,10 @@ function ll_tools_flashcard_payload_process_rebuild_batch(
             return $state;
         }
         $scope_locale = (string) ($scope['locale'] ?? '');
-        if (
-            $scope_locale !== ''
-            && function_exists('switch_to_locale')
-            && function_exists('restore_previous_locale')
-            && $scope_locale !== get_locale()
-        ) {
-            $locale_switched = switch_to_locale($scope_locale);
-            if (!$locale_switched) {
+        if ($scope_locale !== '' && $scope_locale !== get_locale()) {
+            $restore_locale = ll_tools_flashcard_payload_enter_locale($scope_locale);
+            if (is_wp_error($restore_locale)) {
+                $restore_locale = null;
                 return ll_tools_flashcard_payload_record_failure(
                     $scope_hash,
                     $state,
@@ -3057,12 +3139,15 @@ function ll_tools_flashcard_payload_process_rebuild_batch(
 
         return $state;
     } finally {
-        if ($locale_switched) {
-            restore_previous_locale();
+        try {
+            if (is_callable($restore_locale)) {
+                $restore_locale();
+            }
+        } finally {
+            wp_set_current_user($previous_user_id);
+            ll_tools_release_flashcard_payload_lock($scope_lock);
+            ll_tools_release_flashcard_payload_lock($global_lock);
         }
-        wp_set_current_user($previous_user_id);
-        ll_tools_release_flashcard_payload_lock($scope_lock);
-        ll_tools_release_flashcard_payload_lock($global_lock);
     }
 }
 

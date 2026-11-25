@@ -12,7 +12,6 @@ final class FlashcardShellRendererTest extends LL_Tools_TestCase
             'show_category_display' => true,
             'category_label_text' => 'Animals',
             'mode_ui' => [],
-            'gender_mode_visible' => false,
             'listening_results_fallback' => __('Replay Listening', 'll-tools-text-domain'),
         ]);
         $html = (string) ob_get_clean();
@@ -31,8 +30,12 @@ final class FlashcardShellRendererTest extends LL_Tools_TestCase
         $this->assertStringContainsString('id="ll-tools-loading-status"', $html);
         $this->assertStringContainsString('id="ll-tools-repeat-flashcard"', $html);
         $this->assertStringContainsString('type="button"', $html);
-        $this->assertStringContainsString('data-mode="self-check"', $html);
-        $this->assertStringContainsString('ll-tools-mode-option gender hidden', $html);
+        foreach (['practice', 'learning', 'self-check', 'gender', 'listening'] as $mode) {
+            $this->assertStringContainsString('id="restart-' . $mode . '-mode"', $html);
+        }
+        $this->assertStringNotContainsString('ll-tools-mode-switcher', $html);
+        $this->assertStringNotContainsString('ll-tools-mode-menu', $html);
+        $this->assertStringNotContainsString('ll-tools-mode-option', $html);
         $this->assertStringContainsString('id="ll-gender-results-progress"', $html);
         $this->assertStringContainsString('Replay Listening', $html);
     }
@@ -46,17 +49,15 @@ final class FlashcardShellRendererTest extends LL_Tools_TestCase
             'show_category_display' => true,
             'category_label_text' => '',
             'mode_ui' => [],
-            'gender_mode_visible' => false,
-            'mode_order' => ['learning', 'practice', 'listening', 'gender', 'self-check'],
         ]);
         $html = (string) ob_get_clean();
 
         $this->assertStringNotContainsString('id="ll-tools-category-selection-popup"', $html);
         $this->assertStringNotContainsString('id="ll-tools-loading-status"', $html);
-        $this->assertLessThan(
-            strpos($html, 'data-mode="self-check"'),
-            strpos($html, 'data-mode="listening"')
-        );
+        $this->assertStringContainsString('id="restart-self-check-mode"', $html);
+        $this->assertStringContainsString('id="restart-listening-mode"', $html);
+        $this->assertStringNotContainsString('ll-tools-mode-switcher', $html);
+        $this->assertStringNotContainsString('ll-tools-mode-menu', $html);
     }
 
     public function test_repeat_button_initializer_is_globally_guarded(): void

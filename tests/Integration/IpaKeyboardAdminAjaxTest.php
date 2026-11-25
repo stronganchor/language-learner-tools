@@ -1080,8 +1080,8 @@ final class IpaKeyboardAdminAjaxTest extends LL_Tools_TestCase
         $this->assertArrayNotHasKey('transcription_validation_' . $second_wordset_id, $tasks_by_key);
         $this->assertArrayHasKey('transcription_review_' . $first_wordset_id, $tasks_by_key);
         $this->assertArrayHasKey('transcription_review_' . $second_wordset_id, $tasks_by_key);
-        $this->assertStringContainsString('1 auto-generated transcription', (string) $tasks_by_key['transcription_review_' . $first_wordset_id]['message']);
-        $this->assertStringContainsString('2 auto-generated transcriptions', (string) $tasks_by_key['transcription_review_' . $second_wordset_id]['message']);
+        $this->assertStringContainsString('1 recording in Aggregate Notice First has auto-generated transcription data that needs review', (string) $tasks_by_key['transcription_review_' . $first_wordset_id]['message']);
+        $this->assertStringContainsString('2 recordings in Aggregate Notice Second have auto-generated transcription data that needs review', (string) $tasks_by_key['transcription_review_' . $second_wordset_id]['message']);
     }
 
     public function test_symbol_and_letter_summaries_use_a_bounded_resumable_aggregate(): void

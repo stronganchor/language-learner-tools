@@ -3792,7 +3792,9 @@ function ll_tools_word_grid_resolve_context($atts): array {
     }
 
     $category_term = null;
-    $access_denied = false;
+    $access_denied = $wordset_id > 0
+        && function_exists('ll_tools_user_can_view_wordset')
+        && !ll_tools_user_can_view_wordset($wordset_id);
     $is_text_based = false;
     $has_text_only_answer_options = false;
     $hide_lesson_grid_text = false;
@@ -5565,9 +5567,13 @@ function ll_tools_word_grid_get_shell_spec(array $context): array {
  * The callback function for the 'word_grid' shortcode.
  *
  * @param array $atts Shortcode attributes.
+ * @param mixed $content Registered shortcode content (unused).
+ * @param string $tag Registered shortcode tag (unused).
+ * @param bool|null $visibility_complete False when taxonomy visibility cannot be read.
  * @return string HTML content to display the grid.
  */
-function ll_tools_word_grid_shortcode($atts) {
+function ll_tools_word_grid_shortcode($atts, $content = null, $tag = '', ?bool &$visibility_complete = null) {
+    $visibility_complete = true;
     $context = ll_tools_word_grid_resolve_context($atts);
     if (!empty($context['access_denied'])) {
         return '';
@@ -5683,6 +5689,19 @@ function ll_tools_word_grid_shortcode($atts) {
 
     // The Query
     $query = new WP_Query($args);
+    if (ll_tools_should_enforce_vocab_frontend_access() && !empty($query->posts)) {
+        $query->posts = ll_tools_filter_viewable_vocab_posts((array) $query->posts, 0, $visibility_complete);
+        $query->post_count = count($query->posts);
+        $query->current_post = -1;
+        if (!$visibility_complete) {
+            // The static cache already excludes non-success responses. Do not
+            // persist a temporary privacy-read failure as an empty public grid.
+            status_header(503);
+            nocache_headers();
+            ob_end_clean();
+            return '';
+        }
+    }
     if (empty($specific_word_ids) && $deepest_only && $category_term) {
         $query->posts = ll_tools_word_grid_filter_posts_to_deepest_category((array) $query->posts, (int) $category_term->term_id);
         $query->post_count = count((array) $query->posts);

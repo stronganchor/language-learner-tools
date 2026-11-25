@@ -15,7 +15,7 @@ path to standards-based grade passback for major LMS platforms. Compatibility
 with any particular LMS is not complete until that platform's current sandbox
 and production setup have been tested.
 
-### Implementation status (source checked 2026-10-02)
+### Implementation status (source checked 2026-11-25)
 
 - Phase 1 is implemented: bounded formative Practice results appear in the
   existing teacher Classes report.
@@ -37,7 +37,9 @@ and production setup have been tested.
 - A manual Moodle LTI 1.3/score-only AGS pilot is implemented with a pinned scoped
   JWT dependency, protected configuration keys, explicit registrations,
   browser-bound one-use launch state, persistent confirmed learner accounts,
-  exact course/activity mappings and the durable grade outbox. See
+  exact course/activity mappings and the durable grade outbox. A signed instructor
+  launch carries the course and activity into Wordboat's class and lesson selector.
+  Learner launches resolve the saved binding without per-activity custom parameters. See
   `docs/MOODLE_SETUP.md` for setup, limits and real-platform acceptance. Local
   WordPress tests do not establish Moodle interoperability or LTI certification.
 

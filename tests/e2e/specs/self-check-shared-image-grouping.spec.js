@@ -409,7 +409,6 @@ test('self-check continues bounded chunks without resetting scores or replaying 
     window.LLFlashcards.Effects = window.LLFlashcards.Effects || {};
     window.LLFlashcards.Cards = window.LLFlashcards.Cards || {};
     window.LLFlashcards.StateMachine = window.LLFlashcards.StateMachine || {};
-    window.LLFlashcards.ModeConfig = window.LLFlashcards.ModeConfig || {};
     window.LLFlashcards.Dom.restoreHeaderUI = noop;
     window.LLFlashcards.Dom.clearRepeatButtonBinding = noop;
     window.LLFlashcards.Dom.showLoading = noop;

@@ -23,7 +23,7 @@ function ll_tools_public_i18n_decode_po_string(string $value): string
 /**
  * @return array<int, array<string, mixed>>
  */
-function ll_tools_public_i18n_parse_po_file(string $path): array
+function ll_tools_public_i18n_parse_po_file(string $path, string $reference_root = ''): array
 {
     if (!is_file($path)) {
         throw new RuntimeException("PO/POT file not found: {$path}");
@@ -57,7 +57,14 @@ function ll_tools_public_i18n_parse_po_file(string $path): array
         }
 
         if (preg_match('/^#:\s+(.+)$/', $line, $matches)) {
-            foreach (preg_split('/\s+/', trim($matches[1])) ?: [] as $reference) {
+            // WP-CLI on Windows emits absolute paths, including roots with spaces.
+            // Strip the known root before tokenizing references on whitespace.
+            $references = ll_tools_public_i18n_normalize_path($matches[1]);
+            if ($reference_root !== '') {
+                $prefix = rtrim(ll_tools_public_i18n_normalize_path($reference_root), '/') . '/';
+                $references = preg_replace('/(?<!\S)' . preg_quote($prefix, '/') . '/i', '', $references);
+            }
+            foreach (preg_split('/\s+/', trim($references)) ?: [] as $reference) {
                 $reference = ll_tools_public_i18n_normalize_path((string) $reference);
                 if ($reference !== '') {
                     $entry['references'][] = $reference;

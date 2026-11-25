@@ -152,7 +152,7 @@ async function collectPageSpeedMetrics(page, actionableSelector, firstActionable
       url: String(window.location.href || ''),
       actionableSelector: selector,
       actionableCount: actionableElements.length,
-      firstActionableMs: Math.round(Number(actionableAt) || 0),
+      firstActionableMs: actionableAt === null ? null : Math.round(Number(actionableAt) || 0),
       domInteractiveMs: navigationEntry ? Math.round(navigationEntry.domInteractive || 0) : 0,
       domContentLoadedMs: navigationEntry ? Math.round(navigationEntry.domContentLoadedEventEnd || 0) : 0,
       loadEventMs: navigationEntry ? Math.round(navigationEntry.loadEventEnd || 0) : 0,

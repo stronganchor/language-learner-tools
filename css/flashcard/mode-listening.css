@@ -1,13 +1,5 @@
 /* flashcard/mode-listening.css */
 
-.ll-tools-mode-switcher.listening-mode {
-    background: #1d4d99;
-}
-
-.ll-tools-mode-switcher.listening-mode:hover {
-    background: #2f67ba;
-}
-
 .flashcard-container.listening-placeholder {
     position: relative;
     background: #e5e7eb;

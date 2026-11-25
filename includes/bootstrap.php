@@ -6,11 +6,13 @@ require_once(__DIR__ . '/assets.php');
 require_once __DIR__ . '/lib/php-compat.php';
 require_once __DIR__ . '/lib/learner-registration-settings.php';
 require_once __DIR__ . '/lib/schema-maintenance.php';
+require_once __DIR__ . '/lib/static-cache-maintenance.php';
 require_once __DIR__ . '/lib/expired-transient-maintenance.php';
 require_once __DIR__ . '/lib/public-ajax-resource-guards.php';
 require_once __DIR__ . '/lib/wordset-category-search-index.php';
 require_once __DIR__ . '/lib/wordset-category-search-incremental.php';
 require_once __DIR__ . '/lib/wordset-category-search-worker.php';
+require_once __DIR__ . '/lib/public-aggregate-worker.php';
 require_once __DIR__ . '/lib/sort.php';
 require_once __DIR__ . '/lib/text-display.php';
 require_once __DIR__ . '/lib/entity-translations.php';
@@ -58,6 +60,7 @@ require_once(__DIR__ . '/taxonomies/recording-type-taxonomy.php');
 require_once(__DIR__ . '/wordset-isolation.php');
 require_once(__DIR__ . '/wordset-templates.php');
 require_once __DIR__ . '/lib/flashcard-payload-materializer.php';
+require_once __DIR__ . '/lib/quiz-sampling.php';
 
 // Include user roles
 require_once(__DIR__ . '/user-roles/wordset-manager.php');
@@ -71,6 +74,7 @@ require_once(__DIR__ . '/user-roles/teacher-role.php');
 require_once(__DIR__ . '/admin/uploads/upload-scope.php');
 require_once(__DIR__ . '/admin/uploads/audio-upload-form.php');
 require_once(__DIR__ . '/admin/uploads/image-upload-form.php');
+require_once(__DIR__ . '/lib/context-review.php');
 require_once(__DIR__ . '/user-progress.php');
 require_once(__DIR__ . '/content-lesson-progress.php');
 require_once(__DIR__ . '/user-study.php');
@@ -130,6 +134,7 @@ if (ll_tools_should_load_admin_modules()) {
     require_once(__DIR__ . '/admin/dictionary-sources-admin.php');
     require_once(__DIR__ . '/admin/export-import.php');
     require_once(__DIR__ . '/admin/offline-app-export.php');
+    require_once(__DIR__ . '/admin/category-video-export.php');
     require_once(__DIR__ . '/admin/user-progress-report.php');
     require_once(__DIR__ . '/admin/teacher-classes-page.php');
     require_once(__DIR__ . '/admin/google-classroom-integration.php');
@@ -154,6 +159,7 @@ if (defined('WP_CLI') && WP_CLI) {
 
         $ll_tools_cli_aliases = [
             'll-tools wordset-search-worker' => 'wordset_search_worker',
+            'll-tools public-aggregate-worker' => 'public_aggregate_worker',
             'll-tools wordset-create' => 'wordset_create',
             'll-tools wordset-isolation-migrate' => 'wordset_isolation_migrate',
             'll-tools wordset-missing-meta' => 'wordset_missing_meta',

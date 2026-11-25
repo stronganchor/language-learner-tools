@@ -724,6 +724,9 @@ function ll_tools_wordset_isolation_get_category_query_scope_for_wordset($raw_va
         return [];
     }
 
+    $effective_ids = $wordset_id > 0
+        ? ll_tools_wordset_isolation_get_category_id_map_for_wordset($wordset_id, $category_ids, false)
+        : [];
     $scope = [];
     foreach ($category_ids as $category_id) {
         $category_id = (int) $category_id;
@@ -733,11 +736,8 @@ function ll_tools_wordset_isolation_get_category_query_scope_for_wordset($raw_va
 
         $scope[$category_id] = true;
 
-        if ($wordset_id > 0) {
-            $effective_category_id = ll_tools_get_effective_category_id_for_wordset($category_id, $wordset_id, false);
-            if ($effective_category_id > 0) {
-                $scope[$effective_category_id] = true;
-            }
+        if (!empty($effective_ids[$category_id])) {
+            $scope[(int) $effective_ids[$category_id]] = true;
         }
 
         $origin_category_id = ll_tools_get_category_isolation_source_id($category_id);

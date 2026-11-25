@@ -537,6 +537,9 @@
         if (normalizedMode === 'learning') {
             return !!sourceCategory.learning_supported;
         }
+        if (normalizedMode === 'listening') {
+            return !!sourceCategory.listening_supported;
+        }
         if (normalizedMode === 'gender') {
             return !!data.genderEnabled && !!sourceCategory.gender_supported;
         }
@@ -547,6 +550,11 @@
         const categories = Array.isArray(selectedCategories) ? selectedCategories : [];
         if (!categories.length) {
             return false;
+        }
+        if (normalizeMode(mode) === 'listening') {
+            return categories.some(function (category) {
+                return isModeSupportedForCategory('listening', category, flashData);
+            });
         }
         return categories.every(function (category) {
             return isModeSupportedForCategory(mode, category, flashData);
@@ -560,8 +568,8 @@
             if (configuredModes.indexOf(mode) === -1) {
                 return false;
             }
-            if (mode === 'gender') {
-                return isModeSupportedForCategory('gender', category, flashData);
+            if (mode === 'gender' || mode === 'listening') {
+                return isModeSupportedForCategory(mode, category, flashData);
             }
             return true;
         });
@@ -575,6 +583,9 @@
         return ['learning', 'practice', 'listening', 'gender', 'self-check'].filter(function (mode) {
             if (configuredModes.indexOf(mode) === -1) {
                 return false;
+            }
+            if (mode === 'listening') {
+                return isModeSupportedForSelection(mode, categories, flashData);
             }
             if (mode === 'gender') {
                 return !!flashData.genderEnabled && hasGender;
@@ -813,6 +824,10 @@
 
         if (normalizedMode === 'gender' && !isModeSupportedForSelection('gender', selectedCategories, root.llToolsFlashcardsData)) {
             showAlert(launcherMessages.genderUnavailable);
+            return;
+        }
+
+        if (normalizedMode === 'listening' && !isModeSupportedForSelection('listening', selectedCategories, root.llToolsFlashcardsData)) {
             return;
         }
 
@@ -2059,6 +2074,15 @@
             }).join(' ') : '';
             return Object.assign({}, category, {
                 default_order: index,
+                // Offline packs already contain these rows. Check once, including legacy
+                // packs without metadata and prompt-card audio, without loading any media.
+                listening_supported: rows.some(function (row) {
+                    if (!row || typeof row !== 'object') return false;
+                    if (String(row.audio || '').trim() || String(row.prompt_audio || '').trim()) return true;
+                    return Array.isArray(row.audio_files) && row.audio_files.some(function (file) {
+                        return !!(file && String(file.url || file.audio || '').trim());
+                    });
+                }),
                 word_ids: uniqueIntList(rows.map(function (row) {
                     return toInt(row && row.id);
                 })),
@@ -2543,7 +2567,7 @@
         }
 
         function syncSelectionButtons(selectedCategories) {
-            const modes = getSelectionModes(categories, flashData);
+            const modes = getSelectionModes(selectedCategories.length ? selectedCategories : categories, flashData);
             Object.keys(selectionButtons).forEach(function (mode) {
                 const buttonEl = selectionButtons[mode];
                 if (!buttonEl) {

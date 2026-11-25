@@ -73,11 +73,12 @@ final class FlashcardWidgetFlowTest extends LL_Tools_TestCase
             $this->assertStringContainsString('playOptionAudio', $localized_messages);
             $this->assertStringContainsString('pauseAudio', $localized_messages);
             $this->assertStringContainsString('starWord', $localized_messages);
-            $this->assertStringContainsString('practiceSwitchLabel', $localized_messages);
+            $this->assertStringContainsString('practiceModeText', $localized_messages);
             $this->assertStringContainsString('learningModeText', $localized_messages);
             $this->assertStringContainsString('practiceModeShort', $localized_messages);
 
-            $this->assertStringContainsString('selfCheckSwitchLabel', $localized_messages);
+            $this->assertStringContainsString('selfCheckModeText', $localized_messages);
+            $this->assertStringNotContainsString('SwitchLabel', $localized_messages);
 
             $scripts = wp_scripts();
             foreach (['ll-tools-flashcard-loader', 'll-tools-flashcard-options', 'll-flc-util'] as $handle) {
@@ -97,7 +98,8 @@ final class FlashcardWidgetFlowTest extends LL_Tools_TestCase
             $this->assertSame(1, substr_count($registered_data, 'var llToolsFlashcardsData ='));
             $this->assertSame(1, substr_count($registered_data, 'var llToolsFlashcardsMessages ='));
             $this->assertFalse($scripts->get_data('ll-flc-main', 'data'));
-            $this->assertFalse($scripts->get_data('ll-flc-mode-config', 'data'));
+            $this->assertFalse(wp_script_is('ll-flc-mode-config', 'registered'));
+            $this->assertFalse(wp_script_is('ll-flc-mode-config', 'enqueued'));
         } finally {
             remove_filter('ll_tools_quiz_min_words', $min_words_filter);
         }

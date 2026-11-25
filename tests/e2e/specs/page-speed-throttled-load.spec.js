@@ -35,8 +35,9 @@ function budgetRatio(metrics) {
   );
 }
 
-async function measurePageSpeed(page, navigationTimeoutMs) {
+async function measurePageSpeed(page, navigationTimeoutMs, attachFailure) {
   const session = await createPageSpeedSession(page);
+  let firstActionableMs = null;
 
   try {
     await page.goto(PAGE_PATH, {
@@ -44,12 +45,16 @@ async function measurePageSpeed(page, navigationTimeoutMs) {
       timeout: navigationTimeoutMs
     });
 
-    const firstActionableMs = await waitForVisibleActionable(page, ACTIONABLE_SELECTOR, MAX_ACTIONABLE_MS);
+    firstActionableMs = await waitForVisibleActionable(page, ACTIONABLE_SELECTOR, MAX_ACTIONABLE_MS);
     await expect(page.locator(ACTIONABLE_SELECTOR).first()).toBeVisible();
     await page.waitForLoadState('load', { timeout: MAX_LOAD_MS });
 
     const metrics = await collectPageSpeedMetrics(page, ACTIONABLE_SELECTOR, firstActionableMs);
     return { metrics, profile: session.profile };
+  } catch (error) {
+    const metrics = await collectPageSpeedMetrics(page, ACTIONABLE_SELECTOR, firstActionableMs).catch(() => null);
+    await attachFailure({ metrics, throttleProfile: session.profile }).catch(() => {});
+    throw error;
   } finally {
     await session.dispose();
   }
@@ -82,7 +87,13 @@ test('learn page stays within the throttled load budget', async ({ page, request
   let selected = null;
 
   for (let attempt = 1; attempt <= MEASURE_ATTEMPTS; attempt += 1) {
-    const result = await measurePageSpeed(page, navigationTimeoutMs);
+    const result = await measurePageSpeed(page, navigationTimeoutMs, (failure) => testInfo.attach(
+      'page-speed-failure-metrics',
+      {
+        body: JSON.stringify({ path: PAGE_PATH, attempt, warmupDurationsMs, ...failure }, null, 2),
+        contentType: 'application/json'
+      }
+    ));
     attempts.push(Object.assign({ attempt }, result));
 
     if (metricsFitBudget(result.metrics)) {

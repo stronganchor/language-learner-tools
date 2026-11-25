@@ -69,6 +69,74 @@ final class WordOptionManualRecordingTypeBlockingTest extends LL_Tools_TestCase
         $this->assertDoesNotMatchRegularExpression($isolation_checkbox, $html);
     }
 
+    public function test_sampled_image_options_carry_exact_image_keys_for_an_absent_blocked_word(): void
+    {
+        $fixture = $this->createFixture();
+        $wordset_id = $fixture['wordset_id'];
+        $category_id = $fixture['category_id'];
+        $target = $fixture['word_a'];
+        $blocked = $fixture['word_b'];
+        $uploads = self::factory()->attachment;
+        $image_dir = ABSPATH . WPINC . '/images/';
+        $target_image = $uploads->create_upload_object($image_dir . 'w-logo-blue.png');
+        $blocked_image = $uploads->create_upload_object($image_dir . 'rss.png');
+        $copy_image = $uploads->create_upload_object($image_dir . 'rss.png');
+        $other_image = $uploads->create_upload_object($image_dir . 'arrow-pointer-blue.png');
+
+        $this->assertNotSame($blocked_image, $copy_image);
+        set_post_thumbnail($target, $target_image);
+        set_post_thumbnail($blocked, $blocked_image);
+        $candidates = [];
+        foreach (['Shared' => $blocked_image, 'Copy' => $copy_image, 'Other' => $other_image] as $title => $image_id) {
+            $word = $this->createWord($wordset_id, $category_id, $title);
+            $this->createAudio($word, 'isolation', $title, 'https://audio.test/' . $title . '.mp3');
+            $this->publishWord($word);
+            set_post_thumbnail($word, $image_id);
+            $candidates[$title] = $word;
+        }
+
+        ll_tools_update_word_option_rules($wordset_id, $category_id, [], [[
+            'word_ids' => [$target, $blocked],
+            'unblocked_recording_types' => ['question', 'introduction'],
+        ]]);
+
+        $config = [
+            'prompt_type' => 'audio',
+            '__candidate_word_ids' => array_merge([$target], array_values($candidates)),
+            '__skip_image_similarity_pairs' => true,
+        ];
+        $rows = $this->indexRowsById(ll_get_words_by_category(
+            (string) $category_id, 'image', [$wordset_id], $config + ['option_type' => 'image']
+        ));
+        $this->assertArrayNotHasKey($blocked, $rows);
+        $this->assertArrayHasKey($target, $rows);
+        $target_row = $rows[$target];
+        $this->assertContains($blocked, $target_row['option_blocked_ids_by_recording_type']['isolation']);
+        $this->assertNotContains($blocked, $target_row['option_blocked_ids_by_recording_type']['question'] ?? []);
+        $this->assertNotContains($blocked, $target_row['option_blocked_ids']);
+        $this->assertEmpty($target_row['option_blocked_image_keys'][''] ?? []);
+        $this->assertEmpty($target_row['option_blocked_image_keys']['question'] ?? []);
+        $this->assertEmpty($target_row['option_blocked_image_keys']['introduction'] ?? []);
+        $blocked_keys = $target_row['option_blocked_image_keys']['isolation'];
+        $digest = 'sha256:' . hash_file('sha256', $image_dir . 'rss.png');
+        $this->assertEqualsCanonicalizing(['attachment:' . $blocked_image, $digest], $blocked_keys);
+        $this->assertEqualsCanonicalizing($blocked_keys, $rows[$candidates['Shared']]['option_image_keys']);
+        $this->assertEqualsCanonicalizing(
+            ['attachment:' . $copy_image, $digest],
+            $rows[$candidates['Copy']]['option_image_keys']
+        );
+        $this->assertSame([], array_intersect($blocked_keys, $rows[$candidates['Other']]['option_image_keys']));
+
+        $text_rows = $this->indexRowsById(ll_get_words_by_category(
+            (string) $category_id, 'text_title', [$wordset_id], $config + ['option_type' => 'text_title']
+        ));
+        $this->assertArrayHasKey($target, $text_rows);
+        foreach ($text_rows as $row) {
+            $this->assertArrayNotHasKey('option_image_keys', $row);
+            $this->assertArrayNotHasKey('option_blocked_image_keys', $row);
+        }
+    }
+
     private function createFixture(): array
     {
         $wordset_name = 'Word Option Manual Pair Wordset ' . wp_generate_password(6, false);

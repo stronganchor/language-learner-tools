@@ -12,6 +12,76 @@ if (!defined('WPINC')) { die; }
  *  ---------------------------
  */
 
+/**
+ * A bounded existence check for actual published recordings in this exact scope.
+ * No word/audio objects are hydrated, and failures never become cached absence.
+ */
+function ll_tools_category_has_playable_audio(int $category_id, array $wordset_ids = [], ?bool &$complete = null): bool {
+    global $wpdb;
+    $complete = true;
+    $wordset_ids = array_values(array_unique(array_filter(array_map('intval', $wordset_ids), static function (int $id): bool { return $id > 0; })));
+    if ($wordset_ids && function_exists('ll_tools_filter_viewable_wordset_ids')) {
+        $wordset_ids = ll_tools_filter_viewable_wordset_ids($wordset_ids, get_current_user_id(), $complete);
+        if (!$complete || !$wordset_ids) {
+            return false;
+        }
+    }
+    $wpdb->last_error = '';
+    // The caller owns the effective category identity. A read must never create
+    // an isolated category copy or change membership merely to render Listen.
+    $category = get_term($category_id, 'word-category');
+    if ($wpdb->last_error !== '') {
+        $complete = false;
+        return false;
+    }
+    if (!($category instanceof WP_Term) || $category->taxonomy !== 'word-category') {
+        return false;
+    }
+    if (function_exists('ll_tools_user_can_view_category') && !ll_tools_user_can_view_category($category, 0, $complete)) {
+        return false;
+    }
+    if (!$complete) {
+        return false;
+    }
+    $params = [(int) $category->term_id];
+    $wordset_where = '';
+    if ($wordset_ids) {
+        $placeholders = implode(',', array_fill(0, count($wordset_ids), '%d'));
+        $wordset_where = " AND EXISTS (SELECT 1 FROM {$wpdb->term_relationships} wr
+            INNER JOIN {$wpdb->term_taxonomy} wt ON wt.term_taxonomy_id = wr.term_taxonomy_id
+            WHERE wr.object_id = w.ID AND wt.taxonomy = 'wordset' AND wt.term_id IN ({$placeholders}))";
+        $params = array_merge($params, $wordset_ids);
+    } else {
+        // Without an authorized scope, only legacy unassigned content is safe.
+        $wordset_where = " AND NOT EXISTS (SELECT 1 FROM {$wpdb->term_relationships} wr
+            INNER JOIN {$wpdb->term_taxonomy} wt ON wt.term_taxonomy_id = wr.term_taxonomy_id
+            WHERE wr.object_id = w.ID AND wt.taxonomy = 'wordset')";
+    }
+    $sql = $wpdb->prepare("SELECT 1 FROM {$wpdb->term_relationships} cr
+        INNER JOIN {$wpdb->term_taxonomy} ct ON ct.term_taxonomy_id = cr.term_taxonomy_id
+        INNER JOIN {$wpdb->posts} w ON w.ID = cr.object_id
+        WHERE ct.taxonomy = 'word-category' AND ct.term_id = %d
+          AND w.post_status = 'publish' AND w.post_password = ''
+          {$wordset_where}
+          AND ((w.post_type = 'words' AND EXISTS (SELECT 1 FROM {$wpdb->posts} a
+            INNER JOIN {$wpdb->postmeta} am ON am.post_id = a.ID AND am.meta_key = 'audio_file_path'
+            WHERE a.post_parent = w.ID AND a.post_type = 'word_audio' AND a.post_status = 'publish'
+              AND a.post_password = '' AND am.meta_value REGEXP '[^[:space:]]'))
+          OR (w.post_type = 'll_prompt_card' AND EXISTS (SELECT 1 FROM {$wpdb->postmeta} pcm
+            WHERE pcm.post_id = w.ID AND (
+              (pcm.meta_key = '_ll_prompt_card_prompt_audio_url' AND pcm.meta_value REGEXP '[^[:space:]]')
+              OR (pcm.meta_key = '_ll_prompt_card_prompt_audio_attachment_id' AND EXISTS (SELECT 1
+                FROM {$wpdb->posts} attachment INNER JOIN {$wpdb->postmeta} af ON af.post_id = attachment.ID
+                WHERE attachment.ID = CAST(pcm.meta_value AS UNSIGNED) AND attachment.post_type = 'attachment'
+                  AND attachment.post_mime_type LIKE 'audio/%%' AND attachment.post_status <> 'trash'
+                  AND af.meta_key = '_wp_attached_file' AND af.meta_value REGEXP '[^[:space:]]'))))))
+        LIMIT 1", $params);
+    $wpdb->last_error = '';
+    $found = $wpdb->get_var($sql);
+    $complete = $wpdb->last_error === '';
+    return $complete && $found !== null;
+}
+
 /** Normalize and decide if translations should be used */
 function ll_flashcards_should_use_translations(array $wordset_ids = []): bool {
     if (function_exists('ll_tools_should_use_category_translations')) {
@@ -128,8 +198,8 @@ function ll_flashcards_get_processed_categories_cached(
         }
     }
 
-    $structure_epoch = function_exists('ll_tools_get_category_cache_epoch')
-        ? (int) ll_tools_get_category_cache_epoch()
+    $structure_epoch = function_exists('ll_tools_get_category_dependency_epoch')
+        ? (int) ll_tools_get_category_dependency_epoch()
         : 1;
     if ($structure_epoch < 1) {
         $structure_epoch = 1;
@@ -157,7 +227,7 @@ function ll_flashcards_get_processed_categories_cached(
     $content_epoch = function_exists('ll_tools_get_quiz_content_cache_epoch')
         // An empty caller scope is genuinely site-wide; category-owner
         // metadata alone cannot prove every legacy/direct wordset consumer.
-        ? ll_tools_get_quiz_content_cache_epoch($wordset_ids)
+        ? ll_tools_get_category_versioned_content_epoch($wordset_ids, $term_ids)
         : 'qce0:' . $structure_epoch;
 
     $cache_key = 'll_fc_proc_cats_' . md5(wp_json_encode([
@@ -170,11 +240,15 @@ function ll_flashcards_get_processed_categories_cached(
         'structure_epoch' => $structure_epoch,
         'wordset_epoch' => $wordset_epoch,
         'content_epoch' => $content_epoch,
-        'plugin_version' => defined('LL_TOOLS_VERSION') ? (string) LL_TOOLS_VERSION : '',
-        'schema' => 7,
+        'viewer' => (int) get_current_user_id(),
+        'capabilities' => wp_get_current_user()->allcaps,
+        'locale' => get_locale(),
+        'schema' => 9,
     ]));
     $cache_group = 'll_tools_flashcards';
-    $cache_ttl = (int) apply_filters('ll_tools_flashcard_categories_cache_ttl', DAY_IN_SECONDS);
+    // Versioned, bounded pieces are reusable when a different category changes.
+    $default_ttl = count($term_ids) <= 16 && count($wordset_ids) === 1 ? MONTH_IN_SECONDS : DAY_IN_SECONDS;
+    $cache_ttl = (int) apply_filters('ll_tools_flashcard_categories_cache_ttl', $default_ttl);
     if ($cache_ttl < 1) {
         $cache_ttl = 10 * MINUTE_IN_SECONDS;
     }
@@ -194,13 +268,32 @@ function ll_flashcards_get_processed_categories_cached(
     }
 
     $processing_complete = true;
-    $processed = ll_process_categories(
-        $terms,
-        $use_translations,
-        $min_word_count,
-        $wordset_ids,
-        $processing_complete
-    );
+    if (count($term_ids) > 16 && count($wordset_ids) === 1) {
+        // Stable ID ranges survive additions and sorting. Preserve the caller's display order.
+        $batches = [];
+        foreach ($terms as $term) {
+            if ($term instanceof WP_Term) {
+                $batches[intdiv((int) $term->term_id, 16)][$term->term_id] = $term;
+            }
+        }
+        $by_id = [];
+        foreach ($batches as $batch) {
+            ksort($batch, SORT_NUMERIC);
+            $rows = ll_flashcards_get_processed_categories_cached($batch, $use_translations, $min_word_count, $wordset_ids, $batch_complete);
+            $processing_complete = $processing_complete && $batch_complete;
+            foreach ($rows as $row) {
+                $by_id[$row['id']] = $row;
+            }
+        }
+        $processed = [];
+        foreach ($term_ids as $id) {
+            if (isset($by_id[$id])) {
+                $processed[] = $by_id[$id];
+            }
+        }
+    } else {
+        $processed = ll_process_categories($terms, $use_translations, $min_word_count, $wordset_ids, $processing_complete);
+    }
     $processed = is_array($processed) ? $processed : [];
 
     if (!$processing_complete) {
@@ -657,11 +750,6 @@ function ll_flashcards_get_messages(): array {
         'playOptionAudio'         => __('Play option audio', 'll-tools-text-domain'),
         'pauseAudio'              => __('Pause audio', 'll-tools-text-domain'),
         'starWord'                => __('Star word', 'll-tools-text-domain'),
-        'practiceSwitchLabel'     => __('Practice', 'll-tools-text-domain'),
-        'learningSwitchLabel'     => __('Learn', 'll-tools-text-domain'),
-        'selfCheckSwitchLabel'    => __('Self check', 'll-tools-text-domain'),
-        'listeningSwitchLabel'    => __('Listening', 'll-tools-text-domain'),
-        'genderSwitchLabel'       => __('Gender', 'll-tools-text-domain'),
         'practiceModeText'        => __('Practice', 'll-tools-text-domain'),
         'learningModeText'        => __('Learn', 'll-tools-text-domain'),
         'selfCheckModeText'       => __('Self check', 'll-tools-text-domain'),
@@ -792,33 +880,28 @@ function ll_flashcards_get_mode_ui_config(): array {
         'practice' => [
             'icon'              => '❓',
             'className'         => 'practice-mode',
-            'switchLabel'       => __('Practice', 'll-tools-text-domain'),
             'resultsButtonText' => __('Practice', 'll-tools-text-domain'),
         ],
         'learning' => [
             'icon'              => '🎓',
             'className'         => 'learning-mode',
-            'switchLabel'       => __('Learn', 'll-tools-text-domain'),
             'resultsButtonText' => __('Learn', 'll-tools-text-domain'),
         ],
         'self-check' => [
             'icon'              => '',
             'svg'               => $self_check_svg,
             'className'         => 'self-check-mode',
-            'switchLabel'       => __('Self check', 'll-tools-text-domain'),
             'resultsButtonText' => __('Self check', 'll-tools-text-domain'),
         ],
         'listening' => [
             'icon'              => '🎧',
             'className'         => 'listening-mode',
-            'switchLabel'       => __('Listening', 'll-tools-text-domain'),
             'resultsButtonText' => __('Listen', 'll-tools-text-domain'),
         ],
         'gender' => [
             'icon'              => '',
             'svg'               => $gender_svg,
             'className'         => 'gender-mode',
-            'switchLabel'       => __('Gender', 'll-tools-text-domain'),
             'resultsButtonText' => __('Gender', 'll-tools-text-domain'),
         ],
     ];
@@ -871,8 +954,7 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
 
     ll_enqueue_asset_by_timestamp($shortcode_folder . 'util.js',       'll-flc-util',        ['jquery', 'll-tools-flashcard-audio'], true);
     ll_enqueue_asset_by_timestamp('/js/self-check-shared.js', 'll-tools-self-check-shared-script', ['jquery'], true);
-    ll_enqueue_asset_by_timestamp($shortcode_folder . 'mode-config.js','ll-flc-mode-config', ['ll-flc-util'], true);
-    ll_enqueue_asset_by_timestamp($shortcode_folder . 'state.js',      'll-flc-state',       ['ll-flc-mode-config'], true);
+    ll_enqueue_asset_by_timestamp($shortcode_folder . 'state.js',      'll-flc-state',       ['ll-flc-util'], true);
     ll_enqueue_asset_by_timestamp($shortcode_folder . 'progress-tracker.js', 'll-flc-progress-tracker', ['ll-flc-state'], true);
     ll_enqueue_asset_by_timestamp($shortcode_folder . 'dom.js',       'll-flc-dom',       ['ll-flc-state'], true);
     ll_enqueue_asset_by_timestamp($shortcode_folder . 'audio-visualizer.js', 'll-flc-audio-visualizer', ['ll-flc-dom'], true);
@@ -1009,6 +1091,21 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
         $launch_context = '';
     }
 
+    $available_modes = null;
+    $lesson_id = absint($atts['lesson_id'] ?? 0);
+    if ($lesson_id > 0) {
+        $category_ids = array_map('intval', array_column($categories, 'id'));
+        $valid_lesson = count($wordset_ids) === 1 && count($category_ids) === 1
+            && function_exists('ll_tools_vocab_lesson_activity_context_is_accessible')
+            && ll_tools_vocab_lesson_activity_context_is_accessible($lesson_id, $category_ids[0], $wordset_ids[0]);
+        $available_modes = $valid_lesson && function_exists('ll_tools_get_vocab_lesson_available_modes')
+            ? ll_tools_get_vocab_lesson_available_modes($lesson_id)
+            : [];
+        if ($available_modes && !in_array($quiz_mode, $available_modes, true)) {
+            $quiz_mode = reset($available_modes);
+        }
+    }
+
     $is_embed = isset($atts['embed']) && strtolower((string) $atts['embed']) === 'true';
     $preload_tuning_defaults = [
         'categoryAjaxConcurrency'    => 1,
@@ -1047,6 +1144,8 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
         'runtimeMode'           => 'wp',
         'mode'                  => $mode,
         'quiz_mode'             => $quiz_mode,
+        'availableModes'        => $available_modes,
+        'lessonId'              => $lesson_id,
         'isEmbed'               => $is_embed,
         'debug'                 => (bool) apply_filters('ll_tools_flashcards_debug', false),
         'plugin_dir'            => LL_TOOLS_BASE_URL,
@@ -1159,6 +1258,7 @@ function ll_tools_flashcard_widget($atts) {
         'wordset_fallback' => true,
         'quiz_mode' => 'practice',
         'launch_context' => '',
+        'lesson_id' => 0,
     ], $atts);
 
     $atts['wordset'] = isset($atts['wordset']) ? sanitize_text_field((string) $atts['wordset']) : '';
@@ -1370,6 +1470,9 @@ function ll_tools_resolve_effective_category_quiz_config(
     $config['option_type'] = $option_type;
     $config['learning_supported'] = $learning_supported;
     $config['self_check_supported'] = $self_check_supported;
+    $audio_complete = true;
+    $config['listening_supported'] = ll_tools_category_has_playable_audio((int) $category->term_id, $wordset_ids, $audio_complete);
+    $complete = $complete && $audio_complete;
     $config['word_count'] = (int) $word_count;
 
     return $config;
@@ -1458,6 +1561,8 @@ function ll_process_categories(
             'learning_option_type' => (string) ($config['learning_option_type'] ?? ''),
             'learning_supported' => $learning_supported,
             'self_check_supported' => $self_check_supported,
+            'listening_supported' => !empty($config['listening_supported']),
+            'question_limit' => (int) ($config['question_limit'] ?? 0),
             'use_titles'  => $config['use_titles'],
             'word_count'  => $word_count,
             'gender_word_count' => $gender_word_count,
@@ -2463,6 +2568,9 @@ function ll_tools_flashcards_payload_page_request_locale(array $request) {
     if (function_exists('get_available_languages')) {
         $allowed = array_merge($allowed, (array) get_available_languages());
     }
+    if (function_exists('ll_tools_get_plugin_locales')) {
+        $allowed = array_merge($allowed, (array) ll_tools_get_plugin_locales());
+    }
     $allowed = array_values(array_unique(array_filter(array_map(
         static function ($locale): string {
             return function_exists('ll_tools_flashcard_payload_normalize_locale')
@@ -2576,15 +2684,11 @@ function ll_tools_flashcards_resolve_payload_page_scope(array $request) {
         );
     }
 
-    $locale_switched = false;
+    $restore_locale = ll_tools_flashcard_payload_enter_locale($request_locale);
+    if (is_wp_error($restore_locale)) {
+        return $restore_locale;
+    }
     try {
-        if (
-            $request_locale !== get_locale()
-            && function_exists('switch_to_locale')
-            && function_exists('restore_previous_locale')
-        ) {
-            $locale_switched = switch_to_locale($request_locale);
-        }
         $config = ll_tools_get_category_quiz_config($term);
         if (function_exists('ll_tools_apply_wordset_quiz_presentation_overrides')) {
             $config = ll_tools_apply_wordset_quiz_presentation_overrides(
@@ -2625,9 +2729,7 @@ function ll_tools_flashcards_resolve_payload_page_scope(array $request) {
             ? ll_tools_flashcard_payload_build_scope($term, $wordset_ids, $config)
             : new WP_Error('flashcard_payload_unavailable');
     } finally {
-        if ($locale_switched) {
-            restore_previous_locale();
-        }
+        $restore_locale();
     }
     if (is_wp_error($scope)) {
         return $scope;
@@ -2675,11 +2777,18 @@ function ll_get_flashcard_payload_page_ajax(): void {
         ? max(10, min(200, (int) $_POST['page_size']))
         : 200;
     try {
-        $page = ll_tools_flashcard_payload_read_page(
-            (array) $resolved['scope'],
-            $cursor,
-            $page_size
-        );
+        $sample_seed = isset($_POST['sample_seed']) && is_string($_POST['sample_seed']) ? wp_unslash($_POST['sample_seed']) : '';
+        $sample_limit_complete = true;
+        $sample_limit = ll_tools_get_quiz_question_limit($resolved['term'], $sample_limit_complete);
+        if (array_key_exists('sample_seed', $_POST) && !preg_match('/^[a-f0-9]{32}$/D', $sample_seed)) {
+            $page = new WP_Error('invalid_quiz_sample', __('Invalid request.', 'll-tools-text-domain'), ['status' => 400]);
+        } elseif (!$sample_limit_complete) {
+            $page = new WP_Error('flashcard_payload_read_failed');
+        } elseif ($sample_seed !== '' && $sample_limit > 0) {
+            $page = ll_tools_quiz_sample_read_page((array) $resolved['scope'], $sample_limit, $sample_seed, $cursor);
+        } else {
+            $page = ll_tools_flashcard_payload_read_page((array) $resolved['scope'], $cursor, $page_size);
+        }
         if (is_wp_error($page)) {
             ll_tools_flashcards_public_ajax_release_client_inflight($client_lease);
             ll_tools_flashcards_send_payload_page_error($page);

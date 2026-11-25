@@ -103,9 +103,13 @@ An optional second argument selects an output zip or directory. Under Git Bash o
 - The zip does not contain `offline-app-builder/`, `tests/`, or other export-ignored paths.
 - The zip does not contain `.codex-remote-attachments/`; conversation attachments are never runtime plugin assets.
 - The release scripts validate the required runtime asset manifest in
-  `scripts/required-runtime-assets.txt`. If a public/admin CSS, JS, or media
-  file is broadly enqueued, add it to that manifest so dev pushes and stable
-  release zips fail before publication when the asset is missing.
+  `scripts/required-runtime-assets.txt`. List PHP modules loaded with
+  `require_once` and the CSS, JavaScript, or media files their screens depend
+  on. The package check fails before publication when a listed file is missing.
+- Before rolling out private HTML cache storage, follow the
+  [private cache rollout checks](docs/PRIVATE_HTML_CACHE_ROLLOUT.md).
+  Confirm that old generated files cannot be fetched directly and that
+  canonical public pages still work after the old PHP workers have drained.
 - After updating a live site, check at least one core stylesheet and one core
   script over HTTPS before leaving the new plugin active:
 

@@ -209,7 +209,8 @@ function buildIframeDoc({ rowCount = 2, includeNotices = false, groupLabels = nu
       ajaxUrl: '/fake-admin-ajax.php',
       autosaveSaving: 'Saving word options...',
       autosaveSaved: 'Word options saved.',
-      autosaveError: 'Unable to save word options.'
+      autosaveError: 'Unable to save word options.',
+      autosaveRetry: 'Retry'
     };
   </script>
   <script>
@@ -378,7 +379,7 @@ test('word options iframe hides external dashboard notices', async ({ page }) =>
   await expect(frame.locator('.ll-tools-word-options-notice')).toBeVisible();
 });
 
-test('word options popup autosaves group changes without a manual save button', async ({ page }) => {
+test('word options popup retains a failed autosave scope until explicit retry', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.setContent(`
     <!doctype html>
@@ -438,6 +439,7 @@ test('word options popup autosaves group changes without a manual save button', 
 
   await frame.evaluate(() => {
     window.__llAutosaveCalls = [];
+    window.__llResolveFirstAutosave = null;
     window.fetch = function (url, options) {
       const entries = options && options.body && typeof options.body.entries === 'function'
         ? Array.from(options.body.entries()).reduce((acc, [key, value]) => {
@@ -454,16 +456,23 @@ test('word options popup autosaves group changes without a manual save button', 
         entries
       });
 
-      return Promise.resolve({
-        ok: true,
-        json: function () {
-          return Promise.resolve({
-            success: true,
-            data: {
-              message: 'Word options saved.'
-            }
-          });
-        }
+      const shouldFail = window.__llAutosaveCalls.length === 1;
+      const response = {
+          ok: !shouldFail,
+          json: function () {
+            return Promise.resolve({
+              success: !shouldFail,
+              data: {
+                message: shouldFail ? 'Unable to save word options.' : 'Word options saved.'
+              }
+            });
+          }
+        };
+      if (!shouldFail) {
+        return Promise.resolve(response);
+      }
+      return new Promise((resolve) => {
+        window.__llResolveFirstAutosave = () => resolve(response);
       });
     };
   });
@@ -484,7 +493,35 @@ test('word options popup autosaves group changes without a manual save button', 
   expect(autosavePayload.entries.ll_mutation_scope).toContain('groups');
   expect(autosavePayload.entries['group_members[g1][]']).toContain('11');
 
+  await frame.evaluate(() => {
+    const input = document.createElement('input');
+    input.type = 'checkbox';
+    input.name = 'pair_recording_types[11:12][]';
+    input.value = 'question';
+    input.setAttribute('data-test-pair-autosave', '1');
+    document.querySelector('.ll-tools-word-options-form').appendChild(input);
+  });
+  await frame.locator('[data-test-pair-autosave]').check();
+  expect(await frame.evaluate(() => !window.dispatchEvent(new Event('beforeunload', { cancelable: true })))).toBe(true);
+  await frame.evaluate(() => window.__llResolveFirstAutosave());
+  await expect.poll(async () => (
+    frame.evaluate(() => window.__llAutosaveCalls.length)
+  )).toBe(2);
+  const pairPayload = await frame.evaluate(() => window.__llAutosaveCalls[1] || null);
+  expect(pairPayload.entries.ll_mutation_scope).toContain('pairs');
+  await expect(frame.locator('[data-ll-word-options-save-status]')).toHaveAttribute('data-state', 'error');
+  await expect(frame.locator('.ll-tools-word-options-save-retry')).toHaveText('Retry');
+  expect(await frame.evaluate(() => !window.dispatchEvent(new Event('beforeunload', { cancelable: true })))).toBe(true);
+
+  await frame.locator('.ll-tools-word-options-save-retry').click();
+  await expect.poll(async () => (
+    frame.evaluate(() => window.__llAutosaveCalls.length)
+  )).toBe(3);
   await expect(frame.locator('[data-ll-word-options-save-status]')).toHaveAttribute('data-state', 'saved');
+  const retryPayload = await frame.evaluate(() => window.__llAutosaveCalls[2] || null);
+  expect(retryPayload.entries.ll_mutation_scope).toContain('groups');
+  expect(retryPayload.entries['group_members[g1][]']).toContain('11');
+  expect(await frame.evaluate(() => !window.dispatchEvent(new Event('beforeunload', { cancelable: true })))).toBe(false);
 });
 
 test('word options popup condenses overflowing group tables into labeled checkbox rows', async ({ page }) => {

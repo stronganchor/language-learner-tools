@@ -21,6 +21,22 @@ if (is_singular('ll_vocab_lesson') && function_exists('ll_tools_user_can_view_wo
     }
 }
 
+$ll_vocab_lesson_password_post = is_singular('ll_vocab_lesson')
+    ? get_post((int) get_queried_object_id())
+    : null;
+if (!$ll_vocab_lesson_access_denied && $ll_vocab_lesson_password_post instanceof WP_Post
+    && post_password_required($ll_vocab_lesson_password_post)) {
+    // Custom grids and print views bypass the_content(), so enforce the core
+    // password boundary before generating their data, scripts or guest nonce.
+    nocache_headers();
+    get_header();
+    echo '<main class="ll-vocab-lesson-page">';
+    echo get_the_password_form($ll_vocab_lesson_password_post); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+    echo '</main>';
+    get_footer();
+    return;
+}
+
 $ll_vocab_lesson_print_requested = function_exists('ll_tools_is_vocab_lesson_print_request')
     && ll_tools_is_vocab_lesson_print_request();
 if ($ll_vocab_lesson_print_requested) {
@@ -161,10 +177,14 @@ if (have_posts()) {
     $print_form_action = ($print_view_available && $post_id > 0)
         ? get_permalink($post_id)
         : '';
-    $has_print_settings = is_string($print_form_action) && $print_form_action !== '';
+    $lesson_activity_settings = ll_tools_get_vocab_lesson_activity_settings($post_id);
+    $lesson_modes = ll_tools_get_vocab_lesson_available_modes($post_id);
+    $embedded_mode = ll_tools_get_vocab_lesson_embedded_mode($post_id);
+    $embedded_url = $embedded_mode !== '' ? ll_tools_get_vocab_lesson_activity_embed_url($post_id, $embedded_mode) : '';
+    $has_print_settings = $embedded_mode === '' && is_string($print_form_action) && $print_form_action !== '';
     $category_slug = ($category && !is_wp_error($category)) ? $category->slug : '';
     $category_name = ($category && !is_wp_error($category)) ? $category->name : $display_name;
-    $embed_base = ($category_slug !== '') ? home_url('/embed/' . $category_slug) : '';
+    $embed_base = ($category_slug !== '') ? home_url(user_trailingslashit('/embed/' . $category_slug)) : '';
     $related_content_lessons = (
         $wordset_id > 0
         && $category_id > 0
@@ -337,7 +357,7 @@ if (have_posts()) {
         && function_exists('ll_tools_vocab_lesson_category_supports_gender_mode')
         && ll_tools_vocab_lesson_category_supports_gender_mode($wordset_id, $category);
 
-    $defer_grid = $wordset_id > 0
+    $defer_grid = $embedded_mode === '' && $wordset_id > 0
         && $category_id > 0
         && function_exists('ll_tools_word_grid_resolve_context')
         && function_exists('ll_tools_word_grid_enqueue_frontend_assets_for_context')
@@ -363,7 +383,7 @@ if (have_posts()) {
         }
         return implode(' ', $parts);
     };
-    if ($defer_grid || $can_edit_category_title || $can_manage_category_settings || $has_print_settings) {
+    if ($embedded_mode !== '' || $defer_grid || $can_edit_category_title || $can_manage_category_settings || $has_print_settings) {
         if ($defer_grid) {
             $grid_context = ll_tools_word_grid_resolve_context([
                 'category' => $category_slug,
@@ -375,19 +395,47 @@ if (have_posts()) {
             }
             ll_tools_word_grid_enqueue_frontend_assets_for_context($grid_context);
         }
-        $lesson_page_script_deps = ['jquery'];
+        if ($embedded_mode !== '' && $can_manage_category_settings) {
+            // Staff can return to the overview without reloading. This loads
+            // its runtime only; no word grid or answer data is hydrated here.
+            $activity_grid_context = ll_tools_word_grid_resolve_context(['category' => $category_slug, 'wordset' => $wordset_slug, 'deepest_only' => true]);
+            ll_tools_word_grid_enqueue_frontend_assets_for_context($activity_grid_context);
+        }
+        $lesson_page_script_deps = ['jquery', 'll-quiz-pages-js'];
         if ($defer_grid) {
             $lesson_page_script_deps[] = 'll-tools-word-grid';
         }
         ll_enqueue_asset_by_timestamp('/js/vocab-lesson-page.js', 'll-tools-vocab-lesson-page', $lesson_page_script_deps, true);
         wp_localize_script('ll-tools-vocab-lesson-page', 'llToolsVocabLessonData', [
             'ajaxUrl' => admin_url('admin-ajax.php'),
+            'activity' => [
+                'lessonId' => $post_id,
+                'gridNonce' => wp_create_nonce('ll_vocab_lesson_grid_' . $post_id),
+                'title' => __('Lesson activity', 'll-tools-text-domain'),
+                'unavailable' => __('This activity is currently unavailable.', 'll-tools-text-domain'),
+                'modeLabels' => $mode_labels,
+                'embedBase' => add_query_arg(['wordset' => $wordset_slug, 'lesson_id' => $post_id, 'll_context' => 'vocab_lesson'], $embed_base),
+            ],
             'grid' => [
                 'action' => 'll_tools_get_vocab_lesson_grid',
                 'enabled' => $defer_grid,
                 'requestTimeoutMs' => max(5000, min(60000, (int) apply_filters(
                     'll_tools_vocab_lesson_grid_request_timeout_ms',
                     20000,
+                    $post_id,
+                    $wordset_id,
+                    $category_id
+                ))),
+                'preparationTimeoutMs' => max(5000, min(600000, (int) apply_filters(
+                    'll_tools_vocab_lesson_grid_preparation_timeout_ms',
+                    120000,
+                    $post_id,
+                    $wordset_id,
+                    $category_id
+                ))),
+                'noProgressTimeoutMs' => max(1000, min(120000, (int) apply_filters(
+                    'll_tools_vocab_lesson_grid_no_progress_timeout_ms',
+                    30000,
                     $post_id,
                     $wordset_id,
                     $category_id
@@ -526,7 +574,9 @@ if (have_posts()) {
         }
     }
     if (
-        $wordset_id > 0
+        $embedded_mode === ''
+        && in_array('listening', $lesson_modes, true)
+        && $wordset_id > 0
         && $category_id > 0
         && $category_slug !== ''
         && $wordset_slug !== ''
@@ -1206,6 +1256,28 @@ if (have_posts()) {
                                     <?php endif; ?>
 
                                     <div class="ll-vocab-lesson-category-settings-section">
+                                        <div class="ll-vocab-lesson-category-settings-section__heading"><?php echo esc_html__('Lesson activities', 'll-tools-text-domain'); ?></div>
+                                        <input type="hidden" name="ll_vocab_lesson_activity_settings_present" value="1" />
+                                        <div class="ll-vocab-lesson-category-settings-checkboxes">
+                                            <?php foreach ($mode_labels as $activity_mode => $activity_label) : ?>
+                                                <label class="ll-vocab-lesson-category-settings-check">
+                                                    <input type="checkbox" name="ll_vocab_lesson_enabled_modes[]" value="<?php echo esc_attr($activity_mode); ?>" <?php checked(in_array($activity_mode, $lesson_activity_settings['enabled_modes'], true)); ?> />
+                                                    <span><?php echo esc_html($activity_label); ?></span>
+                                                </label>
+                                            <?php endforeach; ?>
+                                        </div>
+                                        <p class="ll-vocab-lesson-category-settings-help"><?php echo esc_html__('Activities without suitable content are hidden automatically. Listen requires playable audio.', 'll-tools-text-domain'); ?></p>
+                                        <label class="ll-vocab-lesson-category-settings-field">
+                                            <span class="ll-vocab-lesson-category-settings-field__label"><?php echo esc_html__('Open on the lesson page', 'll-tools-text-domain'); ?></span>
+                                            <select name="ll_vocab_lesson_embedded_mode" class="ll-vocab-lesson-category-settings-select">
+                                                <option value=""><?php echo esc_html__('Vocabulary overview', 'll-tools-text-domain'); ?></option>
+                                                <?php foreach ($mode_labels as $activity_mode => $activity_label) : ?>
+                                                    <option value="<?php echo esc_attr($activity_mode); ?>" <?php selected($lesson_activity_settings['embedded_mode'], $activity_mode); ?>><?php echo esc_html($activity_label); ?></option>
+                                                <?php endforeach; ?>
+                                            </select>
+                                        </label>
+                                    </div>
+                                    <div class="ll-vocab-lesson-category-settings-section">
                                         <div class="ll-vocab-lesson-category-settings-section__heading"><?php echo esc_html__('Quiz', 'll-tools-text-domain'); ?></div>
                                         <label class="ll-vocab-lesson-category-settings-field">
                                             <span class="ll-vocab-lesson-category-settings-field__label"><?php echo esc_html__('Prompt', 'll-tools-text-domain'); ?></span>
@@ -1237,6 +1309,7 @@ if (have_posts()) {
                                                 <option value="hide" <?php selected($category_panel_visibility, 'hide'); ?>><?php echo esc_html__('Always hide text', 'll-tools-text-domain'); ?></option>
                                             </select>
                                         </label>
+                                        <?php ll_tools_render_quiz_question_limit_fields((int) ($category_panel_quiz_config['question_limit'] ?? 0), 'll_vocab_lesson_'); ?>
                                     </div>
 
                                     <div class="ll-vocab-lesson-category-settings-section">
@@ -1462,20 +1535,8 @@ if (have_posts()) {
                     <?php endif; ?>
                 </div>
                 <div class="ll-vocab-lesson-actions">
-                    <div class="ll-vocab-lesson-modes" role="group" aria-label="<?php echo esc_attr__('Quiz modes', 'll-tools-text-domain'); ?>">
+                    <div class="ll-vocab-lesson-modes" <?php if ($embedded_mode !== '' && count($lesson_modes) <= 1) : ?>hidden<?php endif; ?> role="group" aria-label="<?php echo esc_attr__('Quiz modes', 'll-tools-text-domain'); ?>">
                         <?php
-                        $lesson_modes = array_values(array_filter(
-                            ll_tools_get_study_launch_mode_order($gender_quiz_available),
-                            static function (string $mode) use ($lesson_learning_supported, $lesson_self_check_supported): bool {
-                                if ($mode === 'learning') {
-                                    return $lesson_learning_supported;
-                                }
-                                if ($mode === 'self-check') {
-                                    return $lesson_self_check_supported;
-                                }
-                                return true;
-                            }
-                        ));
                         $fallback_icons = [
                             'learning' => '🎓',
                             'practice' => '❓',
@@ -1489,7 +1550,7 @@ if (have_posts()) {
                             $mode_label = $mode_labels[$mode] ?? ucfirst($mode);
                             $mode_url = $embed_base;
                             if ($mode_url !== '') {
-                                $args = ['mode' => $mode];
+                                $args = ['mode' => $mode, 'lesson_id' => $post_id];
                                 $args['ll_context'] = 'vocab_lesson';
                                 if ($wordset_slug !== '') {
                                     $args['wordset'] = $wordset_slug;
@@ -1498,7 +1559,8 @@ if (have_posts()) {
                             }
                             ?>
                             <button type="button"
-                                    class="ll-vocab-lesson-mode-button ll-quiz-page-trigger"
+                                    class="ll-vocab-lesson-mode-button<?php echo $embedded_mode === '' ? ' ll-quiz-page-trigger' : ''; ?>"
+                                    <?php if ($embedded_mode !== '') : ?>data-ll-embedded-mode="1" aria-pressed="<?php echo $mode === $embedded_mode ? 'true' : 'false'; ?>"<?php endif; ?>
                                     data-ll-open-cat="<?php echo esc_attr($category_name); ?>"
                                     data-category="<?php echo esc_attr($category_name); ?>"
                                     data-url="<?php echo esc_url($mode_url); ?>"
@@ -1536,6 +1598,19 @@ if (have_posts()) {
                 ]); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
             }
             ?>
+            <div class="ll-vocab-lesson-embedded ll-tools-quiz-iframe-wrapper" data-ll-lesson-activity-host data-iframe-state="loading" data-quiz-src="<?php echo esc_url($embedded_url); ?>" aria-busy="true" <?php if ($embedded_mode === '') : ?>hidden<?php endif; ?>>
+                <?php if ($embedded_url !== '') : ?>
+                    <div class="ll-tools-iframe-state ll-tools-iframe-state--loading">
+                        <div class="ll-tools-iframe-loading" aria-hidden="true"></div>
+                        <div class="ll-tools-iframe-loading-status screen-reader-text" role="status" aria-live="polite" aria-atomic="true"><?php echo esc_html__('Loading quiz...', 'll-tools-text-domain'); ?></div>
+                    </div>
+                    <iframe class="ll-vocab-lesson-activity-frame" data-ll-lesson-activity-frame src="<?php echo esc_url($embedded_url); ?>" title="<?php echo esc_attr($mode_labels[$embedded_mode] ?? __('Lesson activity', 'll-tools-text-domain')); ?>" allow="autoplay" loading="eager"></iframe>
+                <?php elseif ($embedded_mode !== '') : ?>
+                    <p><?php echo esc_html__('This activity is currently unavailable.', 'll-tools-text-domain'); ?></p>
+                <?php endif; ?>
+            </div>
+            <div data-ll-lesson-study-content <?php if ($embedded_mode !== '') : ?>hidden<?php endif; ?>>
+            <?php if ($embedded_mode === '') : ?>
             <?php if ($defer_grid && $grid_cached_html !== '') : ?>
                 <?php echo $grid_cached_html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
             <?php elseif ($defer_grid && is_array($grid_shell_spec)) : ?>
@@ -1857,6 +1932,8 @@ if (have_posts()) {
                     <?php endif; ?>
                 </div>
             <?php endif; ?>
+            <?php endif; ?>
+            </div>
         </div>
     </main>
     <?php

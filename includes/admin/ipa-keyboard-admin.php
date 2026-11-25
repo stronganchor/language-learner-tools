@@ -463,12 +463,6 @@ function ll_enqueue_ipa_keyboard_admin_assets($hook) {
             'searchFilteredSummaryRange' => __('Showing %1$d-%2$d of %3$d flagged recordings', 'll-tools-text-domain'),
             'searchReviewSummaryRange' => __('Showing %1$d-%2$d of %3$d transcriptions needing review', 'll-tools-text-domain'),
             'searchTooMany' => __('Showing the first %1$d results. Narrow the search to see more.', 'll-tools-text-domain'),
-            'searchPaginationLabel' => __('Search result pages', 'll-tools-text-domain'),
-            'searchPaginationPage' => __('Page %1$d of %2$d', 'll-tools-text-domain'),
-            'searchPaginationGoToPage' => __('Go to page %1$d', 'll-tools-text-domain'),
-            'searchPaginationCurrentPage' => __('Current page %1$d', 'll-tools-text-domain'),
-            'searchPaginationPrevious' => __('Previous', 'll-tools-text-domain'),
-            'searchPaginationNext' => __('Next', 'll-tools-text-domain'),
             'searchLoadMore' => __('Load more', 'll-tools-text-domain'),
             'searchLoadingMore' => __('Loading more...', 'll-tools-text-domain'),
             'searchWordLabel' => __('Word', 'll-tools-text-domain'),
@@ -4721,7 +4715,7 @@ function ll_tools_ipa_orthography_get_profile_default_manual_rules(int $wordset_
         'o' => ['any' => 'o'],
         'ø' => ['any' => 'ö'],
         'ʊ' => ['any' => 'u'],
-        'u' => ['any' => 'û'],
+        'u' => ['any' => 'u'],
         'ɔ' => ['any' => 'o'],
         'ʕ' => ['any' => "'"],
         'ʔ' => ['any' => "'"],
@@ -6932,6 +6926,19 @@ function ll_tools_ipa_orthography_with_final_high_vowel_candidate_rules(array $r
     return $fallback_rules;
 }
 
+/** Preserve the configured reflexive vowel without changing real e/ɛ or compounds. */
+function ll_tools_ipa_orthography_apply_configured_reflexive_vowel(string $text, array $tokens, int $wordset_id): string {
+    if (ll_tools_ipa_orthography_get_profile_key($wordset_id) !== 'zazaki_genc_palu') {
+        return $text;
+    }
+    $settings = ll_tools_ipa_orthography_get_settings($wordset_id);
+    if ((string) ($settings['word_overrides']['xwı'] ?? '') !== 'xwı') {
+        return $text;
+    }
+    $ipa_word = preg_replace('/[ˈˌːˑ\p{M}]/u', '', implode('', $tokens));
+    return preg_match('/\A[xχ][wʷ][ɨɪ]\z/u', (string) $ipa_word) === 1 ? 'xwı' : $text;
+}
+
 function ll_tools_ipa_orthography_convert_ipa_to_text(
     string $ipa_text,
     array $rules,
@@ -7037,7 +7044,9 @@ function ll_tools_ipa_orthography_convert_ipa_to_text(
 
         $matched_tokens += (int) ($prediction['matched_tokens'] ?? 0);
         $token_count += (int) ($prediction['token_count'] ?? 0);
-        $words[] = (string) ($prediction['text'] ?? '');
+        $words[] = ll_tools_ipa_orthography_apply_configured_reflexive_vowel(
+            (string) ($prediction['text'] ?? ''), $tokens, $wordset_id
+        );
     }
     ll_tools_ipa_orthography_profile_add_seconds($profile, 'convert_loop_seconds', microtime(true) - $loop_started);
 

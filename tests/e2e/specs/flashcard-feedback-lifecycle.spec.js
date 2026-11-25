@@ -462,7 +462,6 @@ test('fast quiz transitions wait for delayed feedback playback before advancing'
     ns.Cards = {};
     ns.Results = {};
     ns.StateMachine = {};
-    ns.ModeConfig = {};
     ns.Modes = {};
     window.FlashcardLoader = { loadAudio() {} };
     window.FlashcardOptions = {};

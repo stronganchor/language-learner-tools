@@ -112,7 +112,7 @@ abstract class LL_Tools_TestCase extends WP_UnitTestCase
         // leaving production request behavior untouched.
         $scripts = $GLOBALS['wp_scripts'] ?? null;
         if ($scripts instanceof WP_Scripts) {
-            foreach (['ll-tools-flashcard-audio', 'll-flc-util', 'll-flc-main', 'll-flc-mode-config'] as $handle) {
+            foreach (['ll-tools-flashcard-audio', 'll-flc-util', 'll-flc-main'] as $handle) {
                 if (isset($scripts->registered[$handle]->extra['data'])) {
                     unset($scripts->registered[$handle]->extra['data']);
                 }

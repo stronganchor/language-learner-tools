@@ -301,6 +301,78 @@ final class ContentLessonProgressTest extends LL_Tools_TestCase
         $this->assertStringContainsString('Completed', $completed_dependent_html);
     }
 
+    public function test_prerequisite_navigation_omits_empty_lists_and_keeps_one_link_visible(): void
+    {
+        $wordset_id = $this->createWordset('Compact single prerequisite');
+        $lesson_id = $this->createLesson($wordset_id, 'Article without prerequisites');
+        $this->assertSame('', ll_tools_render_content_lesson_prerequisites($lesson_id));
+
+        $prerequisite_id = $this->createLesson($wordset_id, 'Noun possession (my, your)');
+        $localized_title = 'İyelik (benim (ben), senin)';
+        ll_tools_save_entity_translations('post', $prerequisite_id, [
+            get_locale() => ['title' => $localized_title],
+        ]);
+        update_post_meta($lesson_id, LL_TOOLS_CONTENT_LESSON_PREREQ_LESSON_IDS_META, [$prerequisite_id]);
+        $user_id = self::factory()->user->create();
+        ll_tools_set_content_lesson_completion($user_id, $prerequisite_id, true);
+
+        $html = ll_tools_render_content_lesson_prerequisites($lesson_id, $user_id);
+        $this->assertStringContainsString('ll-content-lesson-prerequisites--single', $html);
+        $this->assertStringNotContainsString('<details', $html);
+        $this->assertStringContainsString('href="' . esc_url(get_permalink($prerequisite_id)) . '"', $html);
+        $this->assertStringContainsString('title="' . esc_attr($localized_title) . '"', $html);
+        $this->assertStringContainsString('aria-label="' . esc_attr($localized_title . ' — Completed') . '"', $html);
+        $this->assertStringContainsString('ll-content-lesson-prerequisites__title-short" aria-hidden="true">İyelik</span>', $html);
+        $this->assertStringContainsString('is-completed', $html);
+        $this->assertSame('Noun possession (my, your)', get_post_field('post_title', $prerequisite_id));
+    }
+
+    public function test_multiple_prerequisites_use_a_closed_native_disclosure_without_losing_links(): void
+    {
+        $wordset_id = $this->createWordset('Compact prerequisite disclosure');
+        $first_id = $this->createLesson($wordset_id, 'First prerequisite (examples)');
+        $second_id = $this->createLesson($wordset_id, 'Second prerequisite');
+        $lesson_id = $this->createLesson($wordset_id, 'Article after two lessons');
+        update_post_meta($lesson_id, LL_TOOLS_CONTENT_LESSON_PREREQ_LESSON_IDS_META, [$first_id, $second_id]);
+        $user_id = self::factory()->user->create();
+        ll_tools_set_content_lesson_completion($user_id, $first_id, true);
+
+        $html = ll_tools_render_content_lesson_prerequisites($lesson_id, $user_id);
+        $this->assertStringStartsWith('<details ', $html);
+        $this->assertDoesNotMatchRegularExpression('/<details[^>]*\sopen(?:\s|=|>)/', $html);
+        $this->assertStringContainsString('<summary ', $html);
+        $this->assertStringContainsString('ll-content-lesson-prerequisites__count">2</span>', $html);
+        $this->assertSame(2, substr_count($html, '<a href='));
+        $this->assertStringContainsString('href="' . esc_url(get_permalink($first_id)) . '"', $html);
+        $this->assertStringContainsString('href="' . esc_url(get_permalink($second_id)) . '"', $html);
+        $this->assertStringContainsString('aria-label="First prerequisite (examples) — Completed"', $html);
+        $this->assertStringContainsString('aria-label="Second prerequisite — Not completed"', $html);
+
+        $dependents = ll_tools_render_content_lesson_dependents($first_id, $user_id);
+        $this->assertStringContainsString('ll-content-lesson-dependents', $dependents);
+        $this->assertStringNotContainsString('--compact', $dependents);
+        $this->assertStringNotContainsString('<details', $dependents);
+    }
+
+    public function test_compact_prerequisite_labels_preserve_nested_and_malformed_titles(): void
+    {
+        $cases = [
+            'Noun possession (benim, senin)' => 'Noun possession',
+            'Noun possession (benim (my), senin)' => 'Noun possession',
+            'A lesson (earlier note) with examples (one, two)' => 'A lesson (earlier note) with examples',
+            '(A parenthetical-only title)' => '(A parenthetical-only title)',
+            '— (suffix examples)' => '— (suffix examples)',
+            'A lesson (unfinished' => 'A lesson (unfinished',
+            'A lesson (unfinished (example)' => 'A lesson (unfinished (example)',
+            'A lesson ) (example)' => 'A lesson ) (example)',
+            'A lesson (example) afterwards' => 'A lesson (example) afterwards',
+            'A lesson without parentheses' => 'A lesson without parentheses',
+        ];
+        foreach ($cases as $title => $expected) {
+            $this->assertSame($expected, ll_tools_content_lesson_prerequisite_short_title($title), $title);
+        }
+    }
+
     public function test_article_kind_save_clears_media_only_fields(): void
     {
         $wordset_id = $this->createWordset('Article lesson');

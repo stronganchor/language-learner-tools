@@ -223,6 +223,11 @@ final class ScopedQuizContentCacheInvalidationTest extends LL_Tools_TestCase
             ll_flashcards_get_processed_categories_cached([$term_a], false, 5, [$wordset_a]);
             $this->assertCount(1, $persisted_keys, 'An unrelated wordset must retain the eligibility catalog request cache.');
             $this->assertSame($ajax_key_a_before, ll_tools_flashcards_public_ajax_cache_key($ajax_args_a));
+            $membership_key = ll_tools_user_progress_analytics_word_ids_cache_key([$category_a], $wordset_a);
+            ll_tools_bump_single_category_cache_version($category_b);
+            $this->assertSame($membership_key, ll_tools_user_progress_analytics_word_ids_cache_key([$category_a], $wordset_a));
+            ll_flashcards_get_processed_categories_cached([$term_a], false, 5, [$wordset_a]);
+            $this->assertCount(1, $persisted_keys);
             $this->assertNotSame($ajax_key_b_before, ll_tools_flashcards_public_ajax_cache_key($ajax_args_b));
 
             ll_tools_bump_category_cache_version([$category_a], [$wordset_a], true);

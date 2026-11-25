@@ -271,7 +271,7 @@ function ll_tools_quiz_pages_data_cache_key(array $opts, int $min_word_count, ?b
         'user_id' => (int) get_current_user_id(),
         'locale' => $locale,
         'plugin_version' => defined('LL_TOOLS_VERSION') ? (string) LL_TOOLS_VERSION : '',
-        'schema' => 5,
+        'schema' => 6,
     ]));
 }
 
@@ -306,7 +306,7 @@ function ll_tools_quiz_pages_catalog_stale_ttl(): int {
 
 function ll_tools_quiz_pages_catalog_builder_token(): string {
     $plugin_version = defined('LL_TOOLS_VERSION') ? (string) LL_TOOLS_VERSION : '';
-    return hash('sha256', 'll-tools-quiz-catalog-builder-v1|' . $plugin_version);
+    return hash('sha256', 'll-tools-quiz-catalog-builder-v2|' . $plugin_version);
 }
 
 function ll_tools_quiz_pages_catalog_scopes_share_builder(array $left, array $right): bool {
@@ -329,7 +329,7 @@ function ll_tools_quiz_pages_catalog_scope(array $opts, int $min_word_count): ar
         'min_words' => $min_word_count,
         'user_id' => (int) get_current_user_id(),
         'locale' => $locale,
-        'schema' => 2,
+        'schema' => 3,
     ];
 
     $cache_key_complete = true;
@@ -1099,7 +1099,7 @@ function ll_tools_quiz_pages_catalog_query_page_batch(
            AND CAST(category_meta.meta_value AS UNSIGNED) > 0
         WHERE posts.post_type = %s
           AND posts.post_status = %s
-          AND posts.post_password = ''
+          AND OCTET_LENGTH(posts.post_password) = 0
           AND posts.ID > %d
           {$category_filter_sql}
           AND NOT EXISTS (
@@ -1110,7 +1110,7 @@ function ll_tools_quiz_pages_catalog_query_page_batch(
                  AND better_meta.meta_key = %s
                  AND CAST(better_meta.meta_value AS UNSIGNED) = CAST(category_meta.meta_value AS UNSIGNED)
               WHERE better_posts.post_status = %s
-                AND better_posts.post_password = ''
+                AND OCTET_LENGTH(better_posts.post_password) = 0
                 AND {$priority_sql}
           )
         GROUP BY posts.ID
@@ -2021,7 +2021,7 @@ function ll_tools_quiz_pages_rebuild_catalog_data($opts = []) {
         'post_status'      => 'publish',
         'has_password'     => false,
         'no_found_rows'    => true,
-        'suppress_filters' => true,
+        'suppress_filters' => false,
         'posts_per_page'   => -1,
         'fields'           => 'ids',
         'orderby'          => 'ID',  // Ensure consistent ordering for deduplication
@@ -2041,8 +2041,22 @@ function ll_tools_quiz_pages_rebuild_catalog_data($opts = []) {
     }
 
     global $wpdb;
+    $password_query_marker = wp_generate_uuid4();
+    $page_query_args['ll_tools_public_quiz_shell_query'] = $password_query_marker;
+    $public_password_where = static function (string $where, WP_Query $query) use ($password_query_marker, $wpdb): string {
+        if (!hash_equals($password_query_marker, (string) $query->get('ll_tools_public_quiz_shell_query'))) {
+            return $where;
+        }
+
+        return $where . " AND OCTET_LENGTH({$wpdb->posts}.post_password) = 0";
+    };
+    add_filter('posts_where', $public_password_where, PHP_INT_MAX, 2);
     $wpdb->last_error = '';
-    $pages = get_posts($page_query_args);
+    try {
+        $pages = get_posts($page_query_args);
+    } finally {
+        remove_filter('posts_where', $public_password_where, PHP_INT_MAX);
+    }
     $pages_complete = $wpdb->last_error === '';
     if (empty($pages)) {
         if ($pages_complete) {
@@ -2852,12 +2866,10 @@ function ll_qpg_print_flashcard_shell_once() {
       <?php
       ll_tools_render_flashcard_overlay_shell([
           'include_category_selection' => false,
-          'include_loading_status' => false,
+          'include_loading_status' => true,
           'show_category_display' => true,
           'category_label_text' => '',
           'mode_ui' => $mode_ui,
-          'gender_mode_visible' => false,
-          'mode_order' => ['learning', 'practice', 'listening', 'gender', 'self-check'],
           'listening_results_fallback' => __('Listen', 'll-tools-text-domain'),
       ]);
       ?>
@@ -3254,8 +3266,18 @@ function ll_qpg_print_flashcard_shell_once() {
             $('#ll-tools-flashcard-quiz-popup').css('display', 'flex');
             try {
                 var p = initFlashcardWidget([catName], mode);
-                if (p && typeof p.finally === 'function') {
-                    p.finally(function(){ window.__LL_QPG_OPEN_IN_PROGRESS = false; });
+                if (p && typeof p.then === 'function') {
+                    window.__LL_QPG_OPEN_PROMISE = p;
+                    var finishLaunch = function(){
+                        if (window.__LL_QPG_OPEN_PROMISE === p) {
+                            window.__LL_QPG_OPEN_IN_PROGRESS = false;
+                            window.__LL_QPG_OPEN_PROMISE = null;
+                        }
+                    };
+                    p.then(finishLaunch, function(error){
+                        finishLaunch();
+                        console.error('initFlashcardWidget failed', error);
+                    });
                 } else {
                     setTimeout(function(){ window.__LL_QPG_OPEN_IN_PROGRESS = false; }, 0);
                 }

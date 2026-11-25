@@ -224,6 +224,10 @@
         margin-bottom: 0.5rem;
     }
 
+    .ll-wordset-utility-bar--shared.ll-wordset-utility-bar--context-site_tools {
+        width: auto;
+    }
+
     .ll-wordset-utility-bar__identity {
         max-width: 100%;
         justify-content: flex-start;

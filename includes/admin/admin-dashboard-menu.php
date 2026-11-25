@@ -97,6 +97,7 @@ if (!function_exists('ll_tools_get_tools_hub_related_page_slugs')) {
             'll-export',
             'll-import',
             'll-offline-app-export',
+            'll-category-video',
             'll-login-blocks',
             'll-ipa-keyboard',
             'll-word-option-rules',
@@ -164,6 +165,7 @@ if (!function_exists('ll_tools_get_dashboard_related_page_title_map')) {
             'll-import' => __('Import', 'll-tools-text-domain'),
             'll-site-sync' => __('Site Sync', 'll-tools-text-domain'),
             'll-offline-app-export' => __('Offline App Export', 'll-tools-text-domain'),
+            'll-category-video' => __('Category Video', 'll-tools-text-domain'),
             'll-login-blocks' => __('Login Blocks', 'll-tools-text-domain'),
             'll-ipa-keyboard' => __('Transcription Manager', 'll-tools-text-domain'),
             'll-word-option-rules' => __('Word Option Rules', 'll-tools-text-domain'),
@@ -573,6 +575,15 @@ function ll_tools_get_tools_hub_card_sections(): array {
                 'icon' => 'dashicons-smartphone',
             ],
             [
+                'label' => __('Category Video', 'll-tools-text-domain'),
+                'description' => __('Create vocabulary videos from category pictures and original recordings.', 'll-tools-text-domain'),
+                'menu_slug' => 'tools.php?page=ll-category-video',
+                'url' => ll_tools_get_tools_page_url('ll-category-video'),
+                'page_slug' => 'll-category-video',
+                'cap' => 'manage_options',
+                'icon' => 'dashicons-video-alt3',
+            ],
+            [
                 'label' => __('Login Blocks', 'll-tools-text-domain'),
                 'description' => __('Release frontend login and sign-up rate-limit blocks for a connection.', 'll-tools-text-domain'),
                 'menu_slug' => 'tools.php?page=ll-login-blocks',
@@ -735,6 +746,7 @@ function ll_tools_get_tools_hub_direct_submenu_page_slugs(): array {
         $import_page_slug,
         'll-site-sync',
         'll-offline-app-export',
+        'll-category-video',
         'll-login-blocks',
     ];
 }

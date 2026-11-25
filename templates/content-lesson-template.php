@@ -46,6 +46,11 @@ if (!have_posts()) {
 the_post();
 
 $lesson_id = (int) get_the_ID();
+if (post_password_required($lesson_id)) {
+    echo '<main class="ll-content-lesson-page">' . get_the_password_form() . '</main>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+    get_footer();
+    return;
+}
 $wordset = function_exists('ll_tools_get_content_lesson_wordset_term')
     ? ll_tools_get_content_lesson_wordset_term($lesson_id)
     : null;
@@ -61,6 +66,7 @@ $lesson_kind = function_exists('ll_tools_get_content_lesson_kind')
     : 'standard';
 $is_corpus_text = $lesson_kind === 'corpus_text';
 $is_article = $lesson_kind === 'article';
+$is_cloze = $lesson_kind === 'cloze';
 $corpus_collection_link = ($is_corpus_text && function_exists('ll_tools_get_corpus_text_collection_link'))
     ? ll_tools_get_corpus_text_collection_link($lesson_id)
     : ['url' => '', 'label' => ''];
@@ -75,7 +81,7 @@ $media_url = function_exists('ll_tools_get_content_lesson_media_url')
 $cues = function_exists('ll_tools_get_content_lesson_cues')
     ? ll_tools_get_content_lesson_cues($lesson_id)
     : [];
-$related_vocab_items = function_exists('ll_tools_get_content_lesson_related_vocab_items')
+$related_vocab_items = !$is_cloze && function_exists('ll_tools_get_content_lesson_related_vocab_items')
     ? ll_tools_get_content_lesson_related_vocab_items($lesson_id)
     : [];
 $lesson_title = get_the_title();
@@ -95,7 +101,7 @@ $media_label = function_exists('ll_tools_content_lesson_media_label')
     : ($is_article
         ? __('Article lesson', 'll-tools-text-domain')
         : (($media_type === 'video') ? __('Video lesson', 'll-tools-text-domain') : __('Audio lesson', 'll-tools-text-domain')));
-$show_media_stage = !$is_article && (!$is_corpus_text || $media_url !== '' || !empty($cues));
+$show_media_stage = !$is_cloze && !$is_article && (!$is_corpus_text || $media_url !== '' || !empty($cues));
 $cue_json = wp_json_encode($cues);
 $cue_json = is_string($cue_json) ? $cue_json : '[]';
 $format_ms = static function (int $ms): string {
@@ -146,7 +152,7 @@ $format_ms = static function (int $ms): string {
             <?php if ($lesson_excerpt !== '') : ?>
                 <p class="ll-content-lesson-summary"><?php echo esc_html($lesson_excerpt); ?></p>
             <?php endif; ?>
-            <?php if (!$is_corpus_text && function_exists('ll_tools_render_content_lesson_completion_control')) : ?>
+            <?php if (!$is_corpus_text && !$is_cloze && function_exists('ll_tools_render_content_lesson_completion_control')) : ?>
                 <div class="ll-content-lesson-progress">
                     <?php
                     echo ll_tools_render_content_lesson_completion_control($lesson_id); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
@@ -163,7 +169,7 @@ $format_ms = static function (int $ms): string {
     </header>
 
     <?php
-    if (function_exists('ll_tools_render_interlinear_block')) {
+    if (!$is_cloze && function_exists('ll_tools_render_interlinear_block')) {
         echo ll_tools_render_interlinear_block($lesson_id, $is_corpus_text ? [
             'show_title' => false,
             'labelledby' => $lesson_title_id,
@@ -176,6 +182,10 @@ $format_ms = static function (int $ms): string {
         echo ll_tools_render_content_lesson_prerequisites($lesson_id); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
     }
     ?>
+
+    <?php if ($is_cloze) : ?>
+        <?php echo ll_tools_render_cloze_activity($lesson_id); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+    <?php endif; ?>
 
     <?php if ($show_media_stage) : ?>
         <section class="ll-content-lesson-stage" data-ll-content-lesson-player>
@@ -248,14 +258,14 @@ $format_ms = static function (int $ms): string {
     <?php endif; ?>
 
     <?php
-    if (function_exists('ll_tools_render_content_lesson_related_vocab_links')) {
+    if (!$is_cloze && function_exists('ll_tools_render_content_lesson_related_vocab_links')) {
         echo ll_tools_render_content_lesson_related_vocab_links($related_vocab_items, [
             'title' => __('Practice', 'll-tools-text-domain'),
         ]); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
     }
     ?>
 
-    <?php if (trim((string) get_the_content()) !== '') : ?>
+    <?php if (!$is_cloze && trim((string) get_the_content()) !== '') : ?>
         <?php if ($is_article) : ?>
             <article class="ll-content-lesson-article">
                 <div class="ll-content-lesson-article__content">

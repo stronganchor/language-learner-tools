@@ -9,6 +9,31 @@ if (!class_exists('WP_CLI_Command')) {
 
 class LL_Tools_CLI_Command extends WP_CLI_Command {
     /**
+     * Run only bounded dictionary, lesson-count and recorder cache preparation.
+     *
+     * ## OPTIONS
+     *
+     * [--max-seconds=<seconds>]
+     * : Time budget between batches (1-20, default 8).
+     *
+     * [--max-batches=<batches>]
+     * : Maximum batches per invocation (1-100, default 6).
+     *
+     * ## EXAMPLES
+     *
+     *     wp ll-tools public-aggregate-worker --max-seconds=8 --max-batches=6
+     */
+    public function public_aggregate_worker(array $args, array $assoc_args): void {
+        unset($args);
+        $result = ll_tools_run_public_aggregate_worker(
+            (int) ($assoc_args['max-seconds'] ?? 8),
+            (int) ($assoc_args['max-batches'] ?? 6)
+        );
+        WP_CLI::line(ll_tools_cli_json_encode($result));
+        if (!empty($result['errors'])) { WP_CLI::halt(1); }
+    }
+
+    /**
      * Run only bounded wordset category-search maintenance.
      *
      * ## OPTIONS

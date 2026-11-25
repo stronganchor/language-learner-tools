@@ -451,7 +451,8 @@ function ll_tools_get_word_text_parts(int $word_id, ?string $translation_locale 
         'translation_text' => '',
         'title_role' => ll_tools_get_wordset_title_role_for_word($word_id, $wordset_ids),
     ];
-    $target_text = ll_tools_get_word_target_text($word_id, $fallback_to_legacy, $wordset_ids);
+    $canonical_target_text = ll_tools_get_word_target_text($word_id, false, $wordset_ids);
+    $target_text = $canonical_target_text !== '' ? $canonical_target_text : trim((string) ($legacy['word_text'] ?? ''));
     $translations = $fallback_to_legacy
         ? ll_tools_get_effective_word_translation_map($word_id, $wordset_ids)
         : ll_tools_get_word_translation_map($word_id);
@@ -467,7 +468,9 @@ function ll_tools_get_word_text_parts(int $word_id, ?string $translation_locale 
         $translation_text = (string) $translations[$locale];
     }
     if ($translation_text === '' && $fallback_to_legacy) {
-        $translation_text = ll_tools_get_legacy_default_translation_text($word_id, $target_text, $wordset_ids);
+        $translation_text = $canonical_target_text === ''
+            ? trim((string) ($legacy['translation_text'] ?? ''))
+            : ll_tools_get_legacy_default_translation_text($word_id, $canonical_target_text, $wordset_ids);
     }
     $has_canonical_target = metadata_exists('post', $word_id, LL_TOOLS_WORD_TARGET_TEXT_META_KEY);
 

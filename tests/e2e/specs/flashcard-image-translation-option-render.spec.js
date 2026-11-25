@@ -11,6 +11,10 @@ const cardsSource = fs.readFileSync(
   path.resolve(__dirname, '../../../js/flashcard-widget/cards.js'),
   'utf8'
 );
+const domSource = fs.readFileSync(
+  path.resolve(__dirname, '../../../js/flashcard-widget/dom.js'),
+  'utf8'
+);
 const optionsSource = fs.readFileSync(
   path.resolve(__dirname, '../../../js/flashcard-widget/options.js'),
   'utf8'
@@ -57,23 +61,28 @@ async function renderQuizFrame(page, options = {}) {
   const imageA = String(options.imageA || '#dbeafe');
   const imageB = String(options.imageB || '#dcfce7');
   const isEmbed = options.isEmbed !== false;
-  const useCaptions = !!options.useCaptions;
+  const optionType = options.optionType || (options.useCaptions ? 'image_text_translation' : 'image');
+  const useCaptions = optionType === 'image_text_translation';
 
-  await page.setViewportSize({
-    width: Math.max(1000, width + 80),
-    height: Math.max(900, height + 80)
-  });
+  const count = Number(options.count || 2);
+  const captions = Array.isArray(options.captions) ? options.captions : [];
+  const portaled = !!options.portaled;
+
+  let frame = page;
   await page.goto('about:blank');
-  await page.setContent(`
-    <iframe id="quiz-frame" name="quiz-frame" style="width:${width}px;height:${height}px;border:0;display:block;"></iframe>
-  `);
-
-  const frameHandle = await page.locator('#quiz-frame').elementHandle();
-  const frame = await frameHandle.contentFrame();
+  if (options.topLevel) {
+    await page.setViewportSize({ width, height });
+  } else {
+    await page.setViewportSize({ width: Math.max(1000, width + 80), height: Math.max(900, height + 80) });
+    await page.setContent(`<iframe id="quiz-frame" style="width:${width}px;height:${height}px;border:0;display:block;"></iframe>`);
+    const frameHandle = await page.locator('#quiz-frame').elementHandle();
+    frame = await frameHandle.contentFrame();
+  }
   await frame.setContent(`
     <!doctype html>
     <html>
     <head>
+      <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
       <style>
         html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; }
         body { background: #fff; }
@@ -83,6 +92,7 @@ async function renderQuizFrame(page, options = {}) {
       <div id="ll-tools-flashcard-container" class="ll-tools-flashcard-container">
         <div id="ll-tools-flashcard-popup" style="display:flex;">
           <div id="ll-tools-flashcard-quiz-popup" style="display:flex;">
+            ${options.topLevel ? '<button id="ll-tools-close-flashcard">×</button>' : ''}
             <div id="ll-tools-flashcard-header" style="display:flex;">
               <div id="ll-tools-learning-progress" style="display:block;">
                 <div class="learning-progress-bar simple-progress-bar">
@@ -90,6 +100,7 @@ async function renderQuizFrame(page, options = {}) {
                 </div>
               </div>
               <div id="ll-tools-category-stack" class="ll-tools-category-stack">
+                ${options.topLevel ? '<span id="ll-tools-category-display" class="ll-tools-category-display">Diğer</span>' : ''}
                 <button id="ll-tools-repeat-flashcard" class="play-mode" type="button" aria-label="Play">
                   <span class="ll-repeat-audio-ui">
                     <span class="ll-repeat-icon-wrap" aria-hidden="true">
@@ -109,17 +120,18 @@ async function renderQuizFrame(page, options = {}) {
               <div id="ll-tools-prompt" class="ll-tools-prompt" style="display:none;"></div>
               <div id="ll-tools-flashcard"></div>
             </div>
-            <div id="ll-tools-mode-switcher-wrap" class="ll-tools-mode-switcher-wrap" style="display:flex;">
-              <button id="ll-tools-mode-switcher" class="ll-tools-mode-switcher" type="button" aria-label="Switch Mode">
-                <span class="mode-icon" aria-hidden="true">&harr;</span>
-              </button>
-            </div>
           </div>
         </div>
       </div>
     </body>
     </html>
   `);
+
+  if (portaled) {
+    await frame.evaluate(() => {
+      document.body.appendChild(document.getElementById('ll-tools-flashcard-popup'));
+    });
+  }
 
   await addFrameScript(frame, jquerySource);
   await addFrameStyle(frame, baseCssSource);
@@ -142,42 +154,42 @@ async function renderQuizFrame(page, options = {}) {
       Dom: {},
       Selection: {
         getCurrentDisplayMode: function () {
-          return bootstrap.useCaptions ? 'image_text_translation' : 'image';
+          return bootstrap.optionType;
         }
       }
     };
-  }, { imageSize, isEmbed, useCaptions });
+  }, { imageSize, isEmbed, optionType });
 
   await addFrameScript(frame, optionsSource);
   await addFrameScript(frame, utilSource);
   await addFrameScript(frame, cardsSource);
 
   await frame.evaluate((bootstrap) => {
-    const words = [
-      {
-        id: 101,
-        title: 'Option A',
-        translation: bootstrap.useCaptions ? 'First answer' : '',
-        image: bootstrap.imageA
-      },
-      {
-        id: 102,
-        title: 'Option B',
-        translation: bootstrap.useCaptions ? 'Second answer with a compact caption' : '',
-        image: bootstrap.imageB
-      }
-    ];
-    const optionType = bootstrap.useCaptions ? 'image_text_translation' : 'image';
+    const words = Array.from({ length: bootstrap.count }, (_, index) => ({
+      id: 101 + index,
+      title: `Option ${index + 1}`,
+      translation: bootstrap.captions[index] || (index === 0 ? 'First answer' : 'Second answer with a compact caption'),
+      image: index % 2 ? bootstrap.imageB : bootstrap.imageA
+    }));
     words.forEach((word) => {
-      window.LLFlashcards.Cards.appendWordToContainer(word, optionType, 'audio', true);
+      window.LLFlashcards.Cards.appendWordToContainer(word, bootstrap.optionType, 'audio', true);
     });
+    if (bootstrap.useCaptions) {
+      // The target may be last in the shuffled DOM, even though it was selected first.
+      const grid = document.getElementById('ll-tools-flashcard');
+      grid.appendChild(grid.firstElementChild);
+      window.LLFlashcards.Cards.prepareCaptionChoices(words);
+    }
     document.querySelectorAll('#ll-tools-flashcard .flashcard-container').forEach((card) => {
       card.style.display = 'flex';
       card.style.visibility = 'visible';
     });
     window.LLFlashcards.Cards.fitImageAnswerOptionCardsForViewport();
   }, {
+    optionType,
     useCaptions,
+    captions,
+    count,
     imageA: fixtureImage(imageA, 'A'),
     imageB: fixtureImage(imageB, 'B')
   });
@@ -197,22 +209,34 @@ async function renderQuizFrame(page, options = {}) {
       };
     };
     const root = document.getElementById('ll-tools-flashcard-container');
+    const content = document.getElementById('ll-tools-flashcard-content');
+    const contentStyle = window.getComputedStyle(content);
     const cards = Array.from(document.querySelectorAll('#ll-tools-flashcard .flashcard-container'));
     return {
       width: window.innerWidth,
       height: window.innerHeight,
       rootClass: root.className,
+      portaled: !document.getElementById('ll-tools-flashcard-popup').closest('#ll-tools-flashcard-container'),
       fitSize: root.getAttribute('data-ll-image-fit-size') || '',
+      content: rectFor(content),
+      contentPaddingTop: parseFloat(contentStyle.paddingTop),
+      contentPaddingBottom: parseFloat(contentStyle.paddingBottom),
       progress: rectFor(document.getElementById('ll-tools-learning-progress')),
       repeat: rectFor(document.getElementById('ll-tools-repeat-flashcard')),
       cards: cards.map((card) => {
         const media = card.querySelector('.ll-answer-option-image-caption-media');
         const image = card.querySelector('img');
+        const caption = card.querySelector('.ll-answer-option-image-caption');
+        const captionStyle = caption ? window.getComputedStyle(caption) : null;
+        const captionHeight = caption ? caption.getBoundingClientRect().height : 0;
         return {
           rect: rectFor(card),
-          imageRect: rectFor(media || image),
+          imageRect: image ? rectFor(media || image) : null,
           className: card.className,
-          boxShadow: window.getComputedStyle(card).boxShadow
+          boxShadow: window.getComputedStyle(card).boxShadow,
+          captionRows: captionStyle
+            ? (captionHeight - parseFloat(captionStyle.paddingTop) - parseFloat(captionStyle.paddingBottom)) / parseFloat(captionStyle.lineHeight)
+            : 0
         };
       })
     };
@@ -440,6 +464,158 @@ test('prompt-card image answer options render the answer image instead of the pr
   });
 
   expect(src).toBe('https://media.test/tree-concept.webp');
+});
+
+test.describe('full-screen phone Practice', () => {
+  test.use({ isMobile: true, hasTouch: true });
+  const short = ['İzzet', 'Affediyor', 'Kabul etmiyor', 'Af diliyor', 'Özgür', 'Kumaş'];
+  const double = 'Arkadaşından yardım istiyor';
+  const mount = (page, captions, height = 685) => renderQuizFrame(page, {
+    width: 360, height, imageSize: 'small', count: captions.length,
+    useCaptions: true, isEmbed: false, portaled: true, topLevel: true, captions
+  });
+  function checkGrid(result, count) {
+    expect(result.cards).toHaveLength(count);
+    expect(new Set(result.cards.map(card => card.rect.left)).size).toBe(2);
+    expect(new Set(result.cards.map(card => card.rect.top)).size).toBe(count / 2);
+    for (const card of result.cards) {
+      expect(card.imageRect.width).toBe(150);
+      expect(card.imageRect.height).toBe(150);
+      expect(card.rect.bottom).toBeLessThanOrEqual(result.height - 15);
+    }
+  }
+
+  test('a compact header leaves room for three normal-sized rows and one double-line caption', async ({ page }) => {
+    const initial = await mount(page, [double, ...short.slice(1)]);
+    checkGrid(initial, 6);
+    expect(initial.cards.filter(card => card.captionRows > 1.5)).toHaveLength(1);
+    expect(initial.cards[0].rect.top).toBeLessThanOrEqual(110);
+    expect(initial.repeat.height).toBeGreaterThanOrEqual(44);
+    const close = await page.locator('#ll-tools-close-flashcard').boundingBox();
+    expect(close.width).toBe(38);
+    expect(close.height).toBe(38);
+    const closeButton = page.locator('#ll-tools-close-flashcard');
+    expect(await closeButton.evaluate(button => {
+      const rect = button.getBoundingClientRect();
+      const x = rect.left + rect.width / 2;
+      return [rect.top - 2.5, rect.bottom + 2.5].every(y => document.elementFromPoint(x, y) === button);
+    })).toBe(true);
+    const title = page.locator('#ll-tools-category-display');
+    await expect(title).toHaveCSS('font-size', '14px');
+    const label = await title.boundingBox();
+    const bar = await page.locator('#ll-tools-learning-progress .learning-progress-bar').boundingBox();
+    expect(label.y - (bar.y + bar.height)).toBeCloseTo(6, 1);
+    expect(initial.repeat.top - (label.y + label.height)).toBeCloseTo(6, 1);
+    expect(initial.progress.right).toBeLessThan(close.x);
+
+    const cards = page.locator('#ll-tools-flashcard .ll-answer-option-image-caption-card');
+    await page.evaluate(() => {
+      Object.defineProperty(visualViewport, 'height', {configurable: true, value: 610});
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    await expect(cards).toHaveCount(4);
+    const ids = await cards.evaluateAll(nodes => nodes.map(node => node.dataset.wordId));
+    expect(ids.sort()).toEqual(['101','102','103','104']);
+    for (const card of await cards.all()) {
+      const rect = await card.boundingBox();
+      expect(rect.width).toBe(150);
+      expect(rect.y + rect.height).toBeLessThanOrEqual(610 - 15);
+    }
+    await page.evaluate(() => {
+      delete visualViewport.height;
+      visualViewport.dispatchEvent(new Event('resize'));
+    });
+    await expect(cards).toHaveCount(4);
+
+    // If even two rows exceed the available height, every answer stays reachable.
+    await page.evaluate(() => {
+      Object.defineProperty(visualViewport, 'height', { configurable: true, value: 300 });
+      visualViewport.dispatchEvent(new Event('resize'));
+    });
+    const grid = page.locator('#ll-tools-flashcard');
+    await expect(grid).toHaveCSS('overflow-y', 'auto');
+    await grid.evaluate(node => { node.scrollTop = node.scrollHeight; });
+    const last = await cards.last().boundingBox();
+    expect(last.width).toBe(150);
+    expect(last.y + last.height).toBeLessThanOrEqual(285);
+  });
+
+  test('the header stays still and incoming choices stay hidden until the round is ready', async ({ page }) => {
+    await mount(page, short);
+    await addFrameScript(page, domSource);
+    const popup = page.locator('#ll-tools-flashcard-quiz-popup');
+    const content = page.locator('#ll-tools-flashcard-content');
+    const controls = popup.locator('#ll-tools-close-flashcard, .learning-progress-bar, #ll-tools-category-display, #ll-tools-repeat-flashcard');
+    const boxes = () => controls.evaluateAll(nodes => nodes.map(n => n.getBoundingClientRect().toJSON()));
+    const initial = await boxes();
+
+    await page.evaluate(() => {
+      const grid = document.getElementById('ll-tools-flashcard');
+      window.incomingChoices = Array.from(grid.children);
+      grid.replaceChildren();
+      window.LLFlashcards.Dom.showLoading();
+    });
+    expect(await boxes()).toEqual(initial);
+    await expect(content).toHaveCSS('opacity', '0');
+    await expect(popup).toHaveAttribute('aria-busy', 'true');
+    expect(await popup.evaluate(n => getComputedStyle(n, '::before').display)).toBe('none');
+    await page.evaluate(() => document.getElementById('ll-tools-flashcard').append(...window.incomingChoices));
+    await expect(content).toHaveCSS('opacity', '0');
+    await page.evaluate(() => window.LLFlashcards.Dom.hideLoading());
+    await expect(content).toHaveCSS('opacity', '1');
+    expect(await boxes()).toEqual(initial);
+
+    await page.evaluate(() => {
+      window.LLFlashcards.Dom.showLoading();
+      return window.LLFlashcards.Dom.hideLoadingImmediately();
+    });
+    await expect(content).toHaveCSS('opacity', '1');
+  });
+
+  for (const portaled of [true, false]) {
+    test(`phone controls and padding match across answer types in a ${portaled ? 'portaled' : 'nested'} quiz`, async ({ page }) => {
+      let expected;
+      for (const optionType of ['image_text_translation', 'image', 'text_translation', 'audio', 'text_audio']) {
+        await renderQuizFrame(page, {
+          width: 360, height: 685, imageSize: 'small', count: 4,
+          isEmbed: false, portaled, topLevel: true, optionType, captions: short
+        });
+        await addFrameScript(page, domSource);
+        const geometry = () => page.evaluate(() => {
+          const ids = ['ll-tools-close-flashcard', 'll-tools-category-display', 'll-tools-repeat-flashcard'];
+          const boxes = ids.map(id => document.getElementById(id).getBoundingClientRect().toJSON());
+          const bar = document.querySelector('.learning-progress-bar').getBoundingClientRect().toJSON();
+          const content = getComputedStyle(document.getElementById('ll-tools-flashcard-content'));
+          const gap = getComputedStyle(document.getElementById('ll-tools-flashcard')).gap;
+          return { boxes, bar, padding: content.padding, gap };
+        });
+        const ready = await geometry();
+        expect(ready.padding).toBe('9px 15px 15px');
+        expect(ready.gap).toBe('10px 14px');
+        if (!expected) expected = ready;
+        expect(ready, optionType).toEqual(expected);
+        await page.evaluate(() => {
+          document.getElementById('ll-tools-flashcard').replaceChildren();
+          window.LLFlashcards.Dom.showLoading();
+        });
+        expect(await geometry(), optionType + ' loading').toEqual(expected);
+        await expect(page.locator('#ll-tools-flashcard-content')).toHaveCSS('opacity', '0');
+        await page.evaluate(() => window.LLFlashcards.Dom.hideLoadingImmediately());
+      }
+    });
+  }
+
+  test('two double-line captions or one longer caption limit a tall phone to two rows', async ({ page }) => {
+    for (const captions of [
+      [double, double, ...short.slice(2)],
+      [...short.slice(0, 4), double, double],
+      [...short.slice(0, 5), 'Arkadaşından eve dönerken ona yardım etmesini istiyor']
+    ]) {
+      const result = await mount(page, captions, 846);
+      checkGrid(result, 4);
+      await expect(page.locator('#ll-tools-flashcard [data-word-id="101"]')).toBeVisible();
+    }
+  });
 });
 
 test('embedded image quiz options stay fully inside small iframe viewports', async ({ page }) => {

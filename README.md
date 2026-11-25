@@ -2,6 +2,15 @@
 
 A WordPress toolkit for building vocabulary-driven language learning sites. It provides custom post types and taxonomies, flashcard quizzes (with image + audio), auto-generated quiz pages, embeddable quiz pages, vocabulary grids, audio players, prompt cards, content lessons, teacher classes, bulk uploaders, DeepL-assisted translations, a template override system, and helper roles.
 
+## Recent changes
+
+- **6.7.70** accepts active public quiz languages supplied by the plugin without requiring matching WordPress core language packs. Quiz reads and background builders preserve the requested language and restore the caller's locale, translations, user and locks after failures.
+- **6.7.65** stores generated HTML outside public web directories and prevents an older dictionary render from replacing content after invalidation. REST automation also recognizes WordPress application passwords when the user was first resolved before REST dispatch.
+- **6.7.63:** Compact prerequisite headings reset theme padding, and phone article paragraphs and tables retain at least16px text even when the theme uses a small root font. Lesson heading sizes remain unchanged.
+- **6.7.62:** Article lessons use a compact phone header so the opening lesson text appears sooner. One prerequisite remains directly linked; multiple prerequisites expand through a keyboard-accessible disclosure. Phone navigation shortens trailing examples while preserving full accessible titles and completion status.
+- **6.7.61:** Homepage lesson counts retain completed category eligibility across unrelated content edits while keeping count work bounded. Public count polling renews authenticated stale status tokens after content changes.
+- **6.7.60:** Category presentation edits preserve unchanged lesson activities without rewriting post metadata. Actual activity changes retain transactional storage checks; a failed activity comparison read refuses the save.
+
 ## Developer navigation
 
 - [Codebase map](docs/ai-context/codebase-map.md): source owners, focused tests, and documentation by subsystem.
@@ -45,6 +54,7 @@ when changing those requirements.
   - **Recording Interface**: `[audio_recording_interface]` shortcode provides a browser-based recording interface.
   - **My recordings**: Private, paginated playback history inside the recording interface, scoped to the speaker and selected wordset.
   - **Audio Processor**: Admin tool to batch-process uploaded audio files and attach them to words.
+  - **[Category Video](docs/CATEGORY_VIDEO.md)** creates a vocabulary slideshow with existing images and recordings in the browser.
   - **Audio-Image Matcher**: Admin tool to quickly match audio and images where needed.
   - **Recording Types**: Categorize audio as introduction, isolation, question, or sentence for contextual playback.
 

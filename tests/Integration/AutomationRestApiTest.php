@@ -4658,24 +4658,32 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
             $_SERVER[$key] = $value;
         }
 
-        if ($reset_current_user) {
-            global $current_user;
-            wp_set_current_user(0);
-            $current_user = null;
-            if (function_exists('ll_tools_rest_automation_clear_auth_runtime_state')) {
-                ll_tools_rest_automation_clear_auth_runtime_state();
-            }
-        }
-
         $request = new WP_REST_Request($method, $route);
         foreach ($params as $key => $value) {
             $request->set_param($key, $value);
         }
 
-        $response = rest_get_server()->dispatch($request);
-        $this->assertNotWPError($response);
+        $wp = $GLOBALS['wp'];
+        $query_vars = $wp->query_vars;
+        $wp->query_vars['rest_route'] = $route;
+        try {
+            $server = rest_get_server();
+            if ($reset_current_user) {
+                wp_set_current_user(0);
+                $GLOBALS['current_user'] = null;
+                $authentication = $server->check_authentication();
+                if (is_wp_error($authentication)) {
+                    return rest_convert_error_to_response($authentication);
+                }
+            }
 
-        return rest_ensure_response($response);
+            $response = $server->dispatch($request);
+            $this->assertNotWPError($response);
+
+            return rest_ensure_response($response);
+        } finally {
+            $wp->query_vars = $query_vars;
+        }
     }
 
     /**

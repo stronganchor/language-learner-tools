@@ -328,6 +328,6 @@ test('retained lesson shadow route permanently redirects to its public source', 
 
   await page.goto(fixture.retainedShadowPath, { waitUntil: 'domcontentloaded' });
   await expect(page).toHaveURL(new RegExp(`${fixture.retainedSourcePath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`));
-  await expect(page.getByRole('heading', { name: fixture.retainedSourceTitle })).toBeVisible();
+  await expect(page.getByRole('heading', { name: fixture.retainedSourceTitle, exact: true, level: 1 })).toBeVisible();
   await expect(page.getByText('This retained public source remains the canonical lesson URL.')).toBeVisible();
 });

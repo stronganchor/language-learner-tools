@@ -21,6 +21,7 @@ test('scoped manager reviews and copies a word; attributed recorder sees private
   let state;
   let cleanup = false;
   let copyRequestId = '';
+  const copyRequests = [];
   const fixtureRunId = randomUUID();
   const externalRequests = [];
   const origin = new URL(test.info().project.use.baseURL).origin;
@@ -34,7 +35,10 @@ test('scoped manager reviews and copies a word; attributed recorder sees private
   });
   page.on('request', request => {
     const params = new URLSearchParams(request.postData() || '');
-    if (params.get('action') === 'll_tools_word_copy_apply') copyRequestId = params.get('request_id') || '';
+    if (params.get('action') === 'll_tools_word_copy_apply') {
+      copyRequestId = params.get('request_id') || '';
+      copyRequests.push(copyRequestId);
+    }
   });
   try {
     try { cleanup = true; state = fixture('seed', fixtureRunId); }
@@ -66,6 +70,7 @@ test('scoped manager reviews and copies a word; attributed recorder sees private
 
     const editorResponse = await page.goto(state.editorPath, { waitUntil: 'domcontentloaded' });
     expect(editorResponse.status()).toBe(200);
+    const editorUrl = page.url();
     const editTrigger = page.locator(`[data-ll-wordset-editor-open-word-edit][data-word-id="${state.wordId}"]`);
     await expect(editTrigger).toBeVisible({ timeout: 60000 });
     await editTrigger.click();
@@ -81,19 +86,24 @@ test('scoped manager reviews and copies a word; attributed recorder sees private
     await dialog.locator('#ll-word-copy-title').fill(state.copyTitle);
     await dialog.locator(`input[type="checkbox"][value="${state.recordingIds[1]}"]`).check();
     await dialog.locator('.ll-word-copy-button--primary').click();
-    await expect(dialog.locator('.ll-word-copy-message')).toHaveText('Word copied.', { timeout: 90000 });
+    await expect(dialog).not.toBeVisible({ timeout: 90000 });
+    await expect(popup).not.toBeVisible();
+    await expect(page.locator('body')).not.toHaveClass(/ll-word-edit-modal-open/);
+    await expect(editTrigger).toBeFocused();
+    expect(page.url()).toBe(editorUrl);
+    expect(copyRequests).toHaveLength(1);
     expect(copyRequestId).toMatch(/^[a-f0-9-]{36}$/);
     persisted = fixture('inspect');
     expect(persisted.copies).toHaveLength(1);
     expect(persisted.copies[0].title).toBe(state.copyTitle);
     expect(persisted.parents).toEqual([state.wordId, persisted.copies[0].id]);
-    await dialog.locator('.ll-word-copy-actions').getByRole('button', { name: 'Close', exact: true }).first().click();
-    await expect(trigger).toBeFocused();
-    await expect(popup.locator(`.ll-word-edit-recording[data-recording-id="${state.recordingIds[1]}"]`)).toHaveCount(0);
-    await popup.locator('[data-ll-word-edit-cancel]').click();
+    const sourceRow = page.locator(`[data-ll-wordset-editor-row][data-word-id="${state.wordId}"]`);
+    await expect(sourceRow.locator('.ll-word-copy-result')).toContainText(state.copyTitle);
     await editTrigger.click();
     await expect(popup).toBeVisible({ timeout: 60000 });
     await expect(popup.locator('.ll-word-edit-recording')).toHaveCount(1);
+    await expect(popup.locator(`.ll-word-edit-recording[data-recording-id="${state.recordingIds[0]}"]`)).toHaveCount(1);
+    await expect(popup.locator(`.ll-word-edit-recording[data-recording-id="${state.recordingIds[1]}"]`)).toHaveCount(0);
 
     await login(page, state.recorder);
     await page.goto(state.recorderPath, { waitUntil: 'domcontentloaded' });

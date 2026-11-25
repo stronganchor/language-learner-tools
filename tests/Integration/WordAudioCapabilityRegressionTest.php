@@ -48,6 +48,28 @@ final class WordAudioCapabilityRegressionTest extends LL_Tools_TestCase
         $this->assertSame([], get_option('ll_missing_audio_instances', []));
     }
 
+    public function test_host_resolution_tracks_main_query_without_following_nested_word_queries(): void
+    {
+        $firstHost = $this->createHostPost('First Audio Host Context');
+        $secondHost = $this->createHostPost('Second Audio Host Context');
+        $wordId = $this->createWordPost('Nested Audio Word');
+        $this->go_to(get_permalink($firstHost));
+        $this->assertSame($firstHost, ll_word_audio_get_host_post_id());
+        $this->go_to(get_permalink($secondHost));
+        $this->assertSame($secondHost, ll_word_audio_get_host_post_id());
+
+        $mainQuery = $GLOBALS['wp_query'];
+        $savedPost = $GLOBALS['post'] ?? null;
+        try {
+            $GLOBALS['wp_query'] = new WP_Query(['post_type' => 'words', 'p' => $wordId]);
+            $GLOBALS['post'] = get_post($wordId);
+            $this->assertSame($secondHost, ll_word_audio_get_host_post_id());
+        } finally {
+            $GLOBALS['wp_query'] = $mainQuery;
+            $GLOBALS['post'] = $savedPost;
+        }
+    }
+
     public function test_missing_audio_shortcode_clears_cache_for_admins_when_audio_exists(): void
     {
         $host_post_id = $this->createHostPost('Word Audio Capability Host With Recording');

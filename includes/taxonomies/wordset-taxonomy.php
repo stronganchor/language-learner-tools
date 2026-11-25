@@ -957,9 +957,11 @@ function ll_tools_should_enforce_vocab_frontend_access(): bool {
  *
  * @param mixed $post
  * @param int   $user_id
+ * @param bool|null $complete False when a membership or visibility read fails.
  * @return bool
  */
-function ll_tools_user_can_view_vocab_post($post, int $user_id = 0): bool {
+function ll_tools_user_can_view_vocab_post($post, int $user_id = 0, ?bool &$complete = null): bool {
+    $complete = true;
     if ($post instanceof WP_Post) {
         $resolved_post = $post;
     } else {
@@ -974,43 +976,90 @@ function ll_tools_user_can_view_vocab_post($post, int $user_id = 0): bool {
         return true;
     }
 
+    return !empty(ll_tools_filter_viewable_vocab_posts([$resolved_post], $user_id, $complete));
+}
+
+/**
+ * Filter already-selected vocab posts without one relationship query per word.
+ * Read raw memberships in bounded batches: an empty/error-filtered term list
+ * must not turn a private word into an apparently unassigned public word.
+ *
+ * @param WP_Post[] $posts
+ * @return WP_Post[]
+ */
+function ll_tools_filter_viewable_vocab_posts(array $posts, int $user_id = 0, ?bool &$complete = null): array {
+    global $wpdb;
+    $complete = true;
     $user_id = $user_id > 0 ? $user_id : (int) get_current_user_id();
-    $cache_key = $resolved_post->ID . ':' . $user_id;
-    static $visibility_cache = [];
-    if (array_key_exists($cache_key, $visibility_cache)) {
-        return (bool) $visibility_cache[$cache_key];
-    }
-
-    $wordset_ids = wp_get_post_terms($resolved_post->ID, 'wordset', [
-        'fields' => 'ids',
-        'suppress_filter' => true,
-    ]);
-    if (is_array($wordset_ids) && !empty($wordset_ids)) {
-        $visible_wordset_ids = ll_tools_filter_viewable_wordset_ids($wordset_ids, $user_id);
-        if (empty($visible_wordset_ids)) {
-            $visibility_cache[$cache_key] = false;
-            return false;
+    $visible = [];
+    foreach (array_chunk($posts, 200) as $batch) {
+        $memberships = [];
+        $wordset_ids = [];
+        $category_ids = [];
+        foreach ($batch as $post) {
+            if ($post instanceof WP_Post && in_array($post->post_type, ['words', 'word_images'], true)) {
+                $memberships[(int) $post->ID] = ['wordset' => [], 'word-category' => []];
+            }
+        }
+        if (!empty($memberships)) {
+            $wpdb->last_error = '';
+            $terms = wp_get_object_terms(array_keys($memberships), ['wordset', 'word-category'], [
+                'fields' => 'all_with_object_id',
+                'suppress_filter' => true,
+            ]);
+            if (!is_array($terms) || $wpdb->last_error !== '') {
+                $complete = false;
+                return [];
+            }
+            foreach ($terms as $term) {
+                if (!($term instanceof WP_Term)) {
+                    $complete = false;
+                    return [];
+                }
+                $object_id = (int) ($term->object_id ?? 0);
+                $term_id = (int) $term->term_id;
+                if ($term_id <= 0 || !isset($memberships[$object_id][$term->taxonomy])) {
+                    $complete = false;
+                    return [];
+                }
+                $memberships[$object_id][$term->taxonomy][] = $term_id;
+                if ($term->taxonomy === 'wordset') {
+                    $wordset_ids[$term_id] = true;
+                } else {
+                    $category_ids[$term_id] = true;
+                }
+            }
+        }
+        // Resolve each distinct term once per batch, rather than rechecking
+        // shared collections for every selected word. Never memoize a failure.
+        $wordset_complete = true;
+        $category_complete = true;
+        $viewable_wordsets = array_fill_keys(ll_tools_filter_viewable_wordset_ids(array_keys($wordset_ids), $user_id, $wordset_complete), true);
+        $viewable_categories = array_fill_keys(ll_tools_filter_category_ids_for_user(array_keys($category_ids), $user_id, $category_complete), true);
+        if (!$wordset_complete || !$category_complete) {
+            $complete = false;
+            return [];
+        }
+        foreach ($batch as $post) {
+            if (!($post instanceof WP_Post)) {
+                continue;
+            }
+            if (!isset($memberships[(int) $post->ID])) {
+                $visible[] = $post;
+                continue;
+            }
+            $wordsets = $memberships[(int) $post->ID]['wordset'];
+            $categories = $memberships[(int) $post->ID]['word-category'];
+            $can_view_wordset = empty($wordsets)
+                || !empty(array_intersect_key(array_fill_keys($wordsets, true), $viewable_wordsets));
+            $can_view_category = empty($categories)
+                || !empty(array_intersect_key(array_fill_keys($categories, true), $viewable_categories));
+            if ($can_view_wordset && $can_view_category) {
+                $visible[] = $post;
+            }
         }
     }
-
-    $category_ids = wp_get_post_terms($resolved_post->ID, 'word-category', [
-        'fields' => 'ids',
-        'suppress_filter' => true,
-    ]);
-    if (is_array($category_ids) && !empty($category_ids)) {
-        $visible_category_ids = function_exists('ll_tools_filter_category_ids_for_user')
-            ? ll_tools_filter_category_ids_for_user($category_ids, $user_id)
-            : array_values(array_filter(array_map('intval', $category_ids), static function (int $category_id): bool {
-                return $category_id > 0;
-            }));
-        if (empty($visible_category_ids)) {
-            $visibility_cache[$cache_key] = false;
-            return false;
-        }
-    }
-
-    $visibility_cache[$cache_key] = true;
-    return true;
+    return $visible;
 }
 
 /**

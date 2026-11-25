@@ -244,6 +244,9 @@ async function mountNewWordRecorderFixture(page, options = {}) {
       prepareRequests: 0,
       transcribeRequests: 0,
       updateTextRequests: 0,
+      textRevision: 1,
+      targetText: '',
+      translationText: '',
       uploadRecordingTypes: []
     };
 
@@ -287,6 +290,8 @@ async function mountNewWordRecorderFixture(page, options = {}) {
         const categoryName = String(body.get('new_category_name') || 'Uncategorized').trim() || 'Uncategorized';
         const selectedTypes = body.getAll('new_category_types[]');
         const recordingTypes = selectedTypes.length ? selectedTypes : ['isolation'];
+        window.__llStartupTestState.targetText = targetText || 'Placeholder';
+        window.__llStartupTestState.translationText = translationText;
 
         return Promise.resolve(makeJsonResponse({
           success: true,
@@ -299,7 +304,9 @@ async function mountNewWordRecorderFixture(page, options = {}) {
               category_slug: 'debug-category',
               word_id: 501,
               word_title: targetText || 'Placeholder',
+              word_text_target: targetText || 'Placeholder',
               word_translation: translationText,
+              text_revision: 'revision-' + window.__llStartupTestState.textRevision,
               use_word_display: true,
               missing_types: recordingTypes,
               existing_types: [],
@@ -324,13 +331,18 @@ async function mountNewWordRecorderFixture(page, options = {}) {
 
       if (action === 'll_update_new_word_text') {
         window.__llStartupTestState.updateTextRequests += 1;
+        window.__llStartupTestState.textRevision += 1;
+        window.__llStartupTestState.targetText = String(body.get('word_text_target') || '') || window.__llStartupTestState.targetText;
+        window.__llStartupTestState.translationText = String(body.get('word_text_translation') || '');
         return Promise.resolve(makeJsonResponse({
           success: true,
           data: {
             word_id: 501,
-            post_title: String(body.get('word_text_target') || ''),
-            word_translation: String(body.get('word_text_translation') || ''),
-            store_in_title: true
+            post_title: window.__llStartupTestState.targetText,
+            word_text_target: window.__llStartupTestState.targetText,
+            word_translation: window.__llStartupTestState.translationText,
+            store_in_title: true,
+            text_revision: 'revision-' + window.__llStartupTestState.textRevision
           }
         }));
       }

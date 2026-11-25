@@ -15,6 +15,10 @@ const selectionSource = fs.readFileSync(
   path.resolve(__dirname, '../../../js/flashcard-widget/selection.js'),
   'utf8'
 );
+const optionConflictsSource = fs.readFileSync(
+  path.resolve(__dirname, '../../../js/flashcard-widget/option-conflicts.js'),
+  'utf8'
+);
 const optionsSource = fs.readFileSync(
   path.resolve(__dirname, '../../../js/flashcard-widget/options.js'),
   'utf8'
@@ -33,6 +37,10 @@ const resultsSource = fs.readFileSync(
 );
 const learningSource = fs.readFileSync(
   path.resolve(__dirname, '../../../js/flashcard-widget/modes/learning.js'),
+  'utf8'
+);
+const domSource = fs.readFileSync(
+  path.resolve(__dirname, '../../../js/flashcard-widget/dom.js'),
   'utf8'
 );
 
@@ -73,6 +81,7 @@ async function mountSelectionHarness(page, options = {}) {
 
   await page.goto('about:blank');
   await page.setContent(`
+    <div id="ll-tools-flashcard-header"><span id="ll-tools-category-display"></span></div>
     <div id="ll-tools-flashcard-content">
       <div id="ll-tools-prompt"></div>
       <div id="ll-tools-flashcard"></div>
@@ -142,6 +151,9 @@ async function mountSelectionHarness(page, options = {}) {
     };
   }, data);
 
+  if (options.realDom) {
+    await page.addScriptTag({ content: domSource });
+  }
   if (options.realOptionLabels) {
     await page.addScriptTag({ content: options.utilSource || utilSource });
     await page.evaluate(() => {
@@ -151,6 +163,9 @@ async function mountSelectionHarness(page, options = {}) {
       window.llToolsFlashcardsData.imageSize = 'small';
     });
     await page.addScriptTag({ content: cardsSource });
+  }
+  if (options.realOptionConflicts) {
+    await page.addScriptTag({ content: optionConflictsSource });
   }
   await page.addScriptTag({ content: selectionSource });
 }
@@ -325,7 +340,6 @@ async function mountPracticeExposureHarness(page, options = {}) {
         showResults: noop
       },
       StateMachine: {},
-      ModeConfig: {},
       Modes: {},
       ProgressTracker: {
         trackWordExposure: noop,
@@ -2049,6 +2063,43 @@ test('practice options never include duplicate images', async ({ page }) => {
   expect(picked.some((row) => row.id === 303)).toBe(false);
 });
 
+test('picture blocks exclude identical uploads from explicit and fallback answers only in the blocked recordings', async ({ page }) => {
+  const category = 'Picture blocks';
+  const sharedFingerprint = 'sha256:' + 'a'.repeat(64);
+  const target = {
+    id: 251, title: 'Spoon', image: 'https://img.test/spoon.webp',
+    option_blocked_image_keys: { isolation: ['attachment:2', sharedFingerprint] },
+    specific_wrong_answer_ids: [252]
+  };
+  const identicalUpload = {
+    id: 252, title: 'Water alias', image: 'https://img.test/copy.webp',
+    option_image_keys: ['attachment:8', sharedFingerprint]
+  };
+  const distinct = {
+    id: 253, title: 'Coat', image: 'https://img.test/coat.webp',
+    option_image_keys: ['attachment:9'],
+    option_blocked_ids: [251]
+  };
+  await mountSelectionHarness(page, {
+    realOptionConflicts: true,
+    categories: [{ name: category, prompt_type: 'audio', option_type: 'image' }],
+    targetCategoryName: category,
+    wordsByCategory: { [category]: [target, identicalUpload, distinct] }
+  });
+  const picked = await page.evaluate(({ category, target }) => {
+    const render = (recordingType) => {
+      document.querySelector('#ll-tools-flashcard').replaceChildren();
+      window.LLFlashcards.Selection.fillQuizOptions({
+        ...target, __categoryName: category, __promptRecordingType: recordingType
+      });
+      return Array.from(document.querySelectorAll('.flashcard-container'), el => Number(el.dataset.wordId));
+    };
+    return { isolation: render('isolation'), introduction: render('introduction') };
+  }, { category, target });
+  expect(picked.isolation).toEqual([251, 253]);
+  expect(picked.introduction).toEqual([251, 252]);
+});
+
 test('specific wrong-answer list overrides normal distractors', async ({ page }) => {
   const category = 'Override category';
   const targetWord = {
@@ -2478,6 +2529,56 @@ test('falls back to category distractors when specific wrong-answer IDs are brok
   }, targetWord);
 
   expect(pickedIds).toEqual([701, 702]);
+});
+
+test('learning hides the category clue for mixed rendered options and restores it for introductions and same-category choices', async ({ page }) => {
+  const animals = [
+    { id: 9101, title: 'Dog', image: 'dog.jpg', __categoryName: 'Animals' },
+    { id: 9102, title: 'Cat', image: 'cat.jpg', __categoryName: 'Animals' }
+  ];
+  const foods = [
+    { id: 9103, title: 'Apple', image: 'apple.jpg', __categoryName: 'Foods' }
+  ];
+  await mountSelectionHarness(page, {
+    realDom: true,
+    categories: [
+      { name: 'Animals', prompt_type: 'audio', option_type: 'image' },
+      { name: 'Foods', prompt_type: 'audio', option_type: 'image' }
+    ],
+    targetCategoryName: 'Animals',
+    desiredCount: 3,
+    wordsByCategory: { Animals: animals, Foods: foods },
+    state: { isLearningMode: true, introducedWordIDs: [9101, 9102, 9103] }
+  });
+
+  const pickedIds = await page.evaluate(async () => {
+    // Progress-page launches can supply a generic session label. It must not
+    // make the concrete prompt category visible for mixed answer choices.
+    window.llToolsFlashcardsData.categoryDisplayOverride = 'Hard words';
+    const api = window.LLFlashcards;
+    api.Dom.updateCategoryNameDisplay('Animals');
+    await api.Selection.fillQuizOptions(api.State.wordsByCategory.Animals[0]);
+    api.Dom.restoreHeaderUI();
+    return Array.from(document.querySelectorAll('#ll-tools-flashcard .flashcard-container'))
+      .map((el) => Number(el.getAttribute('data-word-id')));
+  });
+  expect(pickedIds).toEqual([9101, 9102, 9103]);
+  await expect(page.locator('#ll-tools-category-display')).toBeHidden();
+  await expect(page.locator('#ll-tools-category-display')).toHaveText('');
+
+  await page.evaluate(() => window.LLFlashcards.Dom.updateCategoryNameDisplay('Foods'));
+  await expect(page.locator('#ll-tools-category-display')).toBeVisible();
+  await expect(page.locator('#ll-tools-category-display')).toHaveText('Foods');
+
+  await page.evaluate(async () => {
+    const api = window.LLFlashcards;
+    api.State.introducedWordIDs = [9101, 9102];
+    window.jQuery('#ll-tools-flashcard').empty();
+    await api.Selection.fillQuizOptions(api.State.wordsByCategory.Animals[0]);
+  });
+  await expect(page.locator('#ll-tools-flashcard .flashcard-container')).toHaveCount(2);
+  await expect(page.locator('#ll-tools-category-display')).toBeVisible();
+  await expect(page.locator('#ll-tools-category-display')).toHaveText('Animals');
 });
 
 test('learning mode matches introduced IDs even when word payload IDs are strings', async ({ page }) => {

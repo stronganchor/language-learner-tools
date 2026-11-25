@@ -3,6 +3,7 @@
 if (!defined('WPINC')) { die; }
 
 require_once __DIR__ . '/../legacy-content-lesson-contracts.php';
+require_once __DIR__ . '/../content-lesson-cloze.php';
 
 if (!defined('LL_TOOLS_CONTENT_LESSON_WORDSET_META')) {
     define('LL_TOOLS_CONTENT_LESSON_WORDSET_META', '_ll_tools_content_lesson_wordset_id');
@@ -123,6 +124,7 @@ function ll_tools_content_lesson_kind_options(): array {
     return [
         'standard' => __('Audio/video lesson', 'll-tools-text-domain'),
         'article' => __('Article lesson', 'll-tools-text-domain'),
+        'cloze' => __('Fill in the blanks', 'll-tools-text-domain'),
         'corpus_text' => __('Corpus text', 'll-tools-text-domain'),
     ];
 }
@@ -1962,6 +1964,7 @@ function ll_tools_render_content_lesson_metabox($post): void {
                     </p>
                 </td>
             </tr>
+            <?php ll_tools_cloze_admin_field((int) $post->ID); ?>
             <tr data-ll-content-lesson-media-setting>
                 <th scope="row">
                     <label for="ll-content-lesson-media-type"><?php esc_html_e('Media type', 'll-tools-text-domain'); ?></label>
@@ -2196,7 +2199,7 @@ function ll_tools_save_content_lesson_metabox($post_id, $post): void {
     $transcript_source = isset($_POST['ll_content_lesson_transcript_source'])
         ? ll_tools_content_lesson_sanitize_source_text(wp_unslash((string) $_POST['ll_content_lesson_transcript_source']))
         : '';
-    if ($lesson_kind === 'article') {
+    if (in_array($lesson_kind, ['article', 'cloze'], true)) {
         $media_url = '';
         $transcript_source = '';
     }
@@ -2296,6 +2299,11 @@ function ll_tools_save_content_lesson_metabox($post_id, $post): void {
         update_post_meta($post_id, LL_TOOLS_CONTENT_LESSON_KIND_META, $lesson_kind);
     } else {
         delete_post_meta($post_id, LL_TOOLS_CONTENT_LESSON_KIND_META);
+    }
+
+    if ($lesson_kind === 'cloze') {
+        ll_tools_cloze_save_metabox((int) $post_id);
+        $category_ids = [];
     }
 
     update_post_meta($post_id, LL_TOOLS_CONTENT_LESSON_MEDIA_TYPE_META, $media_type);

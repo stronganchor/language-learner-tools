@@ -49,6 +49,42 @@ final class WordTextCanonicalFieldsTest extends LL_Tools_TestCase
         $this->assertSame('Turkish helper', (string) ($game_texts['translation_text'] ?? ''));
     }
 
+    public function test_translation_title_falls_back_without_a_default_locale_only_for_legacy_words(): void
+    {
+        $wordset_id = $this->createTerm('wordset', 'Legacy Translation Titles', 'legacy-translation-titles');
+        update_term_meta($wordset_id, LL_TOOLS_WORDSET_WORD_TITLE_LANGUAGE_ROLE_META_KEY, 'translation');
+        update_term_meta($wordset_id, LL_TOOLS_WORDSET_TRANSLATION_LANGUAGE_META_KEY, '');
+
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Slippery',
+        ]);
+        wp_set_post_terms($word_id, [$wordset_id], 'wordset', false);
+        update_post_meta($word_id, 'word_translation', 'Gij');
+
+        $legacy = ll_tools_get_word_text_parts($word_id);
+        $this->assertSame('', $legacy['default_translation_locale']);
+        $this->assertSame('Gij', $legacy['target_text']);
+        $this->assertSame('Slippery', $legacy['translation_text']);
+
+        $display_map = ll_tools_get_word_display_text_map([$word_id]);
+        $this->assertSame('Gij', $display_map[$word_id]['word_text']);
+        $this->assertSame('Slippery', $display_map[$word_id]['translation_text']);
+
+        $canonical_only = ll_tools_get_word_text_parts($word_id, null, false);
+        $this->assertSame('', $canonical_only['target_text']);
+        $this->assertSame('', $canonical_only['translation_text']);
+
+        update_post_meta($word_id, LL_TOOLS_WORD_TARGET_TEXT_META_KEY, 'Gij');
+        $canonical = ll_tools_get_word_text_parts($word_id);
+        $this->assertSame('Gij', $canonical['target_text']);
+        $this->assertSame('', $canonical['translation_text']);
+
+        update_post_meta($word_id, LL_TOOLS_WORD_TRANSLATIONS_META_KEY, ['en' => 'English helper']);
+        $this->assertSame('English helper', ll_tools_get_word_text_parts($word_id, 'en', false)['translation_text']);
+    }
+
     public function test_canonical_writers_do_not_swap_target_and_default_translation(): void
     {
         $wordset_id = $this->createTerm('wordset', 'Canonical Writer Wordset', 'canonical-writer-wordset');

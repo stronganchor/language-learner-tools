@@ -8,7 +8,9 @@ if (!defined('WPINC')) { die; }
  */
 $embed_category = get_query_var('embed_category');
 $wordset = isset($_GET['wordset']) ? sanitize_text_field($_GET['wordset']) : '';
-$mode = isset($_GET['mode']) ? sanitize_text_field($_GET['mode']) : 'practice';
+$mode = isset($_GET['mode']) && is_string($_GET['mode']) ? sanitize_key($_GET['mode']) : 'practice';
+$lesson_requested = array_key_exists('lesson_id', $_GET);
+$lesson_id = $lesson_requested && is_scalar($_GET['lesson_id']) && preg_match('/^[1-9][0-9]{0,9}$/D', (string) $_GET['lesson_id']) ? (int) $_GET['lesson_id'] : 0;
 
 $embed_context = function_exists('ll_tools_resolve_embed_quiz_context')
     ? ll_tools_resolve_embed_quiz_context((string) $embed_category, (string) $wordset)
@@ -26,6 +28,17 @@ $term = (isset($embed_context['term']) && $embed_context['term'] instanceof WP_T
     ? $embed_context['term']
     : null;
 $term_is_accessible = $term && !is_wp_error($term) && (!function_exists('ll_tools_user_can_view_category') || ll_tools_user_can_view_category($term));
+if ($lesson_requested) {
+    $term_is_accessible = $term_is_accessible && $lesson_id > 0 && $wordset_term instanceof WP_Term
+        && ll_tools_vocab_lesson_activity_context_is_accessible($lesson_id, (int) $term->term_id, (int) $wordset_term->term_id);
+    if ($term_is_accessible) {
+        $lesson_available_modes = ll_tools_get_vocab_lesson_available_modes($lesson_id);
+        if (!in_array($mode, $lesson_available_modes, true)) {
+            $mode = (string) ($lesson_available_modes[0] ?? '');
+        }
+        $term_is_accessible = $mode !== '';
+    }
+}
 $term = $term_is_accessible ? $term : null;
 $site_name = trim(wp_strip_all_tags((string) get_bloginfo('name')));
 $viewport_content = function_exists('ll_tools_get_locked_viewport_content')
@@ -102,6 +115,7 @@ if ($term && !is_wp_error($term)) {
             if (!empty($mode) && in_array($mode, ['practice', 'learning', 'self-check', 'gender', 'listening'], true)) {
                 $shortcode .= ' quiz_mode="' . esc_attr($mode) . '"';
             }
+            if ($lesson_requested) { $shortcode .= ' lesson_id="' . esc_attr((string) $lesson_id) . '"'; }
             $shortcode .= ']';
             echo do_shortcode($shortcode);
         } else {

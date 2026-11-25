@@ -46,6 +46,8 @@
     }
     function failure(error, retry) {
         setBusy(false);
+        // Until the saved state is known, only the recovery action is safe.
+        content.querySelectorAll('button,input').forEach((el) => { el.disabled = true; });
         status.textContent = error && error.message ? error.message : messages.failed;
         const recovery = document.createElement('div');
         recovery.className = 'll-assignment-player__recovery';

@@ -162,7 +162,7 @@ test('wordset manager export exposes retry after a resumable request failure', a
   await page.addScriptTag({ path: scriptPath });
 
   await expect(page.locator('[data-ll-wordset-offline-export-phase]')).toHaveText('Offline app export paused');
-  await expect(page.locator('[data-ll-wordset-offline-export-error]')).toHaveText('Temporary network failure.');
+  await expect(page.locator('[data-ll-wordset-offline-export-error]')).toHaveText('Resume from the last batch.');
   await expect(page.getByRole('button', { name: 'Resume export' })).toBeVisible();
 
   await page.getByRole('button', { name: 'Resume export' }).click();
