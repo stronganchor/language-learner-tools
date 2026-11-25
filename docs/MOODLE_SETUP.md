@@ -159,3 +159,12 @@ setup ticket, persistent student link and course admission.
 provenance is documented in [the dependency guide](../dependencies/lti/README.md).
 The WordPress integration tests are `LtiFoundationTest`, `LtiAccountsTest`,
 `LmsAssignmentExperienceTest` and the shared LMS/privacy suites.
+
+On November 25, 2026 we tested Moodle 5.1.7 and WordPress 6.8.3 on different
+HTTPS sites. A teacher used a public wordset managed by another person and
+configured both activities from Moodle. A student linked a Wordboat account,
+reopened practice in Moodle's new window, and answered a practice question.
+Wordboat saved the practice events to the same account. The graded assignment
+produced 100/100, which the student could see in Moodle's own gradebook after
+the Wordboat delivery worker ran. The version-specific fixture and reproduction
+steps are in [the Moodle interoperability test](../tests/interop/moodle/README.md).

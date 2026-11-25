@@ -2100,6 +2100,70 @@ test('picture blocks exclude identical uploads from explicit and fallback answer
   expect(picked.introduction).toEqual([251, 252]);
 });
 
+test('only the active ambiguous recording blocks the opposite answer and copies of its picture', async ({ page }) => {
+  const category = 'Family';
+  const digest = 'sha256:' + '1'.repeat(64);
+  const grandmother = {
+    id: 240, title: 'Pirık', image: 'https://img.test/grandmother.webp',
+    specific_wrong_answer_ids: [241, 242],
+    audio_files: [
+      {
+        recording_type: 'isolation', speaker_user_id: 1, url: 'https://audio.test/pirik.mp3',
+        recording_text: 'Pirık', option_blocked_ids: [241], option_blocked_image_keys: [digest]
+      },
+      {
+        recording_type: 'isolation', speaker_user_id: 2, url: 'https://audio.test/pirika.mp3',
+        recording_text: 'Pirıka'
+      },
+      {
+        recording_type: 'introduction', speaker_user_id: 1, url: 'https://audio.test/grandmother-phrase.mp3',
+        recording_text: 'Êya pirıkê mına.'
+      }
+    ]
+  };
+  const grandfather = {
+    id: 241, title: 'Piro', image: 'https://img.test/grandfather.webp',
+    specific_wrong_answer_ids: [240],
+    audio_files: [{ recording_type: 'isolation', url: 'https://audio.test/piro.mp3', recording_text: 'Piro' }]
+  };
+  const imageCopy = {
+    id: 242, title: 'An elder', image: 'https://img.test/elder.webp', option_image_keys: [digest]
+  };
+  const reserve = { id: 243, title: 'Child', image: 'https://img.test/child.webp', option_blocked_ids: [240] };
+  await mountSelectionHarness(page, {
+    realOptionConflicts: true,
+    categories: [{ name: category, prompt_type: 'audio', option_type: 'image' }],
+    targetCategoryName: category,
+    wordsByCategory: { [category]: [grandmother, grandfather, imageCopy, reserve] }
+  });
+  await page.addScriptTag({ content: practiceSource });
+  const rounds = await page.evaluate(({ category, grandmother, grandfather }) => {
+    window.llToolsFlashcardsData.isUserLoggedIn = true;
+    const render = (word, speaker, exposures) => {
+      document.querySelector('#ll-tools-flashcard').replaceChildren();
+      const target = {
+        ...word, __categoryName: category, preferred_speaker_user_id: speaker, practice_exposure_count: exposures
+      };
+      window.LLFlashcards.Modes.Practice.configureTargetAudio(target);
+      window.LLFlashcards.Selection.fillQuizOptions(target);
+      return {
+        audio: target.__runtimePromptAudio,
+        ids: Array.from(document.querySelectorAll('.flashcard-container'), el => Number(el.dataset.wordId))
+      };
+    };
+    return {
+      bare: render(grandmother, 1, 0),
+      sameType: render(grandmother, 2, 0),
+      phrase: render(grandmother, 1, 1),
+      reverse: render(grandfather, 1, 0)
+    };
+  }, { category, grandmother, grandfather });
+  expect(rounds.bare).toEqual({ audio: 'https://audio.test/pirik.mp3', ids: [240, 243] });
+  expect(rounds.sameType).toEqual({ audio: 'https://audio.test/pirika.mp3', ids: [240, 241, 242] });
+  expect(rounds.phrase).toEqual({ audio: 'https://audio.test/grandmother-phrase.mp3', ids: [240, 241, 242] });
+  expect(rounds.reverse).toEqual({ audio: 'https://audio.test/piro.mp3', ids: [241, 240] });
+});
+
 test('specific wrong-answer list overrides normal distractors', async ({ page }) => {
   const category = 'Override category';
   const targetWord = {

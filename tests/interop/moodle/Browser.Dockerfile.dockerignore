@@ -1,0 +1,11 @@
+**
+!tests/
+!tests/interop/
+!tests/interop/moodle/
+!tests/interop/moodle/browser-boot.sh
+!tests/e2e/
+!tests/e2e/node_modules/
+!tests/e2e/node_modules/playwright/**
+!tests/e2e/node_modules/playwright-core/**
+!tests/e2e/node_modules/@playwright/
+!tests/e2e/node_modules/@playwright/test/**

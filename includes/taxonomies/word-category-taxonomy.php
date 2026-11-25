@@ -10072,6 +10072,16 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
         }
         return $image_keys_by_word[$blocked_id];
     };
+    $blocked_option_image_keys = static function (array $blocked_ids) use ($blocked_word_image_keys, &$sources_complete, $wpdb): array {
+        $keys = [];
+        foreach ($blocked_ids as $blocked_id) {
+            foreach ($blocked_word_image_keys($blocked_id) as $image_key) {
+                $keys[$image_key] = true;
+            }
+            $sources_complete = $sources_complete && $wpdb->last_error === '';
+        }
+        return array_keys($keys);
+    };
 
     $build_word_row = function (int $word_id) use (
         $display_text_by_word,
@@ -10093,7 +10103,8 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
         $prompt_text_type,
         $images_required,
         $include_option_image_keys,
-        $blocked_word_image_keys,
+        $blocked_option_image_keys,
+        $merge_positive_ids,
         $eligibility_projection,
         &$image_keys_by_word,
         &$legacy_image_lookups_remaining,
@@ -10189,6 +10200,15 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
                 $recording_types = ['unknown'];
             }
 
+            // A recording's exclusions apply only when this exact audio is the prompt.
+            $option_blocked_ids = array_values(array_diff(
+                $merge_positive_ids(get_post_meta($audio_post->ID, '_ll_quiz_blocked_option_word_ids', true)),
+                [$word_id]
+            ));
+            $option_blocked_image_keys = $include_option_image_keys
+                ? $blocked_option_image_keys($option_blocked_ids)
+                : [];
+
             foreach ($recording_types as $recording_type) {
                 $recording_type = sanitize_key((string) $recording_type);
                 if ($recording_type === '') {
@@ -10207,6 +10227,12 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
                     'recording_text' => $entry_text,
                     'recording_translation' => $recording_translation,
                 ];
+                if ($option_blocked_ids) {
+                    $audio_entry['option_blocked_ids'] = $option_blocked_ids;
+                }
+                if ($option_blocked_image_keys) {
+                    $audio_entry['option_blocked_image_keys'] = $option_blocked_image_keys;
+                }
                 foreach ($audio_attribution as $field_key => $field_value) {
                     $field_value = trim((string) $field_value);
                     if ($field_value !== '') {
@@ -10460,15 +10486,9 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
             $word_data['option_blocked_image_keys'] = [];
             $blocks_by_type = ['' => $blocked_map[$word_id] ?? []] + ($blocked_map_by_recording_type[$word_id] ?? []);
             foreach ($blocks_by_type as $recording_type => $blocked_ids) {
-                $type_keys = [];
-                foreach ($blocked_ids as $blocked_id) {
-                    foreach ($blocked_word_image_keys($blocked_id) as $image_key) {
-                        $type_keys[$image_key] = true;
-                    }
-                    $sources_complete = $sources_complete && $wpdb->last_error === '';
-                }
+                $type_keys = $blocked_option_image_keys($blocked_ids);
                 if ($type_keys) {
-                    $word_data['option_blocked_image_keys'][$recording_type] = array_keys($type_keys);
+                    $word_data['option_blocked_image_keys'][$recording_type] = $type_keys;
                 }
             }
             $sources_complete = $sources_complete && $wpdb->last_error === '';

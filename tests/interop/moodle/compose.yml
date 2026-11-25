@@ -1,0 +1,49 @@
+name: ll-tools-real-moodle-20261125
+services:
+  db:
+    image: mariadb:10.11
+    environment:
+      MARIADB_ALLOW_EMPTY_ROOT_PASSWORD: '1'
+    volumes:
+      - database:/var/lib/mysql
+    networks: [interop]
+  web:
+    build: .
+    depends_on: [db]
+    environment:
+      APACHE_DOCUMENT_ROOT: /var/www/moodle/public
+    volumes:
+      - pluginruntime:/var/www/wordboat/wp-content/plugins/language-learner-tools
+      - ../../../_codex_temp/moodle-real-20261125/plugin-runtime.tar:/seed/plugin-runtime.tar:ro
+      - .:/harness:ro
+      - private:/private
+      - moodledata:/var/www/moodledata
+      - wordpressdata:/var/www/wordboat/wp-content/uploads
+      - ../../../_codex_temp/moodle-real-20261125:/evidence
+    networks:
+      interop:
+        ipv4_address: 198.51.100.10
+        aliases:
+          - moodle.lti-interop.example.org
+          - wordboat.lti-interop.example.net
+  browser:
+    build:
+      context: ../../..
+      dockerfile: tests/interop/moodle/Browser.Dockerfile
+    profiles: [browser]
+    volumes:
+      - .:/harness:ro
+      - private:/private:ro
+      - ../../../_codex_temp/moodle-real-20261125:/evidence
+    networks: [interop]
+volumes:
+  private:
+  database:
+  moodledata:
+  wordpressdata:
+  pluginruntime:
+networks:
+  interop:
+    ipam:
+      config:
+        - subnet: 198.51.100.0/24

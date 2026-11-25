@@ -587,6 +587,7 @@ async function mountReloadableStaleSearchPage(page, options = {}) {
   let documentLoads = 0;
   const documentUrls = [];
   const documentTokens = [];
+  const backgroundRecoveryUrls = [];
 
   await page.route('https://wordset-search-recovery.test/**', async (route) => {
     const requestUrl = new URL(route.request().url());
@@ -604,11 +605,28 @@ async function mountReloadableStaleSearchPage(page, options = {}) {
       return;
     }
 
-    documentLoads += 1;
-    documentUrls.push(pathname + requestUrl.search);
     const config = buildConfig();
     const isRecoveryRequest = requestUrl.searchParams.get('ll_category_search_recovery') === '1';
     config.categorySearch.token = isRecoveryRequest ? 'fresh-search-token' : 'stale-search-token';
+    config.categorySearch.nonce = isRecoveryRequest ? 'fresh-search-nonce' : 'stale-search-nonce';
+    if (!route.request().isNavigationRequest()) {
+      backgroundRecoveryUrls.push(pathname + requestUrl.search);
+      if (options.backgroundRecoveryGate) {
+        await options.backgroundRecoveryGate;
+      }
+      const { wordsetId, nonce, token } = config.categorySearch;
+      await route.fulfill({
+        status: 200,
+        contentType: 'text/html',
+        body: isRecoveryRequest && options.supportsBackgroundRecovery
+          ? `<script type="application/json" data-ll-wordset-page-search-credentials>${JSON.stringify({ wordsetId, nonce, token })}</script>`
+          : '<p>Missing refresh credentials</p>'
+      });
+      return;
+    }
+
+    documentLoads += 1;
+    documentUrls.push(pathname + requestUrl.search);
     documentTokens.push(config.categorySearch.token);
     await route.fulfill({
       status: 200,
@@ -642,9 +660,9 @@ async function mountReloadableStaleSearchPage(page, options = {}) {
                 queries.push(String(data.query || ''));
                 window.sessionStorage.setItem('__staleSearchQueries', JSON.stringify(queries));
                 window.setTimeout(function () {
-                  if (String(data.token || '') !== 'fresh-search-token' || ${persistentFreshFailure ? 'true' : 'false'}) {
+                  if (data.token !== 'fresh-search-token' || data.nonce !== 'fresh-search-nonce' || ${persistentFreshFailure ? 'true' : 'false'}) {
                     deferred.reject({
-                      status: 410,
+                      status: ${options.staleStatus || 410},
                       responseJSON: { success: false, data: { message: 'Expired search scope' } },
                       getResponseHeader: function () { return null; }
                     }, 'error');
@@ -672,7 +690,8 @@ async function mountReloadableStaleSearchPage(page, options = {}) {
   return {
     documentLoads: () => documentLoads,
     documentUrls: () => documentUrls.slice(),
-    documentTokens: () => documentTokens.slice()
+    documentTokens: () => documentTokens.slice(),
+    backgroundRecoveryUrls: () => backgroundRecoveryUrls.slice()
   };
 }
 
@@ -692,7 +711,7 @@ async function mountStorageUnavailableStaleSearchPage(page) {
       await route.fulfill({ status: 200, contentType: 'application/javascript', body: wordsetScriptSource });
       return;
     }
-    if (pathname !== '/genc/') {
+    if (pathname !== '/genc/' || !route.request().isNavigationRequest()) {
       await route.fulfill({ status: 404, body: 'Not found' });
       return;
     }
@@ -1071,6 +1090,100 @@ test('main wordset search does not automatically repeat a deterministic client f
     (window.__categorySearchRequests || []).filter((request) => request.query === 'denied').length
   ))).toBe(2);
   await expect(errorState).toBeHidden();
+});
+
+for (const staleStatus of [403, 410]) {
+  test(`main wordset search automatically renews credentials after ${staleStatus} without reloading`, async ({ page }) => {
+    const initialUrl = 'https://wordset-search-recovery.test/genc/?view=compact';
+    const recovery = await mountReloadableStaleSearchPage(page, {
+      pageUrl: initialUrl,
+      staleStatus,
+      supportsBackgroundRecovery: true
+    });
+
+    const searchInput = page.locator('[data-ll-wordset-page-search]');
+    await searchInput.fill('qalem');
+
+    await expect.poll(recovery.backgroundRecoveryUrls).toEqual(['/genc/?ll_category_search_recovery=1']);
+    await expect(page.locator('.ll-wordset-card[data-cat-id="11"] [data-ll-wordset-search-match]')).toContainText('qalem');
+    await expect(page.locator('[data-ll-wordset-page-search-error]')).toBeHidden();
+    await expect(searchInput).toHaveValue('qalem');
+    await expect(searchInput).toBeFocused();
+    await expect(page).toHaveURL(initialUrl);
+    expect(recovery.documentLoads()).toBe(1);
+    expect(await page.evaluate(() => JSON.parse(window.sessionStorage.getItem('__staleSearchQueries')))).toEqual(['qalem', 'qalem']);
+  });
+}
+
+test('main wordset search stops automatic credential renewal if the replay still fails', async ({ page }) => {
+  const recovery = await mountReloadableStaleSearchPage(page, {
+    persistentFreshFailure: true,
+    supportsBackgroundRecovery: true
+  });
+
+  await setSearchValue(page, 'qalem');
+
+  await expect(page.locator('[data-ll-wordset-page-search-error]')).toBeVisible();
+  await expect(page.locator('[data-ll-wordset-page-search-retry]')).toBeVisible();
+  expect(recovery.backgroundRecoveryUrls()).toEqual(['/genc/?ll_category_search_recovery=1']);
+  expect(recovery.documentLoads()).toBe(1);
+  expect(await page.evaluate(() => JSON.parse(window.sessionStorage.getItem('__staleSearchQueries')))).toEqual(['qalem', 'qalem']);
+});
+
+test('main wordset search uses pending credential renewal for the latest query', async ({ page }) => {
+  let releaseRecovery;
+  const backgroundRecoveryGate = new Promise((resolve) => {
+    releaseRecovery = resolve;
+  });
+  const recovery = await mountReloadableStaleSearchPage(page, {
+    backgroundRecoveryGate,
+    supportsBackgroundRecovery: true
+  });
+
+  try {
+    await setSearchValue(page, 'stale query');
+    await expect.poll(recovery.backgroundRecoveryUrls).toEqual(['/genc/?ll_category_search_recovery=1']);
+    await setSearchValue(page, 'qalem');
+  } finally {
+    releaseRecovery();
+  }
+
+  await expect(page.locator('.ll-wordset-card[data-cat-id="11"] [data-ll-wordset-search-match]')).toContainText('qalem');
+  await expect(page.locator('[data-ll-wordset-page-search-error]')).toBeHidden();
+  await expect(page.locator('[data-ll-wordset-page-search]')).toHaveValue('qalem');
+  expect(recovery.backgroundRecoveryUrls()).toEqual(['/genc/?ll_category_search_recovery=1']);
+  expect(recovery.documentLoads()).toBe(1);
+  expect(await page.evaluate(() => JSON.parse(window.sessionStorage.getItem('__staleSearchQueries')))).toEqual(['stale query', 'qalem']);
+});
+
+test('main wordset search aborts credential renewal when the query is cleared', async ({ page }) => {
+  let releaseRecovery;
+  const backgroundRecoveryGate = new Promise((resolve) => {
+    releaseRecovery = resolve;
+  });
+  const recovery = await mountReloadableStaleSearchPage(page, {
+    backgroundRecoveryGate,
+    supportsBackgroundRecovery: true
+  });
+  const searchInput = page.locator('[data-ll-wordset-page-search]');
+
+  try {
+    await searchInput.fill('qalem');
+    await expect.poll(recovery.backgroundRecoveryUrls).toEqual(['/genc/?ll_category_search_recovery=1']);
+    const abortedRecovery = page.waitForEvent('requestfailed', {
+      predicate: (request) => request.url().endsWith('?ll_category_search_recovery=1'),
+      timeout: 5000
+    });
+    await page.locator('[data-ll-wordset-page-search-clear]').click();
+    await abortedRecovery;
+  } finally {
+    releaseRecovery();
+  }
+
+  await expect(searchInput).toHaveValue('');
+  await expect(page.locator('[data-ll-wordset-page-search-error]')).toBeHidden();
+  expect(recovery.documentLoads()).toBe(1);
+  expect(await page.evaluate(() => JSON.parse(window.sessionStorage.getItem('__staleSearchQueries')))).toEqual(['qalem']);
 });
 
 test('main wordset search reloads stale credentials once, restores the query, and fences a persistent 410', async ({ page }) => {

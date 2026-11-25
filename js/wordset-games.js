@@ -766,7 +766,9 @@
                     url: String(file.url || ''),
                     recording_type: normalizeRecordingType(file.recording_type || ''),
                     speaker_user_id: toInt(file.speaker_user_id),
-                    recording_text: String(file.recording_text || '')
+                    recording_text: String(file.recording_text || ''),
+                    option_blocked_ids: uniqueIntList(file.option_blocked_ids || []),
+                    option_blocked_image_keys: Array.isArray(file.option_blocked_image_keys) ? file.option_blocked_image_keys : []
                 };
             });
     }
@@ -3610,10 +3612,22 @@
         });
     }
 
+    function getPromptOptionPool(targetWord, words, promptAudio) {
+        const conflicts = getOptionConflicts();
+        if (typeof conflicts.findPromptAudioEntry !== 'function') return words;
+        const entry = conflicts.findPromptAudioEntry(targetWord, promptAudio.url, promptAudio.recordingType);
+        if (!entry || (!entry.option_blocked_ids.length && !entry.option_blocked_image_keys.length)) return words;
+        return words.filter(function (word) {
+            return !conflicts.promptAudioBlocksOption(entry, word, true);
+        });
+    }
+
     function findPlayableTargets(words, cardCount) {
         return (Array.isArray(words) ? words : []).filter(function (word) {
             return getGamePromptRecordingTypes(word).some(function (recordingType) {
-                return !!selectCompatiblePromptWords(word, words, cardCount, 'mixed', recordingType);
+                const promptAudio = selectPromptAudio(word, [recordingType]);
+                const optionPool = getPromptOptionPool(word, words, promptAudio);
+                return !!selectCompatiblePromptWords(word, optionPool, cardCount, 'mixed', recordingType);
             });
         });
     }
@@ -5351,8 +5365,9 @@
             const promptAudio = selectPromptAudio(targetWord, [type]);
             if (!promptAudio.url) continue;
             const recordingType = promptAudio.recordingType;
-            const distractorMode = selectDistractorStrategy(run, targetWord, run.words, recordingType);
-            const cards = buildPromptCards(ctx, run, targetWord, run.words, promptId, distractorMode, recordingType);
+            const optionPool = getPromptOptionPool(targetWord, run.words, promptAudio);
+            const distractorMode = selectDistractorStrategy(run, targetWord, optionPool, recordingType);
+            const cards = buildPromptCards(ctx, run, targetWord, optionPool, promptId, distractorMode, recordingType);
             if (cards) {
                 return {
                     target: targetWord,

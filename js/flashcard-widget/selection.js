@@ -1635,6 +1635,13 @@
         }
     }
 
+    function getPromptAudioUrl(word) {
+        if (Util && typeof Util.getPromptAudioUrl === 'function') {
+            return Util.getPromptAudioUrl(word);
+        }
+        return String((word && (word.__runtimePromptAudio || word.prompt_audio || word.audio)) || '').trim();
+    }
+
     function renderPrompt(targetWord, cfg) {
         const promptConfig = cfg || getCategoryConfig(State.currentCategoryName);
         const categoryName = getTargetCategoryName(targetWord) || State.currentCategoryName;
@@ -1691,9 +1698,7 @@
             return;
         }
         const labelText = showText ? getPromptTextValue(targetWord, promptType) : '';
-        const promptAudioUrl = (Util && typeof Util.getPromptAudioUrl === 'function')
-            ? Util.getPromptAudioUrl(targetWord)
-            : String((targetWord && targetWord.audio) || '').trim();
+        const promptAudioUrl = getPromptAudioUrl(targetWord);
         const promptImageUrl = (Util && typeof Util.getPromptImageUrl === 'function')
             ? Util.getPromptImageUrl(targetWord)
             : String((targetWord && targetWord.image) || '').trim();
@@ -2257,6 +2262,11 @@
         const activePromptRecordingType = normalizeRecordingTypeKey(
             targetWord && (targetWord.__promptRecordingType || targetWord.__practiceRecordingType)
         );
+        const activePromptAudio = promptTypeHasAudio(promptType) && OptionConflicts
+            && typeof OptionConflicts.findPromptAudioEntry === 'function'
+            ? OptionConflicts.findPromptAudioEntry(targetWord, getPromptAudioUrl(targetWord), activePromptRecordingType)
+            : null;
+        const imageOptions = optionTypeHasImage(mode);
         renderPrompt(targetWord, config);
 
         const isAudioLineLayout = promptTypeHasImage(promptType) && (mode === 'audio' || mode === 'text_audio');
@@ -2424,9 +2434,13 @@
             });
             if (isDup) return false;
 
+            if (activePromptAudio && OptionConflicts.promptAudioBlocksOption(activePromptAudio, candidate, imageOptions)) {
+                return false;
+            }
+
             // A saved picture block still applies when other constraints are relaxed.
             if (
-                optionTypeHasImage(mode) && OptionConflicts
+                imageOptions && OptionConflicts
                 && typeof OptionConflicts.wordsHaveBlockedOptionImages === 'function'
                 && chosen.some(function (word) {
                     return OptionConflicts.wordsHaveBlockedOptionImages(word, candidate, activePromptRecordingType);

@@ -137,6 +137,54 @@ final class WordOptionManualRecordingTypeBlockingTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_recording_option_blocks_follow_only_the_configured_audio(): void
+    {
+        $fixture = $this->createFixture();
+        $target = $fixture['word_a'];
+        $blocked = $fixture['word_b'];
+        $recording = $this->createAudio($target, 'isolation', 'ambiguous', 'https://audio.test/ambiguous.mp3');
+        $this->createAudio($target, 'isolation', 'explicit', 'https://audio.test/explicit.mp3');
+        $image_file = ABSPATH . WPINC . '/images/rss.png';
+        $blocked_image = self::factory()->attachment->create_upload_object($image_file);
+        set_post_thumbnail($blocked, $blocked_image);
+        set_post_thumbnail($target, self::factory()->attachment->create_upload_object(ABSPATH . WPINC . '/images/w-logo-blue.png'));
+
+        $config = [
+            'prompt_type' => 'audio',
+            'option_type' => 'image',
+            '__candidate_word_ids' => [$target],
+            '__skip_image_similarity_pairs' => true,
+        ];
+        $get_rows = function () use ($fixture, $config): array {
+            return $this->indexRowsById(ll_get_words_by_category(
+                (string) $fixture['category_id'], 'image', [$fixture['wordset_id']], $config
+            ));
+        };
+
+        $before = array_column($get_rows()[$target]['audio_files'], null, 'url');
+        $this->assertArrayNotHasKey('option_blocked_ids', $before['https://audio.test/ambiguous.mp3']);
+        $this->completeLlToolsSimulatedRequest();
+
+        update_post_meta($recording, '_ll_quiz_blocked_option_word_ids', [$target, $blocked, $blocked, 0]);
+        $this->completeLlToolsSimulatedRequest();
+        $rows = $get_rows();
+        $this->assertArrayNotHasKey($blocked, $rows);
+        $this->assertSame([], $rows[$target]['option_blocked_ids']);
+        $audio = array_column($rows[$target]['audio_files'], null, 'url');
+        $this->assertSame([$blocked], $audio['https://audio.test/ambiguous.mp3']['option_blocked_ids']);
+        $this->assertEqualsCanonicalizing(
+            ['attachment:' . $blocked_image, 'sha256:' . hash_file('sha256', $image_file)],
+            $audio['https://audio.test/ambiguous.mp3']['option_blocked_image_keys']
+        );
+        $this->assertArrayNotHasKey('option_blocked_ids', $audio['https://audio.test/explicit.mp3']);
+        $this->assertArrayNotHasKey('option_blocked_image_keys', $audio['https://audio.test/explicit.mp3']);
+
+        delete_post_meta($recording, '_ll_quiz_blocked_option_word_ids');
+        $this->completeLlToolsSimulatedRequest();
+        $after = array_column($get_rows()[$target]['audio_files'], null, 'url');
+        $this->assertArrayNotHasKey('option_blocked_ids', $after['https://audio.test/ambiguous.mp3']);
+    }
+
     private function createFixture(): array
     {
         $wordset_name = 'Word Option Manual Pair Wordset ' . wp_generate_password(6, false);

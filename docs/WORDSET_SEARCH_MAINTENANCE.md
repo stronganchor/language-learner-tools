@@ -93,6 +93,14 @@ Explicit payload TTLs and the category-search payload TTL filter still override
 that default. Guest static-cache dependency lifetimes are unchanged; every AJAX
 request still checks its nonce, payload owner and current structural access scope.
 
+On HTTP 403 or 410, the browser can fetch the current wordset page in the
+background with the exact `ll_category_search_recovery=1` marker. This route
+bypasses the public page cache and uses the normal page visibility and category
+scope checks. Only that response exposes the inert
+`data-ll-wordset-page-search-credentials` JSON with the wordset ID, nonce and
+search token. The browser uses the renewed credentials to retry the active
+query in place. Manual Retry remains available if background recovery fails.
+
 - `tests/Integration/WordsetCategorySearchMaintenanceTest.php`: one-word edits,
   moves, publication/type/deletion, failed writes, concurrent edits, fresh epoch
   reads, traffic-independent work, worker budgets and retry behavior.

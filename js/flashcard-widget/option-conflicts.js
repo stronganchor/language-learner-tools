@@ -228,18 +228,42 @@
         });
     }
 
-    function wordBlocksOptionImage(word, otherWord, recordingType) {
-        const blocks = word && word.option_blocked_image_keys;
-        const imageKeys = otherWord && otherWord.option_image_keys;
-        if (!blocks || !Array.isArray(imageKeys)) {
+    function findPromptAudioEntry(word, url, recordingType) {
+        const source = String(url || '').trim();
+        const type = normalizeRecordingTypeKey(recordingType);
+        if (!source || !word || !Array.isArray(word.audio_files)) {
+            return null;
+        }
+        const audio = root.FlashcardAudio;
+        const normalizeUrl = audio && audio.normalizeUrlToPageOrigin;
+        const normalizedSource = normalizeUrl ? normalizeUrl(source) : source;
+        return word.audio_files.find(function (entry) {
+            if (!entry || (type && normalizeRecordingTypeKey(entry.recording_type) !== type)) return false;
+            const entryUrl = String(entry.url || '').trim();
+            return entryUrl === source || (normalizeUrl && normalizeUrl(entryUrl) === normalizedSource);
+        }) || null;
+    }
+
+    function matchesBlockedOptionImage(blocked, word) {
+        const imageKeys = word && word.option_image_keys;
+        return Array.isArray(blocked) && Array.isArray(imageKeys) && imageKeys.some(function (identity) {
+            return blocked.includes(identity);
+        });
+    }
+
+    function promptAudioBlocksOption(promptAudio, word, imageOptions) {
+        if (!promptAudio || !word) {
             return false;
         }
-        const matches = function (blocked) {
-            return Array.isArray(blocked) && imageKeys.some(function (identity) {
-                return blocked.includes(identity);
-            });
-        };
-        return matches(blocks['']) || (recordingType !== '' && matches(blocks[recordingType]));
+        return wordHasBlockedId(promptAudio, normalizeWordId(word.id))
+            || wordHasBlockedId(promptAudio, normalizeWordId(word.answer_word_id))
+            || (imageOptions && matchesBlockedOptionImage(promptAudio.option_blocked_image_keys, word));
+    }
+
+    function wordBlocksOptionImage(word, otherWord, recordingType) {
+        const blocks = word && word.option_blocked_image_keys;
+        return !!blocks && (matchesBlockedOptionImage(blocks[''], otherWord)
+            || (recordingType !== '' && matchesBlockedOptionImage(blocks[recordingType], otherWord)));
     }
 
     function wordsHaveBlockedOptionImages(leftWord, rightWord, recordingType) {
@@ -312,6 +336,8 @@
         getNormalizedRecordingTextForType: getNormalizedRecordingTextForType,
         wordHasBlockedId: wordHasBlockedId,
         wordHasPromptRecordingTypeBlockedId: wordHasPromptRecordingTypeBlockedId,
+        findPromptAudioEntry: findPromptAudioEntry,
+        promptAudioBlocksOption: promptAudioBlocksOption,
         wordsHaveBlockedOptionImages: wordsHaveBlockedOptionImages,
         wordsConflictForOptions: wordsConflictForOptions
     };
