@@ -988,6 +988,7 @@
             setTargetWordAudio: setTargetWordAudio,
             playFeedback: playFeedback,
             selectBestAudio: selectBestAudio,
+            normalizeUrlToPageOrigin: normalizeUrlToPageOrigin,
             clearAutoplayBlock: clearAutoplayBlock,
             getCurrentSessionId: function () { return currentSession; },
             getCurrentTargetAudio: function () { return currentTargetAudio; },

@@ -2063,6 +2063,44 @@ test('picture game inherits blocked images for the recording being played', asyn
   });
 });
 
+test('picture game checks the selected prompt audio before deciding if its option pool is playable', async ({ page }) => {
+  const digest = 'sha256:' + 'dc'.repeat(32);
+  const words = buildSpaceShooterWords().slice(0, 5).map((word, index) => {
+    const types = index === 0 ? ['isolation', 'introduction'] : ['isolation'];
+    return {
+      ...word,
+      image: buildSvgImage(211 + index, 160, '#405580'),
+      option_image_keys: index === 1 ? [digest] : [],
+      option_blocked_ids: [],
+      similar_word_id: '',
+      audio_files: types.map(type => ({
+        url: 'https://example.test/audio/' + word.id + '-' + type + '.mp3',
+        recording_type: type,
+        option_blocked_ids: type === 'isolation' && index > 0 ? [101] : [],
+        option_blocked_image_keys: type === 'isolation' && index === 0 ? [digest] : []
+      })),
+      practice_recording_types: types
+    };
+  });
+
+  await mountGamesPage(page, { isLoggedIn: true, words, spaceShooterOverrides: { cardCount: 5 } });
+  await gameLaunchButton(page, 'space-shooter').click();
+  await waitForActivePrompt(page, 'space-shooter');
+  const round = await page.evaluate(() => {
+    const run = window.LLWordsetGames.__ctx.run;
+    return {
+      playable: run.playableTargets.map(word => word.id),
+      prompt: run.prompt.audioUrl,
+      choices: run.cards.map(card => card.word.id).sort()
+    };
+  });
+  expect(round).toEqual({
+    playable: [101],
+    prompt: 'https://example.test/audio/101-introduction.mp3',
+    choices: [101, 102, 103, 104, 105]
+  });
+});
+
 test('games page keeps launch disabled when logged out', async ({ page }) => {
   await mountGamesPage(page, { isLoggedIn: false });
 

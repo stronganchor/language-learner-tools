@@ -2011,16 +2011,16 @@ function ll_tools_sync_cache_before_word_audio_parent_change($post_id, $data): v
 }
 add_action('pre_post_update', 'll_tools_sync_cache_before_word_audio_parent_change', 10, 2);
 
-function ll_tools_sync_cache_on_word_audio_file_meta_change($meta_id, $object_id, $meta_key, $_meta_value = null): void {
-    if ((string) $meta_key !== 'audio_file_path') {
+function ll_tools_sync_cache_on_word_audio_quiz_meta_change($meta_id, $object_id, $meta_key, $_meta_value = null): void {
+    if (!in_array($meta_key, ['audio_file_path', '_ll_quiz_blocked_option_word_ids'], true)) {
         return;
     }
 
     ll_tools_bump_word_audio_parent_category_cache((int) $object_id);
 }
-add_action('added_post_meta', 'll_tools_sync_cache_on_word_audio_file_meta_change', 10, 4);
-add_action('updated_post_meta', 'll_tools_sync_cache_on_word_audio_file_meta_change', 10, 4);
-add_action('deleted_post_meta', 'll_tools_sync_cache_on_word_audio_file_meta_change', 10, 4);
+add_action('added_post_meta', 'll_tools_sync_cache_on_word_audio_quiz_meta_change', 10, 4);
+add_action('updated_post_meta', 'll_tools_sync_cache_on_word_audio_quiz_meta_change', 10, 4);
+add_action('deleted_post_meta', 'll_tools_sync_cache_on_word_audio_quiz_meta_change', 10, 4);
 
 function ll_tools_sync_cache_on_word_audio_status_change($new_status, $old_status, $post): void {
     if (!$post || $post->post_type !== 'word_audio' || (string) $new_status === (string) $old_status) {
