@@ -4838,6 +4838,97 @@ test('signed-in multi-select Learn preserves every server-planned target across 
   expect(state.alerts).toEqual([]);
 });
 
+test('a completed five-word category can open Learn again and repeat the same words', async ({ page }) => {
+  const words = buildCategoryWordRows(11, 5).map((word) => ({
+    ...word,
+    status: 'mastered'
+  }));
+  const [catA, catB] = buildPageConfig({ isLoggedIn: true }).categories;
+  const categories = [{ ...catA, count: words.length }, { ...catB, count: 2 }];
+  const wordIds = words.map((word) => word.id);
+  const selectionLaunchPlan = {
+    ...buildBoundedLearningPlan([{ category_ids: [11], target_word_ids: wordIds }]),
+    minimum_words: 5
+  };
+  await mountWordsetPage(page, {
+    isLoggedIn: true,
+    wordsByCategory: { 11: words },
+    selectionLaunchPlan,
+    recommendationDelayMs: 1,
+    configPatch: { categories, visibleCategoryIds: [11, 22], nextActivity: null }
+  });
+
+  const catASelection = page.locator('[data-ll-wordset-select][value="11"]');
+  const catBSelection = page.locator('[data-ll-wordset-select][value="22"]');
+  const selectionLearn = page.locator('[data-ll-wordset-selection-mode][data-mode="learning"]');
+  await catASelection.check();
+  await expect(selectionLearn).toBeEnabled();
+  await catBSelection.check();
+  await expect(selectionLearn).toBeDisabled();
+  await catBSelection.uncheck();
+  await expect(selectionLearn).toBeEnabled();
+  await catASelection.uncheck();
+
+  await page.locator('[data-ll-wordset-category-mode][data-mode="learning"][data-cat-id="11"]').click();
+  await expect.poll(() => page.evaluate(() => window.__llLaunches.length)).toBe(1);
+  await page.evaluate(() => {
+    window.jQuery(document).trigger('lltools:flashcard-results-shown', [{ mode: 'learning' }]);
+  });
+  await page.locator('#ll-study-results-same-chunk').click();
+  await expect.poll(() => page.evaluate(() => window.__llLaunches.length)).toBe(2);
+
+  const state = await page.evaluate(() => ({
+    plans: window.__llSelectionPlanRequests,
+    requests: window.__llPublicCategoryRequests.requests,
+    launches: window.__llLaunches,
+    alerts: window.__llAlerts
+  }));
+  expect(state.plans).toEqual([{ categoryIds: [11], criteria: '', mode: 'learning' }]);
+  expect(state.requests).toEqual([expect.objectContaining({ categoryName: 'Cat A', candidateIds: wordIds })]);
+  expect(state.launches).toEqual([
+    expect.objectContaining({
+      source: 'wordset_category_start',
+      mode: 'learning',
+      categoryIds: [11],
+      sessionWordIds: wordIds,
+      targetWordIds: wordIds,
+      boundedSelectionPlan: true
+    }),
+    expect.objectContaining({
+      source: 'wordset_results_repeat',
+      mode: 'learning',
+      categoryIds: [11],
+      sessionWordIds: wordIds,
+      targetWordIds: wordIds
+    })
+  ]);
+  expect(state.alerts).toEqual([]);
+});
+
+test('a short Learn category plan with a filler fails before requesting any words', async ({ page }) => {
+  const words = buildCategoryWordRows(11, 5);
+  const wordIds = words.map((word) => word.id);
+  const selectionLaunchPlan = {
+    ...buildBoundedLearningPlan([{
+      category_ids: [11],
+      word_ids: wordIds,
+      target_word_ids: wordIds.slice(0, 4)
+    }]),
+    minimum_words: 5
+  };
+  await mountWordsetPage(page, {
+    isLoggedIn: true,
+    wordsByCategory: { 11: words },
+    selectionLaunchPlan
+  });
+
+  await page.locator('[data-ll-wordset-category-mode][data-mode="learning"][data-cat-id="11"]').click();
+  await expect.poll(() => page.evaluate(() => window.__llAlerts)).toEqual(['Something went wrong. Please try again.']);
+  await expect(page.locator('#ll-tools-flashcard-popup')).toBeHidden();
+  expect(await page.evaluate(() => window.__llPublicCategoryRequests.requests)).toEqual([]);
+  expect(await page.evaluate(() => window.__llLaunches)).toEqual([]);
+});
+
 test('large single-category Learn card follows every bounded server chunk exactly once', async ({ page }) => {
   const wordsByCategory = {
     11: buildCategoryWordRows(11, 36, 'LargeLearn')

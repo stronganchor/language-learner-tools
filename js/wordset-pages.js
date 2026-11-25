@@ -14688,7 +14688,11 @@
         const effectiveWordCount = Math.max(0, parseInt(opts.effectiveWordCount, 10) || 0);
         const totalWordCount = Math.max(0, parseInt(opts.totalWordCount, 10) || effectiveWordCount);
         const hasEnoughWords = effectiveWordCount >= getSelectionMinimumWordCount();
-        const hasEnoughLearningWords = hasEnoughWords && totalWordCount >= LEARNING_MIN_CHUNK_SIZE;
+        const isUnfilteredLearningCategory = ids.length === 1
+            && categorySupportsMode('learning', ids[0])
+            && !selectionPriorityOnly && !selectionStarredOnly && !selectionHardOnly;
+        const hasEnoughLearningWords = hasEnoughWords
+            && (isUnfilteredLearningCategory || totalWordCount >= LEARNING_MIN_CHUNK_SIZE);
 
         $root.find('[data-ll-wordset-selection-mode]').each(function () {
             const $btn = $(this);
@@ -16882,6 +16886,21 @@
             return invalidResult();
         }
 
+        // A short Learn plan must cover the entire unfiltered category in one chunk.
+        const shortCategoryPlan = plan.minimum_words === MIN_ACTIVITY_WORDS;
+        if (shortCategoryPlan && (
+            Object.keys(allowedCategoryLookup).length !== 1
+            || hasCandidateScope
+            || plan.criteria !== ''
+            || normalizePriorityFocus(fallbackDetails.priority_focus || '') !== ''
+            || chunkCount !== 1
+            || expandedCount !== 0
+            || plannedCount >= LEARNING_MIN_CHUNK_SIZE
+        )) {
+            return invalidResult();
+        }
+        const minimumWords = shortCategoryPlan ? getSelectionMinimumWordCount() : LEARNING_MIN_CHUNK_SIZE;
+
         const seenLaunchWordIds = {};
         const seenTargetWordIds = {};
         const chunks = [];
@@ -16902,7 +16921,7 @@
                 !categoryIds
                 || !categoryIds.length
                 || !sessionWordIds
-                || sessionWordIds.length < LEARNING_MIN_CHUNK_SIZE
+                || sessionWordIds.length < minimumWords
                 || !targetWordIds
                 || !targetWordIds.length
                 || !compatibilityKey
@@ -16993,7 +17012,7 @@
                 invalid: false
             };
         }
-        if (!chunks.length || matchedCount < 1 || plannedCount < LEARNING_MIN_CHUNK_SIZE) {
+        if (!chunks.length || matchedCount < 1 || plannedCount < minimumWords) {
             return invalidResult();
         }
 

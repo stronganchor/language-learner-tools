@@ -3623,6 +3623,43 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
         $this->assertCount(10, (array) ($chunks[0]['target_word_ids'] ?? []));
     }
 
+    public function test_unfiltered_learning_plan_reopens_a_five_word_learned_category(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        wp_set_current_user($user_id);
+        $wordset = wp_insert_term('Analytics Learned Category ' . wp_generate_password(6, false), 'wordset');
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+        $category = $this->createLearningSelectionCategory($wordset_id, 'Learned', 'audio', 'text_title', 5);
+        $category_id = $category['category_id'];
+        $oldest_word_id = $category['word_ids'][4];
+        foreach ($category['word_ids'] as $word_id) {
+            $this->seedWordProgressRow($user_id, $word_id, $category_id, $wordset_id, [
+                'last_seen_at' => $word_id === $oldest_word_id ? '2020-01-01 00:00:00' : '2020-01-02 00:00:00',
+                'total_coverage' => 8,
+                'coverage_learning' => 8,
+                'correct_clean' => 8,
+                'stage' => 5,
+            ]);
+        }
+
+        $plan = ll_tools_build_user_study_selection_launch_plan($user_id, $wordset_id, [$category_id], '', 'learning');
+        $this->assertIsArray($plan);
+        $this->assertSame(5, $plan['minimum_words']);
+        $this->assertSame(0, $plan['expanded_count']);
+        $this->assertCount(1, $plan['chunks']);
+        $this->assertSame([$category_id], $plan['chunks'][0]['category_ids']);
+        $this->assertSame($oldest_word_id, $plan['chunks'][0]['word_ids'][0]);
+        $this->assertEqualsCanonicalizing($category['word_ids'], $plan['chunks'][0]['target_word_ids']);
+        $this->assertSame($plan['chunks'][0]['word_ids'], $plan['chunks'][0]['target_word_ids']);
+
+        $filtered_plan = ll_tools_build_user_study_selection_launch_plan(
+            $user_id, $wordset_id, [$category_id], 'learned', 'learning'
+        );
+        $this->assertWPError($filtered_plan);
+        $this->assertSame('learning_selection_unlaunchable', $filtered_plan->get_error_code());
+    }
+
     public function test_learning_selection_launch_plan_fails_closed_when_a_compatibility_group_cannot_reach_eight_words(): void
     {
         $user_id = self::factory()->user->create(['role' => 'subscriber']);

@@ -12849,6 +12849,7 @@ function ll_tools_user_study_learning_compatibility_key(array $category_meta): s
  * Target IDs are assigned to their first eligible category exactly once. A
  * short chunk may then use non-target words from the same compatibility group
  * as filler, but target and filler identities remain distinct in the contract.
+ * A shorter minimum is reserved for a complete, unfiltered single category.
  *
  * @param array<int,int[]>              $matched_by_category
  * @param array<int,int[]>              $word_ids_by_category
@@ -12863,10 +12864,10 @@ function ll_tools_build_user_study_learning_selection_launch_chunks(
     int $max_words = 15,
     int $max_categories = 8,
     int $preferred_max_words = 12,
-    array $word_recency_lookup = []
+    array $word_recency_lookup = [],
+    int $minimum_words = 8
 ) {
-    $minimum_words = 8;
-    $max_words = max($minimum_words, min(15, $max_words));
+    $max_words = max(8, min(15, $max_words));
     $preferred_max_words = max($minimum_words, min($max_words, $preferred_max_words));
     $max_categories = max(1, min(8, $max_categories));
     $unlaunchable = static function (): WP_Error {
@@ -13599,6 +13600,20 @@ function ll_tools_build_user_study_selection_launch_plan(
             min(12, $learning_max_words),
             $wordset_id
         )));
+        $learning_min_words = 8;
+        $quiz_min_words = max(LL_TOOLS_MIN_WORDS_PER_QUIZ, (int) apply_filters(
+            'll_tools_quiz_min_words',
+            LL_TOOLS_MIN_WORDS_PER_QUIZ
+        ));
+        if (
+            count($requested_category_ids) === 1
+            && $criteria === ''
+            && !$has_exact_candidate_scope
+            && $matched_count >= $quiz_min_words
+            && $matched_count < $learning_min_words
+        ) {
+            $learning_min_words = LL_TOOLS_MIN_WORDS_PER_QUIZ;
+        }
         $learning_chunks = ll_tools_build_user_study_learning_selection_launch_chunks(
             $matched_by_category,
             $word_ids_by_category,
@@ -13606,7 +13621,8 @@ function ll_tools_build_user_study_selection_launch_plan(
             $learning_max_words,
             (int) ($limits['hard_max_categories'] ?? 8),
             $learning_preferred_max_words,
-            $word_recency_lookup
+            $word_recency_lookup,
+            $learning_min_words
         );
         if (is_wp_error($learning_chunks)) {
             return $learning_chunks;
@@ -13656,7 +13672,7 @@ function ll_tools_build_user_study_selection_launch_plan(
             'planned_count' => $planned_count,
             'expanded_count' => max(0, $planned_count - $matched_count),
             'chunk_count' => count($learning_chunks),
-            'minimum_words' => 8,
+            'minimum_words' => $learning_min_words,
             'maximum_words' => $learning_max_words,
             'preferred_maximum_words' => $learning_preferred_max_words,
             'truncated' => false,
