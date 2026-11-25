@@ -7,7 +7,7 @@ if (!defined('LL_TOOLS_FLASHCARD_PAYLOAD_TABLE_VERSION')) {
 if (!defined('LL_TOOLS_FLASHCARD_PAYLOAD_BUILDER_SCHEMA')) {
     // Bump this whenever stored row shape, eligibility, or presentation
     // semantics change. Ordinary plugin releases must not invalidate payloads.
-    define('LL_TOOLS_FLASHCARD_PAYLOAD_BUILDER_SCHEMA', 3);
+    define('LL_TOOLS_FLASHCARD_PAYLOAD_BUILDER_SCHEMA', 4);
 }
 if (!defined('LL_TOOLS_FLASHCARD_PAYLOAD_VERSION_OPTION')) {
     define('LL_TOOLS_FLASHCARD_PAYLOAD_VERSION_OPTION', 'll_tools_flashcard_payload_table_version');
@@ -1510,6 +1510,18 @@ function ll_tools_flashcard_payload_merge_rows(array $existing, array $incoming)
         }
     }
     $merged['option_blocked_ids_by_recording_type'] = $recording_maps;
+    if (isset($existing['option_blocked_image_keys']) || isset($incoming['option_blocked_image_keys'])) {
+        $image_blocks = [];
+        foreach ([$existing['option_blocked_image_keys'] ?? [], $incoming['option_blocked_image_keys'] ?? []] as $map) {
+            foreach ($map as $recording_type => $keys) {
+                $image_blocks[$recording_type] = ll_tools_flashcard_payload_unique_strings(
+                    $image_blocks[$recording_type] ?? [],
+                    $keys
+                );
+            }
+        }
+        $merged['option_blocked_image_keys'] = $image_blocks;
+    }
     foreach ([
         'is_specific_wrong_answer_only',
         'is_prompt_card_support_only',

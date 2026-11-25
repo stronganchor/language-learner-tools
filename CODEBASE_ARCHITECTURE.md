@@ -908,6 +908,7 @@ wordset can opt into it.
 - Languages admin: `includes/taxonomies/language-taxonomy.php`.
 - Word Audio Parent metabox: `includes/admin/metabox-word-audio-parent.php`.
 - Word Option Rules: `includes/admin/word-option-rules-admin.php` (option conflict/group editing).
+- For picture answers, saved word-pair blocks follow the effective answer image by attachment ID and, when available, SHA-256 of the attached file. The row builder includes the blocked image keys by recording type even when the blocked word is outside the current payload page. Quiz fallback selection still honors these image blocks.
 - Duplicate Category Words: `includes/admin/duplicate-category-words-admin.php`.
 - Image Aspect Normalizer: `includes/admin/image-aspect-normalizer-admin.php`.
 - Image WebP Optimizer: `includes/admin/image-webp-optimizer-admin.php`.

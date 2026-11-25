@@ -11,6 +11,41 @@ function ll_tools_get_image_hash_meta_key(): string {
     return '_ll_tools_image_hash';
 }
 
+/**
+ * Exact identities for picture-answer rules. The attachment ID also works
+ * when the installation has offloaded the file.
+ */
+function ll_tools_get_attachment_image_identity_keys(int $attachment_id): array {
+    if ($attachment_id <= 0) {
+        return [];
+    }
+
+    $keys = ['attachment:' . $attachment_id];
+    $path = get_attached_file($attachment_id, true);
+    if (!$path || wp_is_stream($path) || !is_file($path) || !is_readable($path)) {
+        return $keys;
+    }
+    $stat = @stat($path);
+    if ($stat === false) {
+        return $keys;
+    }
+
+    $file_state = [$path, $stat['size'], $stat['mtime'], $stat['ctime'], $stat['ino']];
+    $meta_key = '_ll_tools_image_content_hash';
+    $cached = get_post_meta($attachment_id, $meta_key, true);
+    $hash = is_array($cached) && ($cached['file'] ?? null) === $file_state ? (string) ($cached['hash'] ?? '') : '';
+    if ($hash === '') {
+        $hash = @hash_file('sha256', $path);
+        if ($hash === false) {
+            return $keys;
+        }
+        update_post_meta($attachment_id, $meta_key, ['file' => $file_state, 'hash' => $hash]);
+    }
+
+    $keys[] = 'sha256:' . $hash;
+    return $keys;
+}
+
 function ll_tools_get_attachment_image_hash(int $attachment_id): string {
     $attachment_id = (int) $attachment_id;
     if ($attachment_id <= 0) {

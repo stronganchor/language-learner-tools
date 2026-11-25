@@ -2424,6 +2424,15 @@
             });
             if (isDup) return false;
 
+            // A saved picture block still applies when other constraints are relaxed.
+            if (
+                optionTypeHasImage(mode) && OptionConflicts
+                && typeof OptionConflicts.wordsHaveBlockedOptionImages === 'function'
+                && chosen.some(function (word) {
+                    return OptionConflicts.wordsHaveBlockedOptionImages(word, candidate, activePromptRecordingType);
+                })
+            ) return false;
+
             if (enforceSimilarity) {
                 const isSim = chosen.some(function (word) {
                     const chosenId = String(word && word.id);

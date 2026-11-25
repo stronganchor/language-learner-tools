@@ -9701,6 +9701,9 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
         'include_plurality'    => true,
         'source_complete_schema' => 2,
     ];
+    if (!$eligibility_projection && $require_option_image) {
+        $cache_flags['picture_answer_rule_schema'] = 1;
+    }
     $cache_key = ll_tools_get_words_cache_key($term_id, $wordset_terms, $prompt_type, $option_type, $cache_flags);
     $cache_ttl = 6 * HOUR_IN_SECONDS;
 
@@ -10031,6 +10034,24 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
         count($all_word_ids)
     )));
     $images_required = $require_prompt_image || $require_option_image;
+    $include_option_image_keys = !$eligibility_projection && $require_option_image;
+    $image_keys_by_word = [];
+    $blocked_word_image_keys = static function (int $blocked_id) use (&$image_keys_by_word, &$legacy_image_lookups_remaining, &$sources_complete): array {
+        if (!isset($image_keys_by_word[$blocked_id])) {
+            $attachment_id = 0;
+            if (get_post_status($blocked_id) === 'publish') {
+                $attachment_id = ll_tools_get_effective_word_image_attachment_id_for_word($blocked_id);
+                if (!$attachment_id && $legacy_image_lookups_remaining > 0) {
+                    $legacy_image_lookups_remaining--;
+                    $attachment_id = ll_tools_get_effective_word_image_attachment_id_for_word($blocked_id, true);
+                } elseif (!$attachment_id) {
+                    $sources_complete = false;
+                }
+            }
+            $image_keys_by_word[$blocked_id] = ll_tools_get_attachment_image_identity_keys($attachment_id);
+        }
+        return $image_keys_by_word[$blocked_id];
+    };
 
     $build_word_row = function (int $word_id) use (
         $display_text_by_word,
@@ -10051,7 +10072,10 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
         $prompt_card_support_role_map,
         $prompt_text_type,
         $images_required,
+        $include_option_image_keys,
+        $blocked_word_image_keys,
         $eligibility_projection,
+        &$image_keys_by_word,
         &$legacy_image_lookups_remaining,
         &$sources_complete,
         $wpdb
@@ -10405,6 +10429,31 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
         }
 
         $sources_complete = $sources_complete && $wpdb->last_error === '';
+        if ($include_option_image_keys) {
+            // Use the effective answer image even in a partial candidate page.
+            // Only saved manual rules contribute image keys.
+            $wpdb->last_error = '';
+            $word_data['option_image_keys'] = ll_tools_get_attachment_image_identity_keys($image_id);
+            if ($word_data['option_image_keys']) {
+                $image_keys_by_word[$word_id] = $word_data['option_image_keys'];
+            }
+            $word_data['option_blocked_image_keys'] = [];
+            $blocks_by_type = ['' => $blocked_map[$word_id] ?? []] + ($blocked_map_by_recording_type[$word_id] ?? []);
+            foreach ($blocks_by_type as $recording_type => $blocked_ids) {
+                $type_keys = [];
+                foreach ($blocked_ids as $blocked_id) {
+                    foreach ($blocked_word_image_keys($blocked_id) as $image_key) {
+                        $type_keys[$image_key] = true;
+                    }
+                    $sources_complete = $sources_complete && $wpdb->last_error === '';
+                }
+                if ($type_keys) {
+                    $word_data['option_blocked_image_keys'][$recording_type] = array_keys($type_keys);
+                }
+            }
+            $sources_complete = $sources_complete && $wpdb->last_error === '';
+        }
+
         return $word_data;
     };
 

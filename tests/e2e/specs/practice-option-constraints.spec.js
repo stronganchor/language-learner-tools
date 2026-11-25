@@ -15,6 +15,10 @@ const selectionSource = fs.readFileSync(
   path.resolve(__dirname, '../../../js/flashcard-widget/selection.js'),
   'utf8'
 );
+const optionConflictsSource = fs.readFileSync(
+  path.resolve(__dirname, '../../../js/flashcard-widget/option-conflicts.js'),
+  'utf8'
+);
 const optionsSource = fs.readFileSync(
   path.resolve(__dirname, '../../../js/flashcard-widget/options.js'),
   'utf8'
@@ -159,6 +163,9 @@ async function mountSelectionHarness(page, options = {}) {
       window.llToolsFlashcardsData.imageSize = 'small';
     });
     await page.addScriptTag({ content: cardsSource });
+  }
+  if (options.realOptionConflicts) {
+    await page.addScriptTag({ content: optionConflictsSource });
   }
   await page.addScriptTag({ content: selectionSource });
 }
@@ -2054,6 +2061,43 @@ test('practice options never include duplicate images', async ({ page }) => {
   expect(chickCount).toBe(1);
   expect(picked.some((row) => row.id === 302)).toBe(true);
   expect(picked.some((row) => row.id === 303)).toBe(false);
+});
+
+test('picture blocks exclude identical uploads from explicit and fallback answers only in the blocked recordings', async ({ page }) => {
+  const category = 'Picture blocks';
+  const sharedFingerprint = 'sha256:' + 'a'.repeat(64);
+  const target = {
+    id: 251, title: 'Spoon', image: 'https://img.test/spoon.webp',
+    option_blocked_image_keys: { isolation: ['attachment:2', sharedFingerprint] },
+    specific_wrong_answer_ids: [252]
+  };
+  const identicalUpload = {
+    id: 252, title: 'Water alias', image: 'https://img.test/copy.webp',
+    option_image_keys: ['attachment:8', sharedFingerprint]
+  };
+  const distinct = {
+    id: 253, title: 'Coat', image: 'https://img.test/coat.webp',
+    option_image_keys: ['attachment:9'],
+    option_blocked_ids: [251]
+  };
+  await mountSelectionHarness(page, {
+    realOptionConflicts: true,
+    categories: [{ name: category, prompt_type: 'audio', option_type: 'image' }],
+    targetCategoryName: category,
+    wordsByCategory: { [category]: [target, identicalUpload, distinct] }
+  });
+  const picked = await page.evaluate(({ category, target }) => {
+    const render = (recordingType) => {
+      document.querySelector('#ll-tools-flashcard').replaceChildren();
+      window.LLFlashcards.Selection.fillQuizOptions({
+        ...target, __categoryName: category, __promptRecordingType: recordingType
+      });
+      return Array.from(document.querySelectorAll('.flashcard-container'), el => Number(el.dataset.wordId));
+    };
+    return { isolation: render('isolation'), introduction: render('introduction') };
+  }, { category, target });
+  expect(picked.isolation).toEqual([251, 253]);
+  expect(picked.introduction).toEqual([251, 252]);
 });
 
 test('specific wrong-answer list overrides normal distractors', async ({ page }) => {

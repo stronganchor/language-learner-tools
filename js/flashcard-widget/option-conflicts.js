@@ -228,6 +228,26 @@
         });
     }
 
+    function wordBlocksOptionImage(word, otherWord, recordingType) {
+        const blocks = word && word.option_blocked_image_keys;
+        const imageKeys = otherWord && otherWord.option_image_keys;
+        if (!blocks || !Array.isArray(imageKeys)) {
+            return false;
+        }
+        const matches = function (blocked) {
+            return Array.isArray(blocked) && imageKeys.some(function (identity) {
+                return blocked.includes(identity);
+            });
+        };
+        return matches(blocks['']) || (recordingType !== '' && matches(blocks[recordingType]));
+    }
+
+    function wordsHaveBlockedOptionImages(leftWord, rightWord, recordingType) {
+        const type = normalizeRecordingTypeKey(recordingType);
+        return wordBlocksOptionImage(leftWord, rightWord, type)
+            || wordBlocksOptionImage(rightWord, leftWord, type);
+    }
+
     function wordsConflictForOptions(leftWord, rightWord, context) {
         const leftId = normalizeWordId(leftWord && leftWord.id);
         const rightId = normalizeWordId(rightWord && rightWord.id);
@@ -252,6 +272,9 @@
         }
 
         const promptRecordingType = normalizeRecordingTypeKey(context && context.promptRecordingType);
+        if (context && context.imageOptions && wordsHaveBlockedOptionImages(leftWord, rightWord, promptRecordingType)) {
+            return true;
+        }
         if (promptRecordingType) {
             if (
                 wordHasPromptRecordingTypeBlockedId(leftWord, rightId, promptRecordingType)
@@ -289,6 +312,7 @@
         getNormalizedRecordingTextForType: getNormalizedRecordingTextForType,
         wordHasBlockedId: wordHasBlockedId,
         wordHasPromptRecordingTypeBlockedId: wordHasPromptRecordingTypeBlockedId,
+        wordsHaveBlockedOptionImages: wordsHaveBlockedOptionImages,
         wordsConflictForOptions: wordsConflictForOptions
     };
 })(window);

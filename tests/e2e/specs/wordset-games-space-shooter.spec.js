@@ -2020,6 +2020,49 @@ async function arrangeUnscrambleOrder(page, targetUnitIds) {
   }
 }
 
+test('picture game inherits blocked images for the recording being played', async ({ page }) => {
+  // A manual isolation-only block refers to a word outside this launch pool.
+  // A different card owns a second attachment with identical picture content.
+  const sharedDigest = 'sha256:' + 'ab'.repeat(32);
+  const words = buildSpaceShooterWords().slice(0, 5).map((word, index) => {
+    const types = index === 0 ? ['isolation', 'question'] : ['isolation'];
+    return {
+      ...word,
+      image: buildSvgImage(201 + index, 160, '#405580'),
+      option_image_keys: ['attachment:' + (900 + index)],
+      option_blocked_ids: [],
+      similar_word_id: '',
+      audio_files: types.map(type => ({
+        url: 'https://example.test/audio/' + word.id + '-' + type + '.mp3',
+        recording_type: type
+      })),
+      practice_recording_types: types
+    };
+  });
+  words[0].option_blocked_ids_by_recording_type = { isolation: [999] };
+  words[0].option_blocked_image_keys = { isolation: ['attachment:999', sharedDigest] };
+  words[1].option_image_keys.push(sharedDigest);
+
+  await mountGamesPage(page, { isLoggedIn: true, words, spaceShooterOverrides: { cardCount: 5 } });
+  await gameLaunchButton(page, 'space-shooter').click();
+  await waitForActivePrompt(page, 'space-shooter');
+  const round = await page.evaluate(() => {
+    const run = window.LLWordsetGames.__ctx.run;
+    return {
+      playable: run.playableTargets.map(word => word.id),
+      target: run.prompt.target.id,
+      recordingType: run.prompt.recordingType,
+      choices: run.cards.map(card => card.word.id).sort()
+    };
+  });
+  expect(round).toEqual({
+    playable: [101],
+    target: 101,
+    recordingType: 'question',
+    choices: [101, 102, 103, 104, 105]
+  });
+});
+
 test('games page keeps launch disabled when logged out', async ({ page }) => {
   await mountGamesPage(page, { isLoggedIn: false });
 
