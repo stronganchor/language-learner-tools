@@ -371,7 +371,7 @@ msgid "Load more"
 msgstr "और लोड करें"
 
 #. ll-tools-public-key: e0074b8b19544bd789cefcb9f4cbf174f333771f
-#: includes/admin/audio-image-matcher.php:76 includes/admin/audio-processor-admin.php:1409 includes/admin/audio-processor-admin.php:213 includes/admin/ipa-keyboard-admin.php:450 includes/admin/site-sync-admin.php:1934 includes/admin/site-sync-admin.php:655 includes/admin/word-option-rules-admin.php:297 includes/content-lesson-cloze.php:289 includes/lib/recording-history.php:279 includes/lib/word-copy.php:465 includes/lms/assignment-experience.php:408 includes/pages/content-lesson-pages.php:1308 includes/pages/quiz-pages.php:1120 includes/pages/quiz-pages.php:2075 includes/pages/vocab-lesson-pages.php:4833 includes/pages/wordset-pages.php:13584 includes/pages/wordset-pages.php:24954 includes/pages/wordset-pages.php:25017 includes/pages/wordset-pages.php:27509 includes/pages/wordset-pages.php:27626 includes/pages/wordset-pages.php:27730 includes/pages/wordset-pages.php:28152 includes/pages/wordset-pages.php:28661 includes/pages/wordset-pages.php:29742 includes/shortcodes/audio-recording-shortcode.php:1660 includes/shortcodes/audio-recording-shortcode.php:1899 includes/shortcodes/dictionary-shortcode.php:345 includes/shortcodes/flashcard-widget.php:803 includes/shortcodes/quiz-pages-shortcodes.php:2403 includes/taxonomies/word-category-taxonomy.php:3667 templates/audio-image-matcher-template.php:57 templates/quiz-page-template.php:25 templates/vocab-lesson-template.php:447
+#: includes/admin/audio-image-matcher.php:76 includes/admin/audio-processor-admin.php:1409 includes/admin/audio-processor-admin.php:213 includes/admin/ipa-keyboard-admin.php:450 includes/admin/site-sync-admin.php:1934 includes/admin/site-sync-admin.php:655 includes/admin/word-option-rules-admin.php:297 includes/content-lesson-cloze.php:289 includes/lib/recording-history.php:279 includes/lib/word-copy.php:465 includes/lms/assignment-experience.php:411 includes/pages/content-lesson-pages.php:1308 includes/pages/quiz-pages.php:1120 includes/pages/quiz-pages.php:2075 includes/pages/vocab-lesson-pages.php:4833 includes/pages/wordset-pages.php:13584 includes/pages/wordset-pages.php:24954 includes/pages/wordset-pages.php:25017 includes/pages/wordset-pages.php:27509 includes/pages/wordset-pages.php:27626 includes/pages/wordset-pages.php:27730 includes/pages/wordset-pages.php:28152 includes/pages/wordset-pages.php:28661 includes/pages/wordset-pages.php:29742 includes/shortcodes/audio-recording-shortcode.php:1660 includes/shortcodes/audio-recording-shortcode.php:1899 includes/shortcodes/dictionary-shortcode.php:345 includes/shortcodes/flashcard-widget.php:803 includes/shortcodes/quiz-pages-shortcodes.php:2403 includes/taxonomies/word-category-taxonomy.php:3667 templates/audio-image-matcher-template.php:57 templates/quiz-page-template.php:25 templates/vocab-lesson-template.php:447
 msgid "Retry"
 msgstr "दोबारा प्रयास करें"
 
@@ -446,7 +446,7 @@ msgid "Filter"
 msgstr "फ़िल्टर"
 
 #. ll-tools-public-key: a0ee09bb02914fe2bbe2edf289da69e74fd7602e
-#: includes/admin/bulk-translation-admin.php:204 includes/admin/ipa-keyboard-admin.php:591 includes/admin/lti-integration.php:140 includes/admin/split-word-admin.php:383 includes/admin/user-progress-report.php:1159 includes/lms/assignments.php:2119 includes/pages/wordset-editor.php:4711 includes/pages/wordset-pages.php:27562 includes/pages/wordset-pages.php:27993 includes/pages/wordset-pages.php:28001 includes/privacy.php:867 includes/privacy.php:956
+#: includes/admin/bulk-translation-admin.php:204 includes/admin/ipa-keyboard-admin.php:591 includes/admin/lti-integration.php:153 includes/admin/split-word-admin.php:383 includes/admin/user-progress-report.php:1159 includes/lms/assignments.php:2119 includes/pages/wordset-editor.php:4711 includes/pages/wordset-pages.php:27562 includes/pages/wordset-pages.php:27993 includes/pages/wordset-pages.php:28001 includes/privacy.php:867 includes/privacy.php:956
 msgid "Status"
 msgstr "स्थिति"
 
@@ -551,7 +551,7 @@ msgid "Word Set"
 msgstr "शब्द सेट"
 
 #. ll-tools-public-key: acfb4faef880cf553926018fec3690ec6371a349
-#: includes/admin/export-import.php:591 includes/lms/assignment-experience.php:408 includes/shortcodes/audio-recording-shortcode.php:32 includes/shortcodes/editor-hub-shortcode.php:301 includes/shortcodes/word-grid-shortcode.php:5374 includes/shortcodes/word-grid-shortcode.php:5859 includes/shortcodes/word-grid-shortcode.php:7894 includes/taxonomies/recording-type-taxonomy.php:42
+#: includes/admin/export-import.php:591 includes/lms/assignment-experience.php:411 includes/shortcodes/audio-recording-shortcode.php:32 includes/shortcodes/editor-hub-shortcode.php:301 includes/shortcodes/word-grid-shortcode.php:5374 includes/shortcodes/word-grid-shortcode.php:5859 includes/shortcodes/word-grid-shortcode.php:7894 includes/taxonomies/recording-type-taxonomy.php:42
 msgid "Question"
 msgstr "प्रश्न"
 
@@ -681,17 +681,17 @@ msgid "%1$d of %2$d"
 msgstr "%1$d %2$d"
 
 #. ll-tools-public-key: 9f2d7d1cede89aa621287a6231e906a4cf4d0f29
-#: includes/admin/lti-integration.php:141 includes/admin/lti-integration.php:179 includes/lib/wordset-language-settings.php:1238 includes/pages/wordset-pages.php:17830 includes/pages/wordset-pages.php:17948 includes/pages/wordset-pages.php:26860
+#: includes/admin/lti-integration.php:154 includes/admin/lti-integration.php:192 includes/lib/wordset-language-settings.php:1238 includes/pages/wordset-pages.php:17830 includes/pages/wordset-pages.php:17948 includes/pages/wordset-pages.php:26860
 msgid "Disabled"
 msgstr "अक्षम"
 
 #. ll-tools-public-key: 6ef8a92f2c8d705084e7ad7f9a9c5de681e3bb18
-#: includes/admin/lti-integration.php:178 includes/pages/wordset-pages.php:27533 includes/pages/wordset-pages.php:27851
+#: includes/admin/lti-integration.php:191 includes/pages/wordset-pages.php:27533 includes/pages/wordset-pages.php:27851
 msgid "Activity"
 msgstr "गतिविधि"
 
 #. ll-tools-public-key: d30f2cc61b6b398722fae6459a9c69d04d007d1f
-#: includes/admin/lti-integration.php:179 includes/flashcard-shell.php:51 includes/pages/wordset-pages.php:26122 includes/pages/wordset-pages.php:27610 includes/pages/wordset-pages.php:6777 includes/shortcodes/flashcard-widget.php:753 includes/shortcodes/flashcard-widget.php:758 includes/shortcodes/flashcard-widget.php:818 includes/shortcodes/flashcard-widget.php:823 includes/shortcodes/flashcard-widget.php:883 templates/content-lesson-template.php:263 templates/offline-app-shell-template.php:820 templates/vocab-lesson-template.php:197
+#: includes/admin/lti-integration.php:192 includes/flashcard-shell.php:51 includes/pages/wordset-pages.php:26122 includes/pages/wordset-pages.php:27610 includes/pages/wordset-pages.php:6777 includes/shortcodes/flashcard-widget.php:753 includes/shortcodes/flashcard-widget.php:758 includes/shortcodes/flashcard-widget.php:818 includes/shortcodes/flashcard-widget.php:823 includes/shortcodes/flashcard-widget.php:883 templates/content-lesson-template.php:263 templates/offline-app-shell-template.php:820 templates/vocab-lesson-template.php:197
 msgid "Practice"
 msgstr "अभ्यास"
 
@@ -2017,7 +2017,7 @@ msgstr[0] "एलएल टूल्स के स्टैटिक कैश �
 msgstr[1] "एलएल टूल्स के स्टैटिक कैश साफ़ किए गए। %d कैश फ़ाइलें हटा दी गईं।"
 
 #. ll-tools-public-key: 777b49cec0c0fded580dc0382067f4051e159310
-#: includes/lib/quiz-sampling.php:135 includes/lib/quiz-sampling.php:32 includes/pages/vocab-lesson-pages.php:5498 includes/pages/vocab-lesson-pages.php:6242 includes/pages/vocab-lesson-pages.php:6257 includes/pages/vocab-lesson-pages.php:6273 includes/pages/vocab-lesson-pages.php:6288 includes/pages/vocab-lesson-pages.php:6303 includes/pages/vocab-lesson-pages.php:6318 includes/pages/vocab-lesson-pages.php:6351 includes/pages/vocab-lesson-pages.php:6403 includes/pages/vocab-lesson-pages.php:6518 includes/pages/vocab-lesson-pages.php:8686 includes/pages/vocab-lesson-pages.php:8691 includes/pages/vocab-lesson-pages.php:8697 includes/pages/vocab-lesson-pages.php:8814 includes/pages/vocab-lesson-pages.php:8880 includes/pages/wordset-transcription-review.php:106 includes/pages/wordset-transcription-review.php:167 includes/pages/wordset-transcription-review.php:237 includes/post-types/word-audio-post-type.php:491 includes/post-types/word-audio-post-type.php:507 includes/post-types/word-audio-post-type.php:517 includes/shortcodes/dictionary-shortcode.php:161 includes/shortcodes/dictionary-shortcode.php:170 includes/shortcodes/dictionary-shortcode.php:183 includes/shortcodes/dictionary-shortcode.php:193 includes/shortcodes/dictionary-shortcode.php:208 includes/shortcodes/dictionary-shortcode.php:217 includes/shortcodes/dictionary-shortcode.php:3834 includes/shortcodes/flashcard-widget.php:2784 includes/shortcodes/quiz-pages-shortcodes.php:1862 includes/shortcodes/quiz-pages-shortcodes.php:1890 includes/taxonomies/word-category-taxonomy.php:11767 includes/taxonomies/word-category-taxonomy.php:11783 includes/taxonomies/word-category-taxonomy.php:11793 includes/taxonomies/word-category-taxonomy.php:1729 includes/taxonomies/word-category-taxonomy.php:1745 includes/taxonomies/word-category-taxonomy.php:1749 includes/taxonomies/word-category-taxonomy.php:3843 includes/taxonomies/word-category-taxonomy.php:4095 includes/taxonomies/word-category-taxonomy.php:4109 includes/taxonomies/word-category-taxonomy.php:774 includes/user-progress.php:13245 includes/user-progress.php:13719 includes/user-progress.php:13729 includes/user-progress.php:13751 includes/user-progress.php:13760 includes/user-progress.php:13763 includes/user-progress.php:1815
+#: includes/lib/quiz-sampling.php:135 includes/lib/quiz-sampling.php:32 includes/pages/vocab-lesson-pages.php:5498 includes/pages/vocab-lesson-pages.php:6242 includes/pages/vocab-lesson-pages.php:6257 includes/pages/vocab-lesson-pages.php:6273 includes/pages/vocab-lesson-pages.php:6288 includes/pages/vocab-lesson-pages.php:6303 includes/pages/vocab-lesson-pages.php:6318 includes/pages/vocab-lesson-pages.php:6351 includes/pages/vocab-lesson-pages.php:6403 includes/pages/vocab-lesson-pages.php:6518 includes/pages/vocab-lesson-pages.php:8686 includes/pages/vocab-lesson-pages.php:8691 includes/pages/vocab-lesson-pages.php:8697 includes/pages/vocab-lesson-pages.php:8814 includes/pages/vocab-lesson-pages.php:8880 includes/pages/wordset-transcription-review.php:106 includes/pages/wordset-transcription-review.php:167 includes/pages/wordset-transcription-review.php:237 includes/post-types/word-audio-post-type.php:491 includes/post-types/word-audio-post-type.php:507 includes/post-types/word-audio-post-type.php:517 includes/shortcodes/dictionary-shortcode.php:161 includes/shortcodes/dictionary-shortcode.php:170 includes/shortcodes/dictionary-shortcode.php:183 includes/shortcodes/dictionary-shortcode.php:193 includes/shortcodes/dictionary-shortcode.php:208 includes/shortcodes/dictionary-shortcode.php:217 includes/shortcodes/dictionary-shortcode.php:3834 includes/shortcodes/flashcard-widget.php:2784 includes/shortcodes/quiz-pages-shortcodes.php:1862 includes/shortcodes/quiz-pages-shortcodes.php:1890 includes/taxonomies/word-category-taxonomy.php:11787 includes/taxonomies/word-category-taxonomy.php:11803 includes/taxonomies/word-category-taxonomy.php:11813 includes/taxonomies/word-category-taxonomy.php:1729 includes/taxonomies/word-category-taxonomy.php:1745 includes/taxonomies/word-category-taxonomy.php:1749 includes/taxonomies/word-category-taxonomy.php:3843 includes/taxonomies/word-category-taxonomy.php:4095 includes/taxonomies/word-category-taxonomy.php:4109 includes/taxonomies/word-category-taxonomy.php:774 includes/user-progress.php:13245 includes/user-progress.php:13719 includes/user-progress.php:13729 includes/user-progress.php:13751 includes/user-progress.php:13760 includes/user-progress.php:13763 includes/user-progress.php:1815
 msgid "Invalid request."
 msgstr "अमान्य अनुरोध।"
 
@@ -2062,102 +2062,102 @@ msgid "Transcription"
 msgstr "प्रतिलिपि"
 
 #. ll-tools-public-key: 2ed9c2a508e0c5470f8b23ead5c07545bb900cf5
-#: includes/lms/assignment-experience.php:143 includes/lms/assignment-experience.php:319
+#: includes/lms/assignment-experience.php:143 includes/lms/assignment-experience.php:322
 msgid "This assignment content is unavailable."
 msgstr "इस असाइनमेंट की सामग्री उपलब्ध नहीं है।"
 
 #. ll-tools-public-key: f8abc7412031923e9c1fdd55029785afe2ec5827
-#: includes/lms/assignment-experience.php:334
+#: includes/lms/assignment-experience.php:337
 msgid "The answer and learning progress could not be saved. Please retry."
 msgstr "उत्तर और सीखने की प्रगति सहेजी नहीं जा सकी। कृपया दोबारा प्रयास करें।"
 
 #. ll-tools-public-key: f2155fa2bd82c2e8e6b94a5e7b5675009f5cc61d
-#: includes/lms/assignment-experience.php:350
+#: includes/lms/assignment-experience.php:353
 msgid "This assignment is unavailable for your account."
 msgstr "यह असाइनमेंट आपके खाते के लिए उपलब्ध नहीं है।"
 
 #. ll-tools-public-key: 1e597804c738a7d99a734ececded6b9f3c55be20
-#: includes/lms/assignment-experience.php:355
+#: includes/lms/assignment-experience.php:358
 msgid "This assignment player is unavailable."
 msgstr "यह असाइनमेंट करने का पृष्ठ उपलब्ध नहीं है।"
 
 #. ll-tools-public-key: a13a6989dbfdcac0b3feb3772d0dad5f16cb7cc1
-#: includes/lms/assignment-experience.php:358 includes/lms/assignments.php:1560
+#: includes/lms/assignment-experience.php:361 includes/lms/assignments.php:1560
 msgid "Your learning data is being erased. Please try again later."
 msgstr "आपके सीखने का डेटा मिटाया जा रहा है। कृपया बाद में दोबारा प्रयास करें।"
 
 #. ll-tools-public-key: 65cf103f2570cc44d71e6d3264694476acc1a1b6
-#: includes/lms/assignment-experience.php:408 templates/assignment-player.php:7
+#: includes/lms/assignment-experience.php:411 templates/assignment-player.php:7
 msgid "Loading assignment…"
 msgstr "असाइनमेंट लोड हो रहा है…"
 
 #. ll-tools-public-key: 797a7361cedf56b0fd3cb21eede74ea0da8d1625
-#: includes/lms/assignment-experience.php:408
+#: includes/lms/assignment-experience.php:411
 msgid "Start assignment"
 msgstr "असाइनमेंट शुरू करें"
 
 #. ll-tools-public-key: 8832e6ee305241ba76d276289b99e8ad88b6041e
-#: includes/lms/assignment-experience.php:408
+#: includes/lms/assignment-experience.php:411
 msgid "Try another attempt"
 msgstr "फिर प्रयास करें"
 
 #. ll-tools-public-key: 1552d8baee8e37cb10bb1e1629c6f4a861a89ff0
-#: includes/lms/assignment-experience.php:408
+#: includes/lms/assignment-experience.php:411
 msgid "of"
 msgstr "/"
 
 #. ll-tools-public-key: 37094231b0ad0f3cd571af0ae20c8a6a173af380
-#: includes/lms/assignment-experience.php:408
+#: includes/lms/assignment-experience.php:411
 msgid "Save answer"
 msgstr "उत्तर सहेजें"
 
 #. ll-tools-public-key: 6328aed54690d71b5d0d22ec990cc4eb8b84ee11
-#: includes/lms/assignment-experience.php:408
+#: includes/lms/assignment-experience.php:411
 msgid "Next question"
 msgstr "अगला प्रश्न"
 
 #. ll-tools-public-key: 6d671147e07d4e6fd27f89c8e74005376ae729d7
-#: includes/lms/assignment-experience.php:408
+#: includes/lms/assignment-experience.php:411
 msgid "Finish assignment"
 msgstr "असाइनमेंट पूरा करें"
 
 #. ll-tools-public-key: aaa019aaf847f343ccf8813b3cc84c42a8d1b2bf
-#: includes/lms/assignment-experience.php:408
+#: includes/lms/assignment-experience.php:411
 msgid "Answer saved."
 msgstr "उत्तर सहेज लिया गया।"
 
 #. ll-tools-public-key: 2e50e09155fa8eff3221bfc7a2e98a6f0e2e2275
-#: includes/lms/assignment-experience.php:408 includes/pages/wordset-transcription-review.php:283 includes/shortcodes/editor-hub-shortcode.php:1067
+#: includes/lms/assignment-experience.php:411 includes/pages/wordset-transcription-review.php:283 includes/shortcodes/editor-hub-shortcode.php:1067
 msgid "Saving…"
 msgstr "सहेजा जा रहा है…"
 
 #. ll-tools-public-key: 823e50e146a546c1b11780992de4d76b132fe188
-#: includes/lms/assignment-experience.php:408
+#: includes/lms/assignment-experience.php:411
 msgid "The request could not be confirmed. Retry to read the saved state."
 msgstr "अनुरोध की पुष्टि नहीं हो सकी। सहेजी गई स्थिति देखने के लिए दोबारा प्रयास करें।"
 
 #. ll-tools-public-key: 4471313e07e922b1532ef4daa5f031cfddf69363
-#: includes/lms/assignment-experience.php:408
+#: includes/lms/assignment-experience.php:411
 msgid "Attempt score"
 msgstr "प्रयास के अंक"
 
 #. ll-tools-public-key: d3173564fa5f5579289d417969500d9353081bdd
-#: includes/lms/assignment-experience.php:408 includes/lms/assignments.php:2126
+#: includes/lms/assignment-experience.php:411 includes/lms/assignments.php:2126
 msgid "Selected grade"
 msgstr "चुना गया ग्रेड"
 
 #. ll-tools-public-key: c919d81f27c494f672e184d6dcd22a0d9d206b36
-#: includes/lms/assignment-experience.php:408
+#: includes/lms/assignment-experience.php:411
 msgid "This attempt has expired."
 msgstr "इस प्रयास का समय समाप्त हो गया है।"
 
 #. ll-tools-public-key: 55f79092aa0a1690a5def3b220f8b8268dc2dfd8
-#: includes/lms/assignment-experience.php:408
+#: includes/lms/assignment-experience.php:411
 msgid "Choose an answer first."
 msgstr "पहले एक उत्तर चुनें।"
 
 #. ll-tools-public-key: aeb6743c42e56deec715bceece77a85f9cc93915
-#: includes/lms/assignment-experience.php:408 includes/pages/vocab-lesson-pages.php:2014 includes/pages/vocab-lesson-pages.php:2035 includes/pages/wordset-pages.php:27557 includes/shortcodes/flashcard-widget.php:743 includes/shortcodes/flashcard-widget.php:748 includes/shortcodes/ranked-word-list-shortcode.php:377 includes/shortcodes/ranked-word-list-shortcode.php:383 includes/shortcodes/word-audio-shortcode.php:211 includes/taxonomies/word-category-taxonomy.php:2907
+#: includes/lms/assignment-experience.php:411 includes/pages/vocab-lesson-pages.php:2014 includes/pages/vocab-lesson-pages.php:2035 includes/pages/wordset-pages.php:27557 includes/shortcodes/flashcard-widget.php:743 includes/shortcodes/flashcard-widget.php:748 includes/shortcodes/ranked-word-list-shortcode.php:377 includes/shortcodes/ranked-word-list-shortcode.php:383 includes/shortcodes/word-audio-shortcode.php:211 includes/taxonomies/word-category-taxonomy.php:2907
 msgid "Play audio"
 msgstr "ऑडियो चलाएँ"
 

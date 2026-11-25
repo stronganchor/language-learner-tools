@@ -139,6 +139,7 @@ function ll_tools_lms_assignment_vocabulary_access(array $manifest, int $user_id
 
 /** Raw native authoring cannot smuggle a foreign word into a class snapshot. */
 function ll_tools_lms_assignment_validate_vocabulary_scope(array $manifest, int $wordset_id, int $actor_user_id) {
+    global $wpdb;
     if (!ll_tools_lms_assignment_vocabulary_access($manifest, $actor_user_id)) {
         return ll_tools_lms_assignment_experience_error('assignment_content_forbidden', __('This assignment content is unavailable.', 'll-tools-text-domain'), 403);
     }
@@ -148,9 +149,13 @@ function ll_tools_lms_assignment_validate_vocabulary_scope(array $manifest, int 
         $word = get_post($vocab['word_id']);
         $complete = true;
         $owner = ll_tools_get_category_wordset_owner_id($vocab['category_id'], $complete);
-        $wordsets = wp_get_post_terms($vocab['word_id'], 'wordset', ['fields' => 'ids']);
-        $categories = wp_get_post_terms($vocab['word_id'], 'word-category', ['fields' => 'ids']);
-        if ($vocab['wordset_id'] !== $wordset_id || !$complete || ($owner > 0 && $owner !== $wordset_id) || !($word instanceof WP_Post) || $word->post_type !== 'words' || $word->post_status !== 'publish' || is_wp_error($wordsets) || is_wp_error($categories) || !in_array($wordset_id, array_map('intval', (array) $wordsets), true) || !in_array($vocab['category_id'], array_map('intval', (array) $categories), true) || isset($seen_words[$vocab['word_id']])) {
+        // Both current relationships must exist, including for a teacher who cannot manage the wordset.
+        $membership = $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$wpdb->term_relationships} r JOIN {$wpdb->term_taxonomy} t ON t.term_taxonomy_id = r.term_taxonomy_id
+             WHERE r.object_id = %d AND ((t.taxonomy = 'wordset' AND t.term_id = %d) OR (t.taxonomy = 'word-category' AND t.term_id = %d))",
+            $vocab['word_id'], $wordset_id, $vocab['category_id']
+        ));
+        if ($vocab['wordset_id'] !== $wordset_id || !$complete || ($owner > 0 && $owner !== $wordset_id) || !($word instanceof WP_Post) || $word->post_type !== 'words' || $word->post_status !== 'publish' || (int) $membership !== 2 || isset($seen_words[$vocab['word_id']])) {
             return ll_tools_lms_assignment_experience_error('assignment_word_scope', __('Every assignment question must map to a distinct current word in this class wordset and category.', 'll-tools-text-domain'), 403);
         }
         $seen_words[$vocab['word_id']] = true;
@@ -215,7 +220,9 @@ function ll_tools_lms_assignment_create_from_category(int $class_id, int $catego
     if (!is_array($selected) || count($selected) > 15 || count(array_filter($selected, static function ($id) { return is_int($id) && $id > 0; })) !== count($selected) || count(array_unique($selected)) !== count($selected)) {
         return ll_tools_lms_assignment_experience_error('assignment_word_scope', __('Choose 5 to 15 distinct words.', 'll-tools-text-domain'));
     }
-    $args = ['post_type' => 'words', 'post_status' => 'publish', 'fields' => 'ids', 'posts_per_page' => 16, 'orderby' => 'ID', 'order' => 'ASC', 'no_found_rows' => true, 'update_post_meta_cache' => false, 'update_post_term_cache' => false, 'tax_query' => ['relation' => 'AND', ['taxonomy' => 'word-category', 'field' => 'term_id', 'terms' => [$category_id], 'include_children' => false], ['taxonomy' => 'wordset', 'field' => 'term_id', 'terms' => [$wordset_id], 'include_children' => false]]];
+    $tax_query = ll_tools_exact_vocabulary_tax_query($category, $wordset_id);
+    if ($tax_query === null) { return ll_tools_lms_assignment_experience_error('assignment_category_scope', __('Choose a category in this class wordset.', 'll-tools-text-domain'), 403); }
+    $args = ['post_type' => 'words', 'post_status' => 'publish', 'fields' => 'ids', 'posts_per_page' => 16, 'orderby' => 'ID', 'order' => 'ASC', 'no_found_rows' => true, 'update_post_meta_cache' => false, 'update_post_term_cache' => false, 'tax_query' => $tax_query];
     if ($selected !== []) { $args['post__in'] = $selected; }
     $wpdb->last_error = '';
     $query = new WP_Query($args);
@@ -231,6 +238,7 @@ function ll_tools_lms_assignment_create_from_category(int $class_id, int $catego
     $config = ll_tools_get_category_quiz_config($category, $complete);
     if (!$complete) { return ll_tools_lms_assignment_experience_error('assignment_source_unavailable', __('The quiz configuration could not be read.', 'll-tools-text-domain'), 503); }
     $config['__candidate_word_ids'] = $ids;
+    $config['__class_assignment_vocabulary'] = true;
     // This vocabulary pilot excludes prompt cards. Supplying an explicit empty
     // reference set prevents the generic hydrator scanning a large category's
     // prompt-card catalog during this bounded authoring request.

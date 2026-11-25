@@ -39,6 +39,13 @@ function ll_tools_lti_admin_post_text(string $key): string {
 function ll_tools_lti_admin_redirect($result, int $class_id = 0, string $retained_uuid = '', string $setup_ticket = ''): void {
     $args = ['class_id' => $class_id, 'lti_notice' => is_wp_error($result) ? 'failed' : 'saved', 'lti_retained_assignment' => $retained_uuid];
     if (is_wp_error($result) && $setup_ticket !== '') { $args['ll_lti_setup'] = $setup_ticket; }
+    if (is_wp_error($result) && !str_starts_with((string) $result->get_error_code(), 'lti_')) {
+        // Preserve actionable assignment-authoring errors without putting message text into the URL.
+        $notice = wp_generate_uuid4();
+        if (set_transient('ll_lti_notice_' . get_current_user_id() . '_' . $notice, $result->get_error_message(), 120)) {
+            $args['lti_reason'] = $notice;
+        }
+    }
     wp_safe_redirect(ll_tools_lti_admin_url($args));
     exit;
 }
@@ -127,8 +134,14 @@ function ll_tools_lti_render_admin_page(): void {
     $choices = $class_id > 0 ? ll_tools_lms_assignment_category_choices($class_id, $actor) : [];
     $storage = ll_tools_lti_account_storage_status();
     $retained_uuid = is_string($_GET['lti_retained_assignment'] ?? null) ? ll_tools_lms_assignment_normalize_uuid($_GET['lti_retained_assignment']) : '';
+    $reason = '';
+    if (is_string($_GET['lti_reason'] ?? null) && wp_is_uuid($_GET['lti_reason'], 4)) {
+        $notice_key = 'll_lti_notice_' . $actor . '_' . $_GET['lti_reason'];
+        $reason = (string) get_transient($notice_key);
+        delete_transient($notice_key);
+    }
     ?><div class="wrap ll-tools-lti-admin"><h1><?php esc_html_e('Moodle / LTI', 'll-tools-text-domain'); ?></h1>
-    <?php if (isset($_GET['lti_notice'])): ?><div class="notice <?php echo ($_GET['lti_notice'] === 'saved') ? 'notice-success' : 'notice-error'; ?>"><p><?php echo ($_GET['lti_notice'] === 'saved') ? esc_html__('Saved.', 'll-tools-text-domain') : esc_html__('The change could not be saved. Check the registered URLs, class ownership, and selected activity, then retry.', 'll-tools-text-domain'); ?></p></div><?php endif; ?>
+    <?php if (isset($_GET['lti_notice'])): ?><div class="notice <?php echo ($_GET['lti_notice'] === 'saved') ? 'notice-success' : 'notice-error'; ?>"><p><?php echo ($_GET['lti_notice'] === 'saved') ? esc_html__('Saved.', 'll-tools-text-domain') : ($reason !== '' ? esc_html($reason) : esc_html__('The change could not be saved. Check the registered URLs, class ownership, and selected activity, then retry.', 'll-tools-text-domain')); ?></p></div><?php endif; ?>
     <?php if ($retained_uuid !== ''): ?><div class="notice notice-warning"><p><?php esc_html_e('The assignment was created. Reuse this UUID when retrying the activity setup:', 'll-tools-text-domain'); ?> <code><?php echo esc_html($retained_uuid); ?></code></p></div><?php endif; ?>
     <p><?php esc_html_e('Use Moodle’s External tool activity with LTI 1.3. Choose a new-window launch so students can connect their permanent learner accounts. Practice saves personal progress; graded assignments can return the selected result to Moodle.', 'll-tools-text-domain'); ?></p>
     <?php if (!ll_tools_lms_credential_store_is_available()): ?><div class="notice notice-error"><p><?php esc_html_e('A configuration-only LMS credential encryption key is required before Moodle launches or account linking are available.', 'll-tools-text-domain'); ?></p></div><?php endif; ?>

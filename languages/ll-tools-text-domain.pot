@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-11-25T07:40:11+00:00\n"
+"POT-Creation-Date: 2026-11-25T08:20:59+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.10.0\n"
 "X-Domain: ll-tools-text-domain\n"
@@ -663,7 +663,7 @@ msgid "LL Tools Audio/Image Matcher"
 msgstr ""
 
 #: includes/admin/audio-image-matcher.php:58
-#: includes/taxonomies/word-category-taxonomy.php:11747
+#: includes/taxonomies/word-category-taxonomy.php:11767
 msgid "Loading categories…"
 msgstr ""
 
@@ -761,7 +761,7 @@ msgstr ""
 #: includes/content-lesson-cloze.php:289
 #: includes/lib/recording-history.php:279
 #: includes/lib/word-copy.php:465
-#: includes/lms/assignment-experience.php:408
+#: includes/lms/assignment-experience.php:411
 #: includes/pages/content-lesson-pages.php:1308
 #: includes/pages/quiz-pages.php:1120
 #: includes/pages/quiz-pages.php:2075
@@ -1367,7 +1367,7 @@ msgstr ""
 #: includes/admin/word-images-fixer.php:120
 #: includes/pages/default-shortcode-page-helper.php:391
 #: includes/post-types/word-audio-post-type.php:531
-#: includes/taxonomies/word-category-taxonomy.php:11806
+#: includes/taxonomies/word-category-taxonomy.php:11826
 msgid "Permission denied"
 msgstr ""
 
@@ -1807,7 +1807,7 @@ msgstr ""
 
 #: includes/admin/bulk-translation-admin.php:204
 #: includes/admin/ipa-keyboard-admin.php:591
-#: includes/admin/lti-integration.php:140
+#: includes/admin/lti-integration.php:153
 #: includes/admin/split-word-admin.php:383
 #: includes/admin/user-progress-report.php:1159
 #: includes/lms/assignments.php:2119
@@ -3793,7 +3793,7 @@ msgid "The export may still fail if the server times out while preparing the zip
 msgstr ""
 
 #: includes/admin/export-import.php:591
-#: includes/lms/assignment-experience.php:408
+#: includes/lms/assignment-experience.php:411
 #: includes/shortcodes/audio-recording-shortcode.php:32
 #: includes/shortcodes/editor-hub-shortcode.php:301
 #: includes/shortcodes/word-grid-shortcode.php:5374
@@ -6433,8 +6433,8 @@ msgid "Authorized redirect URI"
 msgstr ""
 
 #: includes/admin/google-classroom-integration.php:258
-#: includes/admin/lti-integration.php:140
-#: includes/admin/lti-integration.php:152
+#: includes/admin/lti-integration.php:153
+#: includes/admin/lti-integration.php:165
 #: includes/lms/lti-accounts.php:597
 msgid "Client ID"
 msgstr ""
@@ -6494,7 +6494,7 @@ msgid "Connected since"
 msgstr ""
 
 #: includes/admin/google-classroom-integration.php:282
-#: includes/admin/lti-integration.php:178
+#: includes/admin/lti-integration.php:191
 #: includes/admin/missing-audio-admin-page.php:638
 #: includes/admin/missing-audio-admin-page.php:941
 #: includes/admin/orphan-media-admin.php:1826
@@ -6971,7 +6971,7 @@ msgid "Optimize Image"
 msgstr ""
 
 #: includes/admin/image-webp-optimizer-admin.php:1609
-#: includes/admin/lti-integration.php:135
+#: includes/admin/lti-integration.php:148
 #: includes/admin/teacher-classes-page.php:647
 #: includes/admin/teacher-classes-page.php:927
 #: includes/admin/teacher-classes-page.php:1085
@@ -7258,7 +7258,7 @@ msgid "No special characters found for this word set."
 msgstr ""
 
 #: includes/admin/ipa-keyboard-admin.php:396
-#: includes/admin/lti-integration.php:131
+#: includes/admin/lti-integration.php:144
 #: includes/content-lesson-cloze.php:305
 #: includes/shortcodes/editor-hub-shortcode.php:1068
 #: includes/shortcodes/word-grid-shortcode.php:4109
@@ -8720,7 +8720,7 @@ msgid "Release"
 msgstr ""
 
 #: includes/admin/lti-integration.php:12
-#: includes/admin/lti-integration.php:130
+#: includes/admin/lti-integration.php:143
 msgid "Moodle / LTI"
 msgstr ""
 
@@ -8728,78 +8728,78 @@ msgstr ""
 msgid "You cannot manage Moodle activities."
 msgstr ""
 
-#: includes/admin/lti-integration.php:48
+#: includes/admin/lti-integration.php:55
 msgid "Only a site administrator can register Moodle."
 msgstr ""
 
-#: includes/admin/lti-integration.php:118
+#: includes/admin/lti-integration.php:125
 msgid "Open this activity again from Moodle to resume setup."
 msgstr ""
 
-#: includes/admin/lti-integration.php:131
+#: includes/admin/lti-integration.php:144
 msgid "The change could not be saved. Check the registered URLs, class ownership, and selected activity, then retry."
 msgstr ""
 
-#: includes/admin/lti-integration.php:132
+#: includes/admin/lti-integration.php:145
 msgid "The assignment was created. Reuse this UUID when retrying the activity setup:"
 msgstr ""
 
-#: includes/admin/lti-integration.php:133
+#: includes/admin/lti-integration.php:146
 msgid "Use Moodle’s External tool activity with LTI 1.3. Choose a new-window launch so students can connect their permanent learner accounts. Practice saves personal progress; graded assignments can return the selected result to Moodle."
 msgstr ""
 
-#: includes/admin/lti-integration.php:134
+#: includes/admin/lti-integration.php:147
 msgid "A configuration-only LMS credential encryption key is required before Moodle launches or account linking are available."
 msgstr ""
 
-#: includes/admin/lti-integration.php:135
+#: includes/admin/lti-integration.php:148
 msgid "Moodle account linking and enrollment are paused. The core users, usermeta, posts, postmeta and options tables must all be InnoDB so account, class and grade changes can roll back together. Ask the database administrator to prepare a backed-up migration; this plugin will not convert core tables."
 msgstr ""
 
-#: includes/admin/lti-integration.php:137
+#: includes/admin/lti-integration.php:150
 msgid "Tool details for the Moodle administrator"
 msgstr ""
 
-#: includes/admin/lti-integration.php:138
+#: includes/admin/lti-integration.php:151
 msgid "Tool URL"
 msgstr ""
 
-#: includes/admin/lti-integration.php:138
+#: includes/admin/lti-integration.php:151
 msgid "Initiate login URL"
 msgstr ""
 
-#: includes/admin/lti-integration.php:138
+#: includes/admin/lti-integration.php:151
 msgid "Redirection URI"
 msgstr ""
 
-#: includes/admin/lti-integration.php:138
+#: includes/admin/lti-integration.php:151
 msgid "Public keyset URL"
 msgstr ""
 
-#: includes/admin/lti-integration.php:140
+#: includes/admin/lti-integration.php:153
 msgid "Registered Moodle platforms"
 msgstr ""
 
-#: includes/admin/lti-integration.php:140
+#: includes/admin/lti-integration.php:153
 #: includes/admin/recording-types-admin.php:112
 #: includes/admin/recording-types-admin.php:137
 #: includes/shortcodes/site-tools-shortcode.php:1249
 msgid "Name"
 msgstr ""
 
-#: includes/admin/lti-integration.php:140
-#: includes/admin/lti-integration.php:152
+#: includes/admin/lti-integration.php:153
+#: includes/admin/lti-integration.php:165
 #: includes/lms/lti-accounts.php:597
 msgid "Platform issuer"
 msgstr ""
 
-#: includes/admin/lti-integration.php:140
-#: includes/admin/lti-integration.php:152
+#: includes/admin/lti-integration.php:153
+#: includes/admin/lti-integration.php:165
 #: includes/lms/lti-accounts.php:597
 msgid "Deployment ID"
 msgstr ""
 
-#: includes/admin/lti-integration.php:141
+#: includes/admin/lti-integration.php:154
 #: includes/admin/recording-types-admin.php:158
 #: includes/pages/default-shortcode-page-helper.php:320
 #: includes/pages/wordset-editor.php:4933
@@ -8807,13 +8807,13 @@ msgstr ""
 msgid "Edit"
 msgstr ""
 
-#: includes/admin/lti-integration.php:141
-#: includes/admin/lti-integration.php:153
+#: includes/admin/lti-integration.php:154
+#: includes/admin/lti-integration.php:166
 msgid "Enabled"
 msgstr ""
 
-#: includes/admin/lti-integration.php:141
-#: includes/admin/lti-integration.php:179
+#: includes/admin/lti-integration.php:154
+#: includes/admin/lti-integration.php:192
 #: includes/lib/wordset-language-settings.php:1238
 #: includes/pages/wordset-pages.php:17830
 #: includes/pages/wordset-pages.php:17948
@@ -8821,193 +8821,193 @@ msgstr ""
 msgid "Disabled"
 msgstr ""
 
-#: includes/admin/lti-integration.php:144
+#: includes/admin/lti-integration.php:157
 msgid "Paste Moodle configuration details"
 msgstr ""
 
-#: includes/admin/lti-integration.php:145
+#: includes/admin/lti-integration.php:158
 msgid "Paste the six lines from Moodle’s View configuration details in English, or its platform-details JSON. URLs are checked before saving. Use a new local registration ID when changing the issuer, client ID or deployment ID."
 msgstr ""
 
-#: includes/admin/lti-integration.php:147
+#: includes/admin/lti-integration.php:160
 msgid "Moodle configuration details"
 msgstr ""
 
-#: includes/admin/lti-integration.php:148
-#: includes/admin/lti-integration.php:152
+#: includes/admin/lti-integration.php:161
+#: includes/admin/lti-integration.php:165
 msgid "Display name"
 msgstr ""
 
-#: includes/admin/lti-integration.php:149
-#: includes/admin/lti-integration.php:154
+#: includes/admin/lti-integration.php:162
+#: includes/admin/lti-integration.php:167
 msgid "Save platform"
 msgstr ""
 
-#: includes/admin/lti-integration.php:150
+#: includes/admin/lti-integration.php:163
 msgid "Register or update a platform"
 msgstr ""
 
-#: includes/admin/lti-integration.php:150
+#: includes/admin/lti-integration.php:163
 msgid "Copy these values from Moodle’s tool configuration. Registration is limited to the Moodle issuer’s HTTPS origin. Reusing an ID updates that registration; uncheck Enabled to stop its launches."
 msgstr ""
 
-#: includes/admin/lti-integration.php:152
+#: includes/admin/lti-integration.php:165
 msgid "Local registration ID"
 msgstr ""
 
-#: includes/admin/lti-integration.php:152
+#: includes/admin/lti-integration.php:165
 msgid "Authentication request URL"
 msgstr ""
 
-#: includes/admin/lti-integration.php:152
+#: includes/admin/lti-integration.php:165
 msgid "Platform public keyset URL"
 msgstr ""
 
-#: includes/admin/lti-integration.php:152
+#: includes/admin/lti-integration.php:165
 msgid "Access token URL"
 msgstr ""
 
-#: includes/admin/lti-integration.php:153
+#: includes/admin/lti-integration.php:166
 msgid "Allow launches"
 msgstr ""
 
-#: includes/admin/lti-integration.php:157
+#: includes/admin/lti-integration.php:170
 msgid "Class activities"
 msgstr ""
 
-#: includes/admin/lti-integration.php:157
+#: includes/admin/lti-integration.php:170
 msgid "Create the class in LL Tools first. Students are enrolled on their first trusted launch; removing them from the LL Tools class blocks later launches without deleting their personal accounts."
 msgstr ""
 
-#: includes/admin/lti-integration.php:158
+#: includes/admin/lti-integration.php:171
 #: includes/admin/teacher-classes-page.php:836
 #: includes/privacy.php:473
 #: includes/teacher-classes.php:27
 msgid "Class"
 msgstr ""
 
-#: includes/admin/lti-integration.php:158
+#: includes/admin/lti-integration.php:171
 msgid "Select class"
 msgstr ""
 
-#: includes/admin/lti-integration.php:158
+#: includes/admin/lti-integration.php:171
 msgid "Choose class"
 msgstr ""
 
-#: includes/admin/lti-integration.php:162
-#: includes/admin/lti-integration.php:164
+#: includes/admin/lti-integration.php:175
+#: includes/admin/lti-integration.php:177
 msgid "Moodle platform"
 msgstr ""
 
-#: includes/admin/lti-integration.php:165
+#: includes/admin/lti-integration.php:178
 #: includes/lms/lti-accounts.php:597
 msgid "Moodle course context ID"
 msgstr ""
 
-#: includes/admin/lti-integration.php:165
+#: includes/admin/lti-integration.php:178
 msgid "Use the exact LTI context ID sent by this Moodle course."
 msgstr ""
 
-#: includes/admin/lti-integration.php:166
+#: includes/admin/lti-integration.php:179
 #: includes/lms/lti-accounts.php:597
 msgid "Moodle resource link ID"
 msgstr ""
 
-#: includes/admin/lti-integration.php:166
+#: includes/admin/lti-integration.php:179
 msgid "Optional before the first launch. The first verified launch pins the resource link, preventing reuse by a different Moodle activity."
 msgstr ""
 
-#: includes/admin/lti-integration.php:168
+#: includes/admin/lti-integration.php:181
 msgid "Activity name"
 msgstr ""
 
-#: includes/admin/lti-integration.php:169
+#: includes/admin/lti-integration.php:182
 msgid "Lesson category"
 msgstr ""
 
-#: includes/admin/lti-integration.php:170
+#: includes/admin/lti-integration.php:183
 msgid "Activity type"
 msgstr ""
 
-#: includes/admin/lti-integration.php:170
+#: includes/admin/lti-integration.php:183
 msgid "Practice — personal progress, no Moodle grade"
 msgstr ""
 
-#: includes/admin/lti-integration.php:170
+#: includes/admin/lti-integration.php:183
 msgid "Graded assignment"
 msgstr ""
 
-#: includes/admin/lti-integration.php:171
+#: includes/admin/lti-integration.php:184
 msgid "To enable a graded assignment, allow grade sync and accept grades in Moodle, set a numeric grade for this activity, and open it again."
 msgstr ""
 
-#: includes/admin/lti-integration.php:172
+#: includes/admin/lti-integration.php:185
 msgid "Existing assignment UUID"
 msgstr ""
 
-#: includes/admin/lti-integration.php:172
+#: includes/admin/lti-integration.php:185
 msgid "Optional. Leave blank to create and publish a fixed assignment from this category."
 msgstr ""
 
-#: includes/admin/lti-integration.php:173
+#: includes/admin/lti-integration.php:186
 msgid "Maximum grade"
 msgstr ""
 
-#: includes/admin/lti-integration.php:174
+#: includes/admin/lti-integration.php:187
 msgid "Attempt limit"
 msgstr ""
 
-#: includes/admin/lti-integration.php:175
+#: includes/admin/lti-integration.php:188
 msgid "Grade policy"
 msgstr ""
 
-#: includes/admin/lti-integration.php:175
+#: includes/admin/lti-integration.php:188
 msgid "Best completed attempt"
 msgstr ""
 
-#: includes/admin/lti-integration.php:175
+#: includes/admin/lti-integration.php:188
 msgid "Latest completed attempt"
 msgstr ""
 
-#: includes/admin/lti-integration.php:175
+#: includes/admin/lti-integration.php:188
 msgid "First completed attempt"
 msgstr ""
 
-#: includes/admin/lti-integration.php:176
+#: includes/admin/lti-integration.php:189
 msgid "Create Moodle activity"
 msgstr ""
 
-#: includes/admin/lti-integration.php:177
+#: includes/admin/lti-integration.php:190
 msgid "No eligible lesson categories are available for this class wordset."
 msgstr ""
 
-#: includes/admin/lti-integration.php:178
+#: includes/admin/lti-integration.php:191
 msgid "Configured activities"
 msgstr ""
 
-#: includes/admin/lti-integration.php:178
+#: includes/admin/lti-integration.php:191
 #: includes/pages/wordset-pages.php:27533
 #: includes/pages/wordset-pages.php:27851
 msgid "Activity"
 msgstr ""
 
-#: includes/admin/lti-integration.php:178
+#: includes/admin/lti-integration.php:191
 msgid "Course context"
 msgstr ""
 
-#: includes/admin/lti-integration.php:178
+#: includes/admin/lti-integration.php:191
 msgid "Moodle custom parameter"
 msgstr ""
 
-#: includes/admin/lti-integration.php:178
+#: includes/admin/lti-integration.php:191
 msgid "Type / assignment"
 msgstr ""
 
-#: includes/admin/lti-integration.php:179
+#: includes/admin/lti-integration.php:192
 msgid "Configured from Moodle"
 msgstr ""
 
-#: includes/admin/lti-integration.php:179
+#: includes/admin/lti-integration.php:192
 #: includes/flashcard-shell.php:51
 #: includes/pages/wordset-pages.php:6777
 #: includes/pages/wordset-pages.php:26122
@@ -9023,7 +9023,7 @@ msgstr ""
 msgid "Practice"
 msgstr ""
 
-#: includes/admin/lti-integration.php:179
+#: includes/admin/lti-integration.php:192
 msgid "Disable"
 msgstr ""
 
@@ -15926,9 +15926,9 @@ msgstr ""
 #: includes/taxonomies/word-category-taxonomy.php:3843
 #: includes/taxonomies/word-category-taxonomy.php:4095
 #: includes/taxonomies/word-category-taxonomy.php:4109
-#: includes/taxonomies/word-category-taxonomy.php:11767
-#: includes/taxonomies/word-category-taxonomy.php:11783
-#: includes/taxonomies/word-category-taxonomy.php:11793
+#: includes/taxonomies/word-category-taxonomy.php:11787
+#: includes/taxonomies/word-category-taxonomy.php:11803
+#: includes/taxonomies/word-category-taxonomy.php:11813
 #: includes/user-progress.php:1815
 #: includes/user-progress.php:13245
 #: includes/user-progress.php:13719
@@ -17441,7 +17441,7 @@ msgid "Each question must have exactly one correct choice."
 msgstr ""
 
 #: includes/lms/assignment-experience.php:143
-#: includes/lms/assignment-experience.php:319
+#: includes/lms/assignment-experience.php:322
 msgid "This assignment content is unavailable."
 msgstr ""
 
@@ -17450,7 +17450,7 @@ msgid "Every assignment question must map to a distinct current word in this cla
 msgstr ""
 
 #: includes/lms/assignment-experience.php:201
-#: includes/lms/assignment-experience.php:295
+#: includes/lms/assignment-experience.php:298
 msgid "You cannot manage this class."
 msgstr ""
 
@@ -17459,6 +17459,7 @@ msgid "This category is unavailable."
 msgstr ""
 
 #: includes/lms/assignment-experience.php:212
+#: includes/lms/assignment-experience.php:219
 msgid "Choose a category in this class wordset."
 msgstr ""
 
@@ -17466,132 +17467,132 @@ msgstr ""
 msgid "Choose 5 to 15 distinct words."
 msgstr ""
 
-#: includes/lms/assignment-experience.php:223
+#: includes/lms/assignment-experience.php:225
 msgid "The vocabulary could not be read. Please try again."
 msgstr ""
 
-#: includes/lms/assignment-experience.php:228
+#: includes/lms/assignment-experience.php:230
 msgid "The category must have 5 to 15 usable words, or select an exact 5 to 15 word subset."
 msgstr ""
 
-#: includes/lms/assignment-experience.php:232
+#: includes/lms/assignment-experience.php:234
 msgid "The quiz configuration could not be read."
 msgstr ""
 
-#: includes/lms/assignment-experience.php:240
+#: includes/lms/assignment-experience.php:243
 msgid "Every selected word needs the category’s configured quiz media."
 msgstr ""
 
-#: includes/lms/assignment-experience.php:244
+#: includes/lms/assignment-experience.php:247
 msgid "This pilot supports ordinary vocabulary words only."
 msgstr ""
 
-#: includes/lms/assignment-experience.php:248
+#: includes/lms/assignment-experience.php:251
 msgid "The selected words changed. Please retry."
 msgstr ""
 
-#: includes/lms/assignment-experience.php:278
+#: includes/lms/assignment-experience.php:281
 msgid "A selected word has no distinct allowed distractor."
 msgstr ""
 
-#: includes/lms/assignment-experience.php:300
+#: includes/lms/assignment-experience.php:303
 msgid "Categories could not be read."
 msgstr ""
 
-#: includes/lms/assignment-experience.php:308
+#: includes/lms/assignment-experience.php:311
 msgid "Category ownership could not be read."
 msgstr ""
 
-#: includes/lms/assignment-experience.php:334
+#: includes/lms/assignment-experience.php:337
 msgid "The answer and learning progress could not be saved. Please retry."
 msgstr ""
 
-#: includes/lms/assignment-experience.php:350
+#: includes/lms/assignment-experience.php:353
 msgid "This assignment is unavailable for your account."
 msgstr ""
 
-#: includes/lms/assignment-experience.php:355
+#: includes/lms/assignment-experience.php:358
 msgid "This assignment player is unavailable."
 msgstr ""
 
-#: includes/lms/assignment-experience.php:358
+#: includes/lms/assignment-experience.php:361
 #: includes/lms/assignments.php:1560
 msgid "Your learning data is being erased. Please try again later."
 msgstr ""
 
-#: includes/lms/assignment-experience.php:363
+#: includes/lms/assignment-experience.php:366
 msgid "The attempt could not be read. Please retry."
 msgstr ""
 
-#: includes/lms/assignment-experience.php:368
+#: includes/lms/assignment-experience.php:371
 msgid "The answers could not be read. Please retry."
 msgstr ""
 
-#: includes/lms/assignment-experience.php:379
+#: includes/lms/assignment-experience.php:382
 msgid "Choose a class and category."
 msgstr ""
 
-#: includes/lms/assignment-experience.php:408
+#: includes/lms/assignment-experience.php:411
 #: templates/assignment-player.php:7
 msgid "Loading assignment…"
 msgstr ""
 
-#: includes/lms/assignment-experience.php:408
+#: includes/lms/assignment-experience.php:411
 msgid "Start assignment"
 msgstr ""
 
-#: includes/lms/assignment-experience.php:408
+#: includes/lms/assignment-experience.php:411
 msgid "Try another attempt"
 msgstr ""
 
-#: includes/lms/assignment-experience.php:408
+#: includes/lms/assignment-experience.php:411
 msgid "of"
 msgstr ""
 
-#: includes/lms/assignment-experience.php:408
+#: includes/lms/assignment-experience.php:411
 msgid "Save answer"
 msgstr ""
 
-#: includes/lms/assignment-experience.php:408
+#: includes/lms/assignment-experience.php:411
 msgid "Next question"
 msgstr ""
 
-#: includes/lms/assignment-experience.php:408
+#: includes/lms/assignment-experience.php:411
 msgid "Finish assignment"
 msgstr ""
 
-#: includes/lms/assignment-experience.php:408
+#: includes/lms/assignment-experience.php:411
 msgid "Answer saved."
 msgstr ""
 
-#: includes/lms/assignment-experience.php:408
+#: includes/lms/assignment-experience.php:411
 #: includes/pages/wordset-transcription-review.php:283
 #: includes/shortcodes/editor-hub-shortcode.php:1067
 msgid "Saving…"
 msgstr ""
 
-#: includes/lms/assignment-experience.php:408
+#: includes/lms/assignment-experience.php:411
 msgid "The request could not be confirmed. Retry to read the saved state."
 msgstr ""
 
-#: includes/lms/assignment-experience.php:408
+#: includes/lms/assignment-experience.php:411
 msgid "Attempt score"
 msgstr ""
 
-#: includes/lms/assignment-experience.php:408
+#: includes/lms/assignment-experience.php:411
 #: includes/lms/assignments.php:2126
 msgid "Selected grade"
 msgstr ""
 
-#: includes/lms/assignment-experience.php:408
+#: includes/lms/assignment-experience.php:411
 msgid "This attempt has expired."
 msgstr ""
 
-#: includes/lms/assignment-experience.php:408
+#: includes/lms/assignment-experience.php:411
 msgid "Choose an answer first."
 msgstr ""
 
-#: includes/lms/assignment-experience.php:408
+#: includes/lms/assignment-experience.php:411
 #: includes/pages/vocab-lesson-pages.php:2014
 #: includes/pages/vocab-lesson-pages.php:2035
 #: includes/pages/wordset-pages.php:27557
@@ -25363,7 +25364,7 @@ msgid "Recording types could not be loaded. No changes were made."
 msgstr ""
 
 #: includes/post-types/word-audio-post-type.php:552
-#: includes/taxonomies/word-category-taxonomy.php:11825
+#: includes/taxonomies/word-category-taxonomy.php:11845
 msgid "No posts selected"
 msgstr ""
 
@@ -29646,42 +29647,42 @@ msgstr ""
 msgid "Either <a href=\"%1$s\">change this category's quiz presentation</a> or <a href=\"%2$s\">edit the words in this category</a> so they match the current presentation."
 msgstr ""
 
-#: includes/taxonomies/word-category-taxonomy.php:11012
+#: includes/taxonomies/word-category-taxonomy.php:11032
 msgid "Successfully added %d category."
 msgid_plural "Successfully added %d categories."
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/taxonomies/word-category-taxonomy.php:11018
+#: includes/taxonomies/word-category-taxonomy.php:11038
 msgid "%d entry failed."
 msgid_plural "%d entries failed."
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/taxonomies/word-category-taxonomy.php:11026
-#: includes/taxonomies/word-category-taxonomy.php:11032
+#: includes/taxonomies/word-category-taxonomy.php:11046
+#: includes/taxonomies/word-category-taxonomy.php:11052
 msgid "Bulk Add Categories"
 msgstr ""
 
-#: includes/taxonomies/word-category-taxonomy.php:11030
+#: includes/taxonomies/word-category-taxonomy.php:11050
 msgid "Enter names separated by commas, tabs or new lines…"
 msgstr ""
 
-#: includes/taxonomies/word-category-taxonomy.php:11044
+#: includes/taxonomies/word-category-taxonomy.php:11064
 msgid "Permission denied or invalid nonce."
 msgstr ""
 
 #. translators: 1: category name, 2: owning word set name
-#: includes/taxonomies/word-category-taxonomy.php:11196
+#: includes/taxonomies/word-category-taxonomy.php:11216
 msgctxt "category label with owning word set in admin selectors"
 msgid "%1$s - %2$s"
 msgstr ""
 
-#: includes/taxonomies/word-category-taxonomy.php:11748
+#: includes/taxonomies/word-category-taxonomy.php:11768
 msgid "Categories could not be loaded. Category changes are unavailable."
 msgstr ""
 
-#: includes/taxonomies/word-category-taxonomy.php:11874
+#: includes/taxonomies/word-category-taxonomy.php:11894
 msgid "Categories could not be loaded. No changes were made."
 msgstr ""
 

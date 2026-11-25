@@ -200,6 +200,27 @@ final class LmsAssignmentExperienceTest extends LL_Tools_TestCase
         $this->assertIsArray(ll_tools_lms_assignment_submit_answer($started['attempt']['attempt_uuid'], wp_generate_uuid4(), $item['key'], $this->optionKey($item, true), $fixture['learner']));
     }
 
+    public function test_teacher_can_author_from_a_viewable_class_wordset_managed_by_someone_else_in_admin(): void
+    {
+        $fixture = $this->fixture();
+        $other = self::factory()->user->create(['role' => 'll_tools_teacher']);
+        update_term_meta($fixture['wordset'], 'manager_user_id', $other);
+        wp_set_current_user($fixture['teacher']);
+        $screen = get_current_screen();
+        set_current_screen('dashboard');
+        try {
+            $visible_in_manager_picker = get_terms(['taxonomy' => 'wordset', 'include' => [$fixture['wordset']], 'fields' => 'ids', 'hide_empty' => false]);
+            $this->assertSame([], $visible_in_manager_picker);
+            $assignment = ll_tools_lms_assignment_create_from_category($fixture['class'], $fixture['category']);
+            $this->assertIsArray($assignment);
+            $this->assertSame($fixture['wordset'], (int) $assignment['wordset_id']);
+            wp_set_current_user($other);
+            $this->assertWPError(ll_tools_lms_assignment_create_from_category($fixture['class'], $fixture['category']));
+        } finally {
+            if ($screen) { set_current_screen($screen); } else { unset($GLOBALS['current_screen']); }
+        }
+    }
+
     private function fixture(): array
     {
         $suffix = strtolower(wp_generate_password(8, false, false));

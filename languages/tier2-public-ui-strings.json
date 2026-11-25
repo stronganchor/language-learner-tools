@@ -2265,10 +2265,10 @@
             "msgid_plural": null,
             "references": [
                 "includes/lms/assignment-experience.php:143",
-                "includes/lms/assignment-experience.php:319"
+                "includes/lms/assignment-experience.php:322"
             ],
             "public_references": [
-                "includes/lms/assignment-experience.php:319"
+                "includes/lms/assignment-experience.php:322"
             ]
         },
         {
@@ -2277,10 +2277,10 @@
             "msgid": "The answer and learning progress could not be saved. Please retry.",
             "msgid_plural": null,
             "references": [
-                "includes/lms/assignment-experience.php:334"
+                "includes/lms/assignment-experience.php:337"
             ],
             "public_references": [
-                "includes/lms/assignment-experience.php:334"
+                "includes/lms/assignment-experience.php:337"
             ]
         },
         {
@@ -2289,10 +2289,10 @@
             "msgid": "This assignment is unavailable for your account.",
             "msgid_plural": null,
             "references": [
-                "includes/lms/assignment-experience.php:350"
+                "includes/lms/assignment-experience.php:353"
             ],
             "public_references": [
-                "includes/lms/assignment-experience.php:350"
+                "includes/lms/assignment-experience.php:353"
             ]
         },
         {
@@ -2301,10 +2301,10 @@
             "msgid": "This assignment player is unavailable.",
             "msgid_plural": null,
             "references": [
-                "includes/lms/assignment-experience.php:355"
+                "includes/lms/assignment-experience.php:358"
             ],
             "public_references": [
-                "includes/lms/assignment-experience.php:355"
+                "includes/lms/assignment-experience.php:358"
             ]
         },
         {
@@ -2313,11 +2313,11 @@
             "msgid": "Your learning data is being erased. Please try again later.",
             "msgid_plural": null,
             "references": [
-                "includes/lms/assignment-experience.php:358",
+                "includes/lms/assignment-experience.php:361",
                 "includes/lms/assignments.php:1560"
             ],
             "public_references": [
-                "includes/lms/assignment-experience.php:358"
+                "includes/lms/assignment-experience.php:361"
             ]
         },
         {
@@ -2326,10 +2326,10 @@
             "msgid": "Answer saved.",
             "msgid_plural": null,
             "references": [
-                "includes/lms/assignment-experience.php:408"
+                "includes/lms/assignment-experience.php:411"
             ],
             "public_references": [
-                "includes/lms/assignment-experience.php:408"
+                "includes/lms/assignment-experience.php:411"
             ]
         },
         {
@@ -2338,10 +2338,10 @@
             "msgid": "Attempt score",
             "msgid_plural": null,
             "references": [
-                "includes/lms/assignment-experience.php:408"
+                "includes/lms/assignment-experience.php:411"
             ],
             "public_references": [
-                "includes/lms/assignment-experience.php:408"
+                "includes/lms/assignment-experience.php:411"
             ]
         },
         {
@@ -2350,10 +2350,10 @@
             "msgid": "Choose an answer first.",
             "msgid_plural": null,
             "references": [
-                "includes/lms/assignment-experience.php:408"
+                "includes/lms/assignment-experience.php:411"
             ],
             "public_references": [
-                "includes/lms/assignment-experience.php:408"
+                "includes/lms/assignment-experience.php:411"
             ]
         },
         {
@@ -2362,10 +2362,10 @@
             "msgid": "Finish assignment",
             "msgid_plural": null,
             "references": [
-                "includes/lms/assignment-experience.php:408"
+                "includes/lms/assignment-experience.php:411"
             ],
             "public_references": [
-                "includes/lms/assignment-experience.php:408"
+                "includes/lms/assignment-experience.php:411"
             ]
         },
         {
@@ -2374,11 +2374,11 @@
             "msgid": "Loading assignment\u2026",
             "msgid_plural": null,
             "references": [
-                "includes/lms/assignment-experience.php:408",
+                "includes/lms/assignment-experience.php:411",
                 "templates/assignment-player.php:7"
             ],
             "public_references": [
-                "includes/lms/assignment-experience.php:408",
+                "includes/lms/assignment-experience.php:411",
                 "templates/assignment-player.php:7"
             ]
         },
@@ -2388,10 +2388,10 @@
             "msgid": "Next question",
             "msgid_plural": null,
             "references": [
-                "includes/lms/assignment-experience.php:408"
+                "includes/lms/assignment-experience.php:411"
             ],
             "public_references": [
-                "includes/lms/assignment-experience.php:408"
+                "includes/lms/assignment-experience.php:411"
             ]
         },
         {
@@ -2400,7 +2400,7 @@
             "msgid": "Play audio",
             "msgid_plural": null,
             "references": [
-                "includes/lms/assignment-experience.php:408",
+                "includes/lms/assignment-experience.php:411",
                 "includes/pages/vocab-lesson-pages.php:2014",
                 "includes/pages/vocab-lesson-pages.php:2035",
                 "includes/pages/wordset-pages.php:27557",
@@ -2412,7 +2412,7 @@
                 "includes/taxonomies/word-category-taxonomy.php:2907"
             ],
             "public_references": [
-                "includes/lms/assignment-experience.php:408",
+                "includes/lms/assignment-experience.php:411",
                 "includes/pages/vocab-lesson-pages.php:2014",
                 "includes/pages/vocab-lesson-pages.php:2035",
                 "includes/pages/wordset-pages.php:27557",
@@ -2430,7 +2430,7 @@
             "msgid_plural": null,
             "references": [
                 "includes/admin/export-import.php:591",
-                "includes/lms/assignment-experience.php:408",
+                "includes/lms/assignment-experience.php:411",
                 "includes/shortcodes/audio-recording-shortcode.php:32",
                 "includes/shortcodes/editor-hub-shortcode.php:301",
                 "includes/shortcodes/word-grid-shortcode.php:5374",
@@ -2439,7 +2439,7 @@
                 "includes/taxonomies/recording-type-taxonomy.php:42"
             ],
             "public_references": [
-                "includes/lms/assignment-experience.php:408",
+                "includes/lms/assignment-experience.php:411",
                 "includes/shortcodes/word-grid-shortcode.php:5374",
                 "includes/shortcodes/word-grid-shortcode.php:5859",
                 "includes/shortcodes/word-grid-shortcode.php:7894"
@@ -2461,7 +2461,7 @@
                 "includes/content-lesson-cloze.php:289",
                 "includes/lib/recording-history.php:279",
                 "includes/lib/word-copy.php:465",
-                "includes/lms/assignment-experience.php:408",
+                "includes/lms/assignment-experience.php:411",
                 "includes/pages/content-lesson-pages.php:1308",
                 "includes/pages/quiz-pages.php:1120",
                 "includes/pages/quiz-pages.php:2075",
@@ -2486,7 +2486,7 @@
                 "templates/vocab-lesson-template.php:447"
             ],
             "public_references": [
-                "includes/lms/assignment-experience.php:408",
+                "includes/lms/assignment-experience.php:411",
                 "includes/pages/quiz-pages.php:1120",
                 "includes/pages/quiz-pages.php:2075",
                 "includes/pages/wordset-pages.php:13584",
@@ -2508,10 +2508,10 @@
             "msgid": "Save answer",
             "msgid_plural": null,
             "references": [
-                "includes/lms/assignment-experience.php:408"
+                "includes/lms/assignment-experience.php:411"
             ],
             "public_references": [
-                "includes/lms/assignment-experience.php:408"
+                "includes/lms/assignment-experience.php:411"
             ]
         },
         {
@@ -2520,12 +2520,12 @@
             "msgid": "Saving\u2026",
             "msgid_plural": null,
             "references": [
-                "includes/lms/assignment-experience.php:408",
+                "includes/lms/assignment-experience.php:411",
                 "includes/pages/wordset-transcription-review.php:283",
                 "includes/shortcodes/editor-hub-shortcode.php:1067"
             ],
             "public_references": [
-                "includes/lms/assignment-experience.php:408"
+                "includes/lms/assignment-experience.php:411"
             ]
         },
         {
@@ -2534,11 +2534,11 @@
             "msgid": "Selected grade",
             "msgid_plural": null,
             "references": [
-                "includes/lms/assignment-experience.php:408",
+                "includes/lms/assignment-experience.php:411",
                 "includes/lms/assignments.php:2126"
             ],
             "public_references": [
-                "includes/lms/assignment-experience.php:408"
+                "includes/lms/assignment-experience.php:411"
             ]
         },
         {
@@ -2547,10 +2547,10 @@
             "msgid": "Start assignment",
             "msgid_plural": null,
             "references": [
-                "includes/lms/assignment-experience.php:408"
+                "includes/lms/assignment-experience.php:411"
             ],
             "public_references": [
-                "includes/lms/assignment-experience.php:408"
+                "includes/lms/assignment-experience.php:411"
             ]
         },
         {
@@ -2559,10 +2559,10 @@
             "msgid": "The request could not be confirmed. Retry to read the saved state.",
             "msgid_plural": null,
             "references": [
-                "includes/lms/assignment-experience.php:408"
+                "includes/lms/assignment-experience.php:411"
             ],
             "public_references": [
-                "includes/lms/assignment-experience.php:408"
+                "includes/lms/assignment-experience.php:411"
             ]
         },
         {
@@ -2571,10 +2571,10 @@
             "msgid": "This attempt has expired.",
             "msgid_plural": null,
             "references": [
-                "includes/lms/assignment-experience.php:408"
+                "includes/lms/assignment-experience.php:411"
             ],
             "public_references": [
-                "includes/lms/assignment-experience.php:408"
+                "includes/lms/assignment-experience.php:411"
             ]
         },
         {
@@ -2583,10 +2583,10 @@
             "msgid": "Try another attempt",
             "msgid_plural": null,
             "references": [
-                "includes/lms/assignment-experience.php:408"
+                "includes/lms/assignment-experience.php:411"
             ],
             "public_references": [
-                "includes/lms/assignment-experience.php:408"
+                "includes/lms/assignment-experience.php:411"
             ]
         },
         {
@@ -2595,10 +2595,10 @@
             "msgid": "of",
             "msgid_plural": null,
             "references": [
-                "includes/lms/assignment-experience.php:408"
+                "includes/lms/assignment-experience.php:411"
             ],
             "public_references": [
-                "includes/lms/assignment-experience.php:408"
+                "includes/lms/assignment-experience.php:411"
             ]
         },
         {
@@ -6602,7 +6602,7 @@
             "msgid": "Practice",
             "msgid_plural": null,
             "references": [
-                "includes/admin/lti-integration.php:179",
+                "includes/admin/lti-integration.php:192",
                 "includes/flashcard-shell.php:51",
                 "includes/pages/wordset-pages.php:26122",
                 "includes/pages/wordset-pages.php:27610",
@@ -7537,7 +7537,7 @@
             "msgid": "Activity",
             "msgid_plural": null,
             "references": [
-                "includes/admin/lti-integration.php:178",
+                "includes/admin/lti-integration.php:191",
                 "includes/pages/wordset-pages.php:27533",
                 "includes/pages/wordset-pages.php:27851"
             ],
@@ -7727,7 +7727,7 @@
             "references": [
                 "includes/admin/bulk-translation-admin.php:204",
                 "includes/admin/ipa-keyboard-admin.php:591",
-                "includes/admin/lti-integration.php:140",
+                "includes/admin/lti-integration.php:153",
                 "includes/admin/split-word-admin.php:383",
                 "includes/admin/user-progress-report.php:1159",
                 "includes/lms/assignments.php:2119",
@@ -10235,9 +10235,9 @@
                 "includes/shortcodes/flashcard-widget.php:2784",
                 "includes/shortcodes/quiz-pages-shortcodes.php:1862",
                 "includes/shortcodes/quiz-pages-shortcodes.php:1890",
-                "includes/taxonomies/word-category-taxonomy.php:11767",
-                "includes/taxonomies/word-category-taxonomy.php:11783",
-                "includes/taxonomies/word-category-taxonomy.php:11793",
+                "includes/taxonomies/word-category-taxonomy.php:11787",
+                "includes/taxonomies/word-category-taxonomy.php:11803",
+                "includes/taxonomies/word-category-taxonomy.php:11813",
                 "includes/taxonomies/word-category-taxonomy.php:1729",
                 "includes/taxonomies/word-category-taxonomy.php:1745",
                 "includes/taxonomies/word-category-taxonomy.php:1749",
