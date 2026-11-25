@@ -143,6 +143,23 @@ return [
     'include_sources' => [
         ['path' => 'includes/i18n/*.php'],
         [
+            'path' => 'includes/lms/lti-accounts.php',
+            'symbols' => [
+                'll_tools_lti_account_error',
+                'll_tools_lti_render_account_page',
+                'll_tools_lti_render_connections_page',
+            ],
+        ],
+        [
+            'path' => 'includes/lms/assignment-experience.php',
+            'symbols' => [
+                'll_tools_lms_assignment_project_answer_progress',
+                'll_tools_lms_assignment_player_state',
+                'll_tools_lms_assignment_experience_template',
+            ],
+        ],
+        ['path' => 'templates/assignment-player.php'],
+        [
             'path' => 'includes/login-window.php',
             'symbols' => [
                 'll_tools_login_window_registration_rate_limit_message',

@@ -1,0 +1,16 @@
+.ll-assignment-player { max-width: 52rem; margin: 2rem auto; padding: 1.4rem; font-family: inherit; color: #1f2937; background: #fff; border-radius: 1rem; }
+.ll-assignment-player .ll-assignment-player__title { margin: 0 0 1rem; font-size: 1.6rem; color: inherit; }
+.ll-assignment-player__status { min-height: 1.8rem; color: #64748b; }
+.ll-assignment-player__prompt { display: flex; flex-direction: column; align-items: center; gap: .8rem; padding: 1rem; background: #eceff3; border-radius: .7rem; }
+.ll-assignment-player__text { font-size: 1.3rem; white-space: pre-wrap; text-align: center; }
+.ll-assignment-player img { display: block; width: auto; max-width: 100%; max-height: 15rem; object-fit: contain; margin: auto; }
+.ll-assignment-player audio { max-width: 100%; }
+.ll-assignment-player__choices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .8rem; margin: 1.2rem 0; border: 0; padding: 0; }
+.ll-assignment-player__choice { display: flex; align-items: flex-start; gap: .7rem; padding: 1rem; border: 2px solid #eceff3; border-radius: .7rem; cursor: pointer; }
+.ll-assignment-player__choice:has(input:checked) { border-color: #1d4d99; background: #d8e8ff; }
+.ll-assignment-player__choice input { margin: .3rem 0 0; flex-shrink: 0; }
+.ll-assignment-player__choice-media { min-width: 0; flex: 1; }
+.ll-assignment-player .ll-assignment-player__button { border: 0; background: #1d4d99; color: #fff; border-radius: .5rem; font: inherit; font-weight: 600; padding: .75rem 1.2rem; cursor: pointer; min-height: 2.8rem; margin: .3rem .3rem .3rem 0; }
+.ll-assignment-player .ll-assignment-player__button:disabled { opacity: .55; cursor: wait; }
+.ll-assignment-player__result { padding: 1rem; border-radius: .7rem; background: #d7f8dd; color: #15803d; }
+@media (max-width: 550px) { .ll-assignment-player { margin: .5rem; padding: 1rem; } .ll-assignment-player__choices { grid-template-columns: 1fr; } }

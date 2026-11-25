@@ -9595,6 +9595,19 @@ function ll_tools_count_gender_eligible_words_for_category(
     return $count;
 }
 
+/** Query the exact published vocabulary relationships after the caller establishes class/term visibility. */
+function ll_tools_exact_vocabulary_tax_query(WP_Term $category, int $wordset_id): ?array {
+    $wordset = get_term($wordset_id, 'wordset');
+    if ($category->taxonomy !== 'word-category' || !($wordset instanceof WP_Term)) { return null; }
+    // term_id expansion runs the dashboard's managed-wordset picker filter, even in admin-post.
+    // These existing taxonomy IDs identify the same two relationships without enumerating terms.
+    return [
+        'relation' => 'AND',
+        ['taxonomy' => 'word-category', 'field' => 'term_taxonomy_id', 'terms' => [(int) $category->term_taxonomy_id], 'include_children' => false],
+        ['taxonomy' => 'wordset', 'field' => 'term_taxonomy_id', 'terms' => [(int) $wordset->term_taxonomy_id], 'include_children' => false],
+    ];
+}
+
 function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordset_id = null, $quiz_config = [], ?bool &$complete = null) {
     global $wpdb;
 
@@ -9764,6 +9777,13 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
     if (!empty($candidate_word_ids)) {
         $args['post__in'] = $candidate_word_ids;
         $args['orderby'] = 'post__in';
+    }
+
+    if (!empty($config['__class_assignment_vocabulary'])) {
+        $exact = $term instanceof WP_Term && count($wordset_terms) === 1 && $candidate_word_ids
+            ? ll_tools_exact_vocabulary_tax_query($term, (int) reset($wordset_terms)) : null;
+        if ($exact === null) { $complete = false; return []; }
+        $args['tax_query'] = $exact;
     }
 
     $wpdb->last_error = '';

@@ -8,6 +8,7 @@
 /build-offline-app-apk.bat export-ignore
 /CODEBASE_ARCHITECTURE.md export-ignore
 /docs export-ignore
+/dependencies export-ignore
 /MAINTENANCE_BACKLOG.md export-ignore
 /RELEASING.md export-ignore
 /release-plugin.bat export-ignore
@@ -22,6 +23,9 @@
 # Compiled PHP catalogs can contain literal newlines inside message keys.
 # Preserve LF so Windows checkout conversion cannot change those lookup keys.
 /languages/*.l10n.php text eol=lf
+
+# Preserve the byte hashes recorded for the namespace-scoped JWT runtime.
+/includes/vendor/php-jwt/** text eol=lf
 
 # Keep translation sources and the generated public manifest deterministic.
 /languages/*.po text eol=lf

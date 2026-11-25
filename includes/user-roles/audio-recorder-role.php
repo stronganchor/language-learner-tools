@@ -510,6 +510,12 @@ function ll_tools_limited_role_admin_post_action_is_allowed($user = null): bool 
         return false;
     }
 
+    // These two handlers authenticate their learner, require a nonce and do not expose staff controls.
+    if (in_array($action, ['ll_tools_lti_confirm_account', 'll_tools_lti_unlink_account'], true)) {
+        return function_exists('ll_tools_lti_account_is_learner')
+            && ll_tools_lti_account_is_learner((int) $user->ID);
+    }
+
     return function_exists('ll_tools_user_can_manage_classes')
         && ll_tools_user_can_manage_classes((int) $user->ID);
 }

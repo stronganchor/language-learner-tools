@@ -498,6 +498,9 @@ function ll_tools_lms_assignment_normalize_manifest($manifest) {
     if (!is_string($input_json) || strlen($input_json) > LL_TOOLS_LMS_ASSIGNMENT_MANIFEST_MAX_BYTES) {
         return new WP_Error('assignment_manifest_too_large', __('The assignment manifest is too large.', 'll-tools-text-domain'));
     }
+    if (($manifest['schema'] ?? null) === 2 && function_exists('ll_tools_lms_assignment_normalize_vocabulary_manifest')) {
+        return ll_tools_lms_assignment_normalize_vocabulary_manifest($manifest);
+    }
     if (($manifest['schema'] ?? null) !== LL_TOOLS_LMS_ASSIGNMENT_MANIFEST_SCHEMA) {
         return new WP_Error('unsupported_assignment_manifest', __('The assignment manifest version is not supported.', 'll-tools-text-domain'));
     }
@@ -580,6 +583,9 @@ function ll_tools_lms_assignment_normalize_manifest($manifest) {
 
 /** Strip the server-only answer key before a manifest reaches a learner. */
 function ll_tools_lms_assignment_public_manifest(array $manifest): array {
+    if (($manifest['schema'] ?? null) === 2 && function_exists('ll_tools_lms_assignment_public_vocabulary_manifest')) {
+        return ll_tools_lms_assignment_public_vocabulary_manifest($manifest);
+    }
     $public_items = [];
     foreach ((array) ($manifest['items'] ?? []) as $item) {
         $public_options = [];
@@ -890,7 +896,7 @@ function ll_tools_lms_assignment_revision_manifest(array $revision) {
     $json = (string) ($revision['manifest_json'] ?? '');
     $expected_hash = (string) ($revision['manifest_hash'] ?? '');
     if (
-        (int) ($revision['manifest_schema'] ?? 0) !== LL_TOOLS_LMS_ASSIGNMENT_MANIFEST_SCHEMA
+        !in_array((int) ($revision['manifest_schema'] ?? 0), [LL_TOOLS_LMS_ASSIGNMENT_MANIFEST_SCHEMA, 2], true)
         || $json === ''
         || strlen($json) > LL_TOOLS_LMS_ASSIGNMENT_MANIFEST_MAX_BYTES
         || preg_match('/^[a-f0-9]{64}$/D', $expected_hash) !== 1
@@ -900,7 +906,7 @@ function ll_tools_lms_assignment_revision_manifest(array $revision) {
     if (!hash_equals($expected_hash, hash('sha256', $json))) {
         return new WP_Error('invalid_stored_assignment_manifest', __('The stored assignment manifest failed verification.', 'll-tools-text-domain'));
     }
-    $decoded = json_decode($json, true, 8);
+    $decoded = json_decode($json, true, 12);
     if (!is_array($decoded) || json_last_error() !== JSON_ERROR_NONE) {
         return new WP_Error('invalid_stored_assignment_manifest', __('The stored assignment manifest is unavailable.', 'll-tools-text-domain'));
     }
@@ -915,6 +921,7 @@ function ll_tools_lms_assignment_revision_manifest(array $revision) {
     if (
         !is_string($canonical_json)
         || !hash_equals($json, $canonical_json)
+        || (int) $normalized['schema'] !== (int) $revision['manifest_schema']
         || count($normalized['items']) !== (int) ($revision['question_count'] ?? 0)
         || is_wp_error($points)
         || $points !== (string) ($revision['points_maximum'] ?? '')
@@ -940,7 +947,7 @@ function ll_tools_lms_assignment_insert_revision(int $assignment_id, int $revisi
         [
             'assignment_id' => $assignment_id,
             'revision_number' => $revision_number,
-            'manifest_schema' => LL_TOOLS_LMS_ASSIGNMENT_MANIFEST_SCHEMA,
+            'manifest_schema' => (int) $normalized['manifest']['schema'],
             'manifest_json' => $normalized['manifest_json'],
             'manifest_hash' => $normalized['manifest_hash'],
             'question_count' => $normalized['question_count'],
@@ -993,6 +1000,11 @@ function ll_tools_lms_assignment_create(int $class_id, array $input, int $actor_
     $normalized = ll_tools_lms_assignment_normalize_revision_input($input);
     if (is_wp_error($normalized)) {
         return $normalized;
+    }
+
+    if (($normalized['manifest']['schema'] ?? null) === 2) {
+        $scope = ll_tools_lms_assignment_validate_vocabulary_scope($normalized['manifest'], $wordset_id, $actor_user_id);
+        if (is_wp_error($scope)) { return $scope; }
     }
 
     $transaction = ll_tools_lms_assignment_begin_transaction();
@@ -1063,6 +1075,10 @@ function ll_tools_lms_assignment_create_revision(int $assignment_id, array $inpu
     $normalized = ll_tools_lms_assignment_normalize_revision_input($input);
     if (is_wp_error($normalized)) {
         return $normalized;
+    }
+    if (($normalized['manifest']['schema'] ?? null) === 2) {
+        $scope = ll_tools_lms_assignment_validate_vocabulary_scope($normalized['manifest'], (int) $assignment['wordset_id'], $actor_user_id);
+        if (is_wp_error($scope)) { return $scope; }
     }
 
     $transaction = ll_tools_lms_assignment_begin_transaction();
@@ -1406,12 +1422,29 @@ function ll_tools_lms_assignment_start_attempt($assignment_identifier, int $user
         if (is_wp_error($manifest)) {
             throw new RuntimeException('invalid_stored_assignment_manifest');
         }
+        if (($manifest['schema'] ?? null) === 2 && (!function_exists('ll_tools_lms_assignment_vocabulary_access') || !ll_tools_lms_assignment_vocabulary_access($manifest, $user_id))) {
+            throw new DomainException('assignment_membership_required');
+        }
         $now_timestamp = ll_tools_lms_assignment_now_timestamp();
         $window = ll_tools_lms_assignment_revision_window_is_open($revision, $now_timestamp);
         if (is_wp_error($window)) {
             throw new DomainException($window->get_error_code());
         }
 
+        // A vocabulary-player retry/reload resumes the live attempt rather than
+        // consuming another attempt after an ambiguous start response.
+        if (($manifest['schema'] ?? null) === 2) {
+            $wpdb->last_error = '';
+            $open_attempt = $wpdb->get_row($wpdb->prepare(
+                "SELECT * FROM {$tables['attempts']} WHERE assignment_id=%d AND revision_id=%d AND user_id=%d AND status='started' AND expires_at > %s ORDER BY attempt_number DESC,id DESC LIMIT 1",
+                (int) $assignment['id'], $revision_id, $user_id, gmdate('Y-m-d H:i:s', $now_timestamp)
+            ), ARRAY_A);
+            if ($wpdb->last_error !== '') { throw new RuntimeException('assignment_attempt_write_failed'); }
+            if (is_array($open_attempt)) {
+                if (!ll_tools_lms_assignment_commit_transaction($transaction)) { throw new RuntimeException('assignment_attempt_write_failed'); }
+                return ['attempt' => ll_tools_lms_assignment_public_attempt($open_attempt), 'assignment' => ['assignment_uuid' => (string) $assignment['assignment_uuid'], 'title' => (string) $assignment['title']], 'manifest' => ll_tools_lms_assignment_public_manifest($manifest)];
+            }
+        }
         $attempt_state = $wpdb->get_row($wpdb->prepare(
             "SELECT COUNT(*) AS attempt_count, COALESCE(MAX(attempt_number), 0) AS last_number
              FROM {$tables['attempts']}
@@ -1499,6 +1532,41 @@ function ll_tools_lms_assignment_start_attempt($assignment_identifier, int $user
  * @return array|WP_Error
  */
 function ll_tools_lms_assignment_submit_answer(
+    string $attempt_uuid,
+    string $answer_uuid,
+    string $item_key,
+    string $option_key,
+    int $user_id = 0
+) {
+    if (!ll_tools_lms_assignment_schema_is_available()) {
+        return ll_tools_lms_assignment_schema_error();
+    }
+    $user_id = (int) ($user_id ?: get_current_user_id());
+    if ($user_id <= 0 || ll_tools_lms_assignment_normalize_uuid($attempt_uuid) === '' || ll_tools_lms_assignment_normalize_uuid($answer_uuid) === '' || ll_tools_lms_assignment_normalize_key($item_key) === '' || ll_tools_lms_assignment_normalize_key($option_key) === '') {
+        return new WP_Error('invalid_assignment_answer', __('The assignment answer is invalid.', 'll-tools-text-domain'));
+    }
+    if (!function_exists('ll_tools_offline_app_acquire_user_session_lock') || !function_exists('ll_tools_offline_app_release_user_session_lock')) {
+        return new WP_Error('assignment_progress_lock_unavailable', __('The answer could not be saved right now.', 'll-tools-text-domain'), ['status' => 503]);
+    }
+    // Progress and privacy writers always acquire the shared advisory lock before
+    // the user-row transaction. Taking it here preserves that order for the
+    // atomic answer-to-vocabulary projection below.
+    $lock = ll_tools_offline_app_acquire_user_session_lock($user_id);
+    if ($lock === '') {
+        return new WP_Error('assignment_progress_lock_unavailable', __('The answer could not be saved right now.', 'll-tools-text-domain'), ['status' => 503]);
+    }
+    try {
+        if (function_exists('ll_tools_offline_app_user_data_write_is_fenced') && ll_tools_offline_app_user_data_write_is_fenced($user_id)) {
+            return new WP_Error('assignment_progress_privacy_fenced', __('Your learning data is being erased. Please try again later.', 'll-tools-text-domain'), ['status' => 409]);
+        }
+        return ll_tools_lms_assignment_submit_answer_locked($attempt_uuid, $answer_uuid, $item_key, $option_key, $user_id);
+    } finally {
+        ll_tools_offline_app_release_user_session_lock($lock);
+    }
+}
+
+/** Internal answer path; caller owns the shared per-user mutation lock. */
+function ll_tools_lms_assignment_submit_answer_locked(
     string $attempt_uuid,
     string $answer_uuid,
     string $item_key,
@@ -1628,7 +1696,19 @@ function ll_tools_lms_assignment_submit_answer(
             ],
             ['%d', '%s', '%s', '%s', '%d', '%s']
         );
-        if ($inserted !== 1 || !ll_tools_lms_assignment_commit_transaction($transaction)) {
+        if ($inserted !== 1) {
+            throw new RuntimeException('assignment_answer_write_failed');
+        }
+        if (($manifest['schema'] ?? null) === 2) {
+            if (!function_exists('ll_tools_lms_assignment_project_answer_progress')) {
+                throw new RuntimeException('assignment_answer_write_failed');
+            }
+            $projected = ll_tools_lms_assignment_project_answer_progress($user_id, $attempt, $item, $is_correct, $answered_at);
+            if (is_wp_error($projected) || $projected !== true) {
+                throw new RuntimeException('assignment_answer_write_failed');
+            }
+        }
+        if (!ll_tools_lms_assignment_commit_transaction($transaction)) {
             throw new RuntimeException('assignment_answer_write_failed');
         }
         return [

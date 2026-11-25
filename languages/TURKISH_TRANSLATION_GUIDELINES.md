@@ -92,6 +92,11 @@ if (!is_string($poPath) || $poPath === '') {
     exit(1);
 }
 
+// Newer WordPress POMO code uses compatibility helpers such as array_last().
+// A standalone compiler must load them without bootstrapping WordPress or its DB.
+if (!defined('ABSPATH')) { define('ABSPATH', $root . '/'); }
+if (!defined('WPINC')) { define('WPINC', 'wp-includes'); }
+require $root . '/wp-includes/compat.php';
 require $root . '/wp-includes/pomo/translations.php';
 require $root . '/wp-includes/pomo/streams.php';
 require $root . '/wp-includes/pomo/entry.php';
