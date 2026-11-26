@@ -596,6 +596,7 @@ Representative E2E coverage areas:
   - Verifies cold quiz catalogs continue through bounded asynchronous batches, can progress beyond twelve batches, and convert a stalled request into translated Retry state whose replacement generation fences the stale response.
 - `tests/e2e/specs/flashcard-image-translation-option-render.spec.js`
   - Verifies image answer options with translation captions keep full image tile sizing, adapt caption rows, hide empty captions cleanly, and stay inside small embedded iframe viewports without shrinking large iframe/desktop cards; white prompt images retain a visible shadow boundary on mobile and desktop.
+  - Covers shared full-screen phone controls and spacing across answer types in nested and portaled quizzes. Checks that the title stays in place during loading and that full-size picture tiles admit a third row when it fits.
 - `tests/e2e/specs/flashcard-study-prefs-save.spec.js`
   - Verifies rapid practice-mode preference saves keep the latest queued study state.
 - `tests/e2e/specs/wordset-study-save-recovery.spec.js`
