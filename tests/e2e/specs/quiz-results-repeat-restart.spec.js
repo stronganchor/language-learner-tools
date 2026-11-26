@@ -1,5 +1,6 @@
 const { test, expect } = require('@playwright/test');
 const fs = require('fs');
+const http = require('node:http');
 const path = require('path');
 
 const jquerySource = fs.readFileSync(require.resolve('jquery'), 'utf8');
@@ -162,11 +163,11 @@ async function mountRestartHarness(page) {
   await page.addScriptTag({ content: mainSource });
 }
 
-async function mountRenderedImageReadinessHarness(page) {
+async function mountRenderedImageReadinessHarness(page, pageUrl = 'about:blank') {
   const goodImage = fixtureImage('#dcfce7', 'OK');
   const brokenImage = 'data:image/png;base64,this-is-not-a-valid-image';
 
-  await page.goto('about:blank');
+  await page.goto(pageUrl);
   await page.setContent(`
     <div id="ll-tools-flashcard-popup">
       <div id="ll-tools-flashcard-quiz-popup">
@@ -1522,6 +1523,80 @@ test('pending distractor downloads keep their original option instead of being r
   }))).toEqual({ selections: 1, fills: 1, cards: ['502', '900'], retained: true });
 });
 
+for (const missingTarget of [true, false]) {
+  test(`waking a phone restores interrupted ${missingTarget ? 'target and distractor' : 'distractor'} pictures in the same round`, async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await mountRenderedImageReadinessHarness(page);
+    await page.evaluate(() => { window.__roundLoader = window.FlashcardLoader; });
+    await page.addScriptTag({ content: loaderSource });
+    await page.evaluate(() => {
+      window.__roundLoader.loadImage = window.FlashcardLoader.loadImage;
+      window.FlashcardLoader = window.__roundLoader;
+    });
+
+    const held = [];
+    let network = 'loading';
+    let resumedRequests = 0;
+    await page.route('https://quiz-pictures.test/*.svg', async route => {
+      if (network === 'loading') {
+        held.push(route);
+      } else if (network === 'asleep') {
+        await route.abort('connectionreset');
+      } else {
+        resumedRequests++;
+        await route.fulfill({
+          contentType: 'image/svg+xml',
+          body: '<svg xmlns="http://www.w3.org/2000/svg" width="60" height="40"><rect width="60" height="40" fill="green"/></svg>'
+        });
+      }
+    });
+    await page.evaluate(({ missingTarget, good }) => {
+      window.jQuery('#quiz-results').hide().html('<button id="restart-quiz" style="display:none">Retry</button>');
+      const state = window.LLFlashcards.State;
+      state.quizResults.correctOnFirstTry = 3;
+      const missing = new Set([missingTarget ? 501 : 901, 905]);
+      window.LLFlashcards.Selection.fillQuizOptions = target => {
+        window.__originalPictures = [target.id, 901, 902, 903, 904, 905].map(id => {
+          const card = document.createElement('div');
+          card.className = 'flashcard-container ll-answer-option-image-card';
+          card.dataset.wordId = id;
+          const image = new Image();
+          image.src = missing.has(id) ? 'https://quiz-pictures.test/' + id + '.svg' : good;
+          card.append(image);
+          document.getElementById('ll-tools-flashcard').append(card);
+          return image;
+        });
+        return Promise.resolve({ ready: true });
+      };
+      window.__setPhoneHidden = hidden => {
+        Object.defineProperty(document, 'hidden', { configurable: true, value: hidden });
+        Object.defineProperty(document, 'visibilityState', { configurable: true, value: hidden ? 'hidden' : 'visible' });
+        document.dispatchEvent(new Event('visibilitychange'));
+      };
+      window.LLFlashcards.Main.runQuizRound();
+    }, { missingTarget, good: fixtureImage('#dcfce7', 'OK') });
+    await expect.poll(() => held.length).toBe(2);
+    await page.evaluate(() => window.__setPhoneHidden(true));
+    network = 'asleep';
+    await Promise.all(held.map(route => route.abort('connectionreset')));
+    await expect.poll(() => page.evaluate(() => window.__originalPictures.filter(img => img.complete && !img.naturalWidth).length)).toBe(2);
+    // Allow the normal retry/backoff to expire while the phone is locked.
+    await page.waitForTimeout(1500);
+    network = 'awake';
+    await page.evaluate(() => window.__setPhoneHidden(false));
+    await expect.poll(() => page.evaluate(() => ({
+      state: window.LLFlashcards.State.getState(),
+      shown: window.__shownWordIds,
+      selections: window.__targetSelectionCalls,
+      score: window.LLFlashcards.State.quizResults.correctOnFirstTry,
+      samePictures: window.__originalPictures.every((img, i) => document.querySelectorAll('#ll-tools-flashcard img')[i] === img && img.naturalWidth > 0),
+      resultDialog: window.jQuery('#quiz-results').is(':visible')
+    }))).toEqual({ state: 'showing_question', shown: [501], selections: 1, score: 3, samePictures: true, resultDialog: false });
+    expect(resumedRequests).toBeGreaterThanOrEqual(2);
+    expect(resumedRequests).toBeLessThanOrEqual(4);
+  });
+}
+
 test('practice rounds remove failed distractor images without dropping a healthy target', async ({ page }) => {
   const goodImage = fixtureImage('#dcfce7', 'OK');
   const brokenImage = 'data:image/png;base64,this-is-not-a-valid-image';
@@ -1696,6 +1771,38 @@ test('practice rounds refill failed distractors from the hydrated reserve withou
     Kitchen: [{ wordData: { id: 42 }, reappearRound: 104, forceReplay: true, needsCleanReplay: true }]
   });
   expect(result.errorState).toBe(false);
+});
+
+test('sleep during a distractor refill restores the original choices before resuming', async ({ page }) => {
+  await mountRenderedImageReadinessHarness(page);
+  await page.evaluate(good => {
+    const broken = 'data:image/png;base64,this-is-not-a-valid-image';
+    const state = window.LLFlashcards.State;
+    state.quizResults.correctOnFirstTry = 7;
+    window.LLFlashcards.Selection.fillQuizOptions = (target, options) => {
+      const container = document.querySelector('#ll-tools-flashcard');
+      container.innerHTML = `<button class="flashcard-container" data-word-id="${target.id}"><img src="${good}"></button>
+        <button class="flashcard-container" data-word-id="${options ? 901 : 900}"><img src="${options ? good : broken}"></button>`;
+      if (options) return new Promise(resolve => { window.__finishRefill = resolve; });
+      window.__originalCards = [...container.children];
+      return Promise.resolve({ ready: true });
+    };
+    window.LLFlashcards.Main.runQuizRound();
+  }, fixtureImage('#dcfce7', 'OK'));
+  await page.waitForFunction(() => !!window.__finishRefill);
+  await page.evaluate(() => {
+    window.dispatchEvent(new Event('pagehide'));
+    const [target, distractor] = window.__originalCards;
+    distractor.firstElementChild.src = target.firstElementChild.src;
+    window.__finishRefill({ ready: true });
+  });
+  await page.waitForFunction(() => window.__originalCards.every(el => el.isConnected));
+  expect(await page.evaluate(() => window.__shownWordIds)).toEqual([]);
+  await page.evaluate(() => window.dispatchEvent(new Event('pageshow')));
+  await expect.poll(() => page.evaluate(() => window.__shownWordIds)).toEqual([501]);
+  expect(await page.locator('#ll-tools-flashcard .flashcard-container').count()).toBe(2);
+  expect(await page.evaluate(() => window.__originalCards.every(el => el.isConnected))).toBe(true);
+  expect(await page.evaluate(() => [window.__targetSelectionCalls, window.LLFlashcards.State.quizResults.correctOnFirstTry])).toEqual([1, 7]);
 });
 
 for (const failureKind of ['throw', 'status', 'reject']) {
@@ -2123,6 +2230,158 @@ test('practice round trusts playable mounted prompt audio when the preload probe
   expect(result.targetRetryCalls).toBe(0);
   expect(result.remainingWordIds).toEqual([701]);
 });
+
+test('an interrupted native prompt waits for its replacement to select and decode the source', async ({ page }) => {
+  // WebKit's native media process can bypass Playwright's page routes.
+  const audio = fs.readFileSync(path.resolve(__dirname, '../../../media/right-answer.mp3'));
+  const pending = [];
+  let offline = false;
+  let restored = false;
+  const server = http.createServer((request, response) => {
+    if (request.url === '/') return response.writeHead(200, { 'content-type': 'text/html' }).end('<body></body>');
+    if (request.url !== '/prompt.mp3') return response.writeHead(404).end();
+    if (!restored) {
+      if (offline) return response.writeHead(503).end();
+      pending.push(response);
+      return;
+    }
+    const range = /^bytes=(\d+)-(\d*)$/.exec(request.headers.range || '');
+    const start = range ? Number(range[1]) : 0;
+    const end = range && range[2] ? Math.min(Number(range[2]), audio.length - 1) : audio.length - 1;
+    response.writeHead(range ? 206 : 200, {
+      'content-type': 'audio/mpeg', 'accept-ranges': 'bytes', 'content-length': end - start + 1,
+      ...(range ? { 'content-range': `bytes ${start}-${end}/${audio.length}` } : {})
+    });
+    response.end(audio.subarray(start, end + 1));
+  });
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  try {
+    const origin = `http://127.0.0.1:${server.address().port}`;
+    const url = origin + '/prompt.mp3';
+    await mountRenderedImageReadinessHarness(page, origin + '/');
+    await page.addScriptTag({ path: path.resolve(__dirname, '../../../js/flashcard-widget/audio.js') });
+    await page.evaluate(url => {
+      window.__targets = [{ id: 711, audio: url, __categoryName: 'Kitchen' }];
+      window.LLFlashcards.Util.getPromptAudioUrl = word => word.audio;
+      window.LLFlashcards.Selection.getCategoryConfig = () => ({ option_type: 'text', prompt_type: 'audio' });
+      window.LLFlashcards.Selection.fillQuizOptions = () => {
+        window.jQuery('#ll-tools-flashcard').append('<button data-word-id="711">A</button><button data-word-id="900">B</button>');
+        window.__choices = [...document.querySelectorAll('#ll-tools-flashcard button')];
+        return Promise.resolve({ ready: true });
+      };
+      const start = document.createElement('button');
+      start.textContent = 'Start quiz';
+      start.onclick = window.LLFlashcards.Main.runQuizRound;
+      document.body.append(start);
+    }, url);
+    await page.getByRole('button', { name: 'Start quiz' }).click();
+    await expect.poll(() => pending.length).toBeGreaterThan(0);
+    await page.evaluate(() => {
+      window.__firstPrompt = window.FlashcardAudio.getCurrentTargetAudio();
+      window.dispatchEvent(new Event('pagehide'));
+    });
+    offline = true;
+    pending.forEach(response => response.writeHead(503).end());
+    await page.waitForFunction(() => !!window.__firstPrompt.error);
+    restored = true;
+    await page.evaluate(() => window.dispatchEvent(new Event('pageshow')));
+    await expect.poll(() => page.evaluate(() => window.__shownWordIds)).toEqual([711]);
+    expect(await page.evaluate(() => {
+      const mounted = window.FlashcardAudio.getCurrentTargetAudio();
+      return mounted !== window.__firstPrompt && mounted.readyState >= 2 && !mounted.error
+        && window.__choices.every(el => el.isConnected) && window.__targetSelectionCalls === 1;
+    })).toBe(true);
+  } finally {
+    server.closeAllConnections();
+    await new Promise(resolve => server.close(resolve));
+  }
+});
+
+for (const outcome of ['ready while asleep', 'surviving download', 'failure delivered after wake', 'still unavailable', 'closed during sleep']) {
+  test(`a suspended prompt loading round handles ${outcome}`, async ({ page }) => {
+    await mountRenderedImageReadinessHarness(page);
+    await page.evaluate(outcome => {
+      const target = { id: 703, audio: 'https://media.test/phone.m4a', __categoryName: 'Kitchen' };
+      window.__targets = [target];
+      window.__mounts = 0;
+      window.__waits = 0;
+      window.__mayPlay = false;
+      window.jQuery('#quiz-results').hide().html('<button id="restart-quiz" type="button">Retry</button>');
+      window.LLFlashcards.Util.getPromptAudioUrl = word => word.audio;
+      window.LLFlashcards.Selection.getCategoryConfig = () => ({ option_type: 'text', prompt_type: 'audio' });
+      window.LLFlashcards.Selection.fillQuizOptions = () => {
+        window.jQuery('#ll-tools-flashcard').html('<button data-word-id="703">A</button><button data-word-id="900">B</button>');
+        window.__choices = Array.from(document.querySelectorAll('#ll-tools-flashcard button'));
+        return Promise.resolve({ ready: true });
+      };
+      window.FlashcardAudio.setTargetWordAudio = () => {
+        window.__mounts++;
+        window.__prompt = { readyState: window.__mayPlay ? 3 : 0, networkState: 2, error: null };
+        return Promise.resolve(window.__prompt);
+      };
+      window.FlashcardAudio.getCurrentTargetAudio = () => window.__prompt;
+      window.FlashcardAudio.waitForAudioPlayable = (audio, options) => {
+        if (++window.__waits === 1) return new Promise(resolve => { window.__settlePrompt = resolve; });
+        if (outcome === 'surviving download' && window.__waits === 2) {
+          window.__foregroundWait = options.timeoutMs;
+          return new Promise(resolve => {
+            window.__finishDownload = () => { audio.readyState = 3; resolve(true); };
+          });
+        }
+        return Promise.resolve(audio.readyState >= 2 && !audio.error);
+      };
+      window.LLFlashcards.State.quizResults.correctOnFirstTry = 2;
+      window.LLFlashcards.Main.runQuizRound();
+    }, outcome);
+    await page.waitForFunction(() => !!window.__settlePrompt);
+    await page.evaluate(outcome => {
+      window.__setHidden = hidden => {
+        Object.defineProperty(document, 'hidden', { configurable: true, value: hidden });
+        document.dispatchEvent(new Event('visibilitychange'));
+      };
+      if (outcome === 'surviving download') window.dispatchEvent(new Event('pagehide'));
+      else window.__setHidden(true);
+      if (outcome === 'failure delivered after wake') return;
+      if (outcome === 'ready while asleep') window.__prompt.readyState = 3;
+      window.__settlePrompt(window.__prompt.readyState >= 2);
+    }, outcome);
+    expect(await page.evaluate(() => window.__shownWordIds)).toEqual([]);
+    await expect(page.locator('#quiz-results')).toBeHidden();
+    await page.evaluate(outcome => {
+      if (outcome === 'closed during sleep') {
+        window.LLFlashcards.State.widgetActive = false;
+        window.LLFlashcards.State.forceTransitionTo('idle', 'closed while suspended');
+      }
+      window.__mayPlay = outcome !== 'still unavailable';
+      window.__setHidden(false);
+      window.dispatchEvent(new Event('pageshow'));
+      if (outcome === 'failure delivered after wake') window.__settlePrompt(false);
+    }, outcome);
+    const retry = page.locator('#restart-quiz');
+    if (outcome === 'surviving download') {
+      await page.waitForFunction(() => !!window.__finishDownload);
+      expect(await page.evaluate(() => window.__foregroundWait)).toBe(5200);
+      await page.evaluate(() => window.__finishDownload());
+    }
+    if (outcome === 'still unavailable') {
+      await expect(retry).toBeVisible();
+      expect(await page.evaluate(() => window.__mounts)).toBe(2);
+      await page.evaluate(() => { window.__mayPlay = true; });
+      await retry.click();
+    }
+    if (outcome === 'closed during sleep') {
+      expect(await page.evaluate(() => window.LLFlashcards.State.getState())).toBe('idle');
+      expect(await page.evaluate(() => window.__shownWordIds)).toEqual([]);
+      expect(await page.evaluate(() => window.__mounts)).toBe(1);
+    } else {
+      await expect.poll(() => page.evaluate(() => window.__shownWordIds)).toEqual([703]);
+      const expectedMounts = { 'ready while asleep': 1, 'surviving download': 1, 'still unavailable': 3, 'failure delivered after wake': 2 };
+      expect(await page.evaluate(() => window.__mounts)).toBe(expectedMounts[outcome]);
+      expect(await page.evaluate(() => window.__choices.every((el, index) => el === document.querySelectorAll('#ll-tools-flashcard button')[index]))).toBe(true);
+    }
+    expect(await page.evaluate(() => [window.__targetSelectionCalls, window.LLFlashcards.State.quizResults.correctOnFirstTry])).toEqual([1, 2]);
+  });
+}
 
 for (const recovery of ['pending download', 'explicit retry', 'closed retry']) {
   test(`slow prompt audio preserves its round and handles ${recovery}`, async ({ page }) => {

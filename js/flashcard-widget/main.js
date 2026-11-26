@@ -11,6 +11,8 @@
     let __LLTimers = new Set();
     let __LLSession = 0;
     let roundMediaGeneration = 0;
+    let loadingRoundMedia = null;
+    let quizPageHidden = false;
     let closingCleanupPromise = null;
     let initInProgressPromise = null; // prevents concurrent initializations
     let __LastWordsetKey = null;
@@ -34,6 +36,26 @@
         suppressResetTimer: null,
         pinchDistance: 0
     };
+
+    function notifyRoundMediaVisibility() {
+        if (!loadingRoundMedia) return;
+        if (document.hidden || quizPageHidden) {
+            loadingRoundMedia.interrupted = true;
+        } else if (loadingRoundMedia.onReturn) {
+            const resume = loadingRoundMedia.onReturn;
+            loadingRoundMedia.onReturn = null;
+            resume();
+        }
+    }
+    document.addEventListener('visibilitychange', notifyRoundMediaVisibility);
+    root.addEventListener('pagehide', function () {
+        quizPageHidden = true;
+        notifyRoundMediaVisibility();
+    });
+    root.addEventListener('pageshow', function () {
+        quizPageHidden = false;
+        notifyRoundMediaVisibility();
+    });
 
     function normalizePromptType(promptType) {
         return String(promptType || '').trim().toLowerCase() || 'audio';
@@ -839,6 +861,7 @@
 
     function newSession() {
         __LLSession++;
+        loadingRoundMedia = null;
         logicalSessionContinuationPromise = null;
         clearInitialCategoryWarmupRetry();
         __LLTimers.forEach(id => clearTimeout(id));
@@ -4235,7 +4258,9 @@
         const audioApi = root.FlashcardAudio;
         if (!audioApi || typeof audioApi.getCurrentTargetAudio !== 'function') return Promise.resolve(false);
         const audio = audioApi.getCurrentTargetAudio();
-        if (!audio) return Promise.resolve(false);
+        // A freshly mounted native element may still be selecting its source.
+        // NETWORK_NO_SOURCE alone is transient until the next browser task.
+        if (!audio || audio.error) return Promise.resolve(false);
         if (audioApi && typeof audioApi.waitForAudioPlayable === 'function') {
             return Promise.resolve(audioApi.waitForAudioPlayable(audio, {
                 minReadyState: 3,
@@ -4364,6 +4389,7 @@
             return;
         }
         const currentRoundGeneration = ++roundMediaGeneration;
+        loadingRoundMedia = null;
 
         updateProgressTrackerContext();
 
@@ -4526,6 +4552,8 @@
             optionType: displayMode
         }));
         const roundSessionToken = __LLSession;
+        const media = { interrupted: document.hidden || quizPageHidden, onReturn: null };
+        loadingRoundMedia = media;
         let distractorRefillGeneration = 0;
         const isStaleRound = function () {
             return roundSessionToken !== __LLSession || !State.widgetActive
@@ -4607,8 +4635,55 @@
                 try { Dom.bindRepeatButtonAudio && Dom.bindRepeatButtonAudio(null); } catch (_) { /* no-op */ }
             }
 
+            const needsPromptAudio = promptTypeHasAudio(promptType) && !!(
+                Util && typeof Util.getPromptAudioUrl === 'function'
+                    ? Util.getPromptAudioUrl(target)
+                    : String((target && target.audio) || '').trim()
+            );
+
+            // A background timeout describes the suspended page, not the media a
+            // learner can use now. Recheck the mounted round before any reveal,
+            // distractor replacement or error. Only a new hide can arm it again.
+            function recoverInterruptedMedia() {
+                if (!media.interrupted) return false;
+                if (document.hidden || quizPageHidden) {
+                    media.onReturn = function () {
+                        if (!isStaleRound()) recoverInterruptedMedia();
+                    };
+                } else {
+                    media.interrupted = false;
+                    retryMountedMedia(true);
+                }
+                return true;
+            }
+
+            async function retryMountedMedia(afterInterruption) {
+                try {
+                    if (afterInterruption) {
+                        // Keep an ongoing download for a full foreground readiness
+                        // window. A stalled or failed request can then be remounted.
+                        await waitForRoundMediaReadiness(promptType, { audioTimeoutMs: 5200, imageTimeoutMs: 1200 });
+                        if (isStaleRound() || recoverInterruptedMedia()) return;
+                    }
+                    const ready = await Promise.all([
+                        retryRenderedImagesForRound(6200),
+                        needsPromptAudio ? retryPromptAudioForRound(target, true) : Promise.resolve(true)
+                    ]);
+                    if (isStaleRound()) return;
+                    if (!ready.every(Boolean)) {
+                        showRoundMediaRetry(target, afterInterruption ? 'foreground-media-retry' : 'explicit-media-retry');
+                        return;
+                    }
+                    if (needsPromptAudio) Dom.enableRepeatButton();
+                    finalizeQuestionDisplay();
+                } catch (_) {
+                    showRoundMediaRetry(target, 'same-round-media-retry-exception');
+                }
+            }
+
             const finalizeQuestionDisplay = function () {
-                if (isStaleRound()) { return; }
+                if (isStaleRound() || recoverInterruptedMedia()) return;
+                loadingRoundMedia = null;
                 hideLoadingThenPlayPromptAudio(promptType, isStaleRound);
                 State.transitionTo(STATES.SHOWING_QUESTION, 'Question displayed');
                 const handledAfterRender = modeModule && typeof modeModule.afterQuestionShown === 'function'
@@ -4628,7 +4703,7 @@
             };
 
             const showRoundMediaRetry = function (word, reason, details) {
-                if (isStaleRound() || isInteractiveQuizRoundState()) return;
+                if (isStaleRound() || isInteractiveQuizRoundState() || recoverInterruptedMedia()) return;
                 console.warn('Quiz media unavailable; retaining the current round for Retry', {
                     wordId: word && word.id, reason: reason, details: details || {}
                 });
@@ -4649,28 +4724,11 @@
                         Dom.showLoading();
                         State.forceTransitionTo(STATES.QUIZ_READY, 'Retrying the same round media');
                         applyRoundSoundRequirement(roundRequiresAudio({ promptType: promptType, optionType: displayMode }));
-                        Promise.all([
-                            retryRenderedImagesForRound(6200),
-                            needsPromptAudio ? retryPromptAudioForRound(target, true) : Promise.resolve(true)
-                        ]).then(function (ready) {
-                            if (isStaleRound()) return;
-                            if (!ready[0] || !ready[1]) {
-                                showRoundMediaRetry(target, 'explicit-media-retry');
-                                return;
-                            }
-                            if (needsPromptAudio) Dom.enableRepeatButton();
-                            finalizeQuestionDisplay();
-                        }).catch(function () {
-                            showRoundMediaRetry(target, 'explicit-media-retry-exception');
-                        });
+                        loadingRoundMedia = media;
+                        retryMountedMedia(false);
                     });
             };
 
-                const needsPromptAudio = promptTypeHasAudio(promptType) && !!(
-                    Util && typeof Util.getPromptAudioUrl === 'function'
-                        ? Util.getPromptAudioUrl(target)
-                        : String((target && target.audio) || '').trim()
-                );
             Promise.all([
                 optionMediaPromise,
                 optionsRenderedPromise.then(function () {
@@ -4701,6 +4759,7 @@
                     });
                     return;
                 }
+                if (recoverInterruptedMedia()) return;
                 const continueAfterImagesReady = function (latestRenderedStatus) {
                     const readyRenderedStatus = latestRenderedStatus || renderedStatus;
                     let mountedTargetAudioReady = false;
@@ -4853,6 +4912,11 @@
                             });
                             return;
                         }
+                        if (media.interrupted) {
+                            restoreOriginalOptions();
+                            recoverInterruptedMedia();
+                            return;
+                        }
                         $originalOptions.remove();
                         if (refillRenderedStatus.imagesReady) {
                             continueAfterImageRetry(refillRenderedStatus);
@@ -4862,7 +4926,8 @@
                         retryRenderedImagesForRound(6200).then(function (refillImagesReadyAfterRetry) {
                             if (
                                 isStaleRound() ||
-                                refillGeneration !== distractorRefillGeneration
+                                refillGeneration !== distractorRefillGeneration ||
+                                recoverInterruptedMedia()
                             ) {
                                 return;
                             }
@@ -4891,7 +4956,7 @@
                                 unreadyImages: getUnreadyRenderedImageDetails()
                             });
                         }).catch(function (refillRetryError) {
-                            if (isStaleRound() || refillGeneration !== distractorRefillGeneration) { return; }
+                            if (isStaleRound() || refillGeneration !== distractorRefillGeneration || recoverInterruptedMedia()) return;
                             console.warn('Round distractor refill image retry failed', refillRetryError);
                             const exceptionRecovery = recoverRoundFromUnreadyDistractorImages(target);
                             if (exceptionRecovery.distractorOnly) {
@@ -4927,7 +4992,7 @@
 
                 if (!renderedStatus.imagesReady) {
                     retryRenderedImagesForRound(6200).then(function (imagesReadyAfterRetry) {
-                        if (isStaleRound()) { return; }
+                        if (isStaleRound() || recoverInterruptedMedia()) return;
                         const retryRenderedStatus = Object.assign({}, renderedStatus, {
                             imagesReady: !!imagesReadyAfterRetry
                         });
@@ -4957,7 +5022,7 @@
 
                 continueAfterImagesReady(renderedStatus);
             }).catch(function (waitErr) {
-                if (isStaleRound()) { return; }
+                if (isStaleRound() || recoverInterruptedMedia()) return;
                 console.warn('Round media readiness wait failed', waitErr);
                 if (needsPromptAudio) {
                     retryPromptAudioForRound(target).then(function (retryReady) {
@@ -4984,6 +5049,7 @@
     }
 
     function showLoadingError(options) {
+        loadingRoundMedia = null;
         const opts = (options && typeof options === 'object') ? options : {};
         const reason = String(opts.reason || '').toLowerCase();
         const msgs = root.llToolsFlashcardsMessages || {};

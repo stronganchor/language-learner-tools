@@ -52,12 +52,16 @@ so a late response cannot revive it or clear a newer launch's promise guard.
 launcher with paused startup, close/reopen and failed audio/category preparation.
 
 Quiz media timeouts retain the selected question, rendered options and progress.
-An automatic prompt retry keeps an unfinished download alive; only a failed
-element or explicit Retry reloads it. Exhausted waits show the localized Retry
-state instead of selecting another target or removing words from the session.
+A question that was loading when the page went into the background waits for
+the learner to return. On return the same round can recover its pictures and
+prompt before becoming interactive. An unfinished prompt gets its normal
+readiness window after wake. If it still cannot play, recovery reloads it
+once. A newly mounted audio element can briefly report `NETWORK_NO_SOURCE`
+while selecting a valid recording. Readiness checks wait for its media events
+or the deadline. A persistent failure offers the learner Retry for the same round.
 Session and round generations reject late media callbacks after close/restart.
-`quiz-results-repeat-restart.spec.js` covers slow audio, repeated failed retries,
-image recovery, unchanged option elements and closed-session completion.
+`quiz-results-repeat-restart.spec.js` covers sleep during media loading, slow
+audio, repeated failures, unchanged option elements and closed-session completion.
 
 Learner save contention: `ll_tools_user_study_recommendation_payload()` owns the
 bounded recommendation window for settings, study-state saves, progress batches,
