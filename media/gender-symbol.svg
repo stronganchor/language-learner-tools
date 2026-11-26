@@ -1,9 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" class="ll-quiz-mode-glyph" viewBox="0 0 24 24" width="1em" height="1em" aria-hidden="true" focusable="false" stroke-linecap="round" stroke-linejoin="round">
-  <path d="M7.4 15.4V22m-2.75-2.8h5.5M16.9 8.1l4.8-4.8m-4.1 0h4.1v4.1" fill="none" stroke="currentColor" stroke-width="3.25" style="fill:none!important;stroke:currentColor!important"/>
-  <path d="M7.4 15.4V22m-2.75-2.8h5.5" fill="none" stroke="#c64545" stroke-width="1.85" style="fill:none!important;stroke:#c64545!important"/>
-  <path d="m16.9 8.1 4.8-4.8m-4.1 0h4.1v4.1" fill="none" stroke="#1d4d99" stroke-width="1.85" style="fill:none!important;stroke:#1d4d99!important"/>
-  <circle cx="7.4" cy="11.55" r="4.25" fill="#f6d6d6" stroke="currentColor" stroke-width="3.05" style="fill:#f6d6d6!important;stroke:currentColor!important"/>
-  <circle cx="7.4" cy="11.55" r="4.25" fill="none" stroke="#c64545" stroke-width="1.85" style="fill:none!important;stroke:#c64545!important"/>
-  <circle cx="14.7" cy="10.15" r="4.25" fill="#d8e8ff" stroke="currentColor" stroke-width="3.05" style="fill:#d8e8ff!important;stroke:currentColor!important"/>
-  <circle cx="14.7" cy="10.15" r="4.25" fill="none" stroke="#1d4d99" stroke-width="1.85" style="fill:none!important;stroke:#1d4d99!important"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" class="ll-quiz-mode-glyph" aria-hidden="true" focusable="false">
+  <path d="M6.35 16.8V22.9M3.05 20.1h6.6" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="butt" fill="none" stroke="#9d174d" style="fill:none!important;stroke:var(--ll-quiz-mode-contrast, #9d174d)!important"/>
+  <circle cx="6.35" cy="12.45" r="4.3" stroke-width="2.65" fill="none" stroke="#9d174d" style="fill:none!important;stroke:var(--ll-quiz-mode-contrast, #9d174d)!important"/>
+  <path d="M16.6 5.65 19 3.24h-2.45V.8h6.4v6.4h-2.42V4.75L18.18 7.1Z" fill="#1e40af" stroke="none" style="fill:var(--ll-quiz-mode-contrast, #1e40af)!important;stroke:none!important"/>
+  <circle cx="15.4" cy="8.65" r="4.08" stroke-width="2.65" fill="none" stroke="#1e40af" style="fill:none!important;stroke:var(--ll-quiz-mode-contrast, #1e40af)!important"/>
 </svg>

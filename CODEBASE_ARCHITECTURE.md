@@ -1105,7 +1105,7 @@ Use one shared status palette across user-facing plugin UI so progress states al
   - New/neutral/inactive state chips -> dark gray `#64748b`
   - Close/partial -> yellow `#D39A00`
   - Wrong/hard/danger -> red `#C64545`
-- `ll_flashcards_get_mode_ui_config()` supplies the five quiz mode symbols from `media/*-symbol.svg` to the wordset, lesson, quiz and generated offline interfaces. The default symbols use the button's foreground color, including on dark buttons. Preserve site-supplied mode icons and the accessible name of the enclosing control.
+- `ll_flashcards_get_mode_ui_config()` supplies the five quiz mode symbols from `media/*-symbol.svg` to the wordset, lesson, quiz and generated offline interfaces. Practice uses progress blue, Learn uses a black cap with a gold tassel, Listen uses gold, Self Check uses green and red, and Gender uses the Progress gender colors. The artwork is decorative. Preserve site-supplied mode icons and the accessible name of the enclosing control.
 
 ## Review checklist for UI color changes
 - Confirm no old conflicting shades were reintroduced.

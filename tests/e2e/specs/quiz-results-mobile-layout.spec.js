@@ -7,37 +7,61 @@ const flashcardCssSource = fs.readFileSync(
   'utf8'
 );
 
-test('quiz glyphs follow the control color and stay decorative on lesson, wordset, and result buttons', async ({ page }) => {
-  const icons = ['learning', 'practice', 'listening', 'gender', 'self-check'];
+test('quiz glyphs retain their mode colors and stay decorative on lesson, wordset, level and result buttons', async ({ page }) => {
+  const palette = {
+    learning: ['#000000', '#8a5600', '#e7b952'],
+    practice: ['#1d4d99'],
+    listening: ['#8a5600', '#e7b952'],
+    gender: ['#1e40af', '#9d174d'],
+    'self-check': ['#15803d', '#c64545']
+  };
+  const icons = Object.keys(palette);
   const svg = mode => fs.readFileSync(path.resolve(__dirname, '../../../media/' + mode + '-symbol.svg'), 'utf8');
   const buttons = (className, iconClass) => icons.map(mode =>
-    `<button class="${className}"><span class="${iconClass}" aria-hidden="true">${svg(mode)}</span>${mode}</button>`
+    `<button class="${className}" data-mode="${mode}"><span class="${iconClass}" aria-hidden="true">${svg(mode)}</span>${mode}</button>`
   ).join('');
   await page.setContent(`
     <section class="ll-wordset-page">${buttons('ll-wordset-card__quiz-btn', 'll-wordset-card__quiz-icon')}</section>
+    <section class="ll-wordset-page" data-ll-wordset-levels>${buttons('ll-level-button ll-level-activity', 'll-level-mode-icon')}</section>
     <section class="ll-vocab-lesson-page">${buttons('ll-vocab-lesson-mode-button', 'll-vocab-lesson-mode-icon')}</section>
     <section id="quiz-results" style="display:block">${buttons('quiz-mode-button', 'button-icon')}</section>`);
-  for (const file of ['wordset-pages.css', 'vocab-lesson-pages.css', 'flashcard/base.css']) {
+  for (const file of ['wordset-pages.css', 'wordset-levels.css', 'vocab-lesson-pages.css', 'flashcard/base.css']) {
     await page.addStyleTag({ path: path.resolve(__dirname, '../../../css/' + file) });
   }
   // Exercise themes that apply presentation to every SVG and drawing primitive.
-  await page.addStyleTag({ content: 'svg, svg path { fill: magenta !important; stroke: blue !important; }' });
-  for (const foreground of ['#223344', '#f1f2f3']) {
-    await page.locator('button').evaluateAll((buttons, value) => buttons.forEach(button => {
-      button.style.setProperty('color', value, 'important');
-      button.style.setProperty('background', value === '#223344' ? 'white' : '#16191e', 'important');
-    }), foreground);
-    const checks = await page.locator('button').evaluateAll(buttons => buttons.map(button => {
-      const svg = button.querySelector('svg');
-      const pathStyle = getComputedStyle(svg.querySelector('path'));
-      return pathStyle.fill === 'none' && pathStyle.stroke === getComputedStyle(button).color &&
-        svg.getAttribute('aria-hidden') === 'true' && svg.getAttribute('focusable') === 'false';
-    }));
-    expect(checks).toHaveLength(15);
-    expect(checks.every(Boolean)).toBe(true);
+  await page.addStyleTag({ content: 'svg, svg * { fill: magenta !important; stroke: blue !important; }' });
+  const checks = await page.locator('button').evaluateAll(buttons => buttons.map(button => {
+    const svg = button.querySelector('svg');
+    const paints = new Set();
+    for (const shape of svg.querySelectorAll('path, circle')) {
+      const style = getComputedStyle(shape);
+      for (const color of [style.fill, style.stroke]) {
+        if (color !== 'none') paints.add(color);
+      }
+    }
+    return { mode: button.dataset.mode, paints: [...paints].sort(),
+      decorative: svg.getAttribute('aria-hidden') === 'true' && svg.getAttribute('focusable') === 'false' };
+  }));
+  const rgb = hex => 'rgb(' + hex.slice(1).match(/../g).map(pair => parseInt(pair, 16)).join(', ') + ')';
+  expect(checks).toHaveLength(4 * icons.length);
+  for (const { mode, paints, decorative } of checks) {
+    expect(paints, mode).toEqual(palette[mode].map(rgb).sort());
+    expect(decorative).toBe(true);
   }
   for (const mode of icons) {
-    await expect(page.getByRole('button', { name: mode, exact: true })).toHaveCount(3);
+    await expect(page.getByRole('button', { name: mode, exact: true })).toHaveCount(4);
+  }
+  // A user-selected contrast theme supplies the control's foreground for every painted shape.
+  for (const colorScheme of ['light', 'dark']) {
+    await page.emulateMedia({ forcedColors: 'active', colorScheme });
+    const legible = await page.locator('button').evaluateAll(buttons => buttons.every(button => {
+      const foreground = getComputedStyle(button).color;
+      return [...button.querySelectorAll('svg path, svg circle')].every(shape => {
+        const { fill, stroke } = getComputedStyle(shape);
+        return (fill === foreground && stroke === 'none') || (stroke === foreground && fill === 'none');
+      });
+    }));
+    expect(legible).toBe(true);
   }
 });
 

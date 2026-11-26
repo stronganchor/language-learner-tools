@@ -1,5 +1,11 @@
 /* flashcard/base.css */
 
+@media (forced-colors: active) {
+    .ll-quiz-mode-glyph {
+        --ll-quiz-mode-contrast: currentColor;
+    }
+}
+
 /* Utility Classes */
 .hidden {
     display: none !important;

@@ -1,6 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" class="ll-quiz-mode-glyph" viewBox="0 0 24 24" width="1em" height="1em" aria-hidden="true" focusable="false" stroke-linecap="round" stroke-linejoin="round">
-  <path d="m3 12.5 4.75 4.5L14.5 5.5" fill="none" stroke="currentColor" stroke-width="3.7" style="fill:none!important;stroke:currentColor!important"/>
-  <path d="m3 12.5 4.75 4.5L14.5 5.5" fill="none" stroke="#15803d" stroke-width="2.45" style="fill:none!important;stroke:#15803d!important"/>
-  <path d="m13 10.75 7.5 7.5m0-7.5-7.5 7.5" fill="none" stroke="currentColor" stroke-width="3.7" style="fill:none!important;stroke:currentColor!important"/>
-  <path d="m13 10.75 7.5 7.5m0-7.5-7.5 7.5" fill="none" stroke="#c64545" stroke-width="2.45" style="fill:none!important;stroke:#c64545!important"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" class="ll-quiz-mode-glyph" aria-hidden="true" focusable="false">
+  <path d="M.95 12.3l2.18-2.24 3.73 3.56 6.15-10.07 2.72 1.66-8.17 13.37Z" fill="#15803d" stroke="none" style="fill:var(--ll-quiz-mode-contrast, #15803d)!important;stroke:none!important"/>
+  <path d="M13.22 12.25l1.86-1.88 2.99 3 3-3 1.86 1.88-3 3 3 2.99-1.86 1.88-3-3-2.99 3-1.86-1.88 3-2.99Z" fill="#c64545" stroke="none" style="fill:var(--ll-quiz-mode-contrast, #c64545)!important;stroke:none!important"/>
 </svg>

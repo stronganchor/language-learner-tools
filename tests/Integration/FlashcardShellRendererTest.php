@@ -14,7 +14,7 @@ final class FlashcardShellRendererTest extends LL_Tools_TestCase
             $svg = trim((string) file_get_contents(LL_TOOLS_BASE_PATH . 'media/' . $mode . '-symbol.svg'));
             $this->assertSame($svg, $ui[$mode]['svg']);
             $this->assertStringContainsString('aria-hidden="true" focusable="false"', $svg);
-            $this->assertStringContainsString('stroke="currentColor"', $svg);
+            $this->assertStringContainsString('class="ll-quiz-mode-glyph"', $svg);
             $this->assertStringContainsString($svg, $results);
             $this->assertStringContainsString($svg, ll_tools_wordset_page_render_mode_icon($mode, $ui, '?'));
         }

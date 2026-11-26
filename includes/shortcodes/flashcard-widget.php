@@ -873,8 +873,8 @@ function ll_flashcards_get_mode_ui_config(): array {
         ],
     ];
 
-    // Inline SVG keeps each mode's colored artwork and lets its outer edge
-    // follow the control's text color. Older clients can use the icon field.
+    // All mode controls share the same inline artwork.
+    // Older clients use the icon field.
     foreach (array_keys($config) as $mode) {
         $path = LL_TOOLS_BASE_PATH . 'media/' . $mode . '-symbol.svg';
         if (is_readable($path)) {
