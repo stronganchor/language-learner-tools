@@ -25,6 +25,9 @@ if (!defined('LL_TOOLS_PUBLIC_STATIC_CACHE_WORDSET_LAZY_NONCE_PLACEHOLDER')) {
 if (!defined('LL_TOOLS_PUBLIC_STATIC_CACHE_WORDSET_CATEGORY_SEARCH_NONCE_PLACEHOLDER')) {
     define('LL_TOOLS_PUBLIC_STATIC_CACHE_WORDSET_CATEGORY_SEARCH_NONCE_PLACEHOLDER', '%%LL_TOOLS_WORDSET_CATEGORY_SEARCH_NONCE%%');
 }
+if (!defined('LL_TOOLS_PUBLIC_STATIC_CACHE_WORDSET_LEVELS_NONCE_PLACEHOLDER')) {
+    define('LL_TOOLS_PUBLIC_STATIC_CACHE_WORDSET_LEVELS_NONCE_PLACEHOLDER', '%%LL_TOOLS_WORDSET_LEVELS_NONCE%%');
+}
 
 if (!defined('LL_TOOLS_PUBLIC_STATIC_CACHE_VOCAB_GRID_NONCE_PLACEHOLDER_PREFIX')) {
     define('LL_TOOLS_PUBLIC_STATIC_CACHE_VOCAB_GRID_NONCE_PLACEHOLDER_PREFIX', '%%LL_TOOLS_VOCAB_LESSON_GRID_NONCE_');
@@ -1447,6 +1450,11 @@ function ll_tools_public_static_cache_prepare_html_for_storage(string $html, ?ar
             LL_TOOLS_PUBLIC_STATIC_CACHE_WORDSET_CATEGORY_SEARCH_NONCE_PLACEHOLDER,
             $html
         );
+        $html = str_replace(
+            wp_create_nonce('ll_tools_wordset_levels'),
+            LL_TOOLS_PUBLIC_STATIC_CACHE_WORDSET_LEVELS_NONCE_PLACEHOLDER,
+            $html
+        );
 
         $lesson_id = ($identity !== null && ($identity['type'] ?? '') === 'vocab_lesson') ? (int) ($identity['id'] ?? 0) : 0;
         if ($lesson_id > 0) {
@@ -1487,6 +1495,11 @@ function ll_tools_public_static_cache_prepare_html_for_output(string $html, ?arr
     $html = str_replace(
         LL_TOOLS_PUBLIC_STATIC_CACHE_WORDSET_CATEGORY_SEARCH_NONCE_PLACEHOLDER,
         wp_create_nonce('ll_tools_wordset_page_category_search'),
+        $html
+    );
+    $html = str_replace(
+        LL_TOOLS_PUBLIC_STATIC_CACHE_WORDSET_LEVELS_NONCE_PLACEHOLDER,
+        wp_create_nonce('ll_tools_wordset_levels'),
         $html
     );
 

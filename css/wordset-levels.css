@@ -168,11 +168,7 @@
 .ll-level-complete { width: 1.65rem; height: 1.65rem; background: var(--ll-wp-pill-green); color: var(--ll-wp-pill-green-text); }
 .ll-level-complete svg { stroke-width: 2.5; }
 .ll-level-progress-count { display: block; color: var(--ll-wp-muted); font-size: .84rem; line-height: 1.45; font-variant-numeric: tabular-nums; }
-.ll-level-track { display: flex; overflow: hidden; height: .45rem; margin-bottom: .68rem; border-radius: 10px; background: var(--ll-wp-pill-slate); }
-.ll-level-track > span { flex-basis: 0; }
-.ll-level-track-mastered { background: var(--ll-wp-pill-green-text); }
-.ll-level-track-working { background: var(--ll-wp-pill-blue-text); }
-.ll-level-track-new { background: var(--ll-wp-pill-slate); }
+.ll-level-card > .ll-wordset-card__progress { margin-block-start: .7rem; }
 .ll-level-activities { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); gap: .65rem; }
 .ll-wordset-page .ll-level-activity {
     container: ll-level-action / inline-size;
@@ -280,6 +276,18 @@
 .ll-level-details-toggle::-webkit-details-marker { display: none; }
 .ll-level-details[open] > .ll-level-details-toggle .ll-level-glyph { transform: rotate(180deg); }
 .ll-level-detail-panel { margin-top: .85rem; padding: .85rem .15rem .15rem; border-top: 1px solid var(--ll-wp-border); }
+.ll-level-quiz-modes { margin-block: 1rem .5rem; gap: .5rem; }
+.ll-wordset-page .ll-level-quiz-modes .ll-wordset-card__quiz-btn {
+    width: 44px !important;
+    height: 44px !important;
+}
+.ll-wordset-page .ll-level-quiz-modes .ll-wordset-card__quiz-btn:disabled {
+    opacity: .45;
+    filter: grayscale(1);
+    cursor: default;
+    box-shadow: none !important;
+    transform: none !important;
+}
 .ll-level-facts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .7rem 1rem; margin: .7rem 0; }
 .ll-level-fact dt { margin: 0; color: var(--ll-wp-muted); font-size: .82rem; font-weight: 500; }
 .ll-level-fact dd { margin: 0; color: var(--ll-wp-text); font-size: .95rem; font-weight: 650; }
@@ -313,6 +321,5 @@
     .ll-wordset-page .ll-level-review-all { width: 100%; gap: .45rem; padding: .5rem; }
 }
 @media (forced-colors: active) {
-    .ll-level-badge, .ll-level-track > span { border: 1px solid CanvasText; }
-    .ll-level-track-mastered { background: Highlight; forced-color-adjust: none; }
+    .ll-level-badge, .ll-level-card .ll-wordset-card__progress-segment { border: 1px solid CanvasText; }
 }

@@ -896,6 +896,44 @@ test('level review selects one trackable form per word while preserving all answ
   });
 });
 
+test('level Listen uses a playable prompt and Gender uses the noun when forms share a progress ID', async ({ page }) => {
+  await page.goto('about:blank');
+  await page.addScriptTag({ content: jquerySource });
+  const widget = path.resolve(__dirname, '../../../js/flashcard-widget');
+  for (const file of ['audio.js', 'util.js', 'loader.js', 'modes/listening.js']) {
+    await page.addScriptTag({path: path.join(widget, file)});
+  }
+  const result = await page.evaluate(async () => {
+    const noun = {id: 17, title: 'Tree', wordset_ids: [5], part_of_speech: ['noun']};
+    const silent = {...noun, id: 70, is_prompt_card: true, answer_word_id: 17, progress_word_id: 17, audio: '/answer.mp3'};
+    const recorded = {...silent, id: 71, prompt_audio: '/prompt.mp3'};
+    window.wordsByCategory = {};
+    window.optionWordsByCategory = {};
+    window.categoryRoundCount = {};
+    const data = window.llToolsFlashcardsData = {
+      wordsetIds: [5], boundedSelectionPlan: true, quiz_mode: 'listening',
+      categories: [{id: 3, name: 'Trees', prompt_type: 'text_title', option_type: 'text_translation'}],
+      sessionWordIds: [17], sessionWordIdsByCategoryId: {3: [17]},
+      lastLaunchPlan: {details: {curriculum_exact: true}}, boundedCandidateRowsByCategoryId: {3: [silent, recorded, noun]}
+    };
+    const load = () => window.FlashcardLoader.consumeBoundedPreloadedCategoryData(['Trees']);
+    const targets = () => window.wordsByCategory.Trees.map(row => row.id);
+    await load();
+    const listen = targets();
+    data.quiz_mode = 'gender';
+    await load();
+    const gender = targets();
+    data.boundedCandidateRowsByCategoryId[3] = [silent];
+    const rejected = [];
+    for (const mode of ['gender', 'listening']) {
+      data.quiz_mode = mode;
+      try { await load(); } catch (error) { rejected.push(error.code); }
+    }
+    return {listen, gender, rejected};
+  });
+  expect(result).toEqual({listen: [71], gender: [17], rejected: ['ll_bounded_preload_invalid', 'll_bounded_preload_invalid']});
+});
+
 test('bounded category handoff keeps canonical prompt-card targets and performs no category AJAX', async ({ page }) => {
   await page.goto('about:blank');
   await page.addScriptTag({ content: jquerySource });

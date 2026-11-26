@@ -9811,6 +9811,17 @@
         return html;
     }
 
+    function buildWordsetCardProgressMarkup(values, isLoading, label) {
+        const segments = ['mastered', 'studied', 'new'].map(function (status) {
+            return '<span class="ll-wordset-card__progress-segment ll-wordset-card__progress-segment--' + status
+                + '" style="width: ' + formatProgressPercent(values[status]) + ';">'
+                + buildProgressIconMarkup(status, 'll-wordset-progress-pill__icon ll-wordset-card__progress-icon') + '</span>';
+        });
+        const description = label ? 'role="img" aria-label="' + escapeHtml(label) + '" title="' + escapeHtml(label) + '"' : 'aria-hidden="true"';
+        return '<div class="ll-wordset-card__progress" ' + description + '><span class="ll-wordset-card__progress-track'
+            + (isLoading ? ' is-loading' : '') + '">' + segments.join('') + '</span></div>';
+    }
+
     function buildWordsetCategoryCardMarkup(category, options) {
         const cat = (category && typeof category === 'object') ? category : {};
         const categoryId = parseInt(cat.id, 10) || 0;
@@ -9843,7 +9854,6 @@
         const publicNoteLabel = String(cat.public_note_label || i18n.notPublicLabel || '').trim();
         const progressValues = progressLookup[categoryId] || { mastered: 0, studied: 0, new: 100 };
         const starredCount = Math.max(0, parseInt(starredLookup[categoryId], 10) || 0);
-        const trackLoadingClass = (summaryMetricsLoading || cardProgressInitialLoading) ? ' is-loading' : '';
         const previewAspectRatio = String(cat.preview_aspect_ratio || '').trim();
         const previewStyle = previewAspectRatio
             ? ' style="--ll-wordset-preview-aspect: ' + escapeHtml(previewAspectRatio) + ';"'
@@ -9941,13 +9951,7 @@
             html += '</article>';
             return html;
         }
-        html += '<div class="ll-wordset-card__progress" aria-hidden="true">';
-        html += '  <span class="ll-wordset-card__progress-track' + trackLoadingClass + '">';
-        html += '    <span class="ll-wordset-card__progress-segment ll-wordset-card__progress-segment--mastered" style="width: ' + formatProgressPercent(progressValues.mastered) + ';">' + buildProgressIconMarkup('mastered', 'll-wordset-progress-pill__icon ll-wordset-card__progress-icon') + '</span>';
-        html += '    <span class="ll-wordset-card__progress-segment ll-wordset-card__progress-segment--studied" style="width: ' + formatProgressPercent(progressValues.studied) + ';">' + buildProgressIconMarkup('studied', 'll-wordset-progress-pill__icon ll-wordset-card__progress-icon') + '</span>';
-        html += '    <span class="ll-wordset-card__progress-segment ll-wordset-card__progress-segment--new" style="width: ' + formatProgressPercent(progressValues.new) + ';">' + buildProgressIconMarkup('new', 'll-wordset-progress-pill__icon ll-wordset-card__progress-icon') + '</span>';
-        html += '  </span>';
-        html += '</div>';
+        html += buildWordsetCardProgressMarkup(progressValues, summaryMetricsLoading || cardProgressInitialLoading);
         html += '<div class="ll-wordset-card__quiz-actions" role="group" aria-label="' + escapeHtml(quizModesAria) + '">';
         cardModes.forEach(function (mode) {
             const ariaLabel = formatTemplate(i18n.modeCategoryAria || '', [modeLabel(mode), catName]);
@@ -13162,7 +13166,7 @@
 
     function setWordsetCardProgressLoadingState(isLoading) {
         const loading = !!isLoading;
-        $root.find('.ll-wordset-card__progress-track').toggleClass('is-loading', loading);
+        $root.find('.ll-wordset-card .ll-wordset-card__progress-track').toggleClass('is-loading', loading);
     }
 
     function isWordsetCardProgressPendingResolution($card) {
@@ -16956,8 +16960,13 @@
             return invalidResult();
         }
 
-        // A short Learn plan must cover the entire unfiltered category in one chunk.
-        const shortCategoryPlan = plan.minimum_words === MIN_ACTIVITY_WORDS;
+        // Level quizzes can exhaust a compatible set before the regular Learn minimum.
+        const exactLevelQuiz = fallbackDetails.curriculum_exact === true && hasCandidateScope;
+        if (exactLevelQuiz && (chunkCount !== 1 || expandedCount !== 0 || matchedCount !== Object.keys(candidateWordLookup).length)) {
+            return invalidResult();
+        }
+        // An ordinary short Learn plan must cover the entire unfiltered category in one chunk.
+        const shortCategoryPlan = !exactLevelQuiz && plan.minimum_words === MIN_ACTIVITY_WORDS;
         if (shortCategoryPlan && (
             Object.keys(allowedCategoryLookup).length !== 1
             || hasCandidateScope
@@ -16969,7 +16978,7 @@
         )) {
             return invalidResult();
         }
-        const minimumWords = shortCategoryPlan ? getSelectionMinimumWordCount() : LEARNING_MIN_CHUNK_SIZE;
+        const minimumWords = exactLevelQuiz ? 1 : (shortCategoryPlan ? getSelectionMinimumWordCount() : LEARNING_MIN_CHUNK_SIZE);
 
         const seenLaunchWordIds = {};
         const seenTargetWordIds = {};
@@ -17588,9 +17597,9 @@
             && !hasExplicitBoundedGenderPlan
             && !selectionHasGenderSupport(ids)
         ) ? 'practice' : normalizedMode;
-        const smallExactPractice = boundedSelectionPlan && finalMode === 'practice' && launchDetails.curriculum_exact === true;
+        const exactLevelSelection = boundedSelectionPlan && launchDetails.curriculum_exact === true;
         const launchChunkMinimum = boundedSelectionPlan && (
-            finalMode === 'gender' || finalMode === 'self-check' || smallExactPractice
+            finalMode === 'gender' || finalMode === 'self-check' || exactLevelSelection
         ) ? 1 : getSelectionMinimumWordCount();
         const sessionIds = uniqueIntList(sessionWordIds || []);
         const providedLaunchUi = (opts.launchUi && typeof opts.launchUi === 'object') ? opts.launchUi : null;
@@ -17638,7 +17647,7 @@
         };
 
         const getCanonicalPlanWordIdsForRow = function (word) {
-            if (smallExactPractice) {
+            if (exactLevelSelection) {
                 const trackedId = window.FlashcardLoader?.curriculumProgressWordId?.(word);
                 return trackedId > 0 ? [trackedId] : [];
             }
@@ -18781,6 +18790,11 @@
             }
             return;
         }
+        launchCurriculumPlan(level, 'launch', action, mode, request, error);
+    }
+
+    function launchCurriculumPlan(level, operation, action, mode, request, error) {
+        if (mode === 'listening') warmupFlashcardVisualizerContext();
         clearBoundedSessionContinuation(chunkSession);
         chunkSession = null;
         const token = beginFlashcardLaunch();
@@ -18792,15 +18806,36 @@
             finishFlashcardLaunch(token);
             error();
         }
-        const xhr = request('launch', {level: level, launch_mode: action});
-        trackFlashcardLaunchRequest(token, xhr);
-        xhr.done(function (response) {
+        const preparationDeadline = Date.now() + 180000;
+        function requestPlan() {
+            if (!flashcardLaunchIsCurrent(token)) return;
+            if (Date.now() >= preparationDeadline) { fail(); return; }
+            const xhr = request(operation, {level: level, launch_mode: action});
+            trackFlashcardLaunchRequest(token, xhr);
+            xhr.done(startPlan).fail(function (response) {
+                if (!flashcardLaunchIsCurrent(token)) return;
+                const data = response.responseJSON?.data || {};
+                const preparing = response.status === 503 && data.code === 'll_level_progress_preparing';
+                const busy = response.status === 429 && ['cache_warming', 'rate_limited'].includes(data.code);
+                if (operation === 'quiz' && (preparing || busy)) {
+                    const delay = 1000 * Math.max(1, Number(data.retry_after) || 0,
+                        Number(response.getResponseHeader('Retry-After')) || 0);
+                    if (Date.now() + delay < preparationDeadline) {
+                        const timer = window.setTimeout(requestPlan, delay);
+                        trackFlashcardLaunchRequest(token, {abort: () => window.clearTimeout(timer)});
+                        return;
+                    }
+                }
+                fail();
+            });
+        }
+        function startPlan(response) {
             if (!flashcardLaunchIsCurrent(token)) return;
             const plan = response && response.success && response.data;
             const ids = uniqueIntList(plan && plan.category_ids || []);
             const wordIds = uniqueIntList(plan && plan.session_word_ids || []);
             const inScope = ids.every(id => categoryIdIsLaunchable(id) && (!level || curriculum.containsCategory(level,id)));
-            if (!plan || !ids.length || !inScope || plan.mode !== mode || (!wordIds.length && mode !== 'learning')) {
+            if (!plan || !ids.length || !inScope || plan.mode !== mode || (!wordIds.length && (mode !== 'learning' || operation === 'quiz'))) {
                 fail();
                 return;
             }
@@ -18820,10 +18855,13 @@
                 fail();
                 return;
             }
-            launchBoundedSelectionPlan(bounded, {
+            const launch = mode === 'learning' ? launchBoundedLearningSelectionPlan : launchBoundedSelectionPlan;
+            launch(bounded, {
                 mode: mode,
                 categoryIds: ids,
+                candidateWordIds: wordIds,
                 minimumWordCount: 1,
+                requestTimeoutMs: SELECTION_LAUNCH_REQUEST_TIMEOUT_MS,
                 launchToken: token,
                 launchUi: ui,
                 launchUiCleanup: cleanup,
@@ -18835,7 +18873,42 @@
                 onEmpty: fail,
                 onLaunchFailure: error
             });
-        }).fail(fail);
+        }
+        requestPlan();
+    }
+
+    function buildLevelQuizButtons(level, modes, levelLabel, expired, launch) {
+        const $buttons = $('<div>', {
+            class: 'll-wordset-card__quiz-actions ll-level-quiz-modes',
+            role: 'group',
+            'aria-label': formatTemplate(i18n.quizModesCategoryAria, [levelLabel])
+        });
+        ['learning', 'practice', 'listening', 'gender', 'self-check'].forEach(function (mode) {
+            const supported = Array.isArray(modes) && modes.includes(mode);
+            const name = formatTemplate(i18n.modeCategoryAria, [modeLabel(mode), levelLabel]);
+            const $button = $('<button>', {
+                type: 'button',
+                class: 'll-wordset-card__quiz-btn',
+                'aria-label': name,
+                title: supported ? name : [name, i18n.noWordsInSelection].filter(Boolean).join(' · '),
+                'data-ll-level-quiz-mode': mode,
+                'data-ll-focus-key': 'quiz-' + level + '-' + mode,
+                disabled: expired || !supported
+            });
+            $button.html(getModeIconMarkup(mode, 'll-wordset-card__quiz-icon')).on('click', function () { launch(mode); });
+            $buttons.append($button);
+        });
+        return $buttons[0];
+    }
+
+    function buildLevelProgressBar(stats, label, isLoading) {
+        const values = stats && stats.total > 0 ? buildWordsetCardProgressPercentsFromAnalyticsRow({
+            mastered_words: stats.mastered, studied_words: Number(stats.mastered) + Number(stats.working),
+            new_words: stats.new, word_count: stats.total
+        }) : {mastered: 0, studied: 0, new: isLoggedIn ? 0 : 100};
+        const $bar = $(buildWordsetCardProgressMarkup(values, isLoading, label));
+        syncWordsetCardProgressSegmentVisualState($bar);
+        return $bar[0];
     }
 
     function bindMainInteractions() {
@@ -18844,6 +18917,10 @@
                 root: $root[0], config: cfg.curriculumLevels, signedIn: isLoggedIn, wordsetId: wordsetId,
                 ajaxUrl: ajaxUrl, category: getCategoryById, launch: launchCurriculumActivity,
                 modeIcon: getModeIconMarkup, progressIcon: buildProgressIconMarkup,
+                progressBar: buildLevelProgressBar, quizButtons: buildLevelQuizButtons,
+                launchQuiz: function (level, mode, request, error) {
+                    launchCurriculumPlan(level, 'quiz', mode, mode, request, error);
+                },
                 thumbnails: function (id) {
                     return getWordsetCardByCategoryId(id).find('.ll-wordset-preview-item--image img')
                         .map(function () { return this.getAttribute('src'); }).get();

@@ -1052,6 +1052,8 @@
                 filteredBySession = filteredBySession.filter(function (row) {
                     const id = curriculumProgressWordId(row);
                     if (!id || !sessionWordLookup[id] || seen.has(id)) return false;
+                    if (processingOptions.quizMode === 'gender' && Number(row.id) !== id) return false;
+                    if (processingOptions.quizMode === 'listening' && !window.LLFlashcards?.Modes?.Listening?.getPromptAudioUrl?.(row)) return false;
                     seen.add(id);
                     return true;
                 });
@@ -1117,7 +1119,8 @@
                 const data = window.llToolsFlashcardsData || {};
                 const boundedQuizMode = String(data.quiz_mode || data.quizMode || '').trim().toLowerCase();
                 const curriculumReview = !!(getLastLaunchPlan().details || {}).curriculum_exact;
-                const requiresPracticeOptionPool = boundedQuizMode !== 'self-check' && boundedQuizMode !== 'gender';
+                const levelListening = curriculumReview && boundedQuizMode === 'listening';
+                const requiresPracticeOptionPool = boundedQuizMode !== 'self-check' && boundedQuizMode !== 'gender' && !levelListening;
                 const sessionWordIds = normalizeWordIdList(data.sessionWordIds || data.session_word_ids || []);
                 if (!sessionWordIds.length) {
                     throw createBoundedPreloadError('Bounded category data has no session word IDs.');
@@ -1230,7 +1233,8 @@
                         });
                         processFetchedWordData(clonedRows, plan.categoryName, {
                             sessionWordIds: plan.ownedIds,
-                            curriculumReview: curriculumReview
+                            curriculumReview: curriculumReview,
+                            quizMode: boundedQuizMode
                         });
                         const activeRows = window.wordsByCategory[plan.categoryName] || [];
                         const missingOwnedId = plan.ownedIds.find(function (wordId) {

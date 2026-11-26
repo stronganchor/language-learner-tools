@@ -12,6 +12,23 @@ if (!defined('WPINC')) { die; }
  *  ---------------------------
  */
 
+/** Playable recordings for the target post aliased as w in a prepared query. */
+function ll_tools_flashcards_playable_target_sql(): string {
+    global $wpdb;
+    return "((w.post_type = 'words' AND EXISTS (SELECT 1 FROM {$wpdb->posts} a
+      INNER JOIN {$wpdb->postmeta} am ON am.post_id = a.ID AND am.meta_key = 'audio_file_path'
+      WHERE a.post_parent = w.ID AND a.post_type = 'word_audio' AND a.post_status = 'publish'
+        AND a.post_password = '' AND am.meta_value REGEXP '[^[:space:]]'))
+    OR (w.post_type = 'll_prompt_card' AND EXISTS (SELECT 1 FROM {$wpdb->postmeta} pcm
+      WHERE pcm.post_id = w.ID AND (
+        (pcm.meta_key = '_ll_prompt_card_prompt_audio_url' AND pcm.meta_value REGEXP '[^[:space:]]')
+        OR (pcm.meta_key = '_ll_prompt_card_prompt_audio_attachment_id' AND EXISTS (SELECT 1
+          FROM {$wpdb->posts} attachment INNER JOIN {$wpdb->postmeta} af ON af.post_id = attachment.ID
+          WHERE attachment.ID = CAST(pcm.meta_value AS UNSIGNED) AND attachment.post_type = 'attachment'
+            AND attachment.post_mime_type LIKE 'audio/%%' AND attachment.post_status <> 'trash'
+            AND af.meta_key = '_wp_attached_file' AND af.meta_value REGEXP '[^[:space:]]'))))))";
+}
+
 /**
  * A bounded existence check for actual published recordings in this exact scope.
  * No word/audio objects are hydrated, and failures never become cached absence.
@@ -63,18 +80,7 @@ function ll_tools_category_has_playable_audio(int $category_id, array $wordset_i
         WHERE ct.taxonomy = 'word-category' AND ct.term_id = %d
           AND w.post_status = 'publish' AND w.post_password = ''
           {$wordset_where}
-          AND ((w.post_type = 'words' AND EXISTS (SELECT 1 FROM {$wpdb->posts} a
-            INNER JOIN {$wpdb->postmeta} am ON am.post_id = a.ID AND am.meta_key = 'audio_file_path'
-            WHERE a.post_parent = w.ID AND a.post_type = 'word_audio' AND a.post_status = 'publish'
-              AND a.post_password = '' AND am.meta_value REGEXP '[^[:space:]]'))
-          OR (w.post_type = 'll_prompt_card' AND EXISTS (SELECT 1 FROM {$wpdb->postmeta} pcm
-            WHERE pcm.post_id = w.ID AND (
-              (pcm.meta_key = '_ll_prompt_card_prompt_audio_url' AND pcm.meta_value REGEXP '[^[:space:]]')
-              OR (pcm.meta_key = '_ll_prompt_card_prompt_audio_attachment_id' AND EXISTS (SELECT 1
-                FROM {$wpdb->posts} attachment INNER JOIN {$wpdb->postmeta} af ON af.post_id = attachment.ID
-                WHERE attachment.ID = CAST(pcm.meta_value AS UNSIGNED) AND attachment.post_type = 'attachment'
-                  AND attachment.post_mime_type LIKE 'audio/%%' AND attachment.post_status <> 'trash'
-                  AND af.meta_key = '_wp_attached_file' AND af.meta_value REGEXP '[^[:space:]]'))))))
+          AND " . ll_tools_flashcards_playable_target_sql() . "
         LIMIT 1", $params);
     $wpdb->last_error = '';
     $found = $wpdb->get_var($sql);

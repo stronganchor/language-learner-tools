@@ -1,6 +1,6 @@
 # AI Context Task Router
 
-For curriculum rows, mixed-lesson activity labels and per-level review intervals, use the `wordset-vocab-manager` pack. Start with `includes/lib/wordset-curriculum.php`, `includes/lib/wordset-level-page.php`, `includes/lib/wordset-level-progress.php`, `includes/lib/wordset-level-labels.php`, `js/wordset-levels.js`, and the `WordsetCurriculumGroupsTest` and `WordsetLevelProgressTest` integration suites.
+For curriculum rows, mixed-lesson activity labels and per-level review intervals, use the `wordset-vocab-manager` pack. Start with `includes/lib/wordset-curriculum.php`, `includes/lib/wordset-level-page.php`, `includes/lib/wordset-level-progress.php`, `includes/lib/wordset-level-labels.php`, `js/wordset-levels.js`, and the `WordsetCurriculumGroupsTest` and `WordsetLevelProgressTest` integration suites. The five quiz buttons in level details use `includes/lib/wordset-level-quiz.php`. The level and category progress bars share their renderer in `js/wordset-pages.js`.
 
 For the wordset title image and language details, start with `includes/pages/wordset-pages.php` and `css/wordset-pages.css`. For quiz mode icons shared by launch buttons and results, start with `ll_flashcards_get_mode_ui_config()` in `includes/shortcodes/flashcard-widget.php` and the five `media/*-symbol.svg` assets.
 

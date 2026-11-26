@@ -154,6 +154,107 @@ final class WordsetLevelProgressTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_menu_quizzes_keep_the_oldest_eligible_words_in_the_requested_level_and_gender_stage(): void
+    {
+        global $wpdb;
+        $learner = self::factory()->user->create(['role' => 'subscriber']);
+        wp_set_current_user($learner);
+        $wordset = self::factory()->term->create(['taxonomy' => 'wordset']);
+        update_term_meta($wordset, 'll_wordset_has_gender', 1);
+        update_term_meta($wordset, 'll_wordset_gender_options', ['Masculine', 'Feminine']);
+        $categories = [];
+        for ($i = 0; $i < 3; ++$i) {
+            $category = self::factory()->term->create(['taxonomy' => 'word-category']);
+            ll_tools_set_category_wordset_owner($category, $wordset);
+            update_term_meta($category, 'll_quiz_prompt_type', 'audio');
+            update_term_meta($category, 'll_quiz_option_type', 'text_title');
+            $categories[] = $category;
+        }
+        $noun = term_exists('noun', 'part_of_speech') ?: wp_insert_term('Noun', 'part_of_speech', ['slug' => 'noun']);
+        $table = ll_tools_user_progress_table_names()['words'];
+        $words = [];
+        for ($i = 0; $i <= 56; ++$i) {
+            $word = self::factory()->post->create(['post_type' => 'words', 'post_status' => 'publish', 'post_title' => 'Word ' . $i]);
+            $words[] = $word;
+            $owner = $categories[$i === 56 ? 2 : $i % 2];
+            wp_set_post_terms($word, [$wordset], 'wordset');
+            // One shared word must consume only one of the available places.
+            wp_set_post_terms($word, $i === 53 ? [$categories[0], $categories[1]] : [$owner], 'word-category');
+            update_post_meta($word, 'word_translation', 'Meaning ' . $i);
+            $audio = self::factory()->post->create(['post_type' => 'word_audio', 'post_status' => 'publish', 'post_parent' => $word]);
+            update_post_meta($audio, 'audio_file_path', '/wp-content/uploads/menu-' . $i . '.mp3');
+            wp_set_post_terms($word, [(int) $noun['term_id']], 'part_of_speech');
+            if ($i >= 55) { continue; } // Unstudied, with no noun gender.
+            update_post_meta($word, 'll_grammatical_gender', $i % 2 ? 'Masculine' : 'Feminine');
+            // Higher IDs were studied earlier. Alternate Gender stages within the same curriculum level.
+            $last_seen = gmdate('Y-m-d H:i:s', strtotime('2026-08-01 UTC') - $i * DAY_IN_SECONDS);
+            $this->assertNotFalse($wpdb->insert($table, ['user_id' => $learner, 'wordset_id' => $wordset,
+                'category_id' => $owner, 'word_id' => $word, 'total_coverage' => 1, 'first_seen_at' => $last_seen,
+                'last_seen_at' => $last_seen, 'updated_at' => $last_seen, 'gender_last_seen_at' => $last_seen,
+                'gender_seen_total' => 2, 'gender_level' => $i % 2 ? 3 : 2]));
+        }
+        $this->completeLlToolsSimulatedRequest();
+        $mode_flags = ['learning_supported' => true, 'practice_supported' => true, 'self_check_supported' => true,
+            'listening_supported' => true, 'gender_supported' => true];
+        $scope = [1 => [['id' => $categories[0]] + $mode_flags, ['id' => $categories[1]] + $mode_flags],
+            2 => [['id' => $categories[2]] + $mode_flags]];
+        $empty_lesson = self::factory()->term->create(['taxonomy' => 'word-category']);
+        ll_tools_set_category_wordset_owner($empty_lesson, $wordset);
+        $scope[3] = [
+            ['id' => $categories[0], 'listening_supported' => false, 'gender_supported' => false] + $mode_flags,
+            ['id' => $categories[1], 'gender_supported' => false] + $mode_flags,
+            ['id' => $empty_lesson] + $mode_flags,
+        ];
+        $token_for = static function (int $viewer) use ($scope, $wordset): string {
+            return ll_tools_wordset_page_store_category_search_payload(['wordset_id' => $wordset,
+                'user_id' => $viewer, 'access_signature' => ll_tools_wordset_page_category_search_payload_access_signature($wordset, $viewer),
+                'level_policy' => ll_tools_wordset_level_policy_signature($wordset), 'level_scope' => $scope]);
+        };
+        $base = ['operation' => 'quiz', 'level' => 1, 'wordset_id' => $wordset, 'token' => $token_for($learner)];
+        $ranked = array_reverse(array_slice($words, 0, 56));
+        foreach (['learning' => 10, 'practice' => 20, 'self-check' => 50, 'listening' => 56] as $mode => $limit) {
+            $result = ll_tools_wordset_level_request($learner, $base + ['launch_mode' => $mode]);
+            $this->assertIsArray($result, is_wp_error($result) ? $result->get_error_message() : $mode);
+            $this->assertSame($mode, $result['mode']);
+            $this->assertSame(array_slice($ranked, 0, $limit), $result['session_word_ids'], $mode);
+            $this->assertSame($result['session_word_ids'], array_merge(...array_column($result['bounded']['chunks'], 'word_ids')));
+            $this->assertNotContains($categories[2], array_values($result['word_category_ids']));
+        }
+        foreach ([2, 3] as $stage) {
+            $result = ll_tools_wordset_level_request($learner, $base + ['launch_mode' => 'gender']);
+            $this->assertIsArray($result, is_wp_error($result) ? $result->get_error_message() : 'Gender');
+            $expected = array_map(static fn(int $i): int => $words[$i], range($stage === 2 ? 54 : 53, $stage === 2 ? 26 : 25, -2));
+            $this->assertSame($expected, $result['session_word_ids']);
+            $this->assertSame([$stage], array_values(array_unique(array_column(array_column($result['bounded']['chunks'], 'details'), 'gender_level'))));
+            if ($stage === 2) {
+                $now = current_time('mysql', true);
+                $this->assertSame(1, $wpdb->update($table, ['last_seen_at' => $now, 'gender_last_seen_at' => $now],
+                    ['user_id' => $learner, 'word_id' => $words[54]]));
+                $this->completeLlToolsSimulatedRequest();
+            }
+        }
+        $summary_request = array_merge($base, ['operation' => 'summary']);
+        $summary = ll_tools_wordset_level_request($learner, $summary_request);
+        $this->assertContains('listening', $summary['levels'][3]['modes']);
+        $this->assertNotContains('gender', $summary['levels'][3]['modes'], 'An empty lesson cannot enable a mode.');
+        update_user_meta($learner, LL_TOOLS_USER_GOALS_META, ['ignored_category_ids' => [$categories[1]]]);
+        $summary = ll_tools_wordset_level_request($learner, $summary_request);
+        $this->assertNotContains('listening', $summary['levels'][3]['modes'], 'Only the ignored nonempty lesson supported Listen.');
+        $this->assertContains('practice', $summary['levels'][3]['modes']);
+        $this->assertSame('ll_level_no_activity', ll_tools_wordset_level_request($learner,
+            array_merge($base, ['level' => 3, 'launch_mode' => 'listening']))->get_error_code());
+        wp_set_current_user(0);
+        $this->assertWPError(ll_tools_wordset_level_request(0, $base + ['launch_mode' => 'listening']));
+        $base['token'] = $token_for(0);
+        $guest = ll_tools_wordset_level_request(0, $base + ['launch_mode' => 'gender']);
+        $this->assertIsArray($guest, is_wp_error($guest) ? $guest->get_error_message() : 'Guest');
+        $this->assertCount(10, $guest['session_word_ids']);
+        $this->assertSame(1, $guest['bounded']['chunks'][0]['details']['gender_level']);
+        $this->assertNotContains($words[55], $guest['session_word_ids']);
+        $this->assertWPError(ll_tools_wordset_level_request(0, array_merge($base, ['operation' => 'summary'])));
+        $this->assertWPError(ll_tools_wordset_level_request(0, array_merge($base, ['operation' => 'interval', 'days' => 45])));
+    }
+
     public function test_exact_plan_chunks_preserve_rank_for_large_and_category_scattered_sessions(): void
     {
         $targets = range(501, 524);

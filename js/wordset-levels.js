@@ -521,24 +521,12 @@
                     retry.append(document.createTextNode(t.retry)); panel.append(retry);
                 }
             }
+            const modes = options.signedIn && Array.isArray(stats?.modes) ? stats.modes : group.modes;
+            panel.append(options.quizButtons(level,modes,label(level),credentialsExpired || !config.nonce || !config.token,mode => {
+                announce('');
+                options.launchQuiz(level,mode,ajax,() => announce(t.launchError));
+            }));
             return info;
-        }
-        function progressBar(stats) {
-            const bar = element('div','ll-level-track');
-            if (stats && Number(stats.total) > 0) {
-                const values = [[t.mastered,'mastered',stats.mastered],[t.working,'working',stats.working],[t.unseen,'new',stats.new]];
-                bar.setAttribute('role','img');
-                const text = values.map(([title,,v]) => title + ' ' + v).join(', ');
-                bar.setAttribute('aria-label',text);
-                bar.title = text;
-                values.forEach(([,key,v]) => {
-                    if (Number(v) <= 0) return;
-                    const span = element('span','ll-level-track-' + key);
-                    span.style.flexGrow = String(v);
-                    bar.append(span);
-                });
-            } else { bar.setAttribute('aria-hidden','true'); }
-            return bar;
         }
         function card(group) {
             const id = Number(group.level);
@@ -556,7 +544,7 @@
             head.append(title);
             overview.append(head);
             row.append(overview);
-            shell.append(progressBar(stats),row);
+            shell.append(row);
             const badges = element('div','ll-level-badges');
             if (stats && Number(stats.total) > 0 && Number(stats.mastered) === Number(stats.total)) {
                 const check = element('span','ll-level-complete');
@@ -582,6 +570,13 @@
                 actions.append(action(group,group.nextId ? 'learn' : 'practice',Number(group.nextId || group.practiceId),true));
             }
             if (actions.childElementCount) row.append(actions);
+            if (group.categoryIds.size) {
+                const description = stats && Number(stats.total) > 0
+                    ? [[t.mastered,stats.mastered],[t.working,stats.working],[t.unseen,stats.new]]
+                        .map(([name,value]) => name + ' ' + number(value)).join(', ')
+                    : '';
+                shell.append(options.progressBar(stats,description,options.signedIn && !stats && !fetchError));
+            }
             shell.append(detail(group,stats));
             return shell;
         }
@@ -595,7 +590,7 @@
             const key = section.contains(focused) && focused.dataset.llFocusKey;
             const fragment = document.createDocumentFragment();
             if (state.view === 'home') {
-                if (options.signedIn && (!summary || fetchError)) {
+                if (credentialsExpired || (options.signedIn && (!summary || fetchError))) {
                     const status = element('div','ll-level-state');
                     status.setAttribute('role','status');
                     status.append(element('span','',credentialsExpired ? t.scopeExpired : (fetchError ? t.error : t.loading)));

@@ -27239,7 +27239,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             'access_signature' => ll_tools_wordset_page_category_search_payload_access_signature($wordset_id, $category_search_user_id),
         ];
         $category_search_token_hint = '';
-        if ($is_study_user && $level_catalog) {
+        if ($level_catalog && ($is_study_user || !$category_search_user_id)) {
             $category_search_payload['level_scope'] = $level_catalog['scope'];
             $category_search_payload['level_policy'] = ll_tools_wordset_level_policy_signature($wordset_id);
             $category_search_payload['level_locale'] = determine_locale();
@@ -27251,13 +27251,18 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             $wordset_epoch = function_exists('ll_tools_get_wordset_cache_epoch')
                 ? max(1, (int) ll_tools_get_wordset_cache_epoch())
                 : 1;
-            $category_search_token_hint = ll_tools_wordset_page_build_category_search_token([
+            $search_signature = [
                 'schema' => 1,
                 'wordset_id' => $wordset_id,
                 'category_ids' => $category_search_category_ids,
                 'category_epoch' => $category_epoch,
                 'wordset_epoch' => $wordset_epoch,
-            ]);
+            ];
+            if (isset($category_search_payload['level_scope'])) {
+                $search_signature['level_policy'] = $category_search_payload['level_policy'];
+                $search_signature['level_locale'] = $category_search_payload['level_locale'];
+            }
+            $category_search_token_hint = ll_tools_wordset_page_build_category_search_token($search_signature);
         } elseif (!empty($category_search_category_ids)) {
             $category_search_token_hint = ll_tools_wordset_page_build_authenticated_payload_token(
                 'category_search',
@@ -27280,8 +27285,9 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
     // Keep the regular catalog usable if a private, expiring progress scope could not be stored.
     $curriculum_levels = $level_catalog['public'] ?? [];
     if ($curriculum_levels && (!$is_study_user || $category_search_token !== '')) {
-        $curriculum_levels['nonce'] = $is_study_user ? wp_create_nonce('ll_tools_wordset_levels') : '';
-        $curriculum_levels['token'] = $is_study_user ? $category_search_token : '';
+        $level_token = !empty($category_search_payload['level_scope']) ? $category_search_token : '';
+        $curriculum_levels['nonce'] = $level_token !== '' ? wp_create_nonce('ll_tools_wordset_levels') : '';
+        $curriculum_levels['token'] = $level_token;
         $curriculum_levels['i18n'] = ll_tools_wordset_level_labels();
     } else {
         $curriculum_levels = [];

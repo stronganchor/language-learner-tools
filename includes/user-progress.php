@@ -12712,6 +12712,14 @@ function ll_tools_filter_user_study_gender_selection_matches(
     return $filtered;
 }
 
+function ll_tools_user_study_gender_launch_word_limits(int $wordset_id, int $selection_max_words): array {
+    $first_cap = min(10, max(1, $selection_max_words));
+    $review_cap = min(15, max(1, $selection_max_words));
+    $first = max(1, min($first_cap, (int) apply_filters('ll_tools_user_study_gender_level_one_launch_max_words', $first_cap, $wordset_id)));
+    $review = max(1, min($review_cap, (int) apply_filters('ll_tools_user_study_gender_review_launch_max_words', $review_cap, $wordset_id)));
+    return [1 => $first, 2 => $review, 3 => $review];
+}
+
 /**
  * Build exact, starting-level-homogeneous Gender chunks.
  *
@@ -13564,19 +13572,9 @@ function ll_tools_build_user_study_selection_launch_plan(
     }
 
     if ($mode === 'gender') {
-        $selection_max_words = max(1, (int) ($limits['max_words'] ?? 15));
-        $level_one_hard_cap = min(10, $selection_max_words);
-        $review_hard_cap = min(15, $selection_max_words);
-        $level_one_max_words = max(1, min($level_one_hard_cap, (int) apply_filters(
-            'll_tools_user_study_gender_level_one_launch_max_words',
-            $level_one_hard_cap,
-            $wordset_id
-        )));
-        $review_max_words = max(1, min($review_hard_cap, (int) apply_filters(
-            'll_tools_user_study_gender_review_launch_max_words',
-            $review_hard_cap,
-            $wordset_id
-        )));
+        $gender_limits = ll_tools_user_study_gender_launch_word_limits($wordset_id, (int) ($limits['max_words'] ?? 15));
+        $level_one_max_words = $gender_limits[1];
+        $review_max_words = $gender_limits[2];
         $gender_word_ids = array_values(array_map('intval', array_keys($matched_word_lookup)));
         $gender_progress_complete = true;
         $gender_progress_rows = ll_tools_get_user_word_gender_planning_rows(

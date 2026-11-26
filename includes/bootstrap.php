@@ -58,6 +58,7 @@ require_once(__DIR__ . '/lib/wordset-curriculum.php');
 require_once(__DIR__ . '/lib/wordset-level-labels.php');
 require_once(__DIR__ . '/lib/wordset-level-page.php');
 require_once(__DIR__ . '/lib/wordset-level-progress.php');
+require_once(__DIR__ . '/lib/wordset-level-quiz.php');
 require_once(__DIR__ . '/taxonomies/language-taxonomy.php');
 require_once(__DIR__ . '/taxonomies/part-of-speech-taxonomy.php');
 require_once(__DIR__ . '/taxonomies/recording-type-taxonomy.php');

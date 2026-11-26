@@ -112,6 +112,9 @@
     function getOrderedListeningWordIds() {
         const data = root.llToolsFlashcardsData || {};
         const plan = getLastLaunchPlan();
+        if (plan.mode === 'listening' && plan.details?.curriculum_exact) {
+            return normalizeWordIdList(data.logicalSessionWordIds || plan.session_word_ids || data.sessionWordIds);
+        }
         const explicitOrder = normalizeWordIdList(
             data.orderedWordIds || data.ordered_word_ids || plan.orderedWordIds || plan.ordered_word_ids
         );
@@ -141,8 +144,8 @@
     function compareWordsByOrderedIds(a, b, rankMap, fallbackIndexMap) {
         const aId = parseInt(a && a.id, 10);
         const bId = parseInt(b && b.id, 10);
-        const aRank = aId > 0 && Object.prototype.hasOwnProperty.call(rankMap, aId) ? rankMap[aId] : Number.MAX_SAFE_INTEGER;
-        const bRank = bId > 0 && Object.prototype.hasOwnProperty.call(rankMap, bId) ? rankMap[bId] : Number.MAX_SAFE_INTEGER;
+        const aRank = rankMap[aId] ?? rankMap[a?.progress_word_id] ?? Number.MAX_SAFE_INTEGER;
+        const bRank = rankMap[bId] ?? rankMap[b?.progress_word_id] ?? Number.MAX_SAFE_INTEGER;
         if (aRank !== bRank) {
             return aRank - bRank;
         }
@@ -730,7 +733,9 @@
             const starredLookup = getStarredLookup();
             const starMode = getStarMode();
             const rapidMode = isRapidListeningMode();
-            const orderedRankMap = rapidMode ? getOrderedListeningWordRankMap() : {};
+            const plan = getLastLaunchPlan();
+            const orderedSequence = rapidMode || (plan.mode === 'listening' && plan.details?.curriculum_exact);
+            const orderedRankMap = orderedSequence ? getOrderedListeningWordRankMap() : {};
             const globalSeenWordIds = {};
             const categoryOrder = resolveListeningCategoryOrder(false);
 
@@ -758,7 +763,7 @@
                 if (!categoryWords.length) {
                     continue;
                 }
-                const weightedCategory = rapidMode
+                const weightedCategory = orderedSequence
                     ? sortWordsByOrderedIds(categoryWords, orderedRankMap)
                     : buildWeightedSequence(categoryWords, starredLookup, starMode);
                 if (weightedCategory.length) {
@@ -766,7 +771,7 @@
                 }
             }
 
-            if (rapidMode && Object.keys(orderedRankMap).length > 0 && seq.length > 1) {
+            if (orderedSequence && Object.keys(orderedRankMap).length > 0 && seq.length > 1) {
                 const fallbackIndexMap = {};
                 seq.forEach(function (word, idx) {
                     const wordId = parseInt(word && word.id, 10);
@@ -2484,6 +2489,7 @@
     root.LLFlashcards.Modes.Listening = {
         initialize,
         getChoiceCount,
+        getPromptAudioUrl: getListeningPromptAudioUrl,
         recordAnswerResult,
         selectTargetWord,
         onFirstRoundStart,

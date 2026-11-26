@@ -128,6 +128,45 @@ test('bounded listening append preserves heard words and exposes the full logica
   expect(result.progress).toMatchObject({ current: 2, total: 120 });
 });
 
+test('normal-speed level Listen plays the planned order across lessons and a one-word final batch', async ({ page }) => {
+  await page.goto('about:blank');
+  await page.evaluate(() => {
+    window.llToolsFlashcardsData = {
+      lastLaunchPlan: { mode: 'listening', details: { curriculum_exact: true } },
+      logicalSessionWordIds: [22, 13, 24, 15], sessionWordIds: [22, 13, 24], logicalSessionTotal: 4
+    };
+    window.LLFlashcards = {
+      State: {
+        STATES: {}, isListeningMode: true, categoryNames: ['First', 'Second'], wordsLinear: [], listeningHistory: [],
+        wordsByCategory: {
+          First: [{ id: 13 }],
+          // The first planned word is presented by a prompt card with its own post ID.
+          Second: [{ id: 24 }, { id: 9002, is_prompt_card: true, progress_word_id: 22 }]
+        }
+      },
+      Dom: {}, Cards: {}, Results: {}, Util: {}, Modes: {}
+    };
+  });
+  await page.addScriptTag({ path: listeningScriptPath });
+  const played = await page.evaluate(() => {
+    const { State, Modes } = window.LLFlashcards;
+    const player = Modes.Listening;
+    const next = () => {
+      const word = player.selectTargetWord();
+      return word && (word.progress_word_id || word.id);
+    };
+    player.initialize();
+    const ids = [next(), next(), next()];
+    State.wordsByCategory.First.push({ id: 15 });
+    window.llToolsFlashcardsData.sessionWordIds = [15];
+    const appended = player.appendBoundedSelectionChunk(['First']);
+    ids.push(next());
+    return { ids, appended, afterEnd: next(), rapid: !!State.listeningRapidMode, progress: player.getProgressDisplayState() };
+  });
+  expect(played).toMatchObject({ ids: [22, 13, 24, 15], appended: true, afterEnd: null, rapid: false,
+    progress: { current: 4, total: 4 } });
+});
+
 test('listening requests the next bounded chunk before showing final results', async ({ page }) => {
   await page.goto('about:blank');
   const listeningSource = fs.readFileSync(listeningScriptPath, 'utf8');

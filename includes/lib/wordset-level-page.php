@@ -46,9 +46,13 @@ function ll_tools_wordset_level_page_catalog(int $wordset_id, array $categories,
             if (!$card['practiceId'] && $practice) {
                 $card['practiceId'] = (int) $id;
             }
-            $scope[$level][] = ['id' => (int) $id, 'learning_supported' => $learning, 'practice_supported' => $practice];
+            $scope[$level][] = ['id' => (int) $id, 'learning_supported' => $learning, 'practice_supported' => $practice,
+                'listening_supported' => !empty($row['listening_supported']),
+                'gender_supported' => !empty($row['gender_supported']),
+                'self_check_supported' => !isset($row['self_check_supported']) || $row['self_check_supported']];
         }
         if ($card['categoryIds']) {
+            $card['modes'] = ll_tools_wordset_level_quiz_modes($scope[$level]);
             $cards[$level] = $card;
         }
     }
@@ -113,13 +117,13 @@ function ll_tools_wordset_level_save_interval(int $user_id, int $wordset_id, int
 }
 
 /** Split an already ranked, exactly owned practice plan without reordering or hydrating it. */
-function ll_tools_wordset_level_bounded_plan(array $activity): array {
+function ll_tools_wordset_level_bounded_plan(array $activity, int $chunk_size = 12): array {
     $chunks = [];
     $chunk = ['category_ids' => [], 'word_ids' => []];
     foreach ($activity['session_word_ids'] as $word_id) {
         $category_id = $activity['word_category_ids'][$word_id];
         $new_category = !in_array($category_id, $chunk['category_ids'], true);
-        if (count($chunk['word_ids']) >= 12 || ($new_category && count($chunk['category_ids']) >= 8)) {
+        if (count($chunk['word_ids']) >= $chunk_size || ($new_category && count($chunk['category_ids']) >= 8)) {
             $chunks[] = $chunk;
             $chunk = ['category_ids' => [], 'word_ids' => []];
             $new_category = true;
@@ -129,7 +133,7 @@ function ll_tools_wordset_level_bounded_plan(array $activity): array {
     }
     if ($chunk['word_ids']) { $chunks[] = $chunk; }
     $count = count($activity['session_word_ids']);
-    return ($chunks[0] ?? $chunk) + ['mode' => 'practice', 'chunks' => $chunks, 'chunk_count' => count($chunks),
+    return ($chunks[0] ?? $chunk) + ['mode' => $activity['mode'], 'chunks' => $chunks, 'chunk_count' => count($chunks),
         'matched_count' => $count, 'planned_count' => $count, 'truncated' => false];
 }
 
@@ -179,7 +183,7 @@ function ll_tools_wordset_level_analytics_due_lookup(int $wordset_id, int $user_
 
 /** Handle only the current learner's own level data and server-issued catalog scope. */
 function ll_tools_wordset_level_request(int $user_id, array $request) {
-    if ($user_id < 1 || $user_id !== get_current_user_id() || !ll_tools_user_study_can_access($user_id)) {
+    if ($user_id !== get_current_user_id() || ($user_id ? !ll_tools_user_study_can_access($user_id) : ($request['operation'] ?? '') !== 'quiz')) {
         return new WP_Error('ll_level_access', __('Please sign in to view your progress.', 'll-tools-text-domain'), ['status' => 403]);
     }
     $wordset_id = (int) filter_var($request['wordset_id'] ?? 0, FILTER_VALIDATE_INT);
@@ -208,7 +212,8 @@ function ll_tools_wordset_level_request_in_scope(int $user_id, int $wordset_id, 
         || empty($payload['level_policy']) || !hash_equals($payload['level_policy'], ll_tools_wordset_level_policy_signature($wordset_id))) {
         return new WP_Error('ll_level_scope_changed', __('Reload this page to update your levels.', 'll-tools-text-domain'), ['status' => 403]);
     }
-    $scope = ll_tools_wordset_level_visible_study_scope($payload['level_scope'], $user_id, $complete);
+    $complete = true;
+    $scope = $user_id ? ll_tools_wordset_level_visible_study_scope($payload['level_scope'], $user_id, $complete) : $payload['level_scope'];
     if (!$complete) { return ll_tools_wordset_level_read_error(); }
     $operation = $request['operation'] ?? '';
     $level = filter_var($request['level'] ?? 0, FILTER_VALIDATE_INT);
@@ -216,6 +221,13 @@ function ll_tools_wordset_level_request_in_scope(int $user_id, int $wordset_id, 
     $global_review = $operation === 'launch' && in_array($mode, ['due', 'review'], true) && $level === 0;
     if ($operation !== 'summary' && !$global_review && (!$level || empty($scope[$level]))) {
         return new WP_Error('ll_level_unknown', __('This level is unavailable.', 'll-tools-text-domain'), ['status' => 400]);
+    }
+    if ($operation === 'quiz') {
+        if (!in_array($mode, ll_tools_get_study_launch_mode_order(true), true)) {
+            return new WP_Error('ll_level_action_invalid', __('Unknown level action.', 'll-tools-text-domain'), ['status' => 400]);
+        }
+        return ll_tools_wordset_level_quiz($wordset_id, $user_id, $scope[$level], $mode)
+            ?? new WP_Error('ll_level_no_activity', __('No quiz words are available for this selection.', 'll-tools-text-domain'), ['status' => 409]);
     }
     if ($operation === 'interval') {
         return ll_tools_wordset_level_save_interval($user_id, $wordset_id, $level, (int) filter_var($request['days'] ?? 0, FILTER_VALIDATE_INT));
@@ -264,7 +276,18 @@ function ll_tools_wordset_level_request_in_scope(int $user_id, int $wordset_id, 
 
 function ll_tools_wordset_levels_ajax(): void {
     check_ajax_referer('ll_tools_wordset_levels', 'nonce');
-    $result = ll_tools_wordset_level_request(get_current_user_id(), wp_unslash($_POST));
+    $lease = [];
+    if (!is_user_logged_in()) {
+        $throttle = ll_tools_flashcards_public_ajax_throttle_status();
+        if (empty($throttle['allowed'])) { ll_tools_flashcards_public_ajax_send_throttle_response($throttle); }
+        $lease = ll_tools_flashcards_public_ajax_acquire_client_inflight();
+        if (empty($lease['acquired'])) { ll_tools_flashcards_public_ajax_send_client_busy_response($lease); }
+    }
+    try {
+        $result = ll_tools_wordset_level_request(get_current_user_id(), wp_unslash($_POST));
+    } finally {
+        if ($lease) { ll_tools_flashcards_public_ajax_release_client_inflight($lease); }
+    }
     if (is_wp_error($result)) {
         $details = (array) $result->get_error_data();
         wp_send_json_error(array_merge($details, [
@@ -274,6 +297,7 @@ function ll_tools_wordset_levels_ajax(): void {
     wp_send_json_success($result);
 }
 add_action('wp_ajax_ll_tools_wordset_levels', 'll_tools_wordset_levels_ajax');
+add_action('wp_ajax_nopriv_ll_tools_wordset_levels', 'll_tools_wordset_levels_ajax');
 
 function ll_tools_wordset_level_badge(int $level): string {
     if ($level <= 0) {

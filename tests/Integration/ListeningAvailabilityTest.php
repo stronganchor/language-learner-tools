@@ -101,8 +101,13 @@ final class ListeningAvailabilityTest extends LL_Tools_TestCase
         $this->assertNotEmpty($rebuilt);
         $this->assertNotSame('Old cached category', $rebuilt['name']);
         $this->assertTrue($rebuilt['listening_supported']);
+        $level_listen = static function () use ($wordset, $rebuilt) {
+            return ll_tools_wordset_level_quiz($wordset, 0, [$rebuilt], 'listening');
+        };
+        $this->assertSame([$words[0]], $level_listen()['session_word_ids'], 'Only the recorded word enters a mixed level Listen session.');
         update_post_meta($audio, 'audio_file_path', '');
         $this->assertFalse($read_category()['listening_supported']);
+        $this->assertNull($level_listen(), 'Removing the only recording also invalidates the cached level selection.');
         update_post_meta($audio, 'audio_file_path', '/new-recording.mp3');
         $this->assertTrue($read_category()['listening_supported']);
         wp_delete_post($audio, true);

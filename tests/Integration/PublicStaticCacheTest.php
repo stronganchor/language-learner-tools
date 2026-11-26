@@ -598,25 +598,31 @@ final class PublicStaticCacheTest extends LL_Tools_TestCase
 
         $lazy_nonce = wp_create_nonce('ll_tools_wordset_page_lazy_cards');
         $category_search_nonce = wp_create_nonce('ll_tools_wordset_page_category_search');
+        $levels_nonce = wp_create_nonce('ll_tools_wordset_levels');
         $grid_nonce = wp_create_nonce('ll_vocab_lesson_grid_' . (int) $lesson_id);
         $stored = ll_tools_public_static_cache_prepare_html_for_storage(
-            '<!doctype html><html><body><script>' . $lazy_nonce . '</script><div data-search-nonce="' . $category_search_nonce . '" data-nonce="' . $grid_nonce . '"></div></body></html>',
+            '<!doctype html><html><body><script>' . $lazy_nonce . '</script><div data-search-nonce="' . $category_search_nonce
+                . '" data-levels-nonce="' . $levels_nonce . '" data-nonce="' . $grid_nonce . '"></div></body></html>',
             $identity
         );
 
         $this->assertStringContainsString(LL_TOOLS_PUBLIC_STATIC_CACHE_WORDSET_LAZY_NONCE_PLACEHOLDER, $stored);
         $this->assertStringContainsString(LL_TOOLS_PUBLIC_STATIC_CACHE_WORDSET_CATEGORY_SEARCH_NONCE_PLACEHOLDER, $stored);
+        $this->assertStringContainsString(LL_TOOLS_PUBLIC_STATIC_CACHE_WORDSET_LEVELS_NONCE_PLACEHOLDER, $stored);
         $this->assertStringContainsString(ll_tools_public_static_cache_vocab_grid_nonce_placeholder((int) $lesson_id), $stored);
         $this->assertStringNotContainsString($lazy_nonce, $stored);
         $this->assertStringNotContainsString($category_search_nonce, $stored);
+        $this->assertStringNotContainsString($levels_nonce, $stored);
         $this->assertStringNotContainsString($grid_nonce, $stored);
 
         $output = ll_tools_public_static_cache_prepare_html_for_output($stored, $identity);
         $this->assertStringContainsString($lazy_nonce, $output);
         $this->assertStringContainsString($category_search_nonce, $output);
+        $this->assertStringContainsString($levels_nonce, $output);
         $this->assertStringContainsString($grid_nonce, $output);
         $this->assertStringNotContainsString(LL_TOOLS_PUBLIC_STATIC_CACHE_WORDSET_LAZY_NONCE_PLACEHOLDER, $output);
         $this->assertStringNotContainsString(LL_TOOLS_PUBLIC_STATIC_CACHE_WORDSET_CATEGORY_SEARCH_NONCE_PLACEHOLDER, $output);
+        $this->assertStringNotContainsString(LL_TOOLS_PUBLIC_STATIC_CACHE_WORDSET_LEVELS_NONCE_PLACEHOLDER, $output);
         $this->assertStringNotContainsString(ll_tools_public_static_cache_vocab_grid_nonce_placeholder((int) $lesson_id), $output);
     }
 
