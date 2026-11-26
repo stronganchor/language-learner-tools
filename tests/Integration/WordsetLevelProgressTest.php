@@ -81,6 +81,79 @@ final class WordsetLevelProgressTest extends LL_Tools_TestCase
         $this->assertSame('due', ll_tools_wordset_level_request($uid, $review_request)['reason']);
     }
 
+    public function test_hard_and_starred_launches_match_the_current_learners_counts_in_each_level(): void
+    {
+        global $wpdb;
+        $user = self::factory()->user->create(['role' => 'subscriber']);
+        wp_set_current_user($user);
+        $wordset = self::factory()->term->create(['taxonomy' => 'wordset']);
+        $category_ids = [];
+        for ($i = 0; $i < 4; ++$i) {
+            $category = self::factory()->term->create(['taxonomy' => 'word-category']);
+            ll_tools_set_category_wordset_owner($category, $wordset);
+            $category_ids[] = $category;
+        }
+        [$unsupported, $first, $second, $other_level] = $category_ids;
+        $scope = [1 => [['id' => $unsupported, 'practice_supported' => false], ['id' => $first], ['id' => $second]],
+            2 => [['id' => $other_level]]];
+        $this->completeLlToolsSimulatedRequest();
+        // Warm the compact projections exactly as the level page does. A shared word can have several owners.
+        $members = [$unsupported => [800008, 800090], $first => range(800001, 800008),
+            $second => range(800008, 800016), $other_level => [800091]];
+        foreach ($members as $category => $words) {
+            set_transient(ll_tools_wordset_level_member_key($wordset, $category), array_fill_keys($words, true), HOUR_IN_SECONDS);
+        }
+        $now = current_time('mysql', true);
+        // One mistake at stage 1 is at the default hard threshold. The same mistake at stage 2 falls below it.
+        $progress = [800008 => [$first, 1, 1], 800090 => [$unsupported, 1, 1], 800091 => [$other_level, 1, 1],
+            800016 => [$second, 1, 2], 800002 => [$first, 0, 5]];
+        foreach ($progress as $word => [$category, $incorrect, $stage]) {
+            $this->assertNotFalse($wpdb->insert(ll_tools_user_progress_table_names()['words'], [
+                'user_id' => $user, 'word_id' => $word, 'category_id' => $category, 'wordset_id' => $wordset,
+                'last_seen_at' => $now, 'first_seen_at' => $now, 'updated_at' => $now, 'total_coverage' => 1,
+                'incorrect' => $incorrect, 'stage' => $stage, 'mastery_unlocked' => $stage === 5 ? 1 : 0,
+            ]));
+        }
+        $stars = range(800001, 800015);
+        update_user_meta($user, LL_TOOLS_USER_STARRED_META, array_merge($stars, [800090, 800091]));
+        $token = ll_tools_wordset_page_store_category_search_payload(['user_id' => $user, 'wordset_id' => $wordset,
+            'access_signature' => ll_tools_wordset_page_category_search_payload_access_signature($wordset, $user),
+            'level_policy' => ll_tools_wordset_level_policy_signature($wordset), 'level_scope' => $scope]);
+        $base = ['wordset_id' => $wordset, 'token' => $token];
+        $launch = static function (string $filter, int $level) use ($user, $base) {
+            return ll_tools_wordset_level_request($user, $base + ['operation' => 'launch', 'level' => $level, 'launch_mode' => $filter]);
+        };
+
+        $summary = ll_tools_wordset_level_request($user, $base + ['operation' => 'summary']);
+        $this->assertSame([1, 15], [$summary['levels'][1]['hard'], $summary['levels'][1]['starred']]);
+        $this->assertSame([1, 1], [$summary['levels'][2]['hard'], $summary['levels'][2]['starred']]);
+        $this->assertArrayNotHasKey('starred_activity', $summary['levels'][1]);
+        $this->assertArrayNotHasKey('hard_activity', $summary['levels'][1]);
+        $hard = $launch('hard', 1);
+        $this->assertSame('practice', $hard['mode']);
+        $this->assertSame([800008 => $first], $hard['word_category_ids']);
+        $this->assertSame([800008], $hard['bounded']['word_ids']);
+        $starred = $launch('starred', 1);
+        $this->assertEqualsCanonicalizing($stars, $starred['session_word_ids']);
+        $this->assertSame($first, $starred['word_category_ids'][800008]);
+        $this->assertSame([12, 3], array_map('count', array_column($starred['bounded']['chunks'], 'word_ids')));
+        $this->assertSame($starred['session_word_ids'], array_merge(...array_column($starred['bounded']['chunks'], 'word_ids')));
+        foreach (['hard', 'starred'] as $filter) {
+            $this->assertSame([800091], $launch($filter, 2)['session_word_ids']);
+            $this->assertSame('ll_level_unknown', $launch($filter, 0)->get_error_code());
+            $this->assertNull(ll_tools_wordset_level_launch($wordset, 0, $scope[1], 30, $filter));
+        }
+        update_user_meta($user, LL_TOOLS_USER_STARRED_META, [800091]);
+        $this->assertSame('ll_level_no_activity', $launch('starred', 1)->get_error_code());
+        $other_user = self::factory()->user->create(['role' => 'subscriber']);
+        wp_set_current_user($other_user);
+        foreach (['hard', 'starred'] as $filter) {
+            $this->assertSame('ll_level_access', $launch($filter, 1)->get_error_code());
+            $this->assertSame('ll_level_scope_changed', ll_tools_wordset_level_request($other_user,
+                $base + ['operation' => 'launch', 'level' => 1, 'launch_mode' => $filter])->get_error_code());
+        }
+    }
+
     public function test_exact_plan_chunks_preserve_rank_for_large_and_category_scattered_sessions(): void
     {
         $targets = range(501, 524);

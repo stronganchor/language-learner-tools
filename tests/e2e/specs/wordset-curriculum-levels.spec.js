@@ -325,7 +325,7 @@ test('daily review separates the complete due backlog from the next round and fo
   await expect(page.getByRole('button',{name:'Learn · Lesson 1'})).toBeVisible();
   await page.setViewportSize({width:320,height:640});
   const first=page.locator('[data-ll-level-card="1"]');
-  const badge=first.locator('.ll-level-card-head .ll-level-due-button');
+  const badge=first.locator('.ll-level-card-head [data-ll-level-filter="due"]');
   const panel=page.locator('#'+await badge.getAttribute('aria-controls'));
   await expect(panel).toBeHidden();
   await badge.focus();
@@ -374,7 +374,7 @@ test('desktop and phone each show one level per row and keep mode icons, statuse
   await expect(first.locator('.ll-level-nudge,.is-suggested')).toHaveCount(0);
   await expect(page.getByText('Recommended level',{exact:true})).toHaveCount(0);
   const badges=first.locator('.ll-level-card-head .ll-level-badge');
-  await expect(badges).toHaveCount(1);
+  await expect(badges).toHaveCount(3);
   await page.addStyleTag({content:'.ll-wordset-page {--ll-wp-main-shell-max-width:860px;--ll-wordset-grid-right-offset:13px!important;}'});
   for(const width of [1240,390,320]) {
     await page.setViewportSize({width,height:820});
@@ -412,13 +412,15 @@ test('desktop and phone each show one level per row and keep mode icons, statuse
   await expect(chevron).toHaveCSS('transform','matrix(-1, 0, 0, -1, 0, 0)');
   expect(await tail()).toBeLessThan(20);
   await expect(first.getByRole('spinbutton',{name:labels.interval, exact:true})).toBeVisible();
-  for (const [status,count] of [['mastered',3],['studied',2],['new',5],['starred',3],['hard',1]]) {
+  for (const [status,count] of [['mastered',3],['studied',2],['new',5]]) {
     const badge=first.locator('.ll-level-stat-value.ll-level-metric-'+status);
     await expect(badge).toHaveText(String(count));
     await expect(badge.locator('.ll-level-status-icon')).toBeVisible();
   }
-  await expect(first.locator('.ll-level-detail-panel .ll-level-overdue')).toHaveText('2');
-  await expect(rows.nth(1).locator('.ll-level-detail-panel .ll-level-due-button')).toHaveCount(0);
+  for (const [filter,count] of [['due',2],['hard',1],['starred',3]]) {
+    await expect(first.locator('.ll-level-detail-panel [data-ll-level-filter="'+filter+'"]')).toHaveText(String(count));
+  }
+  await expect(rows.nth(1).locator('.ll-level-detail-panel [data-ll-level-filter="due"]')).toHaveCount(0);
   await expect(rows.nth(1).locator('.ll-level-detail-panel .ll-level-metric-older')).toHaveText('0');
   await page.keyboard.press('Space');
   await expect(first.getByRole('spinbutton',{name:labels.interval, exact:true})).toBeHidden();
@@ -454,6 +456,53 @@ async function instrumentQuiz(page) {
 }
 async function showResults(page,mode) {
   await page.evaluate(mode=>window.jQuery(document).trigger('lltools:flashcard-results-shown',[{mode}]),mode);
+}
+
+for (const filter of ['hard','starred']) {
+  test('opening '+filter+' explains the level count before launching its exact Practice selection',async({page})=>{
+    await page.setViewportSize({width:filter==='hard' ? 320 : 1140,height:800});
+    await instrumentQuiz(page);
+    const ids=filter==='hard' ? [1001] : [2002,2003,2004];
+    const row={due:2,hard:1,starred:3,total:12,studied:6,working:2,new:6,mastered:4,days:30,practice_category_id:2};
+    const owner=filter==='hard' ? 1 : 2;
+    const plan={category_ids:[owner],session_word_ids:ids,word_category_ids:Object.fromEntries(ids.map(id=>[id,owner]))};
+    const reqs=await mount(page,{signed:true,successful:true,plan,summary:{levels:{1:row,2:{...row,due:0,hard:0,starred:0,practice_category_id:15}}}});
+    const card=page.locator('[data-ll-level-card="1"]');
+    const header=card.locator('.ll-level-card-head');
+    await expect(header.locator('[data-ll-level-filter]')).toHaveCount(3);
+    await expect(page.locator('[data-ll-level-card="2"] [data-ll-level-filter]')).toHaveCount(0);
+    const due=header.locator('[data-ll-level-filter="due"]');
+    await due.click();
+    const badge=header.locator('[data-ll-level-filter="'+filter+'"]');
+    await expect(badge).toHaveAccessibleName(labels[filter]+' · '+ids.length+' · Level 1');
+    await badge.focus();
+    await page.keyboard.press('Enter');
+    await expect(badge).toHaveAttribute('aria-expanded','true');
+    await expect(due).toHaveAttribute('aria-expanded','false');
+    const preview=page.locator('#'+await badge.getAttribute('aria-controls'));
+    await expect(preview.getByText(labels[filter+'Help'])).toBeVisible();
+    const color=filter==='hard' ? 'rgb(246, 214, 214)' : 'rgb(253, 231, 163)';
+    await expect(preview).toHaveCSS('background-color',color);
+    await expect(badge.locator('.ll-level-badge')).toHaveCSS('background-color',color);
+    await expect(badge.locator('.ll-level-status-icon')).toBeVisible();
+    expect(await card.evaluate(el=>el.scrollWidth<=el.clientWidth+1)).toBe(true);
+    const launchLabel='Practice · '+labels[filter]+' · Level 1';
+    let launch=preview.getByRole('button',{name:launchLabel,exact:true});
+    if (filter==='starred') {
+      await badge.click();
+      await card.getByLabel('Level details · Level 1',{exact:true}).click();
+      const detail=card.locator('.ll-level-detail-panel');
+      const inner=detail.locator('[data-ll-level-filter="'+filter+'"]');
+      await inner.click();
+      await expect(detail.getByText(labels.starredHelp)).toBeVisible();
+      launch=detail.getByRole('button',{name:launchLabel,exact:true});
+    }
+    expect(reqs.filter(r=>r.operation==='launch')).toHaveLength(0);
+    await launch.click();
+    await expect.poll(()=>page.evaluate(()=>window.launchedQuizzes.length)).toBe(1);
+    expect(reqs.filter(r=>r.operation==='launch').map(r=>[r.level,r.launch_mode])).toEqual([['1',filter]]);
+    expect(await page.evaluate(()=>window.llToolsFlashcardsData.logicalSessionWordIds)).toEqual(ids);
+  });
 }
 
 test('a daily round hydrates 16 exact targets in two batches and appends the second to the active quiz',async({page})=>{

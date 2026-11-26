@@ -251,7 +251,7 @@ function ll_tools_wordset_level_request_in_scope(int $user_id, int $wordset_id, 
         if (is_wp_error($overall)) { return $overall; }
         $activity = $mode === 'due' && !$overall['due'] ? null : $overall['activity'];
         if ($activity && $mode === 'review') { $activity['reason'] = $overall['reason']; }
-    } elseif ($operation === 'launch' && in_array($mode, ['learn', 'practice', 'due'], true)) {
+    } elseif ($operation === 'launch' && in_array($mode, ['learn', 'practice', 'due', 'hard', 'starred'], true)) {
         $activity = ll_tools_wordset_level_launch($wordset_id, $user_id, $scope[$level], $days[$level], $mode, $now, $level);
     } else {
         return new WP_Error('ll_level_action_invalid', __('Unknown level action.', 'll-tools-text-domain'), ['status' => 400]);

@@ -193,7 +193,7 @@ msgid "Review generated public quiz pages without mixing them into normal Pages.
 msgstr "Oluşturulan herkese açık quiz sayfalarını, normal Sayfalarla karıştırmadan incele."
 
 #: includes/admin/admin-dashboard-menu.php:356 includes/admin/admin-dashboard-menu.php:824 includes/admin/admin-dashboard-menu.php:825 includes/admin/audio-processor-admin.php:2888 includes/admin/bulk-translation-admin.php:147 includes/admin/image-aspect-normalizer-admin.php:111 includes/admin/user-progress-report.php:1119 includes/pages/wordset-editor.php:4658 includes/pages/wordset-pages.php:27547 includes/pages/wordset-pages.php:27806 includes/post-types/words-post-type.php:21 includes/post-types/words-post-type.php:26 includes/wordset-isolation.php:5478
-#: includes/lib/wordset-level-labels.php:36
+#: includes/lib/wordset-level-labels.php:38
 msgid "Words"
 msgstr "Kelimeler"
 
@@ -582,7 +582,7 @@ msgid "The request timed out. Please try again."
 msgstr "İstek zaman aşımına uğradı. Lütfen yeniden dene."
 
 #: includes/admin/audio-image-matcher.php:76 includes/admin/audio-processor-admin.php:1409 includes/admin/audio-processor-admin.php:213 includes/admin/ipa-keyboard-admin.php:450 includes/admin/site-sync-admin.php:1934 includes/admin/site-sync-admin.php:655 includes/admin/word-option-rules-admin.php:297 includes/content-lesson-cloze.php:289 includes/lib/recording-history.php:279 includes/lib/word-copy.php:465 includes/lms/assignment-experience.php:416 includes/pages/content-lesson-pages.php:1308 includes/pages/quiz-pages.php:1120 includes/pages/quiz-pages.php:2075 includes/pages/vocab-lesson-pages.php:4833 includes/pages/wordset-pages.php:13584 includes/pages/wordset-pages.php:24954 includes/pages/wordset-pages.php:25017 includes/pages/wordset-pages.php:27509 includes/pages/wordset-pages.php:27626 includes/pages/wordset-pages.php:27741 includes/pages/wordset-pages.php:28163 includes/pages/wordset-pages.php:28672 includes/pages/wordset-pages.php:29753 includes/shortcodes/audio-recording-shortcode.php:1660 includes/shortcodes/audio-recording-shortcode.php:1899 includes/shortcodes/dictionary-shortcode.php:345 includes/shortcodes/flashcard-widget.php:803 includes/shortcodes/quiz-pages-shortcodes.php:2403 includes/taxonomies/word-category-taxonomy.php:3667 templates/audio-image-matcher-template.php:57 templates/quiz-page-template.php:25 templates/vocab-lesson-template.php:447
-#: includes/lib/wordset-level-labels.php:51
+#: includes/lib/wordset-level-labels.php:53
 msgid "Retry"
 msgstr "Yeniden Dene"
 
@@ -15721,7 +15721,7 @@ msgid "Answer saved."
 msgstr "Cevap kaydedildi."
 
 #: includes/lms/assignment-experience.php:416 includes/pages/wordset-transcription-review.php:283 includes/shortcodes/editor-hub-shortcode.php:1067
-#: includes/lib/wordset-level-labels.php:43
+#: includes/lib/wordset-level-labels.php:45
 msgid "Saving…"
 msgstr "Kaydediliyor…"
 
@@ -18581,7 +18581,7 @@ msgid "Default Word Set"
 msgstr "Varsayılan Kelime Seti"
 
 #: includes/pages/wordset-pages.php:118 includes/shortcodes/content-lesson-index-shortcode.php:587 includes/wordset-isolation.php:5482
-#: includes/lib/wordset-level-labels.php:37
+#: includes/lib/wordset-level-labels.php:39
 msgid "Lessons"
 msgstr "Dersler"
 
@@ -21557,7 +21557,7 @@ msgid "Unable to save right now."
 msgstr "Şu anda kaydedilemiyor."
 
 #: includes/pages/wordset-pages.php:27508 includes/pages/wordset-transcription-review.php:284 includes/shortcodes/audio-recording-shortcode.php:1677
-#: includes/lib/wordset-level-labels.php:44
+#: includes/lib/wordset-level-labels.php:46
 msgid "Saved"
 msgstr "Kaydedildi"
 
@@ -22082,7 +22082,7 @@ msgid "Finish saving or reload the changed recordings before leaving this page."
 msgstr "Bu sayfadan ayrılmadan önce kaydetme işlemini tamamla veya değişen ses kayıtlarını yeniden yükle."
 
 #: includes/pages/wordset-transcription-review.php:291 templates/vocab-lesson-template.php:1404
-#: includes/lib/wordset-level-labels.php:48
+#: includes/lib/wordset-level-labels.php:50
 msgid "Reload"
 msgstr "Yeniden yükle"
 
@@ -28347,27 +28347,27 @@ msgstr "Tekrar zamanı gelenler (%d)"
 msgid "Level details"
 msgstr "Seviye ayrıntıları"
 
-#: includes/lib/wordset-level-labels.php:38
+#: includes/lib/wordset-level-labels.php:40
 msgid "Last studied"
 msgstr "Son çalışma"
 
-#: includes/lib/wordset-level-labels.php:39
+#: includes/lib/wordset-level-labels.php:41
 msgid "No activity yet"
 msgstr "Henüz etkinlik yok"
 
-#: includes/lib/wordset-level-labels.php:45
+#: includes/lib/wordset-level-labels.php:47
 msgid "Loading progress…"
 msgstr "İlerleme yükleniyor…"
 
-#: includes/lib/wordset-level-labels.php:46
+#: includes/lib/wordset-level-labels.php:48
 msgid "Could not load progress."
 msgstr "İlerleme yüklenemedi."
 
-#: includes/lib/wordset-level-labels.php:49
+#: includes/lib/wordset-level-labels.php:51
 msgid "Could not start this activity."
 msgstr "Bu etkinlik başlatılamadı."
 
-#: includes/lib/wordset-level-labels.php:50
+#: includes/lib/wordset-level-labels.php:52
 msgid "Could not save this interval."
 msgstr "Bu aralık kaydedilemedi."
 
@@ -28389,7 +28389,7 @@ msgstr "İlerlemeni görmek için giriş yap."
 
 #: includes/lib/wordset-level-page.php:132
 #: includes/lib/wordset-level-page.php:136
-#: includes/lib/wordset-level-labels.php:47
+#: includes/lib/wordset-level-labels.php:49
 msgid "Reload this page to update your levels."
 msgstr "Seviyelerini güncellemek için bu sayfayı yenile."
 
@@ -28467,40 +28467,40 @@ msgstr "Bu turdaki kelime sayısı"
 msgid "Least recently studied"
 msgstr "En uzun süredir tekrar edilmeyenler"
 
-#: includes/lib/wordset-level-labels.php:40
+#: includes/lib/wordset-level-labels.php:42
 msgid "How often do you want to review words in this level?"
 msgstr "Bu seviyedeki kelimeleri kaç günde bir tekrar etmek istersin?"
 
-#: includes/lib/wordset-level-labels.php:41
+#: includes/lib/wordset-level-labels.php:43
 msgid "days"
 msgstr "gün"
 
-#: includes/lib/wordset-level-labels.php:42
+#: includes/lib/wordset-level-labels.php:44
 msgid "The interval starts again each time you study a word."
 msgstr "Bir kelimeyi her çalıştığında o kelimenin süresi yeniden başlar."
 
 #. translators: %d: number of new words in this practice round.
-#: includes/lib/wordset-level-labels.php:65
+#: includes/lib/wordset-level-labels.php:67
 msgid "%d new word"
 msgid_plural "%d new words"
 msgstr[0] "%d yeni kelime"
 msgstr[1] "%d yeni kelime"
 
 #. translators: %d: number of words still in progress in this practice round.
-#: includes/lib/wordset-level-labels.php:69
+#: includes/lib/wordset-level-labels.php:71
 msgid "%d word in progress"
 msgid_plural "%d words in progress"
 msgstr[0] "öğrenmekte olduğun %d kelime"
 msgstr[1] "öğrenmekte olduğun %d kelime"
 
 #. translators: %d: number of already learned words in this practice round.
-#: includes/lib/wordset-level-labels.php:73
+#: includes/lib/wordset-level-labels.php:75
 msgid "%d learned word"
 msgid_plural "%d learned words"
 msgstr[0] "öğrendiğin %d kelime"
 msgstr[1] "öğrendiğin %d kelime"
 
-#: includes/lib/wordset-level-labels.php:61
+#: includes/lib/wordset-level-labels.php:63
 msgid "New and in progress"
 msgstr "Yeni ve çalıştığın kelimeler"
 
@@ -28508,6 +28508,16 @@ msgstr "Yeni ve çalıştığın kelimeler"
 msgid "These words are due because your review interval has passed."
 msgstr ""
 "Son çalışmandan bu yana bu kelimeler için belirlenen tekrar süresi doldu."
+
+#: includes/lib/wordset-level-labels.php:36
+msgid "Your quiz answers show that these words need more practice."
+msgstr ""
+"Quizlerde verdiğin cevaplara göre bu kelimeleri biraz daha çalışman "
+"gerekiyor."
+
+#: includes/lib/wordset-level-labels.php:37
+msgid "These are the words you starred in this level."
+msgstr "Bu seviyede yıldızla işaretlediğin kelimeler burada."
 
 #~ #: includes/pages/wordset-pages.php:26340
 #~ #: includes/pages/wordset-pages.php:27409

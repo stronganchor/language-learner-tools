@@ -33,6 +33,8 @@ function ll_tools_wordset_level_labels(): array {
         'unseen' => __('New', 'll-tools-text-domain'),
         'hard' => __('Hard', 'll-tools-text-domain'),
         'starred' => __('Starred', 'll-tools-text-domain'),
+        'hardHelp' => __('Your quiz answers show that these words need more practice.', 'll-tools-text-domain'),
+        'starredHelp' => __('These are the words you starred in this level.', 'll-tools-text-domain'),
         'words' => __('Words', 'll-tools-text-domain'),
         'lessons' => __('Lessons', 'll-tools-text-domain'),
         'lastStudy' => __('Last studied', 'll-tools-text-domain'),

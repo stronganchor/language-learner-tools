@@ -222,7 +222,7 @@ msgstr "Tinjau halaman kuis publik yang dibuat tanpa mencampurnya dengan Halaman
 
 #. ll-tools-public-key: 24c1a2ab72a89beccebe410ab92a273a599fca49
 #: includes/admin/admin-dashboard-menu.php:356 includes/admin/admin-dashboard-menu.php:824 includes/admin/admin-dashboard-menu.php:825 includes/admin/audio-processor-admin.php:2888 includes/admin/bulk-translation-admin.php:147 includes/admin/image-aspect-normalizer-admin.php:111 includes/admin/user-progress-report.php:1119 includes/pages/wordset-editor.php:4658 includes/pages/wordset-pages.php:27547 includes/pages/wordset-pages.php:27806 includes/post-types/words-post-type.php:21 includes/post-types/words-post-type.php:26 includes/wordset-isolation.php:5478
-#: includes/lib/wordset-level-labels.php:36
+#: includes/lib/wordset-level-labels.php:38
 msgid "Words"
 msgstr "Kata-kata"
 
@@ -373,7 +373,7 @@ msgstr "Muat lagi"
 
 #. ll-tools-public-key: e0074b8b19544bd789cefcb9f4cbf174f333771f
 #: includes/admin/audio-image-matcher.php:76 includes/admin/audio-processor-admin.php:1409 includes/admin/audio-processor-admin.php:213 includes/admin/ipa-keyboard-admin.php:450 includes/admin/site-sync-admin.php:1934 includes/admin/site-sync-admin.php:655 includes/admin/word-option-rules-admin.php:297 includes/content-lesson-cloze.php:289 includes/lib/recording-history.php:279 includes/lib/word-copy.php:465 includes/lms/assignment-experience.php:416 includes/pages/content-lesson-pages.php:1308 includes/pages/quiz-pages.php:1120 includes/pages/quiz-pages.php:2075 includes/pages/vocab-lesson-pages.php:4833 includes/pages/wordset-pages.php:13584 includes/pages/wordset-pages.php:24954 includes/pages/wordset-pages.php:25017 includes/pages/wordset-pages.php:27509 includes/pages/wordset-pages.php:27626 includes/pages/wordset-pages.php:27741 includes/pages/wordset-pages.php:28163 includes/pages/wordset-pages.php:28672 includes/pages/wordset-pages.php:29753 includes/shortcodes/audio-recording-shortcode.php:1660 includes/shortcodes/audio-recording-shortcode.php:1899 includes/shortcodes/dictionary-shortcode.php:345 includes/shortcodes/flashcard-widget.php:803 includes/shortcodes/quiz-pages-shortcodes.php:2403 includes/taxonomies/word-category-taxonomy.php:3667 templates/audio-image-matcher-template.php:57 templates/quiz-page-template.php:25 templates/vocab-lesson-template.php:447
-#: includes/lib/wordset-level-labels.php:51
+#: includes/lib/wordset-level-labels.php:53
 msgid "Retry"
 msgstr "Coba lagi"
 
@@ -2132,7 +2132,7 @@ msgstr "Jawaban disimpan."
 
 #. ll-tools-public-key: 2e50e09155fa8eff3221bfc7a2e98a6f0e2e2275
 #: includes/lms/assignment-experience.php:416 includes/pages/wordset-transcription-review.php:283 includes/shortcodes/editor-hub-shortcode.php:1067
-#: includes/lib/wordset-level-labels.php:43
+#: includes/lib/wordset-level-labels.php:45
 msgid "Saving…"
 msgstr "Menyimpan…"
 
@@ -3041,7 +3041,7 @@ msgstr "Permainan tidak valid."
 
 #. ll-tools-public-key: 49b760185efd63afeaf135592f4950acd4407eef
 #: includes/pages/wordset-pages.php:118 includes/shortcodes/content-lesson-index-shortcode.php:587 includes/wordset-isolation.php:5482
-#: includes/lib/wordset-level-labels.php:37
+#: includes/lib/wordset-level-labels.php:39
 msgid "Lessons"
 msgstr "Pelajaran"
 
@@ -4290,7 +4290,7 @@ msgid "Unable to save right now."
 msgstr "Saat ini tidak bisa disimpan."
 
 #: includes/pages/wordset-pages.php:27508 includes/pages/wordset-transcription-review.php:284 includes/shortcodes/audio-recording-shortcode.php:1677
-#: includes/lib/wordset-level-labels.php:44
+#: includes/lib/wordset-level-labels.php:46
 msgid "Saved"
 msgstr "Tersimpan"
 
@@ -5920,27 +5920,27 @@ msgstr "Perlu diulang (%d)"
 msgid "Level details"
 msgstr "Detail level"
 
-#: includes/lib/wordset-level-labels.php:38
+#: includes/lib/wordset-level-labels.php:40
 msgid "Last studied"
 msgstr "Terakhir dipelajari"
 
-#: includes/lib/wordset-level-labels.php:39
+#: includes/lib/wordset-level-labels.php:41
 msgid "No activity yet"
 msgstr "Belum ada aktivitas"
 
-#: includes/lib/wordset-level-labels.php:45
+#: includes/lib/wordset-level-labels.php:47
 msgid "Loading progress…"
 msgstr "Memuat kemajuan…"
 
-#: includes/lib/wordset-level-labels.php:46
+#: includes/lib/wordset-level-labels.php:48
 msgid "Could not load progress."
 msgstr "Kemajuan gagal dimuat."
 
-#: includes/lib/wordset-level-labels.php:49
+#: includes/lib/wordset-level-labels.php:51
 msgid "Could not start this activity."
 msgstr "Aktivitas ini gagal dimulai."
 
-#: includes/lib/wordset-level-labels.php:50
+#: includes/lib/wordset-level-labels.php:52
 msgid "Could not save this interval."
 msgstr "Interval ini gagal disimpan."
 
@@ -5962,7 +5962,7 @@ msgstr "Masuk untuk melihat kemajuanmu."
 
 #: includes/lib/wordset-level-page.php:132
 #: includes/lib/wordset-level-page.php:136
-#: includes/lib/wordset-level-labels.php:47
+#: includes/lib/wordset-level-labels.php:49
 msgid "Reload this page to update your levels."
 msgstr "Muat ulang halaman ini untuk memperbarui levelmu."
 
@@ -6012,7 +6012,7 @@ msgstr "Lanjutkan level %d"
 
 #: includes/pages/wordset-transcription-review.php:291
 #: templates/vocab-lesson-template.php:1404
-#: includes/lib/wordset-level-labels.php:48
+#: includes/lib/wordset-level-labels.php:50
 msgid "Reload"
 msgstr "Muat ulang"
 
@@ -6037,40 +6037,40 @@ msgstr "Kata dalam sesi ini"
 msgid "Least recently studied"
 msgstr "Paling lama tidak dipelajari"
 
-#: includes/lib/wordset-level-labels.php:40
+#: includes/lib/wordset-level-labels.php:42
 msgid "How often do you want to review words in this level?"
 msgstr "Setiap berapa hari Anda ingin mengulang kosakata di tingkat ini?"
 
-#: includes/lib/wordset-level-labels.php:41
+#: includes/lib/wordset-level-labels.php:43
 msgid "days"
 msgstr "hari"
 
-#: includes/lib/wordset-level-labels.php:42
+#: includes/lib/wordset-level-labels.php:44
 msgid "The interval starts again each time you study a word."
 msgstr "Jeda untuk setiap kata dimulai lagi setiap kali Anda mempelajarinya."
 
 #. translators: %d: number of new words in this practice round.
-#: includes/lib/wordset-level-labels.php:65
+#: includes/lib/wordset-level-labels.php:67
 msgid "%d new word"
 msgid_plural "%d new words"
 msgstr[0] "%d kata baru"
 msgstr[1] "%d kata baru"
 
 #. translators: %d: number of words still in progress in this practice round.
-#: includes/lib/wordset-level-labels.php:69
+#: includes/lib/wordset-level-labels.php:71
 msgid "%d word in progress"
 msgid_plural "%d words in progress"
 msgstr[0] "%d kata yang sedang dipelajari"
 msgstr[1] "%d kata yang sedang dipelajari"
 
 #. translators: %d: number of already learned words in this practice round.
-#: includes/lib/wordset-level-labels.php:73
+#: includes/lib/wordset-level-labels.php:75
 msgid "%d learned word"
 msgid_plural "%d learned words"
 msgstr[0] "%d kata yang sudah dipelajari"
 msgstr[1] "%d kata yang sudah dipelajari"
 
-#: includes/lib/wordset-level-labels.php:61
+#: includes/lib/wordset-level-labels.php:63
 msgid "New and in progress"
 msgstr "Kata baru dan yang sedang dipelajari"
 
@@ -6078,6 +6078,17 @@ msgstr "Kata baru dan yang sedang dipelajari"
 msgid "These words are due because your review interval has passed."
 msgstr ""
 "Sudah waktunya mengulang kata-kata ini sesuai jeda yang Anda tentukan."
+
+#: includes/lib/wordset-level-labels.php:36
+msgid "Your quiz answers show that these words need more practice."
+msgstr ""
+"Jawaban Anda dalam kuis menunjukkan bahwa Anda perlu lebih banyak berlatih "
+"dengan kata-kata ini."
+
+#: includes/lib/wordset-level-labels.php:37
+msgid "These are the words you starred in this level."
+msgstr ""
+"Berikut adalah kata-kata yang Anda tandai dengan bintang di tingkat ini."
 
 #~ #. ll-tools-public-key: 91649783c0e23511c87fd6ea6b7e7b29d6353216
 #~ #: includes/flashcard-shell.php:174

@@ -6,7 +6,7 @@
 .ll-wordset-page[data-ll-level-view="level"] .ll-wordset-top-actions,
 .ll-wordset-page[data-ll-level-view="home"] [data-ll-wordset-selection-bar],
 .ll-wordset-page .ll-level-more[hidden],
-.ll-wordset-page .ll-level-due-panel[hidden],
+.ll-wordset-page .ll-level-filter-panel[hidden],
 .ll-wordset-page [data-ll-wordset-levels][hidden] { display: none !important; }
 
 .ll-wordset-page [data-ll-wordset-levels] {
@@ -132,16 +132,16 @@
     line-height: 1;
 }
 .ll-level-badge { gap: .32rem; min-width: 2.95rem; min-height: 1.75rem; padding: .25rem .5rem; }
-.ll-level-overdue { color: var(--ll-wp-pill-purple-text); background: var(--ll-wp-pill-purple); border-color: var(--ll-wp-pill-purple-border); }
-.ll-wordset-page .ll-level-due-button, .ll-wordset-page .ll-level-due-button:hover {
+.ll-level-filter-toggle .ll-level-badge { color: var(--ll-level-ink); background: var(--ll-level-tint); border-color: var(--ll-level-border); }
+.ll-wordset-page .ll-level-filter-toggle, .ll-wordset-page .ll-level-filter-toggle:hover {
     padding: 0;
     border-color: transparent;
     background: transparent;
 }
-.ll-level-due-button:hover .ll-level-overdue { border-color: var(--ll-wp-pill-purple-text); }
-.ll-level-due-button .ll-level-glyph--chevron { width: .7rem; height: .7rem; stroke-width: 2.5; }
-.ll-level-due-button[aria-expanded="true"] .ll-level-glyph--chevron { transform: rotate(180deg); }
-.ll-wordset-page .ll-level-due-panel {
+.ll-level-filter-toggle:hover .ll-level-badge { border-color: var(--ll-level-ink); }
+.ll-level-filter-toggle .ll-level-glyph--chevron { width: .7rem; height: .7rem; stroke-width: 2.5; }
+.ll-level-filter-toggle[aria-expanded="true"] .ll-level-glyph--chevron { transform: rotate(180deg); }
+.ll-wordset-page .ll-level-filter-panel {
     display: grid;
     justify-items: start;
     gap: .35rem;
@@ -150,20 +150,20 @@
     max-width: min(100%, 32rem);
     margin: .25rem 0 .65rem;
     padding: .65rem .75rem;
-    border-inline-start: 3px solid var(--ll-wp-pill-purple-border);
+    border-inline-start: 3px solid var(--ll-level-border);
     border-radius: 5px;
-    background: var(--ll-wp-pill-purple);
+    background: var(--ll-level-tint);
     color: var(--ll-wp-text);
     font-size: .88rem;
     line-height: 1.45;
 }
-.ll-wordset-page .ll-level-due-panel p { margin: 0; font: inherit; color: inherit; }
-.ll-wordset-page .ll-level-due-panel strong { color: var(--ll-wp-pill-purple-text); }
-.ll-wordset-page .ll-level-due-start, .ll-wordset-page .ll-level-due-start:hover {
+.ll-wordset-page .ll-level-filter-panel p { margin: 0; font: inherit; color: inherit; }
+.ll-wordset-page .ll-level-filter-panel strong { color: var(--ll-level-ink); }
+.ll-wordset-page .ll-level-filter-start, .ll-wordset-page .ll-level-filter-start:hover {
     margin-top: .2rem;
-    border-color: var(--ll-wp-pill-purple-text);
+    border-color: var(--ll-level-ink);
     background: var(--ll-wp-card);
-    color: var(--ll-wp-pill-purple-text);
+    color: var(--ll-level-ink);
 }
 .ll-level-complete { width: 1.65rem; height: 1.65rem; background: var(--ll-wp-pill-green); color: var(--ll-wp-pill-green-text); }
 .ll-level-complete svg { stroke-width: 2.5; }
@@ -233,9 +233,9 @@
 .ll-level-metric-mastered { --ll-level-tint: var(--ll-wp-pill-green); --ll-level-ink: var(--ll-wp-pill-green-text); }
 .ll-level-metric-studied { --ll-level-tint: var(--ll-wp-pill-blue); --ll-level-ink: var(--ll-wp-pill-blue-text); }
 .ll-level-metric-new { --ll-level-tint: var(--ll-wp-pill-slate); --ll-level-ink: var(--ll-wp-pill-slate-text); }
-.ll-level-metric-starred { --ll-level-tint: var(--ll-wp-pill-gold); --ll-level-ink: var(--ll-wp-pill-gold-text); }
-.ll-level-metric-hard { --ll-level-tint: var(--ll-wp-pill-red); --ll-level-ink: var(--ll-wp-pill-red-text); }
-.ll-level-metric-older { --ll-level-tint: var(--ll-wp-pill-purple); --ll-level-ink: var(--ll-wp-pill-purple-text); }
+.ll-level-metric-starred { --ll-level-tint: var(--ll-wp-pill-gold); --ll-level-ink: var(--ll-wp-pill-gold-text); --ll-level-border: var(--ll-wp-pill-gold-border); }
+.ll-level-metric-hard { --ll-level-tint: var(--ll-wp-pill-red); --ll-level-ink: var(--ll-wp-pill-red-text); --ll-level-border: var(--ll-wp-pill-red-border); }
+.ll-level-metric-older { --ll-level-tint: var(--ll-wp-pill-purple); --ll-level-ink: var(--ll-wp-pill-purple-text); --ll-level-border: var(--ll-wp-pill-purple-border); }
 .ll-level-daily-icon, .ll-level-fact .ll-level-stat-value {
     display: inline-flex;
     align-items: center;

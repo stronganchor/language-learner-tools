@@ -4,7 +4,7 @@ For curriculum rows, mixed-lesson activity labels and per-level review intervals
 
 For the wordset title image and language details, start with `includes/pages/wordset-pages.php` and `css/wordset-pages.css`. For quiz mode icons shared by launch buttons and results, start with `ll_flashcards_get_mode_ui_config()` in `includes/shortcodes/flashcard-widget.php` and the five `media/*-symbol.svg` assets.
 
-For daily review size, per-level review disclosure, in-progress Practice batches, and count agreement between
+For daily review size, the per-level Due, Hard and Starred counts and activities, in-progress Practice batches, and count agreement between
 the level overview and Progress, use `includes/lib/wordset-level-progress.php`,
 `includes/lib/wordset-level-page.php`, `includes/user-progress.php` and
 `tests/e2e/specs/wordset-curriculum-levels.spec.js`.

@@ -54,7 +54,12 @@
         const historyKey = 'llWordsetCurriculum';
         const wordset = options.wordsetId;
         const panels = new Set();
-        const reviewPanels = new Set();
+        const openFilters = new Map();
+        const levelFilters = [
+            {mode:'due',status:'older',name:t.dueLabel,help:t.dueHelp},
+            {mode:'hard',status:'hard',name:t.hard,help:t.hardHelp},
+            {mode:'starred',status:'starred',name:t.starred,help:t.starredHelp}
+        ];
         const saves = new Map();
         let state = readState(history.state);
         let summary = null;
@@ -383,38 +388,58 @@
             btn.append(icon('forward'));
             return btn;
         }
-        function levelDueDisclosure(level, stats, location) {
-            const key = location + '-due-' + level;
-            const title = t.due.replace(/%d/g,stats.due);
-            const panel = element('div','ll-level-due-panel');
-            panel.id = 'll-level-' + wordset + '-' + key;
-            panel.hidden = !reviewPanels.has(key);
-            const toggle = button(title + ' · ' + label(level),'ll-level-due-button',null,() => {
-                panel.hidden = !panel.hidden;
+        function levelFilterDisclosures(level, stats, location, panelParent, addCount) {
+            const group = location + '-' + level;
+            const controls = [];
+            levelFilters.forEach(({mode,status,name,help}) => {
+                const count = Number(stats[mode]);
+                if (!Number.isFinite(count)) return;
+                if (count <= 0) {
+                    if (location === 'detail') addCount(name,0,status);
+                    return;
+                }
+                const key = location + '-' + mode + '-' + level;
+                const number = count.toLocaleString(document.documentElement.lang || undefined);
+                const due = mode === 'due';
+                const title = due ? t.due.replace(/%d/g,number) : name + ' · ' + number;
+                const metric = ' ll-level-metric-' + status;
+                const panel = element('div','ll-level-filter-panel' + metric);
+                panel.id = 'll-level-' + wordset + '-' + key;
+                panel.hidden = openFilters.get(group) !== mode;
+                const toggle = button(title + ' · ' + label(level),'ll-level-filter-toggle' + metric,null,() => {
+                    const opening = panel.hidden;
+                    if (opening) openFilters.set(group,mode); else openFilters.delete(group);
+                    controls.forEach(control => {
+                        const expanded = opening && control.panel === panel;
+                        control.panel.hidden = !expanded;
+                        control.toggle.setAttribute('aria-expanded',String(expanded));
+                    });
+                });
+                toggle.dataset.llLevelFilter = mode;
+                toggle.dataset.llFocusKey = key;
+                toggle.setAttribute('aria-controls',panel.id);
                 toggle.setAttribute('aria-expanded',String(!panel.hidden));
-                if (panel.hidden) reviewPanels.delete(key); else reviewPanels.add(key);
-            });
-            toggle.dataset.llFocusKey = key;
-            toggle.setAttribute('aria-controls',panel.id);
-            toggle.setAttribute('aria-expanded',String(!panel.hidden));
-            const pill = element('span','ll-level-badge ll-level-overdue');
-            pill.insertAdjacentHTML('beforeend',options.progressIcon('older','ll-level-status-icon'));
-            pill.append(element('span','',stats.due),icon('chevron'));
-            toggle.append(pill);
+                const pill = element('span','ll-level-badge');
+                pill.insertAdjacentHTML('beforeend',options.progressIcon(status,'ll-level-status-icon'));
+                pill.append(element('span','',number),icon('chevron'));
+                toggle.append(pill);
+                controls.push({toggle,panel});
+                addCount(name,toggle);
 
-            panel.append(element('strong','',title),element('p','',t.dueHelp));
-            const launch = button(t.reviewAll + ' · ' + label(level),'ll-level-due-start',null,() => {
-                announce('');
-                options.launch(level,'due',Number(stats.due_category_id),ajax,() => announce(t.launchError));
+                panel.append(element('strong','',title),element('p','',help));
+                const verb = due ? t.reviewAll : t.practice;
+                const launchLabel = due ? verb : verb + ' · ' + name;
+                const launch = button(launchLabel + ' · ' + label(level),'ll-level-filter-start',null,() => {
+                    announce('');
+                    options.launch(level,mode,due ? Number(stats.due_category_id) : 0,ajax,() => announce(t.launchError));
+                });
+                launch.dataset.llFocusKey = key + '-start';
+                launch.append(element('span','',verb),icon('forward'));
+                const round = due && stats.due_activity?.session_word_ids?.length;
+                if (round && round < count) panel.append(element('small','',t.roundSize + ' · ' + round));
+                panel.append(launch);
+                panelParent.append(panel);
             });
-            launch.dataset.llFocusKey = key + '-start';
-            launch.append(element('span','',t.reviewAll),icon('forward'));
-            const round = stats.due_activity?.session_word_ids?.length;
-            if (round && round < Number(stats.due)) {
-                panel.append(element('small','',t.roundSize + ' · ' + round));
-            }
-            panel.append(launch);
-            return {toggle,panel};
         }
         function addStat(list, term, value, status) {
             const pair = element('div','ll-level-fact');
@@ -461,14 +486,7 @@
                 addStat(list,t.mastered,stats.mastered,'mastered');
                 addStat(list,t.working,stats.working,'studied');
                 addStat(list,t.unseen,stats.new,'new');
-                if (stats.starred !== undefined) addStat(list,t.starred,stats.starred,'starred');
-                if (stats.hard !== undefined) addStat(list,t.hard,stats.hard,'hard');
-                if (Number(stats.due) > 0) {
-                    const due = levelDueDisclosure(level,stats,'detail');
-                    addStat(list,t.dueLabel,due.toggle);
-                    panel.append(due.panel);
-                }
-                else addStat(list,t.dueLabel,stats.due,'older');
+                levelFilterDisclosures(level,stats,'detail',panel,(name,count,status) => addStat(list,name,count,status));
                 addStat(list,t.lastStudy,studyDate(stats.last_studied_at));
             }
             if (stats && options.signedIn) {
@@ -548,11 +566,7 @@
                 check.append(icon('check'));
                 head.append(check);
             }
-            if (stats && Number(stats.due) > 0) {
-                const due = levelDueDisclosure(id,stats,'head');
-                badges.append(due.toggle);
-                overview.append(due.panel);
-            }
+            if (stats) levelFilterDisclosures(id,stats,'head',overview,(_name,count) => badges.append(count));
             if (badges.childElementCount) head.append(badges);
             const number = value => Number(value).toLocaleString(document.documentElement.lang || undefined);
             const progress = stats && Number(stats.total) > 0

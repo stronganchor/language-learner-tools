@@ -488,9 +488,9 @@ function ll_tools_wordset_level_summarize(int $wordset_id, int $user_id, array $
             $is_hard = $is_studied && !$is_mastered && ll_tools_user_progress_word_is_hard($row);
             if ($is_studied) { ++$studied; }
             if ($is_mastered) { ++$mastered; }
+            if (!isset($practice_category[$wid])) { continue; }
             if ($is_hard) { ++$hard; }
             if (isset($starred[$wid])) { ++$starred_count; }
-            if (!isset($practice_category[$wid])) { continue; }
             $review_row = $reviewable[$wid] ?? [];
             $status = 'unseen';
             if ($is_mastered) {
@@ -541,6 +541,30 @@ function ll_tools_wordset_level_overall_review(int $wordset_id, int $user_id, ar
 }
 
 function ll_tools_wordset_level_launch(int $wordset_id, int $user_id, array $categories, int $review_days, string $action, ?int $now = null, int $level = 0) {
+    global $wpdb;
+    if ($action === 'hard' || $action === 'starred') {
+        if ($user_id <= 0) { return null; }
+        // These filters need only the selected level's practice-eligible targets and current learner state.
+        $data = ll_tools_wordset_level_member_progress($wordset_id, $user_id, [$level => $categories], true);
+        if (is_wp_error($data)) { return $data; }
+        if ($action === 'starred') {
+            $wpdb->last_error = '';
+            $matches = array_fill_keys(ll_tools_get_user_study_starred_word_ids($user_id), true);
+            if ($wpdb->last_error !== '') { return ll_tools_wordset_level_progress_error(); }
+        } else {
+            $matches = array_filter($data['progress'], 'll_tools_user_progress_word_is_hard');
+        }
+        $selected = [];
+        foreach ($data['members'] as $cid => $members) {
+            foreach (array_intersect_key($members, $matches) as $wid => $_) {
+                if (isset($selected[$wid])) { continue; }
+                $row = $data['progress'][$wid] ?? [];
+                $selected[$wid] = ['id' => $wid, 'category_id' => $cid, 'date' => ll_tools_context_review_last_studied_at($row)];
+            }
+        }
+        ll_tools_wordset_level_sort_candidates($selected);
+        return ll_tools_wordset_level_exact_practice($selected);
+    }
     $dashboard = ll_tools_wordset_level_dashboard($wordset_id, $user_id, [$level => $categories], [$level => $review_days], $now);
     if (is_wp_error($dashboard)) { return $dashboard; }
     $row = $dashboard['levels'][$level];
