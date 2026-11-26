@@ -2530,6 +2530,20 @@ body.ll-qpg-popup-active #ll-tools-flashcard-content {
     }
 }
 
+#quiz-results .ll-results-guest-account {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    margin: .25rem auto;
+    padding: .3rem .8rem;
+    border: 1px solid #175c84;
+    border-radius: .55rem;
+    background: #fff;
+    color: #175c84;
+    font: 600 1rem/1.35 system-ui, sans-serif;
+    text-decoration: underline;
+}
+#quiz-results.ll-tools-error-state .ll-results-guest-account { display: none; }
 #quiz-results-message {
     font-size: 14px;
     color: #555;

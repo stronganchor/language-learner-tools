@@ -5892,6 +5892,169 @@ msgstr "Открыть основной урок"
 msgid "Delete empty category"
 msgstr "Удалить пустую категорию"
 
+#: includes/admin/teacher-classes-page.php:1035
+#: includes/admin/user-progress-report.php:918
+#: includes/admin/user-progress-report.php:1088
+#: includes/admin/user-progress-report.php:1121
+#: includes/lib/wordset-level-labels.php:27
+#: includes/pages/wordset-pages.php:13132
+#: includes/pages/wordset-pages.php:13267
+msgid "Mastered"
+msgstr "Освоено"
+
+#: includes/admin/user-progress-report.php:542
+#: includes/lib/wordset-level-labels.php:18
+#: includes/post-types/dictionary-entry-post-type.php:1967
+msgid "Review"
+msgstr "Повторить"
+
+#: includes/lib/wordset-level-labels.php:10
+msgid "Additional lessons"
+msgstr "Дополнительные уроки"
+
+#: includes/lib/wordset-level-labels.php:11
+msgid "All lessons"
+msgstr "Все уроки"
+
+#: includes/lib/wordset-level-labels.php:12
+msgid "Browse lessons"
+msgstr "Посмотреть уроки"
+
+#: includes/lib/wordset-level-labels.php:14
+msgid "Show more lessons"
+msgstr "Показать ещё уроки"
+
+#: includes/lib/wordset-level-labels.php:19
+msgid "Review across levels"
+msgstr "Повторить материал разных уровней"
+
+#: includes/lib/wordset-level-labels.php:20
+msgid "Recommended level"
+msgstr "Рекомендуемый уровень"
+
+#: includes/lib/wordset-level-labels.php:21
+msgid "Level mastered"
+msgstr "Уровень освоен"
+
+#: includes/lib/wordset-level-labels.php:23
+msgid "Due for review (%d)"
+msgstr "Пора повторить (%d)"
+
+#: includes/lib/wordset-level-labels.php:25
+msgid "Added since you last studied this level (%d)"
+msgstr "Добавлено после последнего занятия на этом уровне (%d)"
+
+#: includes/lib/wordset-level-labels.php:26
+msgid "Level details"
+msgstr "Сведения об уровне"
+
+#: includes/lib/wordset-level-labels.php:29
+msgid "Unseen"
+msgstr "Ещё не встречались"
+
+#: includes/lib/wordset-level-labels.php:32
+msgid "Last studied"
+msgstr "Последнее занятие"
+
+#: includes/lib/wordset-level-labels.php:33
+msgid "No activity yet"
+msgstr "Пока нет занятий"
+
+#: includes/lib/wordset-level-labels.php:34
+msgid "Days before review"
+msgstr "Дней до повторения"
+
+#: includes/lib/wordset-level-labels.php:37
+msgid "Loading progress…"
+msgstr "Загрузка данных об успехах…"
+
+#: includes/lib/wordset-level-labels.php:38
+msgid "Could not load progress."
+msgstr "Не удалось загрузить данные об успехах."
+
+#: includes/lib/wordset-level-labels.php:39
+msgid "Could not start this activity."
+msgstr "Не удалось начать это упражнение."
+
+#: includes/lib/wordset-level-labels.php:40
+msgid "Could not save this interval."
+msgstr "Не удалось сохранить этот интервал."
+
+#: includes/lib/wordset-level-page.php:99
+msgid "Could not load level progress. Please try again."
+msgstr "Не удалось загрузить данные об успехах на уровне. Попробуйте ещё раз."
+
+#: includes/lib/wordset-level-page.php:104
+msgid "Choose a review interval from 1 to 365 days."
+msgstr "Выберите интервал повторения от 1 до 365 дней."
+
+#: includes/lib/wordset-level-page.php:118
+msgid "Could not save this review interval. Please try again."
+msgstr "Не удалось сохранить интервал повторения. Попробуйте ещё раз."
+
+#: includes/lib/wordset-level-page.php:127
+msgid "Please sign in to view your progress."
+msgstr "Войдите, чтобы посмотреть свои успехи."
+
+#: includes/lib/wordset-level-page.php:132
+#: includes/lib/wordset-level-page.php:136
+msgid "Reload this page to update your levels."
+msgstr "Обновите страницу, чтобы обновить сведения об уровнях."
+
+#: includes/lib/wordset-level-page.php:153
+msgid "This level is unavailable."
+msgstr "Этот уровень недоступен."
+
+#: includes/lib/wordset-level-page.php:180
+msgid "Unknown level action."
+msgstr "Неизвестное действие для уровня."
+
+#: includes/lib/wordset-level-page.php:182
+msgid "There is nothing to practice in this selection right now."
+msgstr "Сейчас в этой подборке нечего тренировать."
+
+#: includes/lib/wordset-level-progress.php:6
+msgid "Could not load level progress."
+msgstr "Не удалось загрузить данные об успехах на уровне."
+
+#: includes/lib/wordset-level-progress.php:10
+msgid "Preparing level progress…"
+msgstr "Подготовка данных об успехах на уровне…"
+
+#: includes/login-window.php:441
+msgid "Create an account to track your next lessons"
+msgstr "Создайте аккаунт, чтобы отслеживать следующие уроки"
+
+#: includes/login-window.php:442
+msgid "Sign in to track your next lessons"
+msgstr "Войдите, чтобы отслеживать следующие уроки"
+
+#: includes/pages/wordset-pages.php:28562
+msgid "Main lessons"
+msgstr "Основные уроки"
+
+#: includes/pages/wordset-pages.php:28700
+msgid "Course levels"
+msgstr "Уровни курса"
+
+#: includes/lib/wordset-level-labels.php:12
+msgid "Back to levels"
+msgstr "Назад к уровням"
+
+#: includes/lib/wordset-level-labels.php:14
+msgid "Continue Level %d"
+msgstr "Продолжить уровень %d"
+
+#: includes/lib/wordset-level-labels.php:31
+msgid "Added since last study"
+msgstr "Добавлено после последнего занятия"
+
+#: includes/lib/wordset-level-labels.php:45
+#: includes/pages/wordset-transcription-review.php:291
+#: templates/vocab-lesson-template.php:1404
+msgid "Reload"
+msgstr "Обновить"
+
 #~ #. ll-tools-public-key: 91649783c0e23511c87fd6ea6b7e7b29d6353216
 #~ #: includes/flashcard-shell.php:174
 #~ msgid "Switch Mode"

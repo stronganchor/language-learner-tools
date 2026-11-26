@@ -386,7 +386,7 @@ function ll_tools_copy_term_meta(int $source_term_id, int $target_term_id, array
     $exclude = array_fill_keys(array_map('strval', $exclude_keys), true);
     foreach ($meta as $key => $values) {
         $key = (string) $key;
-        if ($key === '' || isset($exclude[$key])) {
+        if ($key === '' || isset($exclude[$key]) || ll_tools_wordset_level_is_availability_meta($key)) {
             continue;
         }
 
@@ -410,7 +410,7 @@ function ll_tools_copy_post_meta(int $source_post_id, int $target_post_id, array
     $exclude = array_fill_keys(array_map('strval', $exclude_keys), true);
     foreach ($meta as $key => $values) {
         $key = (string) $key;
-        if ($key === '' || isset($exclude[$key])) {
+        if ($key === '' || isset($exclude[$key]) || ll_tools_wordset_level_is_availability_meta($key)) {
             continue;
         }
 
@@ -456,8 +456,11 @@ function ll_tools_wordset_isolation_normalize_prereq_map($raw_map, array $allowe
 function ll_tools_wordset_isolation_get_category_id_map_for_wordset(
     int $wordset_id,
     array $source_category_ids,
-    bool $create_missing = false
+    bool $create_missing = false,
+    ?bool &$complete = null
 ): array {
+    global $wpdb;
+    $complete = true;
     $source_category_ids = function_exists('ll_tools_wordset_normalize_category_id_list')
         ? ll_tools_wordset_normalize_category_id_list($source_category_ids)
         : ll_tools_wordset_isolation_parse_category_id_list($source_category_ids);
@@ -481,12 +484,15 @@ function ll_tools_wordset_isolation_get_category_id_map_for_wordset(
     // Prime those terms and their ownership metadata in bulk before the repair
     // loop; otherwise a fresh PHP request can issue multiple SQL reads per ID.
     $source_terms_by_id = [];
+    $wpdb->last_error = '';
     $source_terms = get_terms([
         'taxonomy' => 'word-category',
         'hide_empty' => false,
         'include' => $source_category_ids,
     ]);
-    if (!is_wp_error($source_terms)) {
+    if (is_wp_error($source_terms) || $wpdb->last_error !== '') {
+        $complete = false;
+    } else {
         foreach ((array) $source_terms as $source_term) {
             if ($source_term instanceof WP_Term && (int) $source_term->term_id > 0) {
                 $source_terms_by_id[(int) $source_term->term_id] = $source_term;
@@ -494,6 +500,9 @@ function ll_tools_wordset_isolation_get_category_id_map_for_wordset(
         }
         if (!empty($source_terms_by_id)) {
             update_meta_cache('term', array_keys($source_terms_by_id));
+            if ($wpdb->last_error !== '') {
+                $complete = false;
+            }
         }
     }
 
@@ -509,19 +518,24 @@ function ll_tools_wordset_isolation_get_category_id_map_for_wordset(
             $source_term = get_term($source_category_id, 'word-category');
         }
         if (!($source_term instanceof WP_Term) || is_wp_error($source_term)) {
+            $complete = false;
             continue;
         }
 
-        $source_owner_id = ll_tools_get_category_wordset_owner_id($source_term);
+        $source_owner_id = ll_tools_get_category_wordset_owner_id($source_term, $owner_complete);
+        $complete = $complete && $owner_complete;
         if ($source_owner_id === $wordset_id) {
             $category_id_map[$source_category_id] = (int) $source_term->term_id;
             continue;
         }
 
-        $source_origin_id = ll_tools_get_category_isolation_source_id($source_term);
+        $source_origin_id = ll_tools_get_category_isolation_source_id($source_term, $origin_complete);
+        $complete = $complete && $origin_complete;
+        $copy_complete = true;
         $target_category_id = $source_origin_id > 0
-            ? ll_tools_get_existing_isolated_category_copy_id($source_origin_id, $wordset_id)
+            ? ll_tools_get_existing_isolated_category_copy_id($source_origin_id, $wordset_id, $copy_complete)
             : 0;
+        $complete = $complete && $copy_complete;
 
         if ($target_category_id <= 0 && $create_missing && $source_origin_id > 0) {
             $target_category_id = ll_tools_get_or_create_isolated_category_copy($source_origin_id, $wordset_id);
@@ -533,6 +547,8 @@ function ll_tools_wordset_isolation_get_category_id_map_for_wordset(
 
         if ($target_category_id > 0) {
             $category_id_map[$source_category_id] = $target_category_id;
+        } else {
+            $complete = false;
         }
     }
 
@@ -768,8 +784,10 @@ function ll_tools_get_effective_category_id_for_wordset(int $category_id, int $w
 function ll_tools_wordset_isolation_remap_prerequisite_map_for_wordset(
     $raw_map,
     int $wordset_id,
-    bool $create_missing = false
+    bool $create_missing = false,
+    ?bool &$complete = null
 ): array {
+    $complete = true;
     $source_map = ll_tools_wordset_isolation_normalize_prereq_map($raw_map);
     if (empty($source_map)) {
         return [];
@@ -799,7 +817,8 @@ function ll_tools_wordset_isolation_remap_prerequisite_map_for_wordset(
     $category_id_map = ll_tools_wordset_isolation_get_category_id_map_for_wordset(
         $wordset_id,
         $source_category_ids,
-        $create_missing
+        $create_missing,
+        $complete
     );
     if (empty($category_id_map)) {
         return [];
@@ -840,6 +859,14 @@ function ll_tools_repair_wordset_category_ordering_meta_for_isolation(int $words
     }
 
     $updated = false;
+
+    $additional = get_term_meta($wordset_id, LL_TOOLS_CURRICULUM_ADDITIONAL_META, true);
+    if (is_array($additional) && $additional) {
+        $mapped = ll_tools_wordset_isolation_remap_category_id_list_for_wordset_complete($additional, $wordset_id, true);
+        if ($mapped !== null && $mapped !== $additional && update_term_meta($wordset_id, LL_TOOLS_CURRICULUM_ADDITIONAL_META, $mapped)) {
+            $updated = true;
+        }
+    }
 
     $manual_raw = get_term_meta($wordset_id, 'll_wordset_category_manual_order', true);
     $manual_current = ll_tools_wordset_isolation_parse_category_id_list($manual_raw);
@@ -931,13 +958,16 @@ function ll_tools_repair_all_vocab_lesson_category_meta_for_isolation(): int {
     return $repaired;
 }
 
-function ll_tools_get_existing_isolated_category_copy_id(int $source_origin_id, int $wordset_id): int {
+function ll_tools_get_existing_isolated_category_copy_id(int $source_origin_id, int $wordset_id, ?bool &$complete = null): int {
+    global $wpdb;
+    $complete = true;
     $source_origin_id = (int) $source_origin_id;
     $wordset_id = (int) $wordset_id;
     if ($source_origin_id <= 0 || $wordset_id <= 0) {
         return 0;
     }
 
+    $wpdb->last_error = '';
     $terms = get_terms([
         'taxonomy'   => 'word-category',
         'hide_empty' => false,
@@ -957,7 +987,8 @@ function ll_tools_get_existing_isolated_category_copy_id(int $source_origin_id, 
         ],
     ]);
 
-    if (is_wp_error($terms) || empty($terms)) {
+    $complete = !is_wp_error($terms) && $wpdb->last_error === '';
+    if (!$complete || empty($terms)) {
         return 0;
     }
 

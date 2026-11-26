@@ -97,6 +97,10 @@ this document owns the detailed contracts and ordered bootstrap include index.
 # Production scale invariant
 - Large wordsets are normal production data. A single wordset may have thousands of `words` posts and many thousands of `word_audio`, `word_images`, prompt cards, and generated media records.
 - Interactive UI, AJAX, shortcode, and game-launch paths should stay bounded by the page size or launch-candidate size. Do not hydrate or iterate a whole wordset's posts just to render a catalog card, count availability, or launch a game.
+- The main wordset page uses curriculum cards when its saved prerequisite graph defines levels. `includes/lib/wordset-curriculum.php` computes graph depths before filtering to visible active lessons. The public level number is depth plus one. Additional lessons remain available for browsing and search and do not contribute words to mastery.
+- `includes/lib/wordset-level-page.php` binds the signed-in level summary, interval writes, and activity launches to the current learner and the server-issued catalog. `includes/lib/wordset-level-progress.php` aggregates unique study words from the eligible lessons, preserves mastered status across review intervals, and deduplicates the global due queue. Review intervals belong to the learner and wordset. The existing Progress page retains its separate 30-day filter.
+- Level review selects up to 12 distinct studied targets, oldest first. A single due word can run with compatible distractors. Preserve each target's assigned category through initial launch and Repeat, and select a prompt form that credits its answer word. The new-content marker uses the last study in that level, the word's availability, lesson release, and category entry into the level. Older content uses its recorded publication date wherever no historical assignment date exists.
+- `js/wordset-levels.js` handles the overview, scoped lesson browsing, and navigation history. The category grid, ranked search, hydration, and quiz launch ownership remain in `js/wordset-pages.js`. Completed guest Learn and Practice results expose the site's account entry point on the normal wordset and vocabulary lesson routes.
 - Prefer ID-only queries, capped launch chunks, pagination, cached/materialized aggregates, and explicit admin batch jobs with progress behavior for operations that intentionally need the whole wordset.
 - `[ll_ranked_word_list]` is the bounded reference-table path for large ordered collections: query one exact category page (100 words maximum), require the allowlisted numeric `_ll_tools_word_rank` meta, use word ID as the stable tie-breaker, and bulk-collect audio only for that page. Do not replace it with an unbounded `[word_grid]` render.
 - `[ll_content_lesson_index]` is the bounded catalog for article and standard content lessons: scope every query to one visible wordset, optionally match exact repeated legacy category-ID meta, fetch no more than 100 lessons plus one continuation row, and cap numeric pagination at 100 pages. The legacy `[display_prereq_tree]` shim delegates to this surface rather than restoring an all-post prerequisite scan.
@@ -236,6 +240,10 @@ module list.
 - includes/lib/dictionary-snapshot.php
 - includes/taxonomies/word-category-taxonomy.php
 - includes/taxonomies/wordset-taxonomy.php
+- includes/lib/wordset-curriculum.php
+- includes/lib/wordset-level-labels.php
+- includes/lib/wordset-level-page.php
+- includes/lib/wordset-level-progress.php
 - includes/taxonomies/language-taxonomy.php
 - includes/taxonomies/part-of-speech-taxonomy.php
 - includes/taxonomies/recording-type-taxonomy.php

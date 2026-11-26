@@ -71,6 +71,31 @@ final class PromptCardQuizPayloadTest extends LL_Tools_TestCase
         $this->assertSame([$fixture['is_this_horse_card_id']], $this->normalizeIds((array) ($no_support_row['specific_wrong_answer_owner_ids'] ?? [])));
     }
 
+    public function test_legacy_and_explicit_tracking_agree_with_the_rendered_practice_target(): void
+    {
+        $fixture = $this->createPromptCardFixture();
+        $prompt = $fixture['horse_or_cow_card_id'];
+        $word = $fixture['horse_id'];
+        $term = get_term($fixture['effective_prompt_category_id'], 'word-category');
+        $config = ll_tools_get_category_quiz_config($term);
+        $config['__candidate_word_ids'] = [$word];
+        foreach ([null, '0', '1'] as $setting) {
+            if ($setting === null) {
+                delete_post_meta($prompt, LL_TOOLS_PROMPT_CARD_TRACK_ANSWER_WORD_PROGRESS_META_KEY);
+            } else {
+                update_post_meta($prompt, LL_TOOLS_PROMPT_CARD_TRACK_ANSWER_WORD_PROGRESS_META_KEY, $setting);
+            }
+            $rows = ll_get_words_by_category($fixture['prompt_category_name'], 'audio', [$fixture['wordset_id']], $config);
+            $row = $this->findPromptCardRow($rows, $prompt);
+            $tracked = ll_tools_user_progress_prompt_card_answer_word_id_map([$prompt], $complete);
+            $this->assertTrue($complete);
+            $this->assertSame($prompt, $row['id']);
+            $this->assertSame($word, $row['answer_word_id']);
+            $this->assertSame($setting !== '0', $row['track_answer_word_progress']);
+            $this->assertSame($tracked[$prompt] ?? 0, $row['progress_word_id']);
+        }
+    }
+
     public function test_prompt_card_count_and_renderable_id_paths_use_id_only_queries(): void
     {
         $fixture = $this->createPromptCardFixture();

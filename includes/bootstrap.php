@@ -54,6 +54,10 @@ require_once(__DIR__ . '/lib/dictionary-snapshot.php');
 // Include taxonomies
 require_once(__DIR__ . '/taxonomies/word-category-taxonomy.php');
 require_once(__DIR__ . '/taxonomies/wordset-taxonomy.php');
+require_once(__DIR__ . '/lib/wordset-curriculum.php');
+require_once(__DIR__ . '/lib/wordset-level-labels.php');
+require_once(__DIR__ . '/lib/wordset-level-page.php');
+require_once(__DIR__ . '/lib/wordset-level-progress.php');
 require_once(__DIR__ . '/taxonomies/language-taxonomy.php');
 require_once(__DIR__ . '/taxonomies/part-of-speech-taxonomy.php');
 require_once(__DIR__ . '/taxonomies/recording-type-taxonomy.php');

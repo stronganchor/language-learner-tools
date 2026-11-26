@@ -5872,6 +5872,169 @@ msgstr "Buka pelajaran utama"
 msgid "Delete empty category"
 msgstr "Hapus kategori kosong"
 
+#: includes/admin/teacher-classes-page.php:1035
+#: includes/admin/user-progress-report.php:918
+#: includes/admin/user-progress-report.php:1088
+#: includes/admin/user-progress-report.php:1121
+#: includes/lib/wordset-level-labels.php:27
+#: includes/pages/wordset-pages.php:13132
+#: includes/pages/wordset-pages.php:13267
+msgid "Mastered"
+msgstr "Dikuasai"
+
+#: includes/admin/user-progress-report.php:542
+#: includes/lib/wordset-level-labels.php:18
+#: includes/post-types/dictionary-entry-post-type.php:1967
+msgid "Review"
+msgstr "Ulangi"
+
+#: includes/lib/wordset-level-labels.php:10
+msgid "Additional lessons"
+msgstr "Pelajaran tambahan"
+
+#: includes/lib/wordset-level-labels.php:11
+msgid "All lessons"
+msgstr "Semua pelajaran"
+
+#: includes/lib/wordset-level-labels.php:12
+msgid "Browse lessons"
+msgstr "Jelajahi pelajaran"
+
+#: includes/lib/wordset-level-labels.php:14
+msgid "Show more lessons"
+msgstr "Tampilkan lebih banyak pelajaran"
+
+#: includes/lib/wordset-level-labels.php:19
+msgid "Review across levels"
+msgstr "Ulangi materi lintas level"
+
+#: includes/lib/wordset-level-labels.php:20
+msgid "Recommended level"
+msgstr "Level yang disarankan"
+
+#: includes/lib/wordset-level-labels.php:21
+msgid "Level mastered"
+msgstr "Level dikuasai"
+
+#: includes/lib/wordset-level-labels.php:23
+msgid "Due for review (%d)"
+msgstr "Perlu diulang (%d)"
+
+#: includes/lib/wordset-level-labels.php:25
+msgid "Added since you last studied this level (%d)"
+msgstr "Ditambahkan sejak terakhir belajar di level ini (%d)"
+
+#: includes/lib/wordset-level-labels.php:26
+msgid "Level details"
+msgstr "Detail level"
+
+#: includes/lib/wordset-level-labels.php:29
+msgid "Unseen"
+msgstr "Belum dilihat"
+
+#: includes/lib/wordset-level-labels.php:32
+msgid "Last studied"
+msgstr "Terakhir dipelajari"
+
+#: includes/lib/wordset-level-labels.php:33
+msgid "No activity yet"
+msgstr "Belum ada aktivitas"
+
+#: includes/lib/wordset-level-labels.php:34
+msgid "Days before review"
+msgstr "Jumlah hari sebelum mengulang"
+
+#: includes/lib/wordset-level-labels.php:37
+msgid "Loading progress…"
+msgstr "Memuat kemajuan…"
+
+#: includes/lib/wordset-level-labels.php:38
+msgid "Could not load progress."
+msgstr "Kemajuan gagal dimuat."
+
+#: includes/lib/wordset-level-labels.php:39
+msgid "Could not start this activity."
+msgstr "Aktivitas ini gagal dimulai."
+
+#: includes/lib/wordset-level-labels.php:40
+msgid "Could not save this interval."
+msgstr "Interval ini gagal disimpan."
+
+#: includes/lib/wordset-level-page.php:99
+msgid "Could not load level progress. Please try again."
+msgstr "Kemajuan level gagal dimuat. Coba lagi."
+
+#: includes/lib/wordset-level-page.php:104
+msgid "Choose a review interval from 1 to 365 days."
+msgstr "Pilih interval pengulangan antara 1 dan 365 hari."
+
+#: includes/lib/wordset-level-page.php:118
+msgid "Could not save this review interval. Please try again."
+msgstr "Interval pengulangan ini gagal disimpan. Coba lagi."
+
+#: includes/lib/wordset-level-page.php:127
+msgid "Please sign in to view your progress."
+msgstr "Masuk untuk melihat kemajuanmu."
+
+#: includes/lib/wordset-level-page.php:132
+#: includes/lib/wordset-level-page.php:136
+msgid "Reload this page to update your levels."
+msgstr "Muat ulang halaman ini untuk memperbarui levelmu."
+
+#: includes/lib/wordset-level-page.php:153
+msgid "This level is unavailable."
+msgstr "Level ini tidak tersedia."
+
+#: includes/lib/wordset-level-page.php:180
+msgid "Unknown level action."
+msgstr "Tindakan level tidak dikenal."
+
+#: includes/lib/wordset-level-page.php:182
+msgid "There is nothing to practice in this selection right now."
+msgstr "Saat ini tidak ada yang bisa dilatih dalam pilihan ini."
+
+#: includes/lib/wordset-level-progress.php:6
+msgid "Could not load level progress."
+msgstr "Kemajuan level gagal dimuat."
+
+#: includes/lib/wordset-level-progress.php:10
+msgid "Preparing level progress…"
+msgstr "Menyiapkan data kemajuan level…"
+
+#: includes/login-window.php:441
+msgid "Create an account to track your next lessons"
+msgstr "Buat akun untuk melacak pelajaranmu berikutnya"
+
+#: includes/login-window.php:442
+msgid "Sign in to track your next lessons"
+msgstr "Masuk untuk melacak pelajaranmu berikutnya"
+
+#: includes/pages/wordset-pages.php:28562
+msgid "Main lessons"
+msgstr "Pelajaran utama"
+
+#: includes/pages/wordset-pages.php:28700
+msgid "Course levels"
+msgstr "Level kursus"
+
+#: includes/lib/wordset-level-labels.php:12
+msgid "Back to levels"
+msgstr "Kembali ke daftar level"
+
+#: includes/lib/wordset-level-labels.php:14
+msgid "Continue Level %d"
+msgstr "Lanjutkan level %d"
+
+#: includes/lib/wordset-level-labels.php:31
+msgid "Added since last study"
+msgstr "Ditambahkan sejak terakhir belajar"
+
+#: includes/lib/wordset-level-labels.php:45
+#: includes/pages/wordset-transcription-review.php:291
+#: templates/vocab-lesson-template.php:1404
+msgid "Reload"
+msgstr "Muat ulang"
+
 #~ #. ll-tools-public-key: 91649783c0e23511c87fd6ea6b7e7b29d6353216
 #~ #: includes/flashcard-shell.php:174
 #~ msgid "Switch Mode"

@@ -7739,7 +7739,7 @@ function ll_tools_get_renderable_category_item_ids($categoryName, $displayMode =
         'use_titles'           => $use_titles,
         'term_slug'            => (string) ($category_context['slug'] ?? ''),
         'text_label_schema'    => 8,
-        'prompt_card_schema'   => 4,
+        'prompt_card_schema'   => 5,
         'wordset_sign_language_mode' => !empty($config['sign_language_mode']),
         'image_animation_meta' => true,
         'masked_image_url'     => function_exists('ll_tools_should_use_masked_image_proxy')
@@ -8831,7 +8831,7 @@ function ll_get_words_by_category_count(
         'use_titles'           => $use_titles,
         'term_slug'            => (string) ($category_context['slug'] ?? ''),
         'text_label_schema'    => 8,
-        'prompt_card_schema'   => 4,
+        'prompt_card_schema'   => 5,
         'wordset_sign_language_mode' => !empty($config['sign_language_mode']),
         'image_animation_meta' => true,
         'masked_image_url'     => function_exists('ll_tools_should_use_masked_image_proxy')
@@ -9703,7 +9703,7 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
         'term_slug'            => (string) ($category_context['slug'] ?? ''),
         // Bump when text label source-selection logic changes so stale cached rows are bypassed.
         'text_label_schema'    => 8,
-        'prompt_card_schema'   => 4,
+        'prompt_card_schema'   => 5,
         'wordset_sign_language_mode' => !empty($config['sign_language_mode']),
         'image_animation_meta' => true,
         'masked_image_url'     => function_exists('ll_tools_should_use_masked_image_proxy')
@@ -9860,11 +9860,7 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
             ));
             $sources_complete = $sources_complete && $wpdb->last_error === '';
             $wpdb->last_error = '';
-            $card['track_answer_word_progress'] = get_post_meta(
-                $prompt_card_id,
-                defined('LL_TOOLS_PROMPT_CARD_TRACK_ANSWER_WORD_PROGRESS_META_KEY') ? LL_TOOLS_PROMPT_CARD_TRACK_ANSWER_WORD_PROGRESS_META_KEY : '_ll_prompt_card_track_answer_word_progress',
-                true
-            ) === '1';
+            $card['track_answer_word_progress'] = ll_tools_prompt_card_tracks_answer_word_progress($prompt_card_id);
             $sources_complete = $sources_complete && $wpdb->last_error === '';
 
             $prompt_cards[] = $card;

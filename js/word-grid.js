@@ -2625,6 +2625,7 @@
         blockedHint: prereqI18n.blockedHint || 'Would create a prerequisite loop.',
         noMatches: prereqI18n.noMatches || 'No matching categories.',
         levelCycle: prereqI18n.levelCycle || 'Cycle',
+        levelNumber: prereqI18n.levelNumber || 'L%d',
         levelUnknown: prereqI18n.levelUnknown || '-'
     };
     const prereqSaveDelayMs = 0;
@@ -3779,7 +3780,7 @@
         }
         const numeric = parseInt(level, 10);
         if (Number.isFinite(numeric) && numeric >= 0) {
-            return 'L' + String(numeric);
+            return prereqMessages.levelNumber.replace('%d', String(numeric + 1));
         }
         return prereqMessages.levelUnknown;
     }
@@ -7595,7 +7596,7 @@
                 if (Number.isFinite(levelRaw) && !state.hasCycle) {
                     $chip.append($('<span>', {
                         class: 'll-vocab-lesson-prereq-chip-level',
-                        text: 'L' + String(levelRaw),
+                        text: formatPrereqLevelText(levelRaw, false),
                         'aria-hidden': 'true'
                     }));
                 }
@@ -7729,7 +7730,7 @@
                 if (Number.isFinite(levelRaw) && !state.hasCycle) {
                     $button.append($('<span>', {
                         class: 'll-vocab-lesson-prereq-option-level',
-                        text: 'L' + String(levelRaw),
+                        text: formatPrereqLevelText(levelRaw, false),
                         'aria-hidden': 'true'
                     }));
                 }

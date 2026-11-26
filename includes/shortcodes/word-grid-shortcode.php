@@ -4184,6 +4184,7 @@ function ll_tools_word_grid_build_base_frontend_config(array $context): array {
             'blockedHint' => __('Would create a prerequisite loop.', 'll-tools-text-domain'),
             'noMatches' => __('No matching categories.', 'll-tools-text-domain'),
             'levelCycle' => __('Cycle', 'll-tools-text-domain'),
+            'levelNumber' => __('L%d', 'll-tools-text-domain'),
             'levelUnknown' => __('—', 'll-tools-text-domain'),
         ],
         'transcribeI18n' => [

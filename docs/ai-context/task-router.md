@@ -1,5 +1,7 @@
 # AI Context Task Router
 
+For curriculum cards, one-based level labels, Additional lessons, and review intervals, use the `wordset-vocab-manager` pack. Start with `includes/lib/wordset-curriculum.php`, `includes/lib/wordset-level-page.php`, `includes/lib/wordset-level-progress.php`, `js/wordset-levels.js`, and the `WordsetCurriculumGroupsTest` and `WordsetLevelProgressTest` integration suites.
+
 For context-based 30-day review, start with `includes/lib/context-review.php`,
 `docs/WORDSET_PROGRESS_SELECTION.md`, the `context-review` route in
 `docs/REST_AUTOMATION.md`, and `UserStudyAnalyticsTest`.

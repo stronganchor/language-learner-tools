@@ -851,6 +851,51 @@ test('flashcard loader keeps prompt-card support rows out of the target pool whi
   expect(optionIds).toEqual([551, 552, 901]);
 });
 
+test('level review selects one trackable form per word while preserving all answer options', async ({ page }) => {
+  await page.goto('about:blank');
+  await page.addScriptTag({ content: jquerySource });
+  await page.evaluate(() => {
+    window.wordsByCategory = {};
+    window.optionWordsByCategory = {};
+    window.categoryRoundCount = {};
+    window.categoryNames = ['Family'];
+    window.getCategoryDisplayMode = () => 'text';
+    const row = (id, extra = {}) => ({id, title: 'Word ' + id, wordset_ids: [5], ...extra});
+    window.llToolsFlashcardsData = {
+      wordset: 'test', wordsetIds: [5], boundedSelectionPlan: true, quiz_mode: 'practice',
+      categories: [{id: 3, name: 'Family', prompt_type: 'text_title', option_type: 'text_title'}],
+      sessionWordIds: [17, 19], sessionWordIdsByCategoryId: {3: [17, 19]},
+      lastLaunchPlan: {details: {curriculum_exact: true}},
+      boundedCandidateRowsByCategoryId: {3: [
+        row(70, {is_prompt_card: true, answer_word_id: 17, progress_word_id: 0}),
+        row(71, {is_prompt_card: true, answer_word_id: 17, progress_word_id: 17}),
+        row(72, {is_prompt_card: true, answer_word_id: 17, progress_word_id: 17}),
+        row(19), row(20),
+      ]},
+    };
+  });
+  await page.addScriptTag({ content: loaderScriptSource });
+  const result = await page.evaluate(async () => {
+    const flash = window.llToolsFlashcardsData;
+    const load = () => window.FlashcardLoader.consumeBoundedPreloadedCategoryData(['Family']);
+    const targets = () => window.wordsByCategory.Family.map(row => row.id).sort((a,b) => a-b);
+    await load();
+    const first = targets();
+    const options = window.optionWordsByCategory.Family.map(row => row.id).sort((a,b) => a-b);
+    flash.boundedCandidateRowsByCategoryId[3] = flash.boundedCandidateRowsByCategoryId[3].filter(row => ![71,72].includes(row.id));
+    let rejected;
+    try { await load(); } catch (error) { rejected = error.code; }
+    const restored = targets();
+    delete flash.lastLaunchPlan.details.curriculum_exact;
+    await load();
+    return {first, options, rejected, restored, ordinary: targets()};
+  });
+  expect(result).toEqual({
+    first: [19,71], options: [19,20,70,71,72], rejected: 'll_bounded_preload_invalid',
+    restored: [19,71], ordinary: [19,70],
+  });
+});
+
 test('bounded category handoff keeps canonical prompt-card targets and performs no category AJAX', async ({ page }) => {
   await page.goto('about:blank');
   await page.addScriptTag({ content: jquerySource });

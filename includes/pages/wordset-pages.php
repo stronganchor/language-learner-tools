@@ -5549,6 +5549,7 @@ function ll_tools_wordset_page_render_content_lesson_card(array $lesson): string
             <span class="ll-wordset-card__content-top-spacer" aria-hidden="true"></span>
             <a class="ll-wordset-card__heading" href="<?php echo esc_url($lesson_url); ?>" aria-label="<?php echo esc_attr($lesson_title); ?>">
                 <h2 class="ll-wordset-card__title"><?php echo esc_html($lesson_title); ?></h2>
+                <?php echo ll_tools_wordset_level_badge((int) ($lesson['curriculum_level'] ?? 0)); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
             </a>
             <span class="ll-wordset-card__content-badge"><?php echo esc_html__('Main lesson', 'll-tools-text-domain'); ?></span>
         </div>
@@ -7287,6 +7288,7 @@ function ll_tools_wordset_page_render_category_card(array $cat, array $context =
             <?php if ($is_public && $cat_url !== '') : ?>
                 <a class="ll-wordset-card__heading" href="<?php echo esc_url($cat_url); ?>" aria-label="<?php echo esc_attr($cat_name); ?>">
                     <h2 class="ll-wordset-card__title"><?php echo esc_html($cat_name); ?></h2>
+                    <?php echo ll_tools_wordset_level_badge((int) ($cat['curriculum_level'] ?? 0)); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
                 </a>
             <?php elseif ($can_link_inactive) : ?>
                 <a class="ll-wordset-card__heading ll-wordset-card__heading--inactive-link<?php echo $inactive_link_uses_preview ? ' ll-wordset-card__heading--inactive-preview' : ''; ?>" href="<?php echo esc_url($inactive_link_url); ?>" aria-label="<?php echo esc_attr($cat_name); ?>"<?php echo $inactive_link_uses_preview ? ' data-ll-wordset-inactive-preview-trigger' : ''; ?>>
@@ -7468,10 +7470,13 @@ function ll_tools_wordset_page_render_add_category_card(string $url): string {
 
 function ll_tools_wordset_page_render_mixed_card(array $card, array $context = []): string {
     if (($card['type'] ?? '') === 'content') {
-        return ll_tools_wordset_page_render_content_lesson_card((array) ($card['data'] ?? []));
+        $lesson = (array) ($card['data'] ?? []);
+        $lesson['curriculum_level'] = $context['curriculum_content_levels'][(int) ($lesson['id'] ?? 0)] ?? 0;
+        return ll_tools_wordset_page_render_content_lesson_card($lesson);
     }
 
     $category = (isset($card['data']) && is_array($card['data'])) ? $card['data'] : [];
+    $category['curriculum_level'] = $context['curriculum_category_levels'][(int) ($category['id'] ?? 0)] ?? 0;
     return ll_tools_wordset_page_render_category_card($category, $context);
 }
 
@@ -13914,6 +13919,10 @@ function ll_tools_wordset_page_enqueue_scripts(): void {
     }
     $deps = ['jquery'];
 
+    if ($view === '') {
+        ll_enqueue_asset_by_timestamp('/js/wordset-levels.js', 'll-wordset-levels-js', ['jquery'], true);
+        $deps[] = 'll-wordset-levels-js';
+    }
     if ($view === 'games') {
         ll_enqueue_asset_by_timestamp('/js/flashcard-widget/option-conflicts.js', 'll-tools-option-conflicts', [], true);
         ll_enqueue_asset_by_timestamp('/js/flashcard-widget/audio.js', 'll-wordset-games-audio', ['jquery'], true);
@@ -26355,6 +26364,9 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
     }
 
     $visible_category_ids = array_values(array_map('intval', wp_list_pluck($visible_categories, 'id')));
+    $level_catalog = $is_main_view
+        ? ll_tools_wordset_level_page_catalog($wordset_id, $visible_categories, $mixed_content_lessons)
+        : [];
     $visible_category_count = count($visible_category_ids);
     $has_visible_gender_supported_category = false;
     foreach ($visible_categories as $visible_cat) {
@@ -26378,7 +26390,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
     }
     $classes = ll_tools_wordset_page_sanitize_class_list($classes);
     $recommendation_catalog_loaded = !$use_paged_category_manager && !$skip_full_category_catalog;
-    if ($is_study_user) {
+    if ($is_study_user && !$level_catalog) {
         if (function_exists('ll_tools_get_user_recommendation_queue')) {
             $recommendation_queue = ll_tools_get_user_recommendation_queue(get_current_user_id(), $wordset_id);
         }
@@ -26389,7 +26401,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             $next_activity = ll_tools_build_next_activity_recommendation(get_current_user_id(), $wordset_id, $visible_category_ids, $study_categories);
         }
     }
-    if (!$is_study_user && !$next_activity) {
+    if (!$is_study_user && !$next_activity && !$level_catalog) {
         $starter_mode = 'learning';
         $starter_category_id = 0;
         foreach ($visible_categories as $visible_cat) {
@@ -26542,6 +26554,14 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
         'mode_labels' => $mode_labels,
         'mode_fallback_icons' => $mode_fallback_icons,
     ];
+    foreach ($level_catalog['public']['levels'] ?? [] as $level_card) {
+        foreach ($level_card['categoryIds'] as $id) {
+            $mixed_lesson_render_context['curriculum_category_levels'][$id] = $level_card['level'];
+        }
+        foreach ($level_card['contentIds'] as $id) {
+            $mixed_lesson_render_context['curriculum_content_levels'][$id] = $level_card['level'];
+        }
+    }
     $initial_mixed_lesson_cards = $mixed_lesson_cards;
     $lazy_cards_config = [
         'enabled' => false,
@@ -27194,6 +27214,10 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             'access_signature' => ll_tools_wordset_page_category_search_payload_access_signature($wordset_id, $category_search_user_id),
         ];
         $category_search_token_hint = '';
+        if ($is_study_user && $level_catalog) {
+            $category_search_payload['level_scope'] = $level_catalog['scope'];
+            $category_search_payload['level_policy'] = ll_tools_wordset_level_policy_signature($wordset_id);
+        }
         if ($category_search_user_id <= 0 && !empty($category_search_category_ids)) {
             $category_epoch = function_exists('ll_tools_get_category_cache_epoch')
                 ? max(1, (int) ll_tools_get_category_cache_epoch())
@@ -27227,6 +27251,15 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
         'wordsetId' => $wordset_id,
         'minQueryLength' => 1,
     ] : [];
+    // Keep the regular catalog usable if a private, expiring progress scope could not be stored.
+    $curriculum_levels = $level_catalog['public'] ?? [];
+    if ($curriculum_levels && (!$is_study_user || $category_search_token !== '')) {
+        $curriculum_levels['nonce'] = $is_study_user ? wp_create_nonce('ll_tools_wordset_levels') : '';
+        $curriculum_levels['token'] = $is_study_user ? $category_search_token : '';
+        $curriculum_levels['i18n'] = ll_tools_wordset_level_labels();
+    } else {
+        $curriculum_levels = [];
+    }
 
     $script_categories_source = [];
     foreach (array_values($enhanced_categories) as $index => $category_row) {
@@ -27408,6 +27441,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
     if ($localize_wordset_runtime) {
         wp_localize_script('ll-wordset-pages-js', 'llWordsetPageData', [
         'ajaxUrl' => admin_url('admin-ajax.php'),
+        'guestLessonAccount' => $is_main_view ? ll_tools_guest_lesson_account_action($utility_current_url) : [],
         'nonce' => $is_study_user ? wp_create_nonce('ll_user_study') : '',
         'isLoggedIn' => $is_study_user,
         'progressStorageScope' => ($view === 'games' && $is_study_user && function_exists('ll_tools_user_progress_storage_scope'))
@@ -27447,6 +27481,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
         'summaryCountsDeferred' => $summary_counts_deferred,
         'lazyCards' => $localized_lazy_cards,
         'categorySearch' => $localized_category_search,
+        'curriculumLevels' => $curriculum_levels,
         'recorderQueueSummaries' => $localized_recorder_queue_summaries,
         'learningMinChunkSize' => 8,
         'progressWordPageSize' => (int) apply_filters('ll_tools_wordset_progress_word_page_size', 80, $wordset_id),
@@ -28470,7 +28505,9 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                 </header>
             <?php endif; ?>
 
-            <?php echo ll_tools_wordset_page_render_profile_section($wordset_term, $wordset_profile); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+            <?php if (!$curriculum_levels) : ?>
+                <?php echo ll_tools_wordset_page_render_profile_section($wordset_term, $wordset_profile); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+            <?php endif; ?>
 
             <?php if (is_array($lesson_enable_notice) && !empty($lesson_enable_notice['message'])) : ?>
                 <div
@@ -28500,6 +28537,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                         </button>
                     <?php endforeach; ?>
                 </div>
+                <?php if (!$curriculum_levels) : ?>
                 <div class="ll-wordset-next-wrap">
                     <p class="ll-wordset-next-heading"><?php echo esc_html__('Recommended', 'll-tools-text-domain'); ?></p>
                     <div class="ll-wordset-next-shell" data-ll-wordset-next-shell>
@@ -28518,8 +28556,12 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                         </span>
                     </div>
                 </div>
+                <?php endif; ?>
             </section>
 
+            <?php if ($curriculum_levels && (!$content_lessons_complete || $featured_content_lessons)) : ?>
+                <details class="ll-wordset-level-extras"><summary><?php esc_html_e('Main lessons', 'll-tools-text-domain'); ?></summary>
+            <?php endif; ?>
             <?php if (!$content_lessons_complete && function_exists('ll_tools_render_content_lesson_index_shortcode')) : ?>
                 <?php
                 echo ll_tools_render_content_lesson_index_shortcode([
@@ -28540,6 +28582,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                 </section>
             <?php endif; ?>
 
+            <?php if ($curriculum_levels && (!$content_lessons_complete || $featured_content_lessons)) : ?></details><?php endif; ?>
             <?php if (empty($mixed_lesson_cards)) : ?>
                 <div class="ll-wordset-empty">
                     <?php if ($show_enable_lessons_button) : ?>
@@ -28654,6 +28697,9 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                         </button>
                     </div>
                 <?php endif; ?>
+                <?php if ($curriculum_levels) : ?>
+                    <section data-ll-wordset-levels hidden aria-label="<?php esc_attr_e('Course levels', 'll-tools-text-domain'); ?>"></section>
+                <?php endif; ?>
                 <div class="ll-wordset-grid" role="list" data-ll-wordset-main-grid>
                     <?php if ($can_manage_wordset_categories) : ?>
                         <?php echo ll_tools_wordset_page_render_add_category_card($add_category_url); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
@@ -28675,6 +28721,12 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             <?php endif; ?>
 
             <?php
+            $level_profile_html = $curriculum_levels ? ll_tools_wordset_page_render_profile_section($wordset_term, $wordset_profile) : '';
+            if ($level_profile_html !== '') {
+                echo '<details class="ll-wordset-level-extras"><summary>' . esc_html__('About this word set', 'll-tools-text-domain') . '</summary>';
+                echo $level_profile_html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+                echo '</details>';
+            }
             $selection_priority_focus = function_exists('ll_tools_wordset_page_selection_priority_focus')
                 ? ll_tools_wordset_page_selection_priority_focus((string) ($goals['priority_focus'] ?? ''))
                 : '';
@@ -29365,6 +29417,9 @@ add_action('wp_footer', 'll_tools_wordset_page_ensure_elementor_frontend_config'
 
 function ll_tools_wordset_page_enqueue_styles(): void {
     ll_enqueue_asset_by_timestamp('/css/wordset-pages.css', 'll-wordset-pages-css');
+    if (ll_tools_get_wordset_page_view() === '') {
+        ll_enqueue_asset_by_timestamp('/css/wordset-levels.css', 'll-wordset-levels-css', ['ll-wordset-pages-css']);
+    }
     if (ll_tools_get_wordset_page_view() === 'games') {
         ll_enqueue_asset_by_timestamp('/css/wordset-games.css', 'll-wordset-games-css', ['ll-wordset-pages-css']);
     }

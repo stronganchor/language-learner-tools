@@ -341,7 +341,7 @@ if (have_posts()) {
     $lesson_prereq_input_id = 'll-vocab-lesson-prereq-input-' . $post_id . '-' . $category_id;
     $lesson_prereq_level_display = ($lesson_prereq_editor['current_level'] === null)
         ? '&mdash;'
-        : esc_html(sprintf('L%d', (int) $lesson_prereq_editor['current_level']));
+        : sprintf(__('L%d', 'll-tools-text-domain'), 1 + (int) $lesson_prereq_editor['current_level']);
     $render_mode_icon = function (string $mode, string $fallback) use ($mode_ui): void {
         $cfg = (isset($mode_ui[$mode]) && is_array($mode_ui[$mode])) ? $mode_ui[$mode] : [];
         if (!empty($cfg['svg'])) {

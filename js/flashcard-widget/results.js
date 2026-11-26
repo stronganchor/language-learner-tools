@@ -646,7 +646,19 @@
         } catch (_) { /* no-op */ }
     }
 
+    function showGuestLessonAccount() {
+        const account = (root.llWordsetPageData || {}).guestLessonAccount || (root.llToolsFlashcardsData || {}).guestLessonAccount;
+        if (!account || !account.url || !account.label) return;
+        const link = document.createElement('a');
+        link.className = 'll-results-guest-account';
+        link.textContent = account.label;
+        link.href = account.url;
+        if (root.self !== root.top) link.target = '_top';
+        $('#quiz-results-message').after(link);
+    }
+
     function hideResults() {
+        $('#quiz-results .ll-results-guest-account').remove();
         $('#ll-tools-flashcard-quiz-popup, #quiz-results').removeClass('ll-tools-error-state');
         $('#quiz-results').hide();
         $('#restart-quiz').hide();
@@ -669,6 +681,7 @@
     }
 
     function showResults() {
+        $('#quiz-results .ll-results-guest-account').remove();
         const msgs = root.llToolsFlashcardsMessages || {};
         const State = root.LLFlashcards.State;
         $('#ll-tools-flashcard-quiz-popup, #quiz-results').removeClass('ll-tools-error-state');
@@ -787,6 +800,7 @@
 
             const totalWords = Object.keys(State.wordCorrectCounts).length;
             const completedWords = Object.values(State.wordCorrectCounts).filter(count => count >= State.MIN_CORRECT_COUNT).length;
+            if (!hasNextSet && totalWords > 0 && completedWords === totalWords) showGuestLessonAccount();
 
             if (completedWords === totalWords) {
                 Effects.startConfetti();
@@ -995,6 +1009,7 @@
 
         if (ratio >= 0.7) Effects.startConfetti();
         renderVocabLessonResultsActions(getCurrentResultsMode(), genderAllowed, categoriesForDisplay);
+        if (total > 0) showGuestLessonAccount();
         emitResultsShown({ total: total, correct: State.quizResults.correctOnFirstTry });
     }
 

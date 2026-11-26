@@ -174,12 +174,35 @@
             return getMatchingCanonicalWordId(word, lookup) > 0;
         }
 
+        // Level reviews promise to update the selected words. A prompt may use
+        // a word as its answer while tracking only the exercise itself.
+        function curriculumProgressWordId(row) {
+            if (!row || isPromptCardSupportOnlyWord(row) || isSpecificWrongOnlyWord(row)) return 0;
+            if (Object.prototype.hasOwnProperty.call(row, 'progress_word_id')) {
+                return Math.max(0, parseInt(row.progress_word_id, 10) || 0);
+            }
+            if (parseBooleanFlag(row.is_prompt_card, false) || parseInt(row.prompt_card_id, 10) > 0) return 0;
+            return Math.max(0, parseInt(row.id, 10) || 0);
+        }
+
         function isPromptCardSupportOnlyWord(word) {
             if (!word || typeof word !== 'object') return false;
             if (Object.prototype.hasOwnProperty.call(word, 'is_prompt_card_support_only')) {
                 return parseBooleanFlag(word.is_prompt_card_support_only, false);
             }
             return false;
+        }
+
+        function isSpecificWrongOnlyWord(word) {
+            if (!word || typeof word !== 'object') return false;
+            if (Object.prototype.hasOwnProperty.call(word, 'is_specific_wrong_answer_only')) {
+                const raw = word.is_specific_wrong_answer_only;
+                return typeof raw === 'number' ? raw > 0 : parseBooleanFlag(raw, typeof raw === 'string' ? !!raw.trim() : !!raw);
+            }
+            const ownerIds = Array.isArray(word.specific_wrong_answer_owner_ids) ? word.specific_wrong_answer_owner_ids.filter(Boolean) : [];
+            const ownIds = Array.isArray(word.specific_wrong_answer_ids) ? word.specific_wrong_answer_ids.filter(Boolean) : [];
+            const ownTexts = Array.isArray(word.specific_wrong_answer_texts) ? word.specific_wrong_answer_texts.filter(Boolean) : [];
+            return ownerIds.length > 0 && ownIds.length === 0 && ownTexts.length === 0;
         }
 
         function isBoundedSelectionPlan() {
@@ -974,26 +997,6 @@
             const needsAudio = categoryRequiresAudio(cfg);
             const optionType = cfg.option_type || cfg.mode || '';
             const optionRequiresAudio = optionType === 'audio' || optionType === 'text_audio';
-            const parseBool = function (raw) {
-                if (typeof raw === 'boolean') return raw;
-                if (typeof raw === 'number') return raw > 0;
-                if (typeof raw === 'string') {
-                    const normalized = raw.trim().toLowerCase();
-                    if (normalized === '1' || normalized === 'true' || normalized === 'yes' || normalized === 'on') return true;
-                    if (normalized === '0' || normalized === 'false' || normalized === 'no' || normalized === 'off' || normalized === '') return false;
-                }
-                return !!raw;
-            };
-            const isSpecificWrongOnlyWord = function (word) {
-                if (!word || typeof word !== 'object') return false;
-                if (Object.prototype.hasOwnProperty.call(word, 'is_specific_wrong_answer_only')) {
-                    return parseBool(word.is_specific_wrong_answer_only);
-                }
-                const ownerIds = Array.isArray(word.specific_wrong_answer_owner_ids) ? word.specific_wrong_answer_owner_ids.filter(Boolean) : [];
-                const ownIds = Array.isArray(word.specific_wrong_answer_ids) ? word.specific_wrong_answer_ids.filter(Boolean) : [];
-                const ownTexts = Array.isArray(word.specific_wrong_answer_texts) ? word.specific_wrong_answer_texts.filter(Boolean) : [];
-                return ownerIds.length > 0 && ownIds.length === 0 && ownTexts.length === 0;
-            };
             // Filter out words that do not have a resolvable audio URL
             const filteredByCategory = Array.isArray(wordData) ? wordData.map(function (w) {
                 const url = resolvePlayableAudio(w);
@@ -1036,13 +1039,23 @@
 
             const exactTargets = Object.prototype.hasOwnProperty.call(processingOptions, 'targetItemIds')
                 ? new Set(normalizeWordIdList(processingOptions.targetItemIds)) : null;
-            const filteredBySession = exactTargets
+            let filteredBySession = exactTargets
                 ? filteredByPromptTargets.filter(function (w) { return exactTargets.has(parseInt(w.id, 10)); })
                 : sessionWordLookup
                 ? filteredByPromptTargets.filter(function (w) {
                     return rowMatchesWordLookup(w, sessionWordLookup);
                 })
                 : filteredByPromptTargets.slice();
+
+            if (processingOptions.curriculumReview) {
+                const seen = new Set();
+                filteredBySession = filteredBySession.filter(function (row) {
+                    const id = curriculumProgressWordId(row);
+                    if (!id || !sessionWordLookup[id] || seen.has(id)) return false;
+                    seen.add(id);
+                    return true;
+                });
+            }
 
             decorateOfflineWords(filteredByCategory);
             decorateOfflineWords(filteredBySession);
@@ -1103,6 +1116,7 @@
 
                 const data = window.llToolsFlashcardsData || {};
                 const boundedQuizMode = String(data.quiz_mode || data.quizMode || '').trim().toLowerCase();
+                const curriculumReview = !!(getLastLaunchPlan().details || {}).curriculum_exact;
                 const requiresPracticeOptionPool = boundedQuizMode !== 'self-check' && boundedQuizMode !== 'gender';
                 const sessionWordIds = normalizeWordIdList(data.sessionWordIds || data.session_word_ids || []);
                 if (!sessionWordIds.length) {
@@ -1215,13 +1229,16 @@
                             return row && typeof row === 'object' ? Object.assign({}, row) : row;
                         });
                         processFetchedWordData(clonedRows, plan.categoryName, {
-                            sessionWordIds: plan.ownedIds
+                            sessionWordIds: plan.ownedIds,
+                            curriculumReview: curriculumReview
                         });
                         const activeRows = window.wordsByCategory[plan.categoryName] || [];
                         const missingOwnedId = plan.ownedIds.find(function (wordId) {
                             const lookup = {};
                             lookup[wordId] = true;
-                            return !activeRows.some(function (row) { return rowMatchesWordLookup(row, lookup); });
+                            return !activeRows.some(function (row) {
+                                return curriculumReview ? curriculumProgressWordId(row) === wordId : rowMatchesWordLookup(row, lookup);
+                            });
                         });
                         if (missingOwnedId) {
                             throw createBoundedPreloadError('A bounded session word did not survive runtime filtering.', {
@@ -2102,6 +2119,7 @@
             isCategoryLoading,
             loadResourcesForWord,
             processFetchedWordData,
+            curriculumProgressWordId,
             consumeBoundedPreloadedCategoryData,
             randomlySort,
             resetCacheForNewWordset,

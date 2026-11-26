@@ -2046,6 +2046,8 @@ function ll_tools_wordset_category_ordering_request_has_input(array $request): b
         'll_wordset_category_prereqs',
         'll_wordset_category_prereqs_compact',
         'll_wordset_category_prereqs_compact_mode',
+        'll_wordset_curriculum_additional',
+        'll_wordset_curriculum_additional_complete',
     ] as $key) {
         if (array_key_exists($key, $request)) {
             return true;
@@ -2309,8 +2311,31 @@ function ll_tools_wordset_prepare_category_ordering_save(int $term_id, array $re
         $prereq_action = 'delete';
     }
 
+    $additional = null;
+    if (isset($request['ll_wordset_curriculum_additional']) || isset($request['ll_wordset_curriculum_additional_complete'])) {
+        $selected = $request['ll_wordset_curriculum_additional'] ?? [];
+        if (($request['ll_wordset_curriculum_additional_complete'] ?? '') !== '1' || !is_array($selected)) {
+            return ll_tools_wordset_category_ordering_payload_error();
+        }
+        $allowed = array_fill_keys($posted_category_ids, true);
+        foreach ($selected as $selected_id) {
+            if ((!is_int($selected_id) && !(is_string($selected_id) && ctype_digit($selected_id))) || !isset($allowed[(int) $selected_id])) {
+                return ll_tools_wordset_category_ordering_payload_error();
+            }
+        }
+        $previous = ll_tools_wordset_curriculum_additional_ids($term_id);
+        if (is_wp_error($previous)) {
+            return $previous;
+        }
+        // Preserve assignments outside the form's current editable registry.
+        $additional = ll_tools_wordset_normalize_category_id_list(array_merge(array_diff($previous, $posted_category_ids), $selected));
+        if (ll_tools_wordset_category_ordering_id_sets_match($additional, $previous)) {
+            $additional = null;
+        }
+    }
     return [
         'submitted' => true,
+        'additional' => $additional,
         'ordering_mode' => $ordering_mode,
         'manual_action' => $manual_action,
         'manual_order' => $manual_order,
@@ -2392,6 +2417,13 @@ function ll_tools_wordset_apply_category_ordering_save(int $term_id, array $prep
         ];
     }
 
+    if (isset($prepared['additional'])) {
+        $operations[] = [
+            'key' => LL_TOOLS_CURRICULUM_ADDITIONAL_META,
+            'delete' => false,
+            'value' => $prepared['additional'],
+        ];
+    }
     $attempted = [];
     foreach ($operations as $operation) {
         $meta_key = (string) $operation['key'];
@@ -2915,6 +2947,7 @@ function ll_tools_wordset_render_category_ordering_field_html(int $wordset_id): 
     $multi_select_size = max(4, min(8, count($category_ids)));
     $show_manual = ($mode === 'manual');
     $show_prereq = ($mode === 'prerequisite');
+    $additional_ids = $wordset_id > 0 ? ll_tools_wordset_curriculum_additional_ids($wordset_id) : [];
 
     ob_start();
     ?>
@@ -2981,6 +3014,11 @@ function ll_tools_wordset_render_category_ordering_field_html(int $wordset_id): 
 
                 <div class="ll-wordset-category-ordering__panel" data-ll-wordset-category-ordering-panel="prerequisite" <?php if (!$show_prereq) : ?>hidden<?php endif; ?>>
                     <p class="description"><?php esc_html_e('Set prerequisites for each category. Categories are recommended in prerequisite order (lower levels first). Select multiple prerequisites with Ctrl/Command + click.', 'll-tools-text-domain'); ?></p>
+                    <?php if (is_wp_error($additional_ids)) : ?>
+                        <p class="description" role="alert"><?php echo esc_html($additional_ids->get_error_message()); ?></p>
+                    <?php else : ?>
+                        <p class="description"><?php esc_html_e('Additional practice categories are available for browsing, search and study. Their words do not count toward completing a level unless they also belong to a category in that level.', 'll-tools-text-domain'); ?></p>
+                    <?php endif; ?>
                     <?php if (!empty($prereq_levels['has_cycle'])) : ?>
                         <p class="description" style="color:#b32d2e; font-weight:600;"><?php esc_html_e('A prerequisite loop is currently stored. Ordering falls back to alphabetical until the loop is removed.', 'll-tools-text-domain'); ?></p>
                     <?php endif; ?>
@@ -2990,6 +3028,9 @@ function ll_tools_wordset_render_category_ordering_field_html(int $wordset_id): 
                                 <tr>
                                     <th scope="col"><?php esc_html_e('Category', 'll-tools-text-domain'); ?></th>
                                     <th scope="col" style="width:90px;"><?php esc_html_e('Level', 'll-tools-text-domain'); ?></th>
+                                    <?php if (!is_wp_error($additional_ids)) : ?>
+                                        <th scope="col"><?php esc_html_e('Additional practice', 'll-tools-text-domain'); ?></th>
+                                    <?php endif; ?>
                                     <th scope="col"><?php esc_html_e('Prerequisites', 'll-tools-text-domain'); ?></th>
                                 </tr>
                             </thead>
@@ -3009,9 +3050,15 @@ function ll_tools_wordset_render_category_ordering_field_html(int $wordset_id): 
                                             <?php if ($level_value === null && !empty($prereq_levels['has_cycle'])) : ?>
                                                 <span aria-label="<?php echo esc_attr__('Cycle detected', 'll-tools-text-domain'); ?>">—</span>
                                             <?php else : ?>
-                                                <?php echo esc_html((string) max(0, (int) $level_value)); ?>
+                                                <?php echo esc_html((string) (1 + max(0, (int) $level_value))); ?>
                                             <?php endif; ?>
                                         </td>
+                                        <?php if (!is_wp_error($additional_ids)) : ?>
+                                            <td><label>
+                                                <input type="checkbox" name="ll_wordset_curriculum_additional[]" value="<?php echo esc_attr((string) $cid); ?>" <?php checked(in_array($cid, $additional_ids, true)); ?>>
+                                                <span class="screen-reader-text"><?php echo esc_html(sprintf(__('Additional practice: %s', 'll-tools-text-domain'), $label)); ?></span>
+                                            </label></td>
+                                        <?php endif; ?>
                                         <td style="vertical-align:top;">
                                             <select
                                                 data-ll-wordset-prereq-select="1"
@@ -3040,6 +3087,9 @@ function ll_tools_wordset_render_category_ordering_field_html(int $wordset_id): 
                                 <?php endforeach; ?>
                             </tbody>
                         </table>
+                        <?php if (!is_wp_error($additional_ids)) : ?>
+                            <input type="hidden" name="ll_wordset_curriculum_additional_complete" value="1">
+                        <?php endif; ?>
                     </div>
                 </div>
             <?php endif; ?>

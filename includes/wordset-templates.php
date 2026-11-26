@@ -234,6 +234,11 @@ function ll_tools_copy_wordset_template_settings(int $source_wordset_id, int $ta
         get_term_meta($source_wordset_id, $manual_order_meta_key, true),
         $category_id_map
     );
+    $additional = ll_tools_wordset_curriculum_additional_ids($source_wordset_id);
+    if (!is_wp_error($additional) && ($additional || metadata_exists('term', $source_wordset_id, LL_TOOLS_CURRICULUM_ADDITIONAL_META))) {
+        update_term_meta($target_wordset_id, LL_TOOLS_CURRICULUM_ADDITIONAL_META,
+            ll_tools_wordset_template_remap_category_id_list($additional, $category_id_map));
+    }
     if (empty($manual_order)) {
         delete_term_meta($target_wordset_id, $manual_order_meta_key);
     } else {

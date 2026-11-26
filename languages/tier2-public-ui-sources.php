@@ -163,6 +163,7 @@ return [
             'path' => 'includes/login-window.php',
             'symbols' => [
                 'll_tools_login_window_registration_rate_limit_message',
+                'll_tools_guest_lesson_account_action',
                 'll_tools_login_window_validate_registration_email',
                 'll_tools_filter_core_registration_email_errors',
                 'll_tools_login_window_validate_registration_challenge',
@@ -261,6 +262,9 @@ return [
                 ],
             ],
         ],
+        ['path' => 'includes/lib/wordset-level-labels.php'],
+        ['path' => 'includes/lib/wordset-level-page.php'],
+        ['path' => 'includes/lib/wordset-level-progress.php'],
         ['path' => 'includes/pages/dictionary-page.php'],
         ['path' => 'includes/pages/embed-page.php'],
         [
@@ -394,6 +398,24 @@ return [
                     'symbol' => 'll_tools_render_wordset_page_content',
                     'start' => '$progress_summary_cards = [',
                     'end' => '$category_progress_lookup = [];',
+                ],
+                [
+                    'name' => 'course-level-navigation',
+                    'symbol' => 'll_tools_render_wordset_page_content',
+                    'start' => "esc_attr_e('Course levels'",
+                    'end' => "esc_attr_e('Course levels'",
+                ],
+                [
+                    'name' => 'course-level-information',
+                    'symbol' => 'll_tools_render_wordset_page_content',
+                    'start' => "esc_html__('About this word set'",
+                    'end' => "esc_html__('About this word set'",
+                ],
+                [
+                    'name' => 'course-main-lessons',
+                    'symbol' => 'll_tools_render_wordset_page_content',
+                    'start' => "esc_html_e('Main lessons'",
+                    'end' => "esc_html_e('Main lessons'",
                 ],
                 [
                     'name' => 'learner-progress-reset-copy',

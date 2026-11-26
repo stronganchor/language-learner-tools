@@ -51,6 +51,37 @@ test('Practice-only lesson hides the next activity action and rejects other runt
   await expect(page.locator('#ll-study-results-different-chunk')).toBeHidden();
 });
 
+test('guest account prompt appears only after the final learning set and links back to the course', async ({ page }) => {
+  await mount(page);
+  await page.addScriptTag({ content: source('results.js') });
+  await page.evaluate(() => {
+    window.jQuery('#quiz-results-title').after('<p id="quiz-results-message"></p>');
+    window.llWordsetPageData = { guestLessonAccount: {
+      url: 'https://course.test/course/?ll_tools_auth=register#ll-tools-auth-window',
+      label: 'Create an account to track your next lessons'
+    } };
+    const cards = window.LLFlashcards;
+    cards.State.isLearningMode = true;
+    cards.State.MIN_CORRECT_COUNT = 3;
+    cards.State.wordCorrectCounts = { 1: 3 };
+    cards.Modes.Learning = { getSetProgress: () => ({ current: 1, total: 2, hasNext: true }) };
+    cards.Results.showResults();
+  });
+  const link = page.getByRole('link', { name: 'Create an account to track your next lessons' });
+  await expect(link).toHaveCount(0);
+  await page.evaluate(() => {
+    window.LLFlashcards.Modes.Learning.getSetProgress = () => ({ current: 2, total: 2, hasNext: false });
+    window.LLFlashcards.Results.showResults();
+  });
+  await expect(link).toBeVisible();
+  await expect(link).toHaveAttribute('href', /ll_tools_auth=register#ll-tools-auth-window$/);
+  await page.evaluate(() => {
+    window.llWordsetPageData.guestLessonAccount = [];
+    window.LLFlashcards.Results.showResults();
+  });
+  await expect(link).toHaveCount(0);
+});
+
 test('silent lesson completion advances to an enabled activity instead of Listen', async ({ page }) => {
   await mount(page, { modes: ['practice', 'self-check'] });
   await page.addScriptTag({ content: source('results.js') });

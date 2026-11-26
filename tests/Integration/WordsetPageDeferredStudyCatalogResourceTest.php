@@ -3,6 +3,58 @@ declare(strict_types=1);
 
 final class WordsetPageDeferredStudyCatalogResourceTest extends LL_Tools_TestCase
 {
+    public function test_shortcode_projects_the_full_curriculum_before_pagination_for_guests_and_learners(): void
+    {
+        $minimum = static function (): int { return 1; };
+        $batch = static function (): int { return 6; };
+        add_filter('ll_tools_quiz_min_words', $minimum);
+        add_filter('ll_tools_wordset_page_lazy_card_batch_size', $batch);
+        try {
+            $fixture = $this->createWordsetFixture(10);
+            $wordset_id = $fixture['wordset_id'];
+            $ids = $fixture['category_ids'];
+            update_term_meta($wordset_id, 'll_wordset_category_ordering_mode', 'prerequisite');
+            update_term_meta($wordset_id, 'll_wordset_category_prerequisites', [$ids[7] => [$ids[0]], $ids[8] => [$ids[7]]]);
+            update_term_meta($wordset_id, LL_TOOLS_CURRICULUM_ADDITIONAL_META, [$ids[9]]);
+            $learner = self::factory()->user->create(['role' => 'subscriber']);
+            ll_tools_save_user_study_goals(['ignored_category_ids' => [$ids[0]]], $learner);
+            foreach ([0, $learner] as $user_id) {
+                $this->completeLlToolsSimulatedRequest();
+                wp_set_current_user($user_id);
+                ll_tools_flashcard_widget_reset_render_guard();
+                $html = do_shortcode('[wordset_page id="' . $wordset_id . '"]');
+                $data = $this->extractLocalizedConfig();
+                $curriculum = $data['curriculumLevels'];
+                $levels = array_column($curriculum['levels'], 'categoryIds', 'level');
+                $this->assertSame([1, 2, 3], array_keys($levels));
+                $this->assertSame([$ids[7]], $levels[2]);
+                $this->assertSame([$ids[8]], $levels[3]);
+                $this->assertSame([$ids[9]], $curriculum['additionalCategoryIds']);
+                $this->assertSame($user_id === 0, in_array($ids[0], $levels[1], true));
+                $this->assertSame(6, $data['lazyCards']['initialCount']);
+                $this->assertTrue($data['lazyCards']['enabled']);
+                $this->assertSame($user_id !== 0, (bool) $data['isLoggedIn']);
+                $this->assertSame($user_id !== 0, $curriculum['token'] !== '');
+                $this->assertSame($user_id !== 0, $curriculum['nonce'] !== '');
+                if ($user_id) {
+                    $this->assertNotFalse(wp_verify_nonce($curriculum['nonce'], 'll_tools_wordset_levels'));
+                    $scope = ll_tools_wordset_page_get_category_search_payload($curriculum['token']);
+                    $this->assertSame($user_id, $scope['user_id']);
+                    $this->assertSame([$ids[8]], array_column($scope['level_scope'][3], 'id'));
+                }
+                $this->assertStringContainsString('data-ll-wordset-levels', $html);
+                $this->assertStringContainsString('data-ll-level-badge="1"', $html);
+                $this->assertTrue(wp_script_is('ll-wordset-levels-js', 'enqueued'));
+                $this->assertContains('ll-wordset-levels-js', wp_scripts()->registered['ll-wordset-pages-js']->deps);
+                $this->assertTrue(wp_style_is('ll-wordset-levels-css', 'enqueued'));
+            }
+        } finally {
+            wp_set_current_user(0);
+            remove_filter('ll_tools_wordset_page_lazy_card_batch_size', $batch);
+            remove_filter('ll_tools_quiz_min_words', $minimum);
+        }
+    }
+
     public function test_deferred_authenticated_main_view_skips_the_genc_sized_full_study_catalog(): void
     {
         $quiz_min_filter = static function (): int {

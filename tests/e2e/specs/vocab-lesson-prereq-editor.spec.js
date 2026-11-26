@@ -93,7 +93,7 @@ function buildPrereqEditorMarkup({
             <div class="ll-vocab-lesson-prereq-toolbar">
               <div class="ll-vocab-lesson-prereq-meta" aria-label="Prerequisite level">
                 <span class="ll-vocab-lesson-prereq-meta-icon" aria-hidden="true">L</span>
-                <span class="ll-vocab-lesson-prereq-level-value" data-ll-prereq-level>L${currentLevel}</span>
+                <span class="ll-vocab-lesson-prereq-level-value" data-ll-prereq-level>L${currentLevel + 1}</span>
               </div>
               <span class="ll-vocab-lesson-prereq-status" data-ll-prereq-status data-state="idle" role="status" aria-live="polite" hidden>
                 <span class="ll-vocab-lesson-prereq-status-icon" aria-hidden="true"></span>
@@ -258,6 +258,8 @@ async function exercisePrereqEditor(page) {
   const travelOption = page.locator('[data-ll-prereq-option]').filter({ hasText: 'Travel' }).first();
 
   await expect(foodOption).toHaveAttribute('aria-pressed', 'true');
+  await expect(basicsOption.locator('.ll-vocab-lesson-prereq-option-level')).toHaveText('L2');
+  await expect(page.locator('[data-ll-prereq-chip-id="13"] .ll-vocab-lesson-prereq-chip-level')).toHaveText('L3');
 
   await basicsOption.click();
   await expect(basicsOption).toHaveAttribute('aria-pressed', 'true');

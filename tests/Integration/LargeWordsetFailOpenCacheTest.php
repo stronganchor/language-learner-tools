@@ -581,7 +581,7 @@ final class LargeWordsetFailOpenCacheTest extends LL_Tools_TestCase
             'use_titles' => $use_titles,
             'term_slug' => (string) ($category_context['slug'] ?? ''),
             'text_label_schema' => 8,
-            'prompt_card_schema' => 4,
+            'prompt_card_schema' => 5,
             'wordset_sign_language_mode' => !empty($config['sign_language_mode']),
             'image_animation_meta' => true,
             'masked_image_url' => function_exists('ll_tools_should_use_masked_image_proxy')

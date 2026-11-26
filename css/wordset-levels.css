@@ -1,0 +1,65 @@
+/* These selectors only activate after the curriculum controller mounts. */
+.ll-wordset-page[data-ll-level-view="home"] [data-ll-wordset-main-grid],
+.ll-wordset-page[data-ll-level-view="home"] [data-ll-wordset-main-sort-root],
+.ll-wordset-page[data-ll-level-view="home"] [data-ll-wordset-select-all],
+.ll-wordset-page[data-ll-level-view="home"] .ll-wordset-top-actions,
+.ll-wordset-page[data-ll-level-view="level"] .ll-wordset-top-actions,
+.ll-wordset-page[data-ll-level-view="home"] [data-ll-wordset-selection-bar],
+.ll-wordset-page .ll-level-more[hidden],
+.ll-wordset-page [data-ll-wordset-levels][hidden] { display: none !important; }
+.ll-wordset-page [data-ll-wordset-levels] { margin: 0 0 1rem; color: #16243a; }
+.ll-level-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 19rem), 1fr)); gap: .8rem; align-items: start; }
+.ll-wordset-page .ll-level-card { padding: 1rem; border: 1px solid #d2dce4; border-radius: 14px; background: #fff; color: #16243a; min-width: 0; }
+.ll-level-card-head, .ll-level-nav, .ll-level-state, .ll-level-badges, .ll-level-activities { display: flex; align-items: center; gap: .45rem; flex-wrap: wrap; }
+.ll-level-card-head { justify-content: space-between; }
+.ll-wordset-page .ll-level-card.is-current { border-color:#bc882c; box-shadow:inset 0 3px #e9b34c; }
+.ll-level-current, .ll-level-complete { display:inline-flex; align-items:center; gap:.2rem; border-radius:99px; padding:.25rem .55rem; background:#fff2cf; color:#67460d; font:600 .77rem/1.4 system-ui,sans-serif; }
+.ll-level-complete { color:#146041; background:#e5f5ec; }
+.ll-level-complete svg { width:1.2rem; height:1.2rem; fill:none; stroke:currentColor; stroke-width:2.4; }
+.ll-level-lesson-count { display:block; margin-bottom:.4rem; color:#445769; }
+.ll-wordset-page .ll-level-title { margin: 0; font: inherit; font-weight: 700; font-size: 1.14rem; letter-spacing: normal; text-transform: none; color: inherit; }
+.ll-wordset-page .ll-level-button, .ll-wordset-page summary.ll-level-details-toggle {
+    display: inline-flex; align-items: center; justify-content: center; gap: .4rem;
+    appearance: none; position: static; border: 1px solid #b8c9d4; border-radius: 9px; background: #fff; color: #173750;
+    min-height: 44px; min-width: 44px; max-width: 100%; box-sizing: border-box; padding: .42rem .68rem;
+    font: inherit; font-size: .9rem; font-weight: 600; line-height: 1.25; text-align: start;
+    letter-spacing: normal; text-transform: none; text-decoration: none; cursor: pointer; box-shadow: none;
+}
+.ll-wordset-page .ll-level-button:hover, .ll-wordset-page summary.ll-level-details-toggle:hover { background: #eef5f8; color: #123242; }
+.ll-wordset-page .ll-level-button:focus-visible, .ll-wordset-page .ll-level-details-toggle:focus-visible,
+.ll-wordset-page .ll-level-interval input:focus-visible { outline: 3px solid #2563ae; outline-offset: 2px; }
+.ll-level-button svg, .ll-level-badge svg, .ll-level-details-toggle svg { width: 1.12rem; height: 1.12rem; flex: 0 0 auto; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.ll-level-button[data-ll-level-action="learn"] svg { fill: currentColor; }
+.ll-level-track { display:flex; height: .67rem; overflow: hidden; border-radius: 8px; background: #e7edf1; margin: .65rem 0; }
+.ll-level-track > span { flex-basis:0; }
+.ll-level-track-mastered { background: #1f8658; } .ll-level-track-working { background: #598fca; } .ll-level-track-new { background: #e7edf1; }
+.ll-wordset-page .ll-level-activity { justify-content:flex-start; flex: 1 1 9rem; overflow-wrap:anywhere; }
+.ll-level-thumb { width: 2rem; height: 2rem; object-fit:cover; border-radius: 5px; }
+.ll-wordset-page .ll-level-open { border-color:transparent; color:inherit; padding-inline:.1rem; font-size:inherit; font-weight:700; }
+.ll-wordset-page .ll-level-open svg { opacity:.7; width:1rem; }
+.ll-wordset-page .is-current .ll-level-activity[data-ll-level-action="learn"],
+.ll-wordset-page .is-current .ll-level-activity:only-child { color:#fff; background:#175c84; border-color:#175c84; }
+.ll-wordset-page .is-current .ll-level-activity[data-ll-level-action="learn"]:hover,
+.ll-wordset-page .is-current .ll-level-activity:only-child:hover { background:#124563; }
+.ll-wordset-page .ll-level-review-all, .ll-wordset-page .ll-level-overdue { color:#5b2988; background:#f2ebfa; border-color:#cfb5e8; }
+.ll-wordset-page .ll-level-review-all { margin-bottom:.65rem; }
+.ll-level-badges { margin-bottom:.4rem; }
+.ll-level-badge { display:inline-flex; align-items:center; gap:.3rem; }
+.ll-level-added { padding:.3rem .52rem; border-radius:9px; color:#745208; background:#fff3cf; }
+.ll-level-count { border-radius:99px; background:#fff; padding:.12rem .4rem; }
+.ll-level-details { margin-top:.4rem; }
+.ll-wordset-page summary.ll-level-details-toggle { border-color:transparent; padding-inline:.2rem; color:#455a6b; }
+.ll-level-details-toggle::-webkit-details-marker { display:none; }
+.ll-level-facts { display:grid; grid-template-columns: minmax(0,1fr) auto; gap:.3rem .7rem; margin:.4rem 0; }
+.ll-level-facts dt, .ll-level-facts dd { margin:0; font-size:.9rem; }
+.ll-level-interval { display:inline-flex; align-items:center; gap:.5rem; margin:.4rem 0; font-size:.9rem; }
+.ll-wordset-page .ll-level-interval input { max-width:5rem; min-height:44px; padding:.3rem; border:1px solid #a6b8c5; border-radius:6px; background:#fff; color:#173750; font:inherit; }
+.ll-level-save, .ll-level-notice { font-size:.85rem; }
+.ll-level-save { margin-inline-start:.45rem; }
+.ll-level-state { padding:.45rem 0; }
+.ll-wordset-page .ll-level-more { margin: .8rem auto; }
+.ll-wordset-page .ll-wordset-level-badge { display:inline-block; margin:.16rem .26rem; padding:.12rem .45rem; border-radius:2rem; color:#24465e; background:#e9f0f5; font:600 .75rem/1.45 system-ui,sans-serif; white-space:nowrap; letter-spacing:normal; text-transform:none; }
+@media (forced-colors: active) {
+    .ll-level-track > span { border:1px solid CanvasText; }
+    .ll-level-track-mastered { background:Highlight; forced-color-adjust:none; }
+}

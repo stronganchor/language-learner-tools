@@ -3,6 +3,10 @@
 language-learner-tools.php
 includes/lib/complete-source-reads.php
 includes/lib/static-cache-maintenance.php
+includes/lib/wordset-curriculum.php
+includes/lib/wordset-level-labels.php
+includes/lib/wordset-level-page.php
+includes/lib/wordset-level-progress.php
 includes/lib/public-static-cache.php
 includes/lib/public-static-cache-lifecycle.php
 includes/lib/dictionary-static-cache.php
@@ -15,6 +19,7 @@ css/frontend-utility-menu.css
 css/ipa-fonts.css
 css/language-switcher.css
 css/wordset-pages.css
+css/wordset-levels.css
 css/word-copy-dialog.css
 css/wordset-transcription-review.css
 css/recording-history.css
@@ -37,6 +42,7 @@ js/locale-sort.js
 js/public-viewport-guard.js
 js/wordset-buttons-refresh.js
 js/wordset-pages.js
+js/wordset-levels.js
 js/word-copy-dialog.js
 js/wordset-transcription-review.js
 js/recording-history.js

@@ -1078,7 +1078,8 @@
 
         const flashData = root.llToolsFlashcardsData || {};
         const activeSessionWordIds = getSessionWordIdsFromData(flashData);
-        if (!activeSessionWordIds.length) {
+        const plan = flashData.lastLaunchPlan || flashData.last_launch_plan || {};
+        if (!activeSessionWordIds.length || (plan.details && plan.details.curriculum_exact)) {
             return false;
         }
 

@@ -1090,6 +1090,13 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
     if (!in_array($launch_context, ['vocab_lesson', 'dashboard', 'quiz_pages'], true)) {
         $launch_context = '';
     }
+    $guest_lesson_account = [];
+    if (!is_user_logged_in() && $launch_context === 'vocab_lesson' && count($wordset_ids) === 1) {
+        $lesson_wordset = get_term((int) reset($wordset_ids), 'wordset');
+        if ($lesson_wordset instanceof WP_Term) {
+            $guest_lesson_account = ll_tools_guest_lesson_account_action(ll_tools_get_wordset_page_view_url($lesson_wordset));
+        }
+    }
 
     $available_modes = null;
     $lesson_id = absint($atts['lesson_id'] ?? 0);
@@ -1202,6 +1209,7 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
         'autoplay_text_audio_answer_options' => $autoplay_text_audio_answer_options,
         'genderMinCount'       => (int) apply_filters('ll_tools_quiz_min_words', LL_TOOLS_MIN_WORDS_PER_QUIZ),
         'resultsCategoryPreviewLimit' => (int) apply_filters('ll_tools_results_category_preview_limit', 3),
+        'guestLessonAccount'   => $guest_lesson_account,
         'launchContext'        => $launch_context,
         'launch_context'       => $launch_context,
         'sortLocale'           => get_locale(),
@@ -2462,7 +2470,7 @@ function ll_tools_flashcards_public_ajax_cache_args(WP_Term $term, array $wordse
         'use_titles' => !empty($base_config['use_titles']),
         'term_id' => (int) $term->term_id,
         'term_slug' => (string) $term->slug,
-        'payload_conflict_schema' => 4,
+        'payload_conflict_schema' => 5,
         'quiz_config' => $base_config,
     ];
 

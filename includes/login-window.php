@@ -429,6 +429,20 @@ if (!function_exists('ll_tools_login_window_strip_internal_query_args')) {
     }
 }
 
+/** Account action on a guest's completed wordset or vocabulary lesson. */
+function ll_tools_guest_lesson_account_action(string $wordset_url): array {
+    if ($wordset_url === '' || is_user_logged_in()) {
+        return [];
+    }
+    $register = ll_tools_is_learner_self_registration_enabled() && ll_tools_is_wordpress_user_registration_enabled();
+    return [
+        'url' => ll_tools_get_frontend_auth_url($wordset_url, $register ? 'register' : 'login'),
+        'label' => $register
+            ? __('Create an account to track your next lessons', 'll-tools-text-domain')
+            : __('Sign in to track your next lessons', 'll-tools-text-domain'),
+    ];
+}
+
 if (!function_exists('ll_tools_get_frontend_auth_url')) {
     function ll_tools_get_frontend_auth_url(string $url = '', string $mode = 'login'): string {
         $mode = ll_tools_login_window_sanitize_auth_mode($mode);

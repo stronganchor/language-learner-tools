@@ -28310,6 +28310,181 @@ msgstr "Vokabel zu dieser Lektion hinzufügen"
 msgid "Delete empty category"
 msgstr "Leere Kategorie löschen"
 
+#: includes/lib/wordset-curriculum.php:18
+msgid "The curriculum could not be loaded. Please try again."
+msgstr "Der Kursplan konnte nicht geladen werden. Versuche es erneut."
+
+#: includes/lib/wordset-level-labels.php:10
+msgid "Additional lessons"
+msgstr "Zusätzliche Lektionen"
+
+#: includes/lib/wordset-level-labels.php:11
+msgid "All lessons"
+msgstr "Alle Lektionen"
+
+#: includes/lib/wordset-level-labels.php:12
+msgid "Browse lessons"
+msgstr "Lektionen ansehen"
+
+#: includes/lib/wordset-level-labels.php:14
+msgid "Show more lessons"
+msgstr "Weitere Lektionen anzeigen"
+
+#: includes/lib/wordset-level-labels.php:19
+msgid "Review across levels"
+msgstr "Stufenübergreifend wiederholen"
+
+#: includes/lib/wordset-level-labels.php:20
+msgid "Recommended level"
+msgstr "Empfohlene Stufe"
+
+#: includes/lib/wordset-level-labels.php:21
+msgid "Level mastered"
+msgstr "Stufe gemeistert"
+
+#: includes/lib/wordset-level-labels.php:23
+msgid "Due for review (%d)"
+msgstr "Zur Wiederholung fällig (%d)"
+
+#: includes/lib/wordset-level-labels.php:25
+msgid "Added since you last studied this level (%d)"
+msgstr "Seit dem letzten Lernen auf dieser Stufe hinzugekommen (%d)"
+
+#: includes/lib/wordset-level-labels.php:26
+msgid "Level details"
+msgstr "Details zur Stufe"
+
+#: includes/lib/wordset-level-labels.php:29
+msgid "Unseen"
+msgstr "Noch nicht gesehen"
+
+#: includes/lib/wordset-level-labels.php:32
+msgid "Last studied"
+msgstr "Zuletzt gelernt"
+
+#: includes/lib/wordset-level-labels.php:33
+msgid "No activity yet"
+msgstr "Noch keine Aktivität"
+
+#: includes/lib/wordset-level-labels.php:34
+msgid "Days before review"
+msgstr "Tage bis zur Wiederholung"
+
+#: includes/lib/wordset-level-labels.php:37
+msgid "Loading progress…"
+msgstr "Fortschritt wird geladen…"
+
+#: includes/lib/wordset-level-labels.php:38
+msgid "Could not load progress."
+msgstr "Der Fortschritt konnte nicht geladen werden."
+
+#: includes/lib/wordset-level-labels.php:39
+msgid "Could not start this activity."
+msgstr "Die Übung konnte nicht gestartet werden."
+
+#: includes/lib/wordset-level-labels.php:40
+msgid "Could not save this interval."
+msgstr "Der Abstand konnte nicht gespeichert werden."
+
+#: includes/lib/wordset-level-page.php:99
+msgid "Could not load level progress. Please try again."
+msgstr ""
+"Der Stufenfortschritt konnte nicht geladen werden. Versuche es erneut."
+
+#: includes/lib/wordset-level-page.php:104
+msgid "Choose a review interval from 1 to 365 days."
+msgstr "Wähle einen Wiederholungsabstand von 1 bis 365 Tagen."
+
+#: includes/lib/wordset-level-page.php:118
+msgid "Could not save this review interval. Please try again."
+msgstr ""
+"Der Wiederholungsabstand konnte nicht gespeichert werden. Versuche es "
+"erneut."
+
+#: includes/lib/wordset-level-page.php:127
+msgid "Please sign in to view your progress."
+msgstr "Melde dich an, um deinen Fortschritt zu sehen."
+
+#: includes/lib/wordset-level-page.php:132
+#: includes/lib/wordset-level-page.php:136
+msgid "Reload this page to update your levels."
+msgstr "Lade die Seite neu, um deine Stufen zu aktualisieren."
+
+#: includes/lib/wordset-level-page.php:153
+msgid "This level is unavailable."
+msgstr "Diese Stufe ist nicht verfügbar."
+
+#: includes/lib/wordset-level-page.php:180
+msgid "Unknown level action."
+msgstr "Unbekannte Aktion für diese Stufe."
+
+#: includes/lib/wordset-level-page.php:182
+msgid "There is nothing to practice in this selection right now."
+msgstr "In dieser Auswahl gibt es gerade nichts zu üben."
+
+#: includes/lib/wordset-level-progress.php:6
+msgid "Could not load level progress."
+msgstr "Der Stufenfortschritt konnte nicht geladen werden."
+
+#: includes/lib/wordset-level-progress.php:10
+msgid "Preparing level progress…"
+msgstr "Stufenfortschritt wird vorbereitet…"
+
+#: includes/login-window.php:441
+msgid "Create an account to track your next lessons"
+msgstr "Erstelle ein Konto, um deine nächsten Lektionen im Blick zu behalten"
+
+#: includes/login-window.php:442
+msgid "Sign in to track your next lessons"
+msgstr "Melde dich an, um deine nächsten Lektionen im Blick zu behalten"
+
+#: includes/pages/wordset-pages.php:28562
+msgid "Main lessons"
+msgstr "Hauptlektionen"
+
+#: includes/pages/wordset-pages.php:28700
+msgid "Course levels"
+msgstr "Kursstufen"
+
+#: includes/shortcodes/word-grid-shortcode.php:4187
+#: templates/vocab-lesson-template.php:344
+msgid "L%d"
+msgstr "S%d"
+
+#: includes/taxonomies/wordset-taxonomy.php:3020
+msgid ""
+"Additional practice categories are available for browsing, search and study."
+" Their words do not count toward completing a level unless they also belong "
+"to a category in that level."
+msgstr ""
+"Zusätzliche Übungskategorien lassen sich durchsuchen und zum Lernen öffnen. "
+"Ihre Vokabeln zählen nur dann für den Abschluss einer Stufe, wenn sie auch "
+"zu einer Kategorie dieser Stufe gehören."
+
+#: includes/taxonomies/wordset-taxonomy.php:3032
+msgid "Additional practice"
+msgstr "Zusätzliche Übungen"
+
+#: includes/taxonomies/wordset-taxonomy.php:3059
+msgid "Additional practice: %s"
+msgstr "Zusätzliche Übungen: %s"
+
+#: includes/privacy.php:737
+msgid "Review intervals in days by word set and level"
+msgstr "Wiederholungsabstände in Tagen nach Vokabelset und Stufe"
+
+#: includes/lib/wordset-level-labels.php:12
+msgid "Back to levels"
+msgstr "Zurück zu den Stufen"
+
+#: includes/lib/wordset-level-labels.php:14
+msgid "Continue Level %d"
+msgstr "Mit Stufe %d fortfahren"
+
+#: includes/lib/wordset-level-labels.php:31
+msgid "Added since last study"
+msgstr "Seit dem letzten Lernen hinzugekommen"
+
 #~ #: includes/pages/wordset-pages.php:26340
 #~ #: includes/pages/wordset-pages.php:27409
 #~ msgid "Older than 30 days"

@@ -28307,6 +28307,178 @@ msgstr "Bu derse kelime ekle"
 msgid "Delete empty category"
 msgstr "Boş kategoriyi sil"
 
+#: includes/lib/wordset-curriculum.php:18
+msgid "The curriculum could not be loaded. Please try again."
+msgstr "Ders programı yüklenemedi. Tekrar dene."
+
+#: includes/lib/wordset-level-labels.php:10
+msgid "Additional lessons"
+msgstr "Ek dersler"
+
+#: includes/lib/wordset-level-labels.php:11
+msgid "All lessons"
+msgstr "Tüm dersler"
+
+#: includes/lib/wordset-level-labels.php:12
+msgid "Browse lessons"
+msgstr "Derslere göz at"
+
+#: includes/lib/wordset-level-labels.php:14
+msgid "Show more lessons"
+msgstr "Daha fazla ders göster"
+
+#: includes/lib/wordset-level-labels.php:19
+msgid "Review across levels"
+msgstr "Seviyeler arası tekrar"
+
+#: includes/lib/wordset-level-labels.php:20
+msgid "Recommended level"
+msgstr "Önerilen seviye"
+
+#: includes/lib/wordset-level-labels.php:21
+msgid "Level mastered"
+msgstr "Seviye öğrenildi"
+
+#: includes/lib/wordset-level-labels.php:23
+msgid "Due for review (%d)"
+msgstr "Tekrar zamanı gelenler (%d)"
+
+#: includes/lib/wordset-level-labels.php:25
+msgid "Added since you last studied this level (%d)"
+msgstr "Bu seviyede son çalışmandan beri eklenenler (%d)"
+
+#: includes/lib/wordset-level-labels.php:26
+msgid "Level details"
+msgstr "Seviye ayrıntıları"
+
+#: includes/lib/wordset-level-labels.php:29
+msgid "Unseen"
+msgstr "Henüz görülmedi"
+
+#: includes/lib/wordset-level-labels.php:32
+msgid "Last studied"
+msgstr "Son çalışma"
+
+#: includes/lib/wordset-level-labels.php:33
+msgid "No activity yet"
+msgstr "Henüz etkinlik yok"
+
+#: includes/lib/wordset-level-labels.php:34
+msgid "Days before review"
+msgstr "Tekrara kadar geçen gün sayısı"
+
+#: includes/lib/wordset-level-labels.php:37
+msgid "Loading progress…"
+msgstr "İlerleme yükleniyor…"
+
+#: includes/lib/wordset-level-labels.php:38
+msgid "Could not load progress."
+msgstr "İlerleme yüklenemedi."
+
+#: includes/lib/wordset-level-labels.php:39
+msgid "Could not start this activity."
+msgstr "Bu etkinlik başlatılamadı."
+
+#: includes/lib/wordset-level-labels.php:40
+msgid "Could not save this interval."
+msgstr "Bu aralık kaydedilemedi."
+
+#: includes/lib/wordset-level-page.php:99
+msgid "Could not load level progress. Please try again."
+msgstr "Seviye ilerlemesi yüklenemedi. Tekrar dene."
+
+#: includes/lib/wordset-level-page.php:104
+msgid "Choose a review interval from 1 to 365 days."
+msgstr "1 ile 365 gün arasında bir tekrar aralığı seç."
+
+#: includes/lib/wordset-level-page.php:118
+msgid "Could not save this review interval. Please try again."
+msgstr "Bu tekrar aralığı kaydedilemedi. Tekrar dene."
+
+#: includes/lib/wordset-level-page.php:127
+msgid "Please sign in to view your progress."
+msgstr "İlerlemeni görmek için giriş yap."
+
+#: includes/lib/wordset-level-page.php:132
+#: includes/lib/wordset-level-page.php:136
+msgid "Reload this page to update your levels."
+msgstr "Seviyelerini güncellemek için bu sayfayı yenile."
+
+#: includes/lib/wordset-level-page.php:153
+msgid "This level is unavailable."
+msgstr "Bu seviye kullanılamıyor."
+
+#: includes/lib/wordset-level-page.php:180
+msgid "Unknown level action."
+msgstr "Bilinmeyen seviye işlemi."
+
+#: includes/lib/wordset-level-page.php:182
+msgid "There is nothing to practice in this selection right now."
+msgstr "Bu seçimde şu anda alıştırma yapabileceğin bir şey yok."
+
+#: includes/lib/wordset-level-progress.php:6
+msgid "Could not load level progress."
+msgstr "Seviye ilerlemesi yüklenemedi."
+
+#: includes/lib/wordset-level-progress.php:10
+msgid "Preparing level progress…"
+msgstr "Seviye ilerlemesi hazırlanıyor…"
+
+#: includes/login-window.php:441
+msgid "Create an account to track your next lessons"
+msgstr "Sonraki derslerini takip etmek için hesap oluştur"
+
+#: includes/login-window.php:442
+msgid "Sign in to track your next lessons"
+msgstr "Sonraki derslerini takip etmek için giriş yap"
+
+#: includes/pages/wordset-pages.php:28562
+msgid "Main lessons"
+msgstr "Ana dersler"
+
+#: includes/pages/wordset-pages.php:28700
+msgid "Course levels"
+msgstr "Kurs seviyeleri"
+
+#: includes/shortcodes/word-grid-shortcode.php:4187
+#: templates/vocab-lesson-template.php:344
+msgid "L%d"
+msgstr "S%d"
+
+#: includes/taxonomies/wordset-taxonomy.php:3020
+msgid ""
+"Additional practice categories are available for browsing, search and study."
+" Their words do not count toward completing a level unless they also belong "
+"to a category in that level."
+msgstr ""
+"Ek alıştırma kategorilerine göz atabilir, bu kategorilerde arama yapabilir "
+"ve çalışabilirsin. Buradaki kelimeler ancak ilgili seviyedeki bir kategoride"
+" de yer alıyorsa o seviyeyi tamamlamak için sayılır."
+
+#: includes/taxonomies/wordset-taxonomy.php:3032
+msgid "Additional practice"
+msgstr "Ek alıştırma"
+
+#: includes/taxonomies/wordset-taxonomy.php:3059
+msgid "Additional practice: %s"
+msgstr "Ek alıştırma: %s"
+
+#: includes/privacy.php:737
+msgid "Review intervals in days by word set and level"
+msgstr "Kelime setine ve seviyeye göre gün cinsinden tekrar aralıkları"
+
+#: includes/lib/wordset-level-labels.php:12
+msgid "Back to levels"
+msgstr "Seviyelere dön"
+
+#: includes/lib/wordset-level-labels.php:14
+msgid "Continue Level %d"
+msgstr "%d. seviyeye devam et"
+
+#: includes/lib/wordset-level-labels.php:31
+msgid "Added since last study"
+msgstr "Son çalışmandan beri eklenenler"
+
 #~ #: includes/pages/wordset-pages.php:26340
 #~ #: includes/pages/wordset-pages.php:27409
 #~ msgid "Older than 30 days"
