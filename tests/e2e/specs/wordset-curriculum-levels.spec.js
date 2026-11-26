@@ -19,8 +19,8 @@ async function mount(page, options = {}) {
   const catalog = options.categories || categories;
   const ids = catalog.map(item => item.id);
   const reqs = [];
-  const summaryRow = {total:10,mastered:3,working:2,new:5,due:2,added:1,hard:1,starred:3,last_studied_at:'2026-09-02 12:00:00',
-    next_category_id:1,practice_category_id:2,due_category_id:3,practice_focus:true,days:90};
+  const summaryRow = {total:10,mastered:3,working:2,new:5,due:2,hard:1,starred:3,last_studied_at:'2026-09-02 12:00:00',
+    next_category_id:1,practice_category_id:2,due_category_id:3,days:30};
   const config = {view:'main',wordsetId:77,ajaxUrl:'/ajax',nonce:'',categories:catalog,isLoggedIn:!!options.signed,
     curriculumLevels:{levels:options.groups || groups,nonce:'nonce',token:'scope',i18n:labels},
     state:{category_ids:ids},i18n:{selectAll:'Select all',deselectAll:'Deselect all',repeatLabel:'Repeat',modeCategoryAria:'%1$s: %2$s'},modeLabels:{learning:'Learn', practice:'Practice'}};
@@ -71,8 +71,8 @@ async function mount(page, options = {}) {
           return route.fulfill({status:503,json:{success:false,data:{code:'ll_level_progress_preparing',retry_after:1}}});
         }
         const first=options.completed ? {...summaryRow,mastered:10,working:0,new:0,next_category_id:0} : summaryRow;
-        if (options.overlap) first.practice_activity={category_ids:[1,2]};
-        const second = {...summaryRow,days:30,added:0,due:0,practice_category_id:0,next_category_id:options.exerciseOnly ? 0 : 15};
+        if (options.overlap) first.practice_activity={category_ids:[1,2],label:'2 words in progress · 1 learned word'};
+        const second = {...summaryRow,days:30,due:0,practice_category_id:0,next_category_id:options.exerciseOnly ? 0 : 15};
         const totals=options.summary || {due:2,review:{reason:'due',count:2,due:2},levels:{1:first,2:second}};
         return route.fulfill({json:{success:true,data:totals}});
       }
@@ -124,8 +124,8 @@ test('mobile browse, bounded pages, global search, clear, and Back preserve thei
   const search=page.getByRole('searchbox');
   const home=page.locator('[data-ll-wordset-page]');
   await expect(grid).toBeHidden();
-  await expect(page.locator('[aria-current="step"]')).toHaveAttribute('data-ll-level-card','1');
-  await expect(page.getByRole('button',{name:'Start · Lesson 1'})).toBeVisible();
+  await expect(page.locator('[aria-current="step"],.ll-level-card.is-current')).toHaveCount(0);
+  await expect(page.getByRole('button',{name:'Learn · Lesson 1'})).toHaveText('Lesson 1');
   await page.getByRole('button',{name:'Browse lessons · Level 1'}).focus();
   await page.keyboard.press('Enter');
   await expect(grid.locator('article:visible')).toHaveCount(12);
@@ -191,16 +191,19 @@ test('personalized cards retry preparing summaries, expose review scopes, and au
   await expect(page.locator('.ll-level-review-all')).toBeVisible();
   const first=page.locator('[data-ll-level-card="1"]');
   await expect(first.getByRole('img',{name:'Learned 3, In progress 2, New 5'})).toBeVisible();
-  await expect(first.getByRole('img',{name:/Added since/})).toBeVisible();
+  await expect(first.getByRole('img',{name:/Added since/})).toHaveCount(0);
   const localDue=first.locator('.ll-level-card-head').getByRole('button',{name:'Review now · Due for review (2) · Level 1'});
   await expect(localDue).toBeVisible();
   await expect(first.getByText('3 / 10 learned')).toBeVisible();
-  await expect(first.locator('.is-suggested')).toHaveAccessibleName('Learn · Lesson 1');
-  await expect(page.locator('.ll-level-nudge')).toHaveCount(1);
+  await expect(first.getByRole('button',{name:'Learn · Lesson 1'})).toBeVisible();
+  await expect(page.locator('.ll-level-nudge,.is-suggested,.is-current')).toHaveCount(0);
   await expect(page.locator('.ll-level-review-all')).toHaveAccessibleName('Review now · Due for review (2) · Words this round · 2');
   await expect(page.locator('.ll-level-review-all .ll-level-thumbs')).toHaveCount(0);
   await first.getByLabel('Level details · Level 1',{exact:true}).click();
-  const days=first.getByRole('spinbutton',{name:'Days before review'});
+  const days=first.getByRole('spinbutton',{name:labels.interval, exact:true});
+  await expect(days).toHaveValue('30');
+  await expect(days).toHaveAccessibleDescription(labels.days+' '+labels.intervalHelp);
+  await expect(first.getByText(labels.days,{exact:true})).toBeVisible();
   await days.fill('45');
   await days.press('Tab');
   await expect(first.getByRole('status')).toHaveText('Saved');
@@ -238,9 +241,9 @@ test('keyboard pagination focuses the newly visible lessons and a scoped sparse 
   expect(hydration.every(r=>r.category_ids && r.category_ids.split(',').every(id=>Number(id)<=14))).toBe(true);
 });
 
-test('returning learner sees the first unfinished level and receives only visible CTA thumbnails',async({page})=>{
+test('returning learner sees completed levels and receives only visible CTA thumbnails',async({page})=>{
   const reqs=await mount(page,{signed:true,sparse:true,completed:true});
-  await expect(page.locator('[aria-current="step"]')).toHaveAttribute('data-ll-level-card','2');
+  await expect(page.locator('[aria-current="step"],.ll-level-card.is-current')).toHaveCount(0);
   await expect(page.getByRole('img',{name:'Level mastered'})).toBeVisible();
   await expect(page.locator('[data-ll-level-card="2"] .ll-level-activity img:visible')).toHaveCount(2);
   const lookups=reqs.filter(r=>r.action==='ll_tools_wordset_page_lazy_cards');
@@ -252,13 +255,18 @@ test('photos stay distinct, represent mixed Practice and use one image when only
   const previews={1:['/thumbnail-family-150x150.webp'],2:['/thumbnail-cat.webp','/thumbnail-dog.webp'],15:['/thumbnail-bird.webp']};
   const serverPreviews={1:['/thumbnail-family-300x300.webp','/thumbnail-house.webp'],15:['/thumbnail-bird.webp']};
   await mount(page,{signed:true,overlap:true,sparse:true,previews,serverPreviews});
-  const practice=page.getByRole('button',{name:'Practice · Level 1'}).locator('.ll-level-thumb');
+  const practice=page.getByRole('button',{name:'Practice · 2 words in progress · 1 learned word'}).locator('.ll-level-thumb');
   await expect(practice).toHaveCount(2);
   await expect(practice.nth(0)).toHaveAttribute('src','/thumbnail-cat.webp');
   await expect(practice.nth(1)).toHaveAttribute('src','/thumbnail-family-150x150.webp');
   const learn=page.getByRole('button',{name:'Learn · Lesson 1'}).locator('.ll-level-thumb');
   await expect(learn).toHaveCount(2);
   await expect(learn.nth(1)).toHaveAttribute('src','/thumbnail-house.webp');
+  const mixed=page.locator('[data-ll-level-card="1"] [data-ll-level-action="practice"]');
+  await expect(mixed).toHaveText('2 words in progress · 1 learned word');
+  const photo=await practice.first().boundingBox(), mode=await mixed.locator(':scope > .ll-level-mode-icon:last-child').boundingBox();
+  expect(mode.x).toBeGreaterThan(photo.x+photo.width);
+  expect(Math.abs(mode.width-photo.width)).toBeLessThanOrEqual(2);
   expect((await learn.first().boundingBox()).width).toBeGreaterThanOrEqual(48);
   await expect(page.getByRole('button',{name:'Learn · Everyday Expressions'}).locator('.ll-level-thumb')).toHaveCount(1);
   await page.addStyleTag({content:'.ll-wordset-page .ll-level-activity {width:190px}'});
@@ -267,14 +275,15 @@ test('photos stay distinct, represent mixed Practice and use one image when only
 });
 
 test('daily review separates the complete due backlog from the next round and follows the fallback reason',async({page})=>{
-  const row={total:900,mastered:800,working:80,new:20,studied:880,due:681,added:0,next_category_id:1,practice_category_id:2,due_category_id:3,practice_focus:true,near_completion:true,days:90};
-  const summary={due:681,review:{reason:'due',count:64,due:681},levels:{1:row,2:{...row,due:0,next_category_id:15}}};
+  const row={total:900,mastered:800,working:80,new:20,studied:880,due:681,next_category_id:1,practice_category_id:2,due_category_id:3,days:90};
+  const summary={due:681,review:{reason:'due',count:64,due:681},levels:{1:row,2:{...row,due:0,next_category_id:15,practice_category_id:15,due_category_id:0}}};
   const reqs=await mount(page,{signed:true,summary});
   const review=page.locator('.ll-level-review-all');
   await expect(review).toHaveAccessibleName('Review now · Due for review (681) · Words this round · 64');
   await expect(review.locator('img')).toHaveCount(0);
   await expect(review).toHaveClass(/ll-level-metric-older/);
-  await expect(page.locator('.is-suggested')).toHaveAccessibleName('Practice · Lesson 2');
+  await expect(page.locator('.is-suggested')).toHaveCount(0);
+  await expect(page.getByRole('button',{name:'Practice · Lesson 2'})).toBeVisible();
   await expect(page.getByRole('button',{name:'Learn · Lesson 1'})).toBeVisible();
   await page.setViewportSize({width:320,height:640});
   await expect(review.getByText('Due for review (681)')).toBeVisible();
@@ -308,19 +317,18 @@ test('desktop and phone each show one level per row and keep mode icons, statuse
   await expect(first.getByRole('button',{name:'Practice · Lesson 2'})).toBeVisible();
   await expect(first.locator('[data-ll-level-action="learn"] .ll-level-mode-icon svg')).toHaveCSS('fill','rgb(49, 117, 175)');
   await expect(first.locator('[data-ll-level-action="practice"] .ll-level-mode-icon')).toHaveAttribute('data-emoji','❓');
-  await expect(first.locator('.ll-level-nudge > .ll-level-glyph--forward')).toHaveCSS('animation-name','none');
+  await expect(first.locator('.ll-level-nudge,.is-suggested')).toHaveCount(0);
   await expect(page.getByText('Recommended level',{exact:true})).toHaveCount(0);
   const badges=first.locator('.ll-level-card-head .ll-level-badge');
-  const due=await badges.first().boundingBox(), added=await badges.last().boundingBox();
-  expect(due.width).toBe(added.width);
-  expect(due.height).toBe(added.height);
+  await expect(badges).toHaveCount(1);
   await page.addStyleTag({content:'.ll-wordset-page {--ll-wp-main-shell-max-width:860px;--ll-wordset-grid-right-offset:13px!important;}'});
   for(const width of [1240,390,320]) {
     await page.setViewportSize({width,height:820});
     const upper=await rows.nth(0).boundingBox(), lower=await rows.nth(1).boundingBox();
     expect(upper.x).toBe(lower.x);
     expect(upper.width).toBe(lower.width);
-    expect(upper.y+upper.height).toBeLessThanOrEqual(lower.y);
+    expect(lower.y-upper.y-upper.height).toBeGreaterThanOrEqual(16);
+    await expect(first).toHaveCSS('border-top-width','2px');
     expect(upper.x+upper.width).toBeLessThanOrEqual(width);
     const search=await page.getByRole('searchbox').boundingBox();
     expect(Math.abs(upper.x-search.x)).toBeLessThanOrEqual(1);
@@ -333,16 +341,23 @@ test('desktop and phone each show one level per row and keep mode icons, statuse
     if(width===1240) expect(a.y).toBe(b.y);
     else expect(a.y+a.height).toBeLessThanOrEqual(b.y);
     const single=await rows.nth(1).locator('.ll-level-activity').boundingBox();
-    expect(single.width).toBeLessThanOrEqual(321);
+    expect(single.width).toBeLessThanOrEqual(352);
   }
   const details=first.getByLabel('Level details · Level 1',{exact:true});
+  const chevron=details.locator('.ll-level-glyph--chevron');
+  await expect(chevron).toBeVisible();
+  const tail=async()=>first.evaluate(node=>node.getBoundingClientRect().bottom-node.querySelector('summary').getBoundingClientRect().bottom);
+  expect(await tail()).toBeLessThan(20);
+  await expect(chevron).toHaveCSS('transform','none');
   const title=first.getByRole('button',{name:'Browse lessons · Level 1'});
   await title.hover();
   await expect(title).toHaveCSS('border-top-color','rgba(0, 0, 0, 0)');
   await expect(title.locator('svg')).toHaveCount(0);
   await details.focus();
   await page.keyboard.press('Enter');
-  await expect(first.getByRole('spinbutton',{name:'Days before review'})).toBeVisible();
+  await expect(chevron).toHaveCSS('transform','matrix(-1, 0, 0, -1, 0, 0)');
+  expect(await tail()).toBeLessThan(20);
+  await expect(first.getByRole('spinbutton',{name:labels.interval, exact:true})).toBeVisible();
   for (const [status,count] of [['mastered',3],['studied',2],['new',5],['starred',3],['hard',1]]) {
     const badge=first.locator('.ll-level-stat-value.ll-level-metric-'+status);
     await expect(badge).toHaveText(String(count));
@@ -352,23 +367,24 @@ test('desktop and phone each show one level per row and keep mode icons, statuse
   await expect(rows.nth(1).locator('.ll-level-detail-panel .ll-level-due-button')).toHaveCount(0);
   await expect(rows.nth(1).locator('.ll-level-detail-panel .ll-level-metric-older')).toHaveText('0');
   await page.keyboard.press('Space');
-  await expect(first.getByRole('spinbutton',{name:'Days before review'})).toBeHidden();
+  await expect(first.getByRole('spinbutton',{name:labels.interval, exact:true})).toBeHidden();
   await details.click();
   await first.getByRole('button',{name:'See all lessons · Level 1'}).click();
   await expect(page.locator('[data-ll-wordset-page]')).toHaveAttribute('data-ll-level-view','level');
   await expect(page.locator('.ll-wordset-card[data-cat-id="15"]')).toBeHidden();
 });
 
-test('a completed curriculum highlights one global review while a learner with no due words gets Learn',async({page})=>{
-  const complete={total:10,mastered:10,working:0,new:0,studied:10,due:2,added:0,practice_category_id:2,due_category_id:2,days:90};
+test('complete and unfinished curricula expose actions without singling out a level or activity',async({page})=>{
+  const complete={total:10,mastered:10,working:0,new:0,studied:10,due:2,practice_category_id:2,due_category_id:2,days:90};
   await mount(page,{signed:true,summary:{due:2,review:{reason:'due',count:2,due:2},levels:{1:complete,2:{...complete,due:0,practice_category_id:15}}}});
-  await expect(page.locator('.is-suggested')).toHaveCount(1);
-  await expect(page.locator('.is-suggested')).toHaveAccessibleName('Review now · Due for review (2) · Words this round · 2');
+  await expect(page.locator('.is-suggested,.is-current')).toHaveCount(0);
+  await expect(page.locator('.ll-level-review-all')).toHaveAccessibleName('Review now · Due for review (2) · Words this round · 2');
   await expect(page.getByRole('img',{name:'Level mastered'})).toHaveCount(2);
   const nextPage=await page.context().newPage();
-  const active={...complete,total:20,mastered:12,working:4,new:4,due:0,practice_focus:true,near_completion:false,next_category_id:1};
-  await mount(nextPage,{signed:true,summary:{due:0,levels:{1:active,2:complete}}});
-  await expect(nextPage.locator('.is-suggested')).toHaveAccessibleName('Learn · Lesson 1');
+  const active={...complete,total:20,mastered:12,working:4,new:4,due:0,next_category_id:1};
+  await mount(nextPage,{signed:true,summary:{due:0,levels:{1:active,2:{...complete,practice_category_id:15,due_category_id:15}}}});
+  await expect(nextPage.getByRole('button',{name:'Learn · Lesson 1'})).toBeVisible();
+  await expect(nextPage.locator('.is-suggested,.is-current')).toHaveCount(0);
   await nextPage.close();
 });
 
@@ -444,7 +460,7 @@ test('one-word review and Repeat keep the exact target, then another level start
 test('per-level review uses server-assigned category ownership for overlapping words and remains in that level',async({page})=>{
   await instrumentQuiz(page);
   await mount(page,{signed:true,successful:true,overlap:true});
-  await page.getByRole('button',{name:'Practice · Level 1'}).click();
+  await page.getByRole('button',{name:'Practice · 2 words in progress · 1 learned word'}).click();
   await expect.poll(()=>page.evaluate(()=>window.launchedQuizzes)).toMatchObject([{mode:'practice',scope:1,ownership:{'1':[1001],'2':[2002]}}]);
   await showResults(page,'practice');
   await expect(page.getByRole('button',{name:'Continue Level 1'})).toBeVisible();
@@ -468,7 +484,7 @@ test('an answer-only prompt cannot take the place of the planned review word',as
 test('expired signed-in credentials leave browsing and a working reload available',async({page})=>{
   const reqs=await mount(page,{signed:true,expired:true});
   await expect(page.getByText('Reload this page to update your levels.')).toBeVisible();
-  await expect(page.getByRole('button',{name:'Start · Lesson 1'})).toBeVisible();
+  await expect(page.getByRole('button',{name:'Learn · Lesson 1'})).toHaveText('Lesson 1');
   await page.getByRole('button',{name:'Reload',exact:true}).click();
   await expect(page.locator('.ll-level-review-all')).toBeVisible();
   expect(reqs.filter(r=>r.operation==='summary')).toHaveLength(2);

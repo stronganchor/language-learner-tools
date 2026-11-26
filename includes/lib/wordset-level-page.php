@@ -69,10 +69,6 @@ function ll_tools_wordset_level_page_catalog(int $wordset_id, array $categories,
     ];
 }
 
-function ll_tools_wordset_level_default_days(int $level): int {
-    return $level <= 2 ? 90 : 30;
-}
-
 function ll_tools_wordset_level_intervals(int $user_id, int $wordset_id, array $levels) {
     global $wpdb;
     $wpdb->last_error = '';
@@ -84,7 +80,7 @@ function ll_tools_wordset_level_intervals(int $user_id, int $wordset_id, array $
     $days = [];
     foreach ($levels as $level) {
         $override = (int) ($settings[$wordset_id][$level] ?? 0);
-        $days[$level] = $override >= 1 && $override <= 365 ? $override : ll_tools_wordset_level_default_days((int) $level);
+        $days[$level] = $override >= 1 && $override <= 365 ? $override : 30;
     }
     return $days;
 }
@@ -192,8 +188,23 @@ function ll_tools_wordset_level_request(int $user_id, array $request) {
     if (!$payload || empty($payload['level_scope'])) {
         return new WP_Error('ll_level_scope_expired', __('Reload this page to update your levels.', 'll-tools-text-domain'), ['status' => 410]);
     }
-    if ($wordset_id <= 0 || $wordset_id !== (int) ($payload['wordset_id'] ?? 0) || $user_id !== (int) ($payload['user_id'] ?? 0)
-        || !ll_tools_wordset_page_category_search_payload_scope_is_current($wordset_id, (string) ($payload['access_signature'] ?? ''), $user_id)
+    if ($wordset_id <= 0 || $wordset_id !== (int) ($payload['wordset_id'] ?? 0) || $user_id !== (int) ($payload['user_id'] ?? 0)) {
+        return new WP_Error('ll_level_scope_changed', __('Reload this page to update your levels.', 'll-tools-text-domain'), ['status' => 403]);
+    }
+    // admin-ajax can run in a different language from the tab that issued this catalog.
+    $restore = ll_tools_flashcard_payload_enter_locale($payload['level_locale'] ?? determine_locale());
+    if (is_wp_error($restore)) {
+        return new WP_Error('ll_level_scope_expired', __('Reload this page to update your levels.', 'll-tools-text-domain'), ['status' => 410]);
+    }
+    try {
+        return ll_tools_wordset_level_request_in_scope($user_id, $wordset_id, $payload, $request);
+    } finally {
+        $restore();
+    }
+}
+
+function ll_tools_wordset_level_request_in_scope(int $user_id, int $wordset_id, array $payload, array $request) {
+    if (!ll_tools_wordset_page_category_search_payload_scope_is_current($wordset_id, (string) ($payload['access_signature'] ?? ''), $user_id)
         || empty($payload['level_policy']) || !hash_equals($payload['level_policy'], ll_tools_wordset_level_policy_signature($wordset_id))) {
         return new WP_Error('ll_level_scope_changed', __('Reload this page to update your levels.', 'll-tools-text-domain'), ['status' => 403]);
     }

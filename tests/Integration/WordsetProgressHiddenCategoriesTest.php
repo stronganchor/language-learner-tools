@@ -79,6 +79,7 @@ final class WordsetProgressHiddenCategoriesTest extends LL_Tools_TestCase
             ['summary_only' => true])['summary']['older_words']);
         update_term_meta($ws, 'll_wordset_category_ordering_mode', 'prerequisite');
         update_term_meta($ws, 'll_wordset_category_prerequisites', [$b => [$a]]);
+        ll_tools_wordset_level_save_interval($uid, $ws, 1, 90);
         ll_tools_wordset_level_save_interval($uid, $ws, 2, 7);
         $this->completeLlToolsSimulatedRequest();
         $due = ll_tools_wordset_level_analytics_due_lookup($ws, $uid);

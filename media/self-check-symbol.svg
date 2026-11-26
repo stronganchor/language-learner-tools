@@ -1,3 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" class="ll-quiz-mode-glyph" viewBox="0 0 24 24" width="1em" height="1em" aria-hidden="true" focusable="false">
-  <path d="m2.5 12.3 3.4 3.7L11 8M15 9l6.5 7m0-7L15 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="fill:none!important;stroke:currentColor!important"/>
+<svg xmlns="http://www.w3.org/2000/svg" class="ll-quiz-mode-glyph" viewBox="0 0 24 24" width="1em" height="1em" aria-hidden="true" focusable="false" stroke-linecap="round" stroke-linejoin="round">
+  <path d="m3 12.5 4.75 4.5L14.5 5.5" fill="none" stroke="currentColor" stroke-width="3.7" style="fill:none!important;stroke:currentColor!important"/>
+  <path d="m3 12.5 4.75 4.5L14.5 5.5" fill="none" stroke="#15803d" stroke-width="2.45" style="fill:none!important;stroke:#15803d!important"/>
+  <path d="m13 10.75 7.5 7.5m0-7.5-7.5 7.5" fill="none" stroke="currentColor" stroke-width="3.7" style="fill:none!important;stroke:currentColor!important"/>
+  <path d="m13 10.75 7.5 7.5m0-7.5-7.5 7.5" fill="none" stroke="#c64545" stroke-width="2.45" style="fill:none!important;stroke:#c64545!important"/>
 </svg>

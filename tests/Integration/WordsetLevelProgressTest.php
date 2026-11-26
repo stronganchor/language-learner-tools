@@ -41,9 +41,11 @@ final class WordsetLevelProgressTest extends LL_Tools_TestCase
         $dashboard = ll_tools_wordset_level_dashboard($ws, $uid, [1 => $members, 2 => $members], [1 => 7, 2 => 30]);
         $this->assertIsArray($dashboard);
         $this->assertSame(6, $dashboard['levels'][1]['total']);
+        $this->assertSame('', get_post_meta($ids[0], '_ll_level_published_at', true));
+        $this->assertSame('', get_post_meta($ids[0], '_ll_level_added_wordset_' . $ws, true));
         $this->assertSame(5, $dashboard['levels'][1]['new']);
         $this->assertSame(1, $dashboard['levels'][1]['working']);
-        $this->assertSame(6, $dashboard['levels'][1]['added']);
+        $this->assertArrayNotHasKey('added', $dashboard['levels'][1]);
         $this->assertSame(1, $dashboard['levels'][1]['due']);
         $this->assertSame(0, $dashboard['levels'][2]['due']);
         $this->assertSame(1, $dashboard['overall']['due']);
@@ -137,7 +139,7 @@ final class WordsetLevelProgressTest extends LL_Tools_TestCase
         $levels = [1 => [11 => [], 12 => ['practice_supported' => false]]];
         $plan = static function (array $progress, array $stars) use ($levels, $members, $now): array {
             return ll_tools_wordset_level_summarize(0, 0, $levels, $members, [], $progress, [1 => 30],
-                $now, [], [], array_fill_keys($stars, true))['overall'];
+                $now, [], array_fill_keys($stars, true))['overall'];
         };
         $working = $plan($rows, [3, 7]);
         $this->assertSame(['working', 1, 0], [$working['reason'], $working['count'], $working['due']]);
@@ -168,7 +170,7 @@ final class WordsetLevelProgressTest extends LL_Tools_TestCase
         $members = [11 => array_fill_keys(range(1, 8), $old), 12 => [3 => $old, 9 => $old, 10 => $old, 11 => $old, 12 => $today]];
         $level = ll_tools_wordset_level_summarize(0, 0, [1 => [11 => [], 12 => []]], $members, [12 => $old],
             $rows, [1 => 30], $now)['levels'][1];
-        $this->assertTrue($level['practice_focus']);
+        $this->assertArrayNotHasKey('label', $level['practice_activity']);
         $this->assertSame(12, $level['next_category_id']);
         $this->assertSame(12, $level['practice_category_id']);
         $this->assertSame([12, 10, 3], $level['practice_activity']['session_word_ids']);
@@ -183,6 +185,29 @@ final class WordsetLevelProgressTest extends LL_Tools_TestCase
         $this->assertContains(10, $early['practice_activity']['session_word_ids']);
         $this->assertSame([], array_intersect([4, 5, 6, 12], $early['practice_activity']['session_word_ids']));
         $this->assertNotSame(0, $early['next_category_id']);
+    }
+
+    public function test_mixed_lesson_practice_describes_the_exact_selected_words(): void
+    {
+        $now = time();
+        $last = gmdate('Y-m-d H:i:s', $now - DAY_IN_SECONDS);
+        $studied = ['total_coverage' => 1, 'last_seen_at' => $last];
+        $learned = $studied + ['mastery_unlocked' => 1, 'stage' => 5];
+        $members = [11 => array_fill_keys(range(1, 8), true), 12 => array_fill_keys(range(9, 20), true)];
+        $rows = array_fill_keys(range(1, 20), $learned);
+        $levels = [1 => [11 => [], 12 => []]];
+        $summary = ll_tools_wordset_level_summarize(0, 0, $levels, $members, [], $rows, [1 => 30], $now);
+        $practice = $summary['levels'][1]['practice_activity'];
+        $this->assertCount(12, $practice['session_word_ids']);
+        $this->assertSame('12 learned words', $practice['label']);
+
+        $rows[1] = $studied;
+        $rows[9] = $studied + ['incorrect' => 8];
+        unset($rows[20]);
+        $summary = ll_tools_wordset_level_summarize(0, 0, $levels, $members, [], $rows, [1 => 30], $now);
+        $practice = $summary['levels'][1]['practice_activity'];
+        $this->assertCount(4, $practice['session_word_ids']);
+        $this->assertSame('1 new word · 2 words in progress · 1 learned word', $practice['label']);
     }
 
     public function test_large_generation_checkpoints_250_ids_without_publishing_partial_counts(): void
@@ -203,14 +228,14 @@ final class WordsetLevelProgressTest extends LL_Tools_TestCase
         }
         $this->assertSame(251, $wpdb->query("INSERT INTO {$table}
             (scope_hash,generation,category_id,row_kind,row_id,sort_group,payload,updated_at) VALUES " . implode(',', $values)));
-        $first = ll_tools_wordset_level_project_generation($key, $hash, $generation, 2, 7);
+        $first = ll_tools_wordset_level_project_generation($key, $hash, $generation);
         $this->assertWPError($first);
         $this->assertSame('ll_level_progress_preparing', $first->get_error_code());
         $this->assertFalse(get_transient($key));
         $cursor = get_transient($key . '_p_' . substr($generation, 0, 20));
         $this->assertSame($id + 249, $cursor['cursor']);
         $this->assertArrayHasKey($id, $cursor['members']);
-        $final = ll_tools_wordset_level_project_generation($key, $hash, $generation, 2, 7);
+        $final = ll_tools_wordset_level_project_generation($key, $hash, $generation);
         $this->assertIsArray($final);
         $this->assertArrayHasKey($id, $final);
         $this->assertSame($final, get_transient($key));
@@ -237,7 +262,6 @@ final class WordsetLevelProgressTest extends LL_Tools_TestCase
         $first = ll_tools_wordset_level_summarize(0, 0, $levels, $members, $history, $progress, [1 => 5, 2 => 35], $now, [13 => true]);
         $one = $first['levels'][1];
         $this->assertSame([18, 1, 15, 2], [$one['total'], $one['mastered'], $one['working'], $one['new']]);
-        $this->assertSame(2, $one['added']);
         $this->assertSame(14, $one['next_category_id']);
         $this->assertSame(16, $first['overall']['due']);
         $this->assertCount(12, $first['overall']['activity']['session_word_ids']);
@@ -247,23 +271,6 @@ final class WordsetLevelProgressTest extends LL_Tools_TestCase
         $next = ll_tools_wordset_level_summarize(0, 0, $levels, $members, $history, $progress, [1 => 5, 2 => 35], $now);
         $this->assertSame(4, $next['overall']['due']);
         $this->assertSame([13, 14, 15, 16], $next['overall']['activity']['session_word_ids']);
-    }
-
-    public function test_releasing_a_lesson_counts_words_that_were_not_already_on_the_level(): void
-    {
-        $lesson = self::factory()->post->create(['post_type' => 'll_vocab_lesson', 'post_status' => 'publish']);
-        update_post_meta($lesson, LL_TOOLS_VOCAB_LESSON_PREVIEW_ONLY_META, '1');
-        $this->assertSame('', get_post_meta($lesson, '_ll_level_lesson_released_at', true));
-        delete_post_meta($lesson, LL_TOOLS_VOCAB_LESSON_PREVIEW_ONLY_META);
-        $released = get_post_meta($lesson, '_ll_level_lesson_released_at', true);
-        $this->assertNotEmpty($released);
-        $now = strtotime($released . ' UTC');
-        $studied = gmdate('Y-m-d H:i:s', $now - DAY_IN_SECONDS);
-        $old = gmdate('Y-m-d H:i:s', $now - 2 * DAY_IN_SECONDS);
-        $members = [11 => [3 => $old], 12 => [3 => $old, 4 => $old]];
-        $dashboard = ll_tools_wordset_level_summarize(0, 0, [1 => [11 => [], 12 => []]], $members,
-            [11 => $studied], [], [], $now, [], [12 => $released]);
-        $this->assertSame(1, $dashboard['levels'][1]['added']);
     }
 
     public function test_date_order_preserves_each_selected_words_category_across_levels(): void
@@ -280,42 +287,7 @@ final class WordsetLevelProgressTest extends LL_Tools_TestCase
         $this->assertSame([4 => 12, 3 => 11], $dashboard['levels'][1]['due_activity']['word_category_ids']);
     }
 
-    public function test_graph_changes_date_only_categories_entering_a_different_level(): void
-    {
-        $wordset = self::factory()->term->create(['taxonomy' => 'wordset']);
-        $categories = [];
-        for ($i = 0; $i < 5; ++$i) {
-            $category = self::factory()->term->create(['taxonomy' => 'word-category']);
-            ll_tools_set_category_wordset_owner($category, $wordset);
-            $categories[] = $category;
-        }
-        [$root, $middle, $leaf, $reference, $new_root] = $categories;
-        $initial = [$middle => [$root], $leaf => [$middle], $reference => [$root]];
-        update_term_meta($wordset, 'll_wordset_category_ordering_mode', 'prerequisite');
-        update_term_meta($wordset, 'll_wordset_category_prerequisites', $initial);
-        ll_tools_wordset_level_record_graph_changes();
-        $this->assertSame([], ll_tools_wordset_level_entry_dates($wordset, $categories));
-
-        $changed = $initial + [$root => [$new_root]];
-        unset($changed[$reference]);
-        update_term_meta($wordset, 'll_wordset_category_prerequisites', $changed);
-        ll_tools_wordset_level_record_graph_changes();
-        $entries = ll_tools_wordset_level_entry_dates($wordset, $categories);
-        $this->assertArrayHasKey($reference, $entries[1]);
-        $this->assertArrayHasKey($root, $entries[2]);
-        $this->assertArrayHasKey($middle, $entries[3]);
-        $this->assertArrayHasKey($leaf, $entries[4]);
-        $this->assertArrayNotHasKey($new_root, $entries[1]);
-
-        // A multi-setting save that rolls back must preserve the previous date.
-        update_term_meta($middle, '_ll_level_entry_' . $wordset, '3|2020-01-01 00:00:00');
-        update_term_meta($wordset, 'll_wordset_category_prerequisites', $initial);
-        update_term_meta($wordset, 'll_wordset_category_prerequisites', $changed);
-        ll_tools_wordset_level_record_graph_changes();
-        $this->assertSame('2020-01-01 00:00:00', ll_tools_wordset_level_entry_dates($wordset, $categories)[3][$middle]);
-    }
-
-    public function test_clones_and_imports_keep_their_own_availability_dates(): void
+    public function test_clones_and_imports_leave_legacy_notification_metadata_local(): void
     {
         require_once LL_TOOLS_BASE_PATH . 'includes/admin/export-import.php';
         $source = self::factory()->post->create();

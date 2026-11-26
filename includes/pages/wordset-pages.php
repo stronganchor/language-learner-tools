@@ -27242,6 +27242,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
         if ($is_study_user && $level_catalog) {
             $category_search_payload['level_scope'] = $level_catalog['scope'];
             $category_search_payload['level_policy'] = ll_tools_wordset_level_policy_signature($wordset_id);
+            $category_search_payload['level_locale'] = determine_locale();
         }
         if ($category_search_user_id <= 0 && !empty($category_search_category_ids)) {
             $category_epoch = function_exists('ll_tools_get_category_cache_epoch')

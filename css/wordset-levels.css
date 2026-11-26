@@ -16,35 +16,31 @@
     margin-inline: auto;
     padding-right: var(--ll-wordset-grid-right-offset, 0px);
     margin-block-end: 1rem;
-    color: #172b3a;
+    color: var(--ll-wp-text);
 }
 .ll-wordset-page.ll-wordset-page--single-category [data-ll-wordset-levels] { padding-right: 0; }
 .ll-level-grid {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
-    gap: .7rem;
+    gap: clamp(18px, 2vw, 24px);
     container: ll-level-catalog / inline-size;
 }
 .ll-wordset-page .ll-level-card {
     box-sizing: border-box;
     position: relative;
     min-width: 0;
-    padding: .9rem 1rem;
-    border: 1px solid #ccd8df;
-    border-radius: 13px;
-    background: #fff;
-    color: #172b3a;
-}
-.ll-wordset-page .ll-level-card.is-current {
-    border-color: #c8a35a;
-    box-shadow: inset 3px 0 #dca335;
+    padding: .9rem 1rem .3rem;
+    border: 2px solid var(--ll-wp-border);
+    border-radius: 18px;
+    background: var(--ll-wp-card);
+    color: var(--ll-wp-text);
+    box-shadow: 0 8px 18px rgba(46, 42, 36, .08);
 }
 .ll-level-row {
     display: grid;
     align-items: center;
-    grid-template-columns: minmax(0, .9fr) minmax(0, 2fr);
-    gap: 1.15rem;
-    padding-inline-end: 3rem;
+    grid-template-columns: minmax(0, .72fr) minmax(0, 2fr);
+    gap: 1rem;
 }
 .ll-level-card-head, .ll-level-badges, .ll-level-nav, .ll-level-state {
     display: flex;
@@ -75,10 +71,10 @@
     max-width: 100%;
     margin: 0;
     padding: .45rem .72rem;
-    border: 1px solid #bbccd7;
+    border: 1px solid var(--ll-wp-border);
     border-radius: 9px;
-    background: #fff;
-    color: #1b4058;
+    background: var(--ll-wp-card);
+    color: var(--ll-wp-text);
     box-shadow: none;
     font: inherit;
     font-size: .9rem;
@@ -90,14 +86,14 @@
     text-decoration: none;
     cursor: pointer;
 }
-.ll-wordset-page .ll-level-button:hover, .ll-wordset-page summary.ll-level-details-toggle:hover {
-    border-color: #92aaba;
-    background: #eff5f8;
-    color: #173e57;
+.ll-wordset-page .ll-level-button:hover {
+    border-color: var(--ll-wp-accent);
+    background: var(--ll-wp-bg-accent);
+    color: var(--ll-wp-accent);
 }
 .ll-wordset-page .ll-level-button:focus-visible, .ll-wordset-page .ll-level-details-toggle:focus-visible,
 .ll-wordset-page .ll-level-interval input:focus-visible {
-    outline: 3px solid #2463a1;
+    outline: 3px solid var(--ll-wp-accent);
     outline-offset: 2px;
 }
 .ll-level-glyph, .ll-level-status-icon, .ll-level-status-icon > svg {
@@ -107,7 +103,6 @@
     height: 1.05rem;
 }
 .ll-level-glyph { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-.ll-level-glyph--more { stroke-width: 3.7; }
 .ll-wordset-page .ll-level-open {
     justify-content: flex-start;
     min-height: 44px;
@@ -143,39 +138,35 @@
     background: transparent;
 }
 .ll-level-due-button:hover .ll-level-overdue { border-color: var(--ll-wp-pill-purple-text); }
-.ll-level-added { color: #72500b; background: #fff4d2; border-color: #e9d89e; }
-.ll-level-complete { width: 1.65rem; height: 1.65rem; background: #e3f3e9; color: #18603e; }
+.ll-level-complete { width: 1.65rem; height: 1.65rem; background: var(--ll-wp-pill-green); color: var(--ll-wp-pill-green-text); }
 .ll-level-complete svg { stroke-width: 2.5; }
-.ll-level-progress-count { display: block; color: #445969; font-size: .84rem; line-height: 1.45; font-variant-numeric: tabular-nums; }
-.ll-level-track { display: flex; overflow: hidden; height: .45rem; margin-bottom: .68rem; border-radius: 10px; background: #e7edf0; }
+.ll-level-progress-count { display: block; color: var(--ll-wp-muted); font-size: .84rem; line-height: 1.45; font-variant-numeric: tabular-nums; }
+.ll-level-track { display: flex; overflow: hidden; height: .45rem; margin-bottom: .68rem; border-radius: 10px; background: var(--ll-wp-pill-slate); }
 .ll-level-track > span { flex-basis: 0; }
-.ll-level-track-mastered { background: #258158; }
-.ll-level-track-working { background: #548cc4; }
-.ll-level-track-new { background: #e7edf0; }
-.ll-level-activities { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr)); gap: .5rem; }
+.ll-level-track-mastered { background: var(--ll-wp-pill-green-text); }
+.ll-level-track-working { background: var(--ll-wp-pill-blue-text); }
+.ll-level-track-new { background: var(--ll-wp-pill-slate); }
+.ll-level-activities { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); gap: .65rem; }
 .ll-wordset-page .ll-level-activity {
     container: ll-level-action / inline-size;
+    --ll-level-image-size: 3.5rem;
     min-width: 0;
     min-height: 76px;
     justify-content: flex-start;
     padding: .45rem .6rem;
     gap: .6rem;
 }
-.ll-wordset-page .ll-level-activity:only-child { width: min(100%, 20rem); justify-self: start; }
-.ll-wordset-page .ll-level-activity.is-suggested { background: #175779; border-color: #175779; color: #fff; }
-.ll-wordset-page .ll-level-activity.is-suggested:hover { background: #123f5b; border-color: #123f5b; color: #fff; }
+.ll-wordset-page .ll-level-activity:only-child { width: min(100%, 22rem); justify-self: start; }
 .ll-level-thumbs { display: inline-flex; align-items: center; gap: .2rem; flex: 0 0 auto; }
 .ll-wordset-page .ll-level-thumb {
     flex: 0 0 auto;
-    width: 3.5rem;
-    height: 3.5rem;
+    width: var(--ll-level-image-size);
+    height: var(--ll-level-image-size);
     max-width: none;
     object-fit: cover;
     border-radius: 6px;
-    background: #fff;
+    background: var(--ll-wp-card);
 }
-.ll-level-action-text { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; overflow-wrap: anywhere; }
-.ll-level-action-mode { display: inline-flex; align-items: center; gap: .32rem; font-size: .8rem; font-weight: 550; }
 .ll-level-mode-icon, .ll-level-mode-icon svg {
     display: inline-flex;
     align-items: center;
@@ -189,8 +180,14 @@
     content: attr(data-emoji);
     font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", system-ui, sans-serif;
 }
-.ll-level-action-name { font-size: .96rem; font-weight: 700; }
-.ll-level-activity > .ll-level-glyph--forward { margin-inline-start: auto; }
+.ll-level-action-name { min-width: 0; overflow-wrap: anywhere; font-size: .96rem; font-weight: 650; }
+.ll-level-activity > .ll-level-mode-icon {
+    width: var(--ll-level-image-size);
+    height: var(--ll-level-image-size);
+    margin-inline-start: auto;
+    font-size: var(--ll-level-image-size);
+}
+.ll-level-activity > .ll-level-mode-icon svg { width: 100%; height: 100%; }
 .ll-wordset-page .ll-level-review-all {
     justify-content: flex-start;
     gap: .75rem;
@@ -204,8 +201,7 @@
 .ll-level-review-reason { font-size: .82rem; font-weight: 500; }
 .ll-level-round-size { display: grid; gap: .1rem; margin-inline-start: auto; padding-inline-start: .7rem; border-inline-start: 1px solid var(--ll-level-tint); font-size: .82rem; font-weight: 500; }
 .ll-level-review-copy strong, .ll-level-round-size strong { font-size: .94rem; }
-.ll-wordset-page .ll-level-review-all.is-suggested { box-shadow: inset 3px 0 var(--ll-level-ink); }
-.ll-level-metric-practice { --ll-level-tint: #e9f1f6; --ll-level-ink: #24465e; }
+.ll-level-metric-practice { --ll-level-tint: var(--ll-wp-bg-accent); --ll-level-ink: var(--ll-wp-accent); }
 .ll-level-metric-mastered { --ll-level-tint: var(--ll-wp-pill-green); --ll-level-ink: var(--ll-wp-pill-green-text); }
 .ll-level-metric-studied { --ll-level-tint: var(--ll-wp-pill-blue); --ll-level-ink: var(--ll-wp-pill-blue-text); }
 .ll-level-metric-new { --ll-level-tint: var(--ll-wp-pill-slate); --ll-level-ink: var(--ll-wp-pill-slate-text); }
@@ -226,55 +222,67 @@
 .ll-level-daily-icon.ll-wordset-progress-star-glyph-icon::before { width: 1.05rem; height: 1.05rem; }
 .ll-level-detail-header { display: flex; align-items: center; flex-wrap: wrap; justify-content: space-between; gap: .5rem; }
 .ll-wordset-page .ll-level-detail-title { font-size: .98rem; }
+.ll-level-details { position: relative; margin-top: .35rem; padding-bottom: 44px; }
 .ll-wordset-page summary.ll-level-details-toggle {
     position: absolute;
-    inset-block-start: 1.9rem;
-    inset-inline-end: .65rem;
-    width: 44px;
+    inset: auto 0 0;
+    width: 4.5rem;
     height: 44px;
+    margin-inline: auto;
     padding: 0;
     list-style: none;
     background: transparent;
     border-color: transparent;
-    color: #4c6273;
+    color: var(--ll-wp-accent);
+}
+.ll-level-details-toggle .ll-level-glyph {
+    box-sizing: content-box;
+    width: 1.5rem;
+    height: 1.3rem;
+    padding: .15rem .85rem;
+    border: 1px solid var(--ll-wp-border);
+    border-radius: 99px;
+    background: var(--ll-wp-bg);
+    stroke-width: 2.2;
+}
+.ll-level-details-toggle:hover .ll-level-glyph, .ll-level-details-toggle:focus-visible .ll-level-glyph {
+    border-color: var(--ll-wp-accent);
+    background: var(--ll-wp-bg-accent);
 }
 .ll-level-details-toggle::-webkit-details-marker { display: none; }
-.ll-level-details[open] > .ll-level-details-toggle { background: #eff4f7; color: #1d4055; }
-.ll-level-detail-panel { margin-top: .85rem; padding: .85rem .15rem .15rem; border-top: 1px solid #dce5e9; }
+.ll-level-details[open] > .ll-level-details-toggle .ll-level-glyph { transform: rotate(180deg); }
+.ll-level-detail-panel { margin-top: .85rem; padding: .85rem .15rem .15rem; border-top: 1px solid var(--ll-wp-border); }
 .ll-level-facts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .7rem 1rem; margin: .7rem 0; }
-.ll-level-fact dt { margin: 0; color: #506272; font-size: .82rem; font-weight: 500; }
-.ll-level-fact dd { margin: 0; color: #243d4e; font-size: .95rem; font-weight: 650; }
+.ll-level-fact dt { margin: 0; color: var(--ll-wp-muted); font-size: .82rem; font-weight: 500; }
+.ll-level-fact dd { margin: 0; color: var(--ll-wp-text); font-size: .95rem; font-weight: 650; }
 .ll-level-fact .ll-level-stat-value { gap: .3rem; padding: .2rem .5rem; font-variant-numeric: tabular-nums; }
-.ll-level-interval { display: inline-flex; align-items: center; gap: .6rem; margin: .4rem 0; font-size: .9rem; }
-.ll-wordset-page .ll-level-interval input { max-width: 5rem; min-height: 44px; padding: .35rem; border: 1px solid #a6b8c5; border-radius: 6px; background: #fff; color: #173750; font: inherit; }
+.ll-level-interval { display: grid; gap: .3rem; margin: 1rem 0 .4rem; font-size: .9rem; }
+.ll-level-interval-label { color: var(--ll-wp-text); font-weight: 600; }
+.ll-level-interval-value { display: flex; align-items: center; flex-wrap: wrap; gap: .45rem; }
+.ll-level-interval-help { color: var(--ll-wp-muted); font-size: .84rem; }
+.ll-wordset-page .ll-level-interval input { width: 4.5rem; min-height: 44px; padding: .35rem .5rem; border: 1px solid var(--ll-wp-border); border-radius: 6px; background: var(--ll-wp-card); color: var(--ll-wp-text); font: inherit; }
 .ll-level-save, .ll-level-notice { font-size: .85rem; }
 .ll-level-save { margin-inline-start: .45rem; }
 .ll-level-state { padding: .45rem 0; }
 .ll-wordset-page .ll-level-more { margin: .8rem auto; }
-.ll-wordset-page .ll-wordset-level-badge { display:inline-block; margin:.16rem .26rem; padding:.12rem .45rem; border-radius:2rem; color:#24465e; background:#e9f0f5; font:600 .75rem/1.45 system-ui,sans-serif; white-space:nowrap; letter-spacing:normal; text-transform:none; }
+.ll-wordset-page .ll-wordset-level-badge { display:inline-block; margin:.16rem .26rem; padding:.12rem .45rem; border-radius:2rem; color:var(--ll-wp-accent); background:var(--ll-wp-bg-accent); font:600 .75rem/1.45 var(--ll-wp-font-sans); white-space:nowrap; letter-spacing:normal; text-transform:none; }
 
-@container ll-level-catalog (max-width: 39rem) {
-    .ll-level-row { grid-template-columns: minmax(0, 1fr); gap: .7rem; padding-inline-end: 0; }
-    .ll-level-card-head { padding-inline-end: 2.7rem; }
+@container ll-level-catalog (max-width: 44rem) {
+    .ll-level-row { grid-template-columns: minmax(0, 1fr); gap: .7rem; }
     .ll-level-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @container ll-level-catalog (max-width: 29rem) {
     .ll-level-activities { grid-template-columns: minmax(0, 1fr); }
-    .ll-wordset-page .ll-level-activity { min-height: 58px; }
-    .ll-wordset-page .ll-level-thumb { width: 2.4rem; height: 2.4rem; }
+    .ll-wordset-page .ll-level-activity { --ll-level-image-size: 2.4rem; min-height: 58px; }
 }
-@container ll-level-action (min-width: 13.51rem) and (max-width: 17rem) {
-    .ll-wordset-page .ll-level-thumb { width: 2.85rem; height: 2.85rem; }
+@container ll-level-action (max-width: 18rem) {
+    .ll-wordset-page .ll-level-thumb, .ll-level-activity > .ll-level-mode-icon { --ll-level-image-size: 2.4rem; }
 }
-@container ll-level-action (max-width: 13.5rem) {
+@container ll-level-action (max-width: 13rem) {
     .ll-level-thumb + .ll-level-thumb { display: none; }
 }
 @container ll-level-section (max-width: 23rem) {
     .ll-wordset-page .ll-level-review-all { width: 100%; gap: .45rem; padding: .5rem; }
-}
-@media (prefers-reduced-motion: no-preference) {
-    .ll-level-nudge > .ll-level-glyph--forward { animation: ll-level-nudge-arrow .8s ease-in-out .35s 2; }
-    @keyframes ll-level-nudge-arrow { 0%, 100% { transform: translateX(0); } 45% { transform: translateX(3px); } }
 }
 @media (forced-colors: active) {
     .ll-level-badge, .ll-level-track > span { border: 1px solid CanvasText; }

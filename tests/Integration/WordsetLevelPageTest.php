@@ -13,7 +13,7 @@ final class WordsetLevelPageTest extends LL_Tools_TestCase
         ll_tools_set_category_wordset_owner($category, $wordset);
         wp_set_current_user($learner->ID);
         $levels = [1, 2, 3];
-        $this->assertSame([1 => 90, 2 => 90, 3 => 30], ll_tools_wordset_level_intervals($learner->ID, $wordset, $levels));
+        $this->assertSame([1 => 30, 2 => 30, 3 => 30], ll_tools_wordset_level_intervals($learner->ID, $wordset, $levels));
         $token = ll_tools_wordset_page_store_category_search_payload([
             'user_id' => $learner->ID, 'wordset_id' => $wordset,
             'access_signature' => ll_tools_wordset_page_category_search_payload_access_signature($wordset, $learner->ID),
@@ -22,8 +22,8 @@ final class WordsetLevelPageTest extends LL_Tools_TestCase
         ]);
         $request = ['operation' => 'interval', 'wordset_id' => $wordset, 'token' => $token, 'days' => 21, 'level' => 3];
         $this->assertSame(['level' => 3, 'days' => 21], ll_tools_wordset_level_request($learner->ID, $request));
-        $this->assertSame(['level' => 1, 'days' => 120], ll_tools_wordset_level_request($learner->ID, array_merge($request, ['days' => 120, 'level' => 1])));
-        $this->assertSame([1 => 120, 2 => 90, 3 => 21], ll_tools_wordset_level_intervals($learner->ID, $wordset, $levels));
+        $this->assertSame(['level' => 1, 'days' => 90], ll_tools_wordset_level_request($learner->ID, array_merge($request, ['days' => 90, 'level' => 1])));
+        $this->assertSame([1 => 90, 2 => 30, 3 => 21], ll_tools_wordset_level_intervals($learner->ID, $wordset, $levels));
         $this->assertSame([3 => 30], ll_tools_wordset_level_intervals($learner->ID, $second, [3]));
         $this->assertSame([3 => 30], ll_tools_wordset_level_intervals($other, $wordset, [3]));
         $this->assertSame('ll_level_unknown', ll_tools_wordset_level_request($learner->ID, array_merge($request, ['level' => 2]))->get_error_code());

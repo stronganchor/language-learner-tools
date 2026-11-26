@@ -1,3 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" class="ll-quiz-mode-glyph" viewBox="0 0 24 24" width="1em" height="1em" aria-hidden="true" focusable="false">
-  <path d="M3.25 14.5v-3.15a8.75 8.75 0 0 1 17.5 0v3.15M5.35 12H7a1.2 1.2 0 0 1 1.2 1.2v5.55A1.25 1.25 0 0 1 7 20H5.35a2.1 2.1 0 0 1-2.1-2.1v-3.8a2.1 2.1 0 0 1 2.1-2.1ZM18.65 12H17a1.2 1.2 0 0 0-1.2 1.2v5.55A1.25 1.25 0 0 0 17 20h1.65a2.1 2.1 0 0 0 2.1-2.1v-3.8a2.1 2.1 0 0 0-2.1-2.1Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="fill:none!important;stroke:currentColor!important"/>
+<svg xmlns="http://www.w3.org/2000/svg" class="ll-quiz-mode-glyph" viewBox="0 0 24 24" width="1em" height="1em" aria-hidden="true" focusable="false" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M3.35 15v-3.6a8.65 8.65 0 1 1 17.3 0V15" fill="none" stroke="currentColor" stroke-width="3.1" style="fill:none!important;stroke:currentColor!important"/>
+  <path d="M3.35 15v-3.6a8.65 8.65 0 1 1 17.3 0V15" fill="none" stroke="#c7983f" stroke-width="1.6" style="fill:none!important;stroke:#c7983f!important"/>
+  <path d="M5.4 11.6h1.45c.9 0 1.55.7 1.55 1.55v6.1c0 .85-.65 1.55-1.55 1.55H5.4a2.55 2.55 0 0 1-2.55-2.55v-4.1A2.55 2.55 0 0 1 5.4 11.6Zm13.2 0h-1.45c-.9 0-1.55.7-1.55 1.55v6.1c0 .85.65 1.55 1.55 1.55h1.45a2.55 2.55 0 0 0 2.55-2.55v-4.1a2.55 2.55 0 0 0-2.55-2.55Z" fill="#e7b952" stroke="currentColor" stroke-width="1.4" style="fill:#e7b952!important;stroke:currentColor!important"/>
 </svg>

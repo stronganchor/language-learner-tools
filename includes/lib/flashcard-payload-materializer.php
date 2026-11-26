@@ -348,7 +348,7 @@ function ll_tools_flashcard_payload_normalize_locale($locale): string {
  */
 function ll_tools_flashcard_payload_enter_locale(string $locale) {
     $locale = ll_tools_flashcard_payload_normalize_locale($locale);
-    if ($locale === get_locale()) {
+    if ($locale === get_locale() && $locale === determine_locale()) {
         return static function (): void {};
     }
 

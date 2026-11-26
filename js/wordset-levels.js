@@ -5,10 +5,9 @@
     const batch = 12;
     const paths = {
         repeat: 'M19 10a7 7 0 1 0-1 7M19 4v6h-6',
-        bell: 'M5 17h14l-2-3V9a5 5 0 0 0-10 0v5ZM10 20h4',
         back: 'm12 5-7 7 7 7M5 12h15',
         forward: 'M4 12h15m-6-6 6 6-6 6',
-        more: 'M4 12h.1M12 12h.1M20 12h.1',
+        chevron: 'm3 8 9 9 9-9',
         check: 'm4 12 5 5L20 6'
     };
 
@@ -56,7 +55,6 @@
         const wordset = options.wordsetId;
         const panels = new Set();
         const saves = new Map();
-        const suggestedActionsShown = new Set();
         let state = readState(history.state);
         let summary = null;
         let fetchError = false;
@@ -348,8 +346,10 @@
             const stats = summary && summary.levels[group.level];
             const planned = stats && plan === 'practice' && stats.practice_activity;
             const severalLessons = !fallback && planned && Array.isArray(planned.category_ids) && planned.category_ids.length > 1;
-            const name = severalLessons ? label(group.level) : (item && (item.name || item.translation) || '');
-            const verb = plan === 'learn' ? (fallback ? t.start : t.learn) : t.practice;
+            const name = severalLessons
+                ? (planned.label || [t.words,planned.session_word_ids?.length].filter(Boolean).join(' · '))
+                : (item && (item.name || item.translation) || '');
+            const verb = plan === 'learn' ? t.learn : t.practice;
             const text = name ? verb + ' · ' + name : verb;
             const btn = button(text,'ll-level-activity',null,() => {
                 announce('');
@@ -377,13 +377,8 @@
                     updateButtonThumbnails(btn);
                 }
             }
-            const body = element('span','ll-level-action-text');
-            const mode = element('span','ll-level-action-mode');
-            mode.insertAdjacentHTML('beforeend',options.modeIcon(plan === 'learn' ? 'learning' : 'practice','ll-level-mode-icon'));
-            mode.append(document.createTextNode(verb));
-            body.append(mode);
-            if (name) body.append(element('span','ll-level-action-name',name));
-            btn.append(body,icon('forward'));
+            if (name) btn.append(element('span','ll-level-action-name',name));
+            btn.insertAdjacentHTML('beforeend',options.modeIcon(plan === 'learn' ? 'learning' : 'practice','ll-level-mode-icon'));
             return btn;
         }
         function levelDueButton(level, stats, focusKey) {
@@ -422,7 +417,7 @@
             heading.title = t.stats + ' · ' + label(level);
             heading.setAttribute('aria-label',heading.title);
             heading.dataset.llFocusKey = 'stats-' + level;
-            heading.append(icon('more'));
+            heading.append(icon('chevron'));
             info.append(heading);
             info.addEventListener('toggle',() => {
                 if (!info.isConnected) return;
@@ -447,14 +442,21 @@
                 if (stats.hard !== undefined) addStat(list,t.hard,stats.hard,'hard');
                 if (Number(stats.due) > 0) addStat(list,t.dueLabel,levelDueButton(level,stats,'detail-due-'));
                 else addStat(list,t.dueLabel,stats.due,'older');
-                addStat(list,t.addedLabel,stats.added);
                 addStat(list,t.lastStudy,studyDate(stats.last_studied_at));
             }
             panel.append(list);
             if (stats && options.signedIn) {
                 const pending = saves.get(level);
-                const wrap = element('label','ll-level-interval',t.interval);
+                const wrap = element('div','ll-level-interval');
+                const fieldLabel = element('label','ll-level-interval-label',t.interval);
+                const unit = element('span','',t.days);
+                const help = element('span','ll-level-interval-help',t.intervalHelp);
                 const field = element('input');
+                field.id = 'll-level-interval-' + wordset + '-' + level;
+                fieldLabel.htmlFor = field.id;
+                unit.id = field.id + '-unit';
+                help.id = field.id + '-help';
+                field.setAttribute('aria-describedby',unit.id + ' ' + help.id);
                 field.type = 'number'; field.min = '1'; field.max = '365'; field.step = '1';
                 field.inputMode = 'numeric'; field.dataset.llFocusKey = 'interval-' + level;
                 field.value = String(pending ? pending.value : stats.days);
@@ -462,11 +464,14 @@
                     if (!field.value || !field.reportValidity()) return;
                     saveDays(level,Number(field.value));
                 });
-                wrap.append(field);
+                const value = element('span','ll-level-interval-value');
+                value.append(field,unit);
                 const feedback = element('span','ll-level-save',pending ? pending.status : '');
                 feedback.dataset.llLevelSave = String(level);
                 feedback.setAttribute('role','status');
-                panel.append(wrap,feedback);
+                value.append(feedback);
+                wrap.append(fieldLabel,value,help);
+                panel.append(wrap);
                 if (pending && pending.status === t.saveError) {
                     const retry = button(t.retry,'ll-level-retry','repeat',() => saveDays(level,pending.value));
                     retry.append(document.createTextNode(t.retry)); panel.append(retry);
@@ -491,15 +496,7 @@
             } else { bar.setAttribute('aria-hidden','true'); }
             return bar;
         }
-        function emphasize(button) {
-            button.classList.add('is-suggested');
-            const key = [button.dataset.level,button.dataset.llLevelAction,button.dataset.category].join('-');
-            if ((!options.signedIn || summary) && !suggestedActionsShown.has(key)) {
-                suggestedActionsShown.add(key);
-                button.classList.add('ll-level-nudge');
-            }
-        }
-        function card(group,current) {
+        function card(group) {
             const id = Number(group.level);
             const stats = summary && summary.levels && summary.levels[id];
             const shell = element('article','ll-level-card');
@@ -517,12 +514,6 @@
             row.append(overview);
             shell.append(progressBar(stats),row);
             const badges = element('div','ll-level-badges');
-            if (id === current) {
-                shell.classList.add('is-current');
-                shell.setAttribute('aria-current','step');
-                shell.setAttribute('aria-label',label(id) + ' · ' + t.current);
-                open.title += ' · ' + t.current;
-            }
             if (stats && Number(stats.total) > 0 && Number(stats.mastered) === Number(stats.total)) {
                 const check = element('span','ll-level-complete');
                 check.setAttribute('role','img');
@@ -534,12 +525,6 @@
             if (stats && Number(stats.due) > 0) {
                 badges.append(levelDueButton(id,stats,'due-'));
             }
-            if (stats && Number(stats.added) > 0) {
-                const newText = t.added.replace(/%d/g,stats.added);
-                const marker = element('span','ll-level-badge ll-level-added');
-                marker.title = newText; marker.setAttribute('aria-label',newText); marker.setAttribute('role','img');
-                marker.append(icon('bell'),element('span','',stats.added)); badges.append(marker);
-            }
             if (badges.childElementCount) head.append(badges);
             const number = value => Number(value).toLocaleString(document.documentElement.lang || undefined);
             const progress = stats && Number(stats.total) > 0
@@ -548,22 +533,13 @@
             overview.append(element('span','ll-level-progress-count',progress));
             const actions = element('div','ll-level-activities');
             if (stats) {
-                if (stats.practice_category_id) actions.append(action(group,'practice',Number(stats.practice_category_id)));
                 if (stats.next_category_id) actions.append(action(group,'learn',Number(stats.next_category_id)));
+                if (stats.practice_category_id) actions.append(action(group,'practice',Number(stats.practice_category_id)));
             }
             if (!actions.childElementCount && (group.nextId || group.practiceId)) {
                 actions.append(action(group,group.nextId ? 'learn' : 'practice',Number(group.nextId || group.practiceId),true));
             }
-            if (actions.childElementCount) {
-                if (id === current) {
-                    const focusPractice = stats && stats.practice_focus && (stats.near_completion || !stats.next_category_id);
-                    const next = (focusPractice && actions.querySelector('[data-ll-level-action="practice"]')) ||
-                        actions.querySelector('[data-ll-level-action="learn"]') || actions.firstElementChild;
-                    if (next !== actions.firstElementChild) actions.prepend(next);
-                    emphasize(next);
-                }
-                row.append(actions);
-            }
+            if (actions.childElementCount) row.append(actions);
             shell.append(detail(group,stats));
             return shell;
         }
@@ -589,18 +565,9 @@
                     fragment.append(status);
                 }
                 const grid = element('div','ll-level-grid');
-                const rows = Array.from(groups.values());
-                const current = !summary ? (!options.signedIn && rows.find(row => row.nextId || row.practiceId)) : rows.find(row => {
-                    const stat = summary.levels[row.level];
-                    return stat && (Number(stat.new) > 0 || Number(stat.working) > 0) &&
-                        (stat.next_category_id || stat.practice_category_id || stat.due_category_id || row.nextId || row.practiceId);
-                });
                 const review = summary && dailyReview(summary.review);
-                if (review) {
-                    if (!current) emphasize(review);
-                    fragment.append(review);
-                }
-                groups.forEach(group => grid.append(card(group,current && Number(current.level))));
+                if (review) fragment.append(review);
+                groups.forEach(group => grid.append(card(group)));
                 fragment.append(grid);
             } else {
                 const nav = element('div','ll-level-nav');
@@ -748,7 +715,7 @@
             if (previous.view === 'level' && state.view === 'home') {
                 section.querySelector('[data-ll-focus-key="browse-' + previous.level + '"]')?.focus({preventScroll:true});
             } else if (state.view === 'search' && input) input.focus({preventScroll:true});
-            else section.querySelector('[data-ll-level-focus], [aria-current="step"] .ll-level-open, .ll-level-open')?.focus({preventScroll:true});
+            else section.querySelector('[data-ll-level-focus], .ll-level-open')?.focus({preventScroll:true});
         });
         function resumeSummary() {
             if (document.hidden || !options.signedIn || credentialsExpired || request || refreshTimer) return;

@@ -3,6 +3,62 @@ declare(strict_types=1);
 
 final class WordsetPageDeferredStudyCatalogResourceTest extends LL_Tools_TestCase
 {
+    public function test_level_summary_uses_the_rendered_pages_locale_when_the_staff_dashboard_is_english(): void
+    {
+        global $wpdb;
+        ll_tools_install_user_progress_schema();
+        $minimum = static function (): int { return 1; };
+        $turkish_site = static function (): string { return 'tr_TR'; };
+        add_filter('ll_tools_quiz_min_words', $minimum);
+        try {
+            $fixture = $this->createWordsetFixture(3);
+            $wordset = $fixture['wordset_id'];
+            $categories = $fixture['category_ids'];
+            update_term_meta($wordset, 'll_wordset_category_ordering_mode', 'prerequisite');
+            update_term_meta($wordset, 'll_wordset_category_prerequisites', [$categories[2] => [$categories[0]]]);
+            $user_id = self::factory()->user->create(['role' => 'administrator']);
+            update_user_meta($user_id, 'locale', 'en_US');
+            update_user_meta($user_id, LL_TOOLS_PUBLIC_LOCALE_META, 'tr_TR');
+            wp_set_current_user($user_id);
+            $now = current_time('mysql', true);
+            foreach (array_slice($categories, 0, 2) as $category) {
+                $word = self::factory()->post->create(['post_type' => 'words', 'post_status' => 'publish']);
+                update_post_meta($word, 'word_translation', 'Translation ' . $word);
+                wp_set_post_terms($word, [$wordset], 'wordset');
+                wp_set_post_terms($word, [$category], 'word-category');
+                $this->assertNotFalse($wpdb->insert(ll_tools_user_progress_table_names()['words'], [
+                    'user_id' => $user_id, 'word_id' => $word, 'category_id' => $category, 'wordset_id' => $wordset,
+                    'last_seen_at' => $now, 'first_seen_at' => $now, 'updated_at' => $now, 'total_coverage' => 1,
+                ]));
+            }
+            $this->completeLlToolsSimulatedRequest();
+            set_current_screen('front');
+            $this->assertSame('tr_TR', determine_locale());
+            $this->renderWordsetView($wordset, '');
+            $token = $this->extractLocalizedConfig()['curriculumLevels']['token'];
+            $this->assertSame('tr_TR', ll_tools_wordset_page_get_category_search_payload($token)['level_locale']);
+
+            // admin-ajax uses the staff preference, even on a site whose own language is Turkish.
+            set_current_screen('dashboard');
+            add_filter('locale', $turkish_site, 1);
+            $this->assertSame('tr_TR', get_locale());
+            $this->assertSame('en_US', determine_locale());
+            $summary = ll_tools_wordset_level_request($user_id, [
+                'wordset_id' => $wordset, 'operation' => 'summary', 'token' => $token, 'locale' => 'en_US',
+            ]);
+            $this->assertIsArray($summary);
+            $this->assertSame('öğrenmekte olduğun 2 kelime', $summary['levels'][1]['practice_activity']['label']);
+            $this->assertSame('en_US', determine_locale());
+            $this->assertSame('2 words in progress', ll_tools_wordset_level_practice_label(['working' => 2]));
+            $this->assertSame('en_US', get_user_meta($user_id, 'locale', true));
+            $this->assertSame('tr_TR', get_user_meta($user_id, LL_TOOLS_PUBLIC_LOCALE_META, true));
+        } finally {
+            remove_filter('ll_tools_quiz_min_words', $minimum);
+            remove_filter('locale', $turkish_site, 1);
+            set_current_screen('front');
+        }
+    }
+
     public function test_shortcode_projects_the_full_curriculum_before_pagination_for_guests_and_learners(): void
     {
         $minimum = static function (): int { return 1; };
