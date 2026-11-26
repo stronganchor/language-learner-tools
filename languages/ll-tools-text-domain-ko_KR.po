@@ -5468,11 +5468,6 @@ msgstr "이 선택 항목에는 학습 모드를 사용할 수 없습니다."
 msgid "Gender mode is not available for this selection."
 msgstr "이 선택 항목에는 성별 모드를 사용할 수 없습니다."
 
-#. ll-tools-public-key: ad210570e1a9fae5234e598033f8ff9738efe999
-#: includes/shortcodes/flashcard-widget.php:864
-msgid "Female and male symbols icon"
-msgstr "여성 및 남성 기호 아이콘"
-
 #. ll-tools-public-key: 510eef8a5ff19572913102e9dc6319124fb22272
 #: includes/shortcodes/flashcard-widget.php:1893 includes/shortcodes/flashcard-widget.php:2091
 msgid "Too many flashcard category requests. Please try again shortly."

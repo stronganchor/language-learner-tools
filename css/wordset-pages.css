@@ -366,20 +366,37 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 
 .ll-wordset-hero {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: space-between;
     gap: 14px;
     margin-bottom: 14px;
 }
 
+.ll-wordset-hero__identity {
+    min-width: 0;
+    max-width: 100%;
+}
+
 .ll-wordset-hero__title-wrap {
     display: flex;
     align-items: center;
-    gap: 16px;
+    gap: 12px;
     min-width: 0;
 }
 
+.ll-wordset-page .ll-wordset-hero__image {
+    flex: none;
+    display: block;
+    width: 52px;
+    height: 52px;
+    margin: 0;
+    border: 1px solid var(--ll-wp-border);
+    border-radius: 14px;
+    object-fit: cover;
+}
+
 .ll-wordset-hero__icon {
+    flex: none;
     display: grid;
     grid-template-columns: repeat(2, 12px);
     grid-template-rows: repeat(2, 12px);
@@ -405,6 +422,7 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     font-weight: 700;
     letter-spacing: -0.02em;
     line-height: 1.05;
+    overflow-wrap: anywhere;
 }
 
 .ll-wordset-hero__tools {
@@ -521,6 +539,50 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 
 .ll-wordset-profile__blurb p {
     margin: 0;
+}
+
+.ll-wordset-page .ll-wordset-profile--under-title {
+    display: block;
+    margin: 8px 0 0;
+    padding: 0;
+}
+
+.ll-wordset-profile--under-title .ll-wordset-profile__body {
+    gap: 4px;
+}
+
+.ll-wordset-profile--under-title .ll-wordset-profile__meta {
+    gap: 2px 16px;
+}
+
+.ll-wordset-profile--under-title .ll-wordset-profile__meta-item {
+    flex-wrap: wrap;
+    gap: 0 5px;
+    min-height: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    line-height: 1.5;
+}
+
+.ll-wordset-profile--under-title .ll-wordset-profile__blurb {
+    font-size: 0.94rem;
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+}
+
+.ll-wordset-profile__disclosure > summary {
+    display: list-item;
+    width: fit-content;
+    padding: 3px 0;
+    color: var(--ll-wp-pill-blue-text);
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.ll-wordset-profile__disclosure > summary:focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: 2px;
 }
 
 @media (max-width: 800px) {
@@ -1266,7 +1328,7 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     align-items: center;
     justify-content: center;
     line-height: 1;
-    color: var(--ll-wp-text);
+    color: inherit;
     font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", system-ui, sans-serif;
 }
 
@@ -1280,8 +1342,6 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     width: 16px !important;
     height: 16px !important;
     display: block !important;
-    fill: currentColor !important;
-    stroke: currentColor !important;
 }
 
 .ll-wordset-next-wrap {
@@ -8772,8 +8832,6 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     width: 14px !important;
     height: 14px !important;
     display: block;
-    fill: currentColor !important;
-    stroke: currentColor !important;
 }
 
 .ll-wordset-hidden-list {
@@ -9563,8 +9621,6 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     width: 22px !important;
     height: 22px !important;
     display: block !important;
-    fill: currentColor !important;
-    stroke: currentColor !important;
 }
 
 .ll-wordset-page .ll-wordset-hidden-item__btn {

@@ -5486,11 +5486,6 @@ msgstr "Mode pembelajaran tidak tersedia untuk pilihan ini."
 msgid "Gender mode is not available for this selection."
 msgstr "Mode gender tidak tersedia untuk pilihan ini."
 
-#. ll-tools-public-key: ad210570e1a9fae5234e598033f8ff9738efe999
-#: includes/shortcodes/flashcard-widget.php:864
-msgid "Female and male symbols icon"
-msgstr "Ikon simbol perempuan dan laki-laki"
-
 #. ll-tools-public-key: 510eef8a5ff19572913102e9dc6319124fb22272
 #: includes/shortcodes/flashcard-widget.php:1893 includes/shortcodes/flashcard-widget.php:2091
 msgid "Too many flashcard category requests. Please try again shortly."

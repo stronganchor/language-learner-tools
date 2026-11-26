@@ -16,6 +16,8 @@ final class WordsetPageTitleTest extends LL_Tools_TestCase
 
         $this->assertStringContainsString('<h1 class="ll-wordset-title">Lessons</h1>', $html);
         $this->assertStringNotContainsString('<h1 class="ll-wordset-title">Default Word Set</h1>', $html);
+        $this->assertStringContainsString('class="ll-wordset-hero__icon" aria-hidden="true"', $html);
+        $this->assertStringNotContainsString('class="ll-wordset-hero__image"', $html);
     }
 
     public function test_renamed_default_wordset_keeps_its_custom_title(): void
@@ -45,6 +47,20 @@ final class WordsetPageTitleTest extends LL_Tools_TestCase
         $this->assertSame('Spanish Lessons', $parts['title']);
         $this->assertSame($site_name, $parts['site']);
         $this->assertNotFalse(has_filter('document_title_parts', 'll_tools_filter_wordset_page_document_title_parts'));
+    }
+
+    public function test_long_profile_keeps_metadata_visible_and_the_complete_blurb_in_a_disclosure(): void
+    {
+        $wordset = $this->upsertDefaultWordset('Spanish Lessons');
+        $blurb = str_repeat('A paragraph about this course. ', 8) . 'Final sentence.';
+        $profile = ll_tools_wordset_page_render_profile_section($wordset, [
+            'language_code' => 'es',
+            'profile_blurb' => $blurb,
+        ], true);
+
+        $this->assertMatchesRegularExpression('~<dd>es</dd>.*<details class="ll-wordset-profile__disclosure">\s*<summary>About this word set</summary>~s', $profile);
+        $this->assertStringContainsString('<p>' . $blurb . '</p>', $profile);
+        $this->assertSame('', ll_tools_wordset_page_render_profile_section($wordset, [], true));
     }
 
     public function test_document_title_parts_do_not_override_existing_manual_title(): void

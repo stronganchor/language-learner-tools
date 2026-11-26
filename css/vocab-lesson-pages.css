@@ -2305,7 +2305,7 @@ body.ll-vocab-lesson-category-settings-open {
     line-height: 1;
     font-family: "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji", system-ui, sans-serif;
     -webkit-text-size-adjust: none;
-    color: var(--ll-vlp-text);
+    color: inherit;
 }
 
 .ll-vocab-lesson-mode-icon::before {
@@ -2316,8 +2316,6 @@ body.ll-vocab-lesson-category-settings-open {
     width: 16px;
     height: 16px;
     display: block;
-    fill: currentColor;
-    stroke: currentColor;
 }
 
 .ll-vocab-lesson-content {

@@ -2028,6 +2028,7 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
         $attachment_id = $this->createImageAttachment('profile-wordset-page.png');
         update_term_meta($wordset_id, LL_TOOLS_WORDSET_BUTTON_IMAGE_ATTACHMENT_ID_META_KEY, $attachment_id);
         update_term_meta($wordset_id, 'll_language', 'he');
+        update_term_meta($wordset_id, LL_TOOLS_WORDSET_TRANSLATION_LANGUAGE_META_KEY, 'en');
         update_term_meta($wordset_id, LL_TOOLS_WORDSET_PROFILE_BLURB_META_KEY, 'Designed to complement Aleph with Beth videos.');
 
         $_GET = [];
@@ -2037,11 +2038,21 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
 
         $html = ll_tools_render_wordset_page_content($wordset_id);
 
-        $this->assertStringContainsString('ll-wordset-profile--has-image', $html);
-        $this->assertStringContainsString('ll-wordset-profile__image', $html);
-        $this->assertStringContainsString('Language code', $html);
-        $this->assertStringContainsString('he', $html);
-        $this->assertStringContainsString('Designed to complement Aleph with Beth videos.', $html);
+        $this->assertSame(1, preg_match('~<header class="ll-wordset-hero">(.*?)</header>~s', $html, $matches));
+        $hero = $matches[1];
+        $this->assertStringContainsString('class="ll-wordset-hero__image"', $hero);
+        $this->assertStringContainsString('alt=""', $hero);
+        $this->assertStringNotContainsString('ll-wordset-hero__dot', $hero);
+        $this->assertMatchesRegularExpression('~</h1>.*<dt>Language code</dt>\s*<dd>he</dd>.*<dt>Translation language</dt>\s*<dd>en</dd>~s', $hero);
+        $this->assertStringContainsString('<p>Designed to complement Aleph with Beth videos.</p>', $hero);
+        $this->assertSame(1, substr_count($html, 'Designed to complement Aleph with Beth videos.'));
+        $this->assertStringNotContainsString('ll-wordset-profile__disclosure', $hero);
+        $this->assertStringNotContainsString('ll-wordset-profile__image', $html);
+
+        $titleless = ll_tools_render_wordset_page_content($wordset_id, ['show_title' => false]);
+        $this->assertStringNotContainsString('ll-wordset-hero__image', $titleless);
+        $this->assertStringContainsString('ll-wordset-profile__image', $titleless);
+        $this->assertStringContainsString('Designed to complement Aleph with Beth videos.', $titleless);
     }
 
     public function test_categories_tool_renders_create_and_edit_forms_for_wordset_manager(): void

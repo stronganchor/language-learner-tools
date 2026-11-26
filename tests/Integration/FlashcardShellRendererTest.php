@@ -3,6 +3,28 @@ declare(strict_types=1);
 
 final class FlashcardShellRendererTest extends LL_Tools_TestCase
 {
+    public function test_each_quiz_mode_uses_its_shared_decorative_icon_in_the_results_and_wordset(): void
+    {
+        $ui = ll_flashcards_get_mode_ui_config();
+        ob_start();
+        ll_tools_render_flashcard_overlay_shell(['mode_ui' => $ui]);
+        $results = (string) ob_get_clean();
+
+        foreach (['learning', 'practice', 'listening', 'self-check', 'gender'] as $mode) {
+            $svg = trim((string) file_get_contents(LL_TOOLS_BASE_PATH . 'media/' . $mode . '-symbol.svg'));
+            $this->assertSame($svg, $ui[$mode]['svg']);
+            $this->assertStringContainsString('aria-hidden="true" focusable="false"', $svg);
+            $this->assertStringContainsString('stroke="currentColor"', $svg);
+            $this->assertStringContainsString($svg, $results);
+            $this->assertStringContainsString($svg, ll_tools_wordset_page_render_mode_icon($mode, $ui, '?'));
+        }
+
+        $custom_svg = '<svg viewBox="0 0 10 10"><circle fill="red" cx="5" cy="5" r="4"/></svg>';
+        $custom = ['practice' => ['svg' => $custom_svg], 'learning' => ['icon' => '*']];
+        $this->assertStringContainsString($custom_svg, ll_tools_wordset_page_render_mode_icon('practice', $custom, '?'));
+        $this->assertStringContainsString('data-emoji="*"', ll_tools_wordset_page_render_mode_icon('learning', $custom, '?'));
+    }
+
     public function test_shared_renderer_outputs_widget_shell_contract(): void
     {
         ob_start();

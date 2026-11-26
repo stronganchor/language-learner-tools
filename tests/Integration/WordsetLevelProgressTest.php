@@ -51,6 +51,16 @@ final class WordsetLevelProgressTest extends LL_Tools_TestCase
         $this->assertSame([$cat], $dashboard['overall']['activity']['category_ids']);
         $this->assertSame($dashboard['overall']['activity'], ll_tools_wordset_level_launch($ws, $uid, $members, 7, 'due'));
         $this->assertNull(ll_tools_wordset_level_launch($ws, $uid, $members, 30, 'due'));
+
+        $token = ll_tools_wordset_page_store_category_search_payload([
+            'user_id' => $uid, 'wordset_id' => $ws,
+            'access_signature' => ll_tools_wordset_page_category_search_payload_access_signature($ws, $uid),
+            'level_policy' => ll_tools_wordset_level_policy_signature($ws), 'level_scope' => [1 => $members],
+        ]);
+        $request = ['operation' => 'summary', 'wordset_id' => $ws, 'token' => $token];
+        $this->assertSame([], ll_tools_wordset_level_request($uid, $request)['reviewPreviewCategoryIds']);
+        ll_tools_wordset_level_save_interval($uid, $ws, 1, 7);
+        $this->assertSame([$cat], ll_tools_wordset_level_request($uid, $request)['reviewPreviewCategoryIds']);
     }
 
     public function test_large_generation_checkpoints_250_ids_without_publishing_partial_counts(): void

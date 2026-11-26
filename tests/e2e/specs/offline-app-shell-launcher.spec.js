@@ -352,6 +352,9 @@ async function mountOfflineLauncher(page, options = {}) {
     if (mountOptions.availableModes) {
       window.llToolsOfflineData.flashcards.availableModes = mountOptions.availableModes;
     }
+    if (mountOptions.modeUi) {
+      window.llToolsOfflineData.flashcards.modeUi = mountOptions.modeUi;
+    }
     Object.entries(mountOptions.audioByCategory || {}).forEach(([name, audioFields]) => {
       Object.assign(window.llToolsOfflineData.flashcards.offlineCategoryData[name][0], audioFields);
     });
@@ -365,6 +368,22 @@ async function mountOfflineLauncher(page, options = {}) {
     throw new Error(`Offline launcher failed to render: ${errors.join(' | ')}`);
   }
 }
+
+test('offline category buttons keep their mode and lesson names with the packaged glyphs', async ({ page }) => {
+  const modes = ['learning', 'practice', 'self-check'];
+  const modeUi = Object.fromEntries(modes.map(mode => [mode, {
+    icon: '?', svg: fs.readFileSync(path.resolve(__dirname, '../../../media/' + mode + '-symbol.svg'), 'utf8')
+  }]));
+  await mountOfflineLauncher(page, { availableModes: modes, modeUi });
+  const buttons = page.locator('#ll-offline-category-grid [data-cat-id="11"][data-ll-offline-category-mode]');
+  await expect(buttons).toHaveCount(modes.length);
+  for (const mode of modes) {
+    const button = buttons.and(page.locator('[data-mode="' + mode + '"]'));
+    await expect(button).toHaveAccessibleName(new RegExp('.+: Animals$'));
+    await expect(button.locator('svg.ll-quiz-mode-glyph')).toHaveAttribute('aria-hidden', 'true');
+    await expect(button.locator('[data-emoji]')).toHaveCount(0);
+  }
+});
 
 test('offline app launcher filters, sorts, selects, and launches the real shell wiring', async ({ page }) => {
   await mountOfflineLauncher(page);

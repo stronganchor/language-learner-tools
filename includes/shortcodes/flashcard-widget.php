@@ -845,37 +845,6 @@ function ll_flashcards_get_mode_ui_config(): array {
         return $config;
     }
 
-    $gender_svg = sprintf(
-        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="%1$s">'
-        . '<g fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="28">'
-        . '<g stroke="#C64545" style="stroke:#C64545!important">'
-        . '<circle cx="184" cy="284" r="92"/>'
-        . '<path d="M184 376 L184 470"/>'
-        . '<path d="M140 430 L228 430"/>'
-        . '</g>'
-        . '<g stroke="#1D4D99" style="stroke:#1D4D99!important">'
-        . '<circle cx="328" cy="292" r="92"/>'
-        . '<path d="M402 218 L480 148"/>'
-        . '<path d="M480 148 L480 196"/>'
-        . '<path d="M480 148 L432 148"/>'
-        . '</g>'
-        . '</g>'
-        . '</svg>',
-        esc_attr__('Female and male symbols icon', 'll-tools-text-domain')
-    );
-    $self_check_svg_path = LL_TOOLS_BASE_PATH . 'media/self-check-symbol.svg';
-    $self_check_svg = '';
-    if (file_exists($self_check_svg_path)) {
-        $self_check_svg = trim((string) file_get_contents($self_check_svg_path));
-    }
-    if ($self_check_svg === '') {
-        $self_check_svg = '<svg viewBox="0 0 96 96" fill="none" aria-hidden="true" focusable="false">'
-            . '<path d="M12 50L31 68L58 22" stroke="#15803D" style="stroke:#15803D!important" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" />'
-            . '<path d="M52 43L82 73M82 43L52 73" stroke="#FFFFFF" style="stroke:#FFFFFF!important" stroke-width="13" stroke-linecap="round" stroke-linejoin="round" />'
-            . '<path d="M52 43L82 73M82 43L52 73" stroke="#C64545" style="stroke:#C64545!important" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" />'
-            . '</svg>';
-    }
-
     $config = [
         'practice' => [
             'icon'              => '❓',
@@ -888,8 +857,7 @@ function ll_flashcards_get_mode_ui_config(): array {
             'resultsButtonText' => __('Learn', 'll-tools-text-domain'),
         ],
         'self-check' => [
-            'icon'              => '',
-            'svg'               => $self_check_svg,
+            'icon'              => '✔✖',
             'className'         => 'self-check-mode',
             'resultsButtonText' => __('Self check', 'll-tools-text-domain'),
         ],
@@ -899,12 +867,20 @@ function ll_flashcards_get_mode_ui_config(): array {
             'resultsButtonText' => __('Listen', 'll-tools-text-domain'),
         ],
         'gender' => [
-            'icon'              => '',
-            'svg'               => $gender_svg,
+            'icon'              => '⚥',
             'className'         => 'gender-mode',
             'resultsButtonText' => __('Gender', 'll-tools-text-domain'),
         ],
     ];
+
+    // Inline the shared artwork so it inherits the foreground of each control,
+    // including offline launchers. The icon field supports older clients.
+    foreach (array_keys($config) as $mode) {
+        $path = LL_TOOLS_BASE_PATH . 'media/' . $mode . '-symbol.svg';
+        if (is_readable($path)) {
+            $config[$mode]['svg'] = trim((string) file_get_contents($path));
+        }
+    }
 
     return $config;
 }

@@ -161,7 +161,11 @@ function ll_tools_wordset_level_request(int $user_id, array $request) {
             $row['days'] = $days[$key];
         }
         unset($row);
-        return ['levels' => $dashboard['levels'], 'due' => $dashboard['overall']['due']];
+        return [
+            'levels' => $dashboard['levels'],
+            'due' => $dashboard['overall']['due'],
+            'reviewPreviewCategoryIds' => array_slice($dashboard['overall']['activity']['category_ids'] ?? [], 0, 2),
+        ];
     }
     if ($all_due) {
         $overall = ll_tools_wordset_level_overall_review($wordset_id, $user_id, $scope, $days, $now);

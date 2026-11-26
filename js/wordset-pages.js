@@ -18801,19 +18801,20 @@
                 root: $root[0], config: cfg.curriculumLevels, signedIn: isLoggedIn, wordsetId: wordsetId,
                 ajaxUrl: ajaxUrl, category: getCategoryById, launch: launchCurriculumActivity,
                 modeIcon: getModeIconMarkup, progressIcon: buildProgressIconMarkup,
-                thumbnail: function (id) {
-                    return getWordsetCardByCategoryId(id).find('.ll-wordset-preview-item--image img').first().attr('src') || '';
+                thumbnails: function (id) {
+                    return getWordsetCardByCategoryId(id).find('.ll-wordset-preview-item--image img')
+                        .map(function () { return this.getAttribute('src'); }).get();
                 },
                 loadThumbnails: function (ids) {
                     if (!lazyCardsEnabled || !ajaxUrl || !lazyCardsNonce || !lazyCardsToken) return null;
-                    return requestWordsetCardsById(ids, [], 1).then(function (response) {
+                    return requestWordsetCardsById(ids, [], 2).then(function (response) {
                         const thumbnails = {};
                         if (!response || !response.success || !response.data || !response.data.html) return thumbnails;
                         const template = document.createElement('template');
                         template.innerHTML = response.data.html;
                         template.content.querySelectorAll('.ll-wordset-card[data-cat-id]').forEach(function (card) {
-                            const img = card.querySelector('.ll-wordset-preview-item--image img');
-                            if (img) thumbnails[card.dataset.catId] = img.getAttribute('src');
+                            thumbnails[card.dataset.catId] = Array.from(card.querySelectorAll('.ll-wordset-preview-item--image img'),
+                                img => img.getAttribute('src')).filter(Boolean);
                         });
                         return thumbnails;
                     });

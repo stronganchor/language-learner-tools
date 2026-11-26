@@ -2256,7 +2256,7 @@ body.ll-qpg-popup-active #ll-tools-flashcard-content {
     font-size: 1rem;
     font-family: "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji", system-ui, sans-serif;
     -webkit-text-size-adjust: none;
-    color: #2e2a24 !important;
+    color: inherit !important;
 }
 
 #quiz-results .quiz-mode-button .button-icon::before,
@@ -2301,8 +2301,6 @@ body.ll-qpg-popup-active #ll-tools-flashcard-content {
     width: 16px !important;
     height: 16px !important;
     display: block !important;
-    fill: currentColor !important;
-    stroke: currentColor !important;
 }
 
 #quiz-results .ll-vocab-lesson-mode-label {

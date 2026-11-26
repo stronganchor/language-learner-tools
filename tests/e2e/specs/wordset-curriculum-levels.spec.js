@@ -25,6 +25,7 @@ async function mount(page, options = {}) {
     state:{category_ids:ids},i18n:{selectAll:'Select all',deselectAll:'Deselect all',repeatLabel:'Repeat',modeCategoryAria:'%1$s: %2$s'},modeLabels:{learning:'Learn', practice:'Practice'}};
   if (options.exerciseOnly) config.curriculumLevels.levels=groups.map(group => group.level === 2 ? {...group,nextId:0} : group);
   if (options.modeUi) config.modeUi=options.modeUi;
+  if (options.previews) config.categories=categories.map(cat=>({...cat,preview:(options.previews[cat.id] || []).map(url=>({type:'image',url}))}));
   if (options.catalogNonce) config.nonce='catalog';
   const files = {
     '/jquery.js': fs.readFileSync(require.resolve('jquery'),'utf8'),
@@ -38,7 +39,7 @@ async function mount(page, options = {}) {
     return '<article class="ll-wordset-card" data-cat-id="'+item.id+'"><div class="ll-wordset-card__top"><label><input type="checkbox" data-ll-wordset-select value="'+item.id+'"></label><a class="ll-wordset-card__heading" href="'+item.url+'"><h2 class="ll-wordset-card__title">'+item.name+'</h2></a></div></article>';
   }
   if (options.sparse) {
-    config.categories = categories.map(cat=>({...cat,preview_deferred:true,has_images:true}));
+    config.categories = config.categories.map(cat=>({...cat,preview_deferred:true,has_images:true}));
     config.lazyCards={enabled:true,nonce:'lazy',token:'cards',wordsetId:77,total:16,loaded:1};
   }
   const body = '<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/catalog.css"><link rel="stylesheet" href="/levels.css">' +
@@ -53,7 +54,10 @@ async function mount(page, options = {}) {
       reqs.push(data);
       if(data.action === 'll_tools_wordset_page_lazy_cards' && data.category_ids) {
         const ids=data.category_ids.split(',').map(Number);
-        const html=ids.map(id=>'<article class="ll-wordset-card" data-cat-id="'+id+'"><span class="ll-wordset-preview-item--image"><img src="/thumbnail.svg" alt=""></span></article>').join('');
+        const html=ids.map(id=>{
+          const urls=options.serverPreviews?.[id] || ['/thumbnail.svg','/thumbnail-two.svg'];
+          return '<article class="ll-wordset-card" data-cat-id="'+id+'">'+urls.map(src=>'<span class="ll-wordset-preview-item--image"><img src="'+src+'" alt=""></span>').join('')+'</article>';
+        }).join('');
         return route.fulfill({json:{success:true,data:{category_ids:ids,html}}});
       }
       if (data.operation === 'summary') {
@@ -90,7 +94,7 @@ async function mount(page, options = {}) {
       if (data.operation === 'launch') return route.fulfill({status:409,json:{success:false,data:{code:'ll_level_no_activity'}}});
       return route.fulfill({json:{success:true,data:{}}});
     }
-    if (url.pathname === '/thumbnail.svg') return route.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><circle cx="20" cy="20" r="17" fill="teal"/></svg>'});
+    if (url.pathname.startsWith('/thumbnail')) return route.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><circle cx="20" cy="20" r="17" fill="teal"/></svg>'});
     if (files[url.pathname]) return route.fulfill({contentType:url.pathname.endsWith('.css')?'text/css':'text/javascript',body:files[url.pathname]});
     return route.fulfill({contentType:'text/html',body:url.pathname === '/' ? body : '<h1>Lesson</h1>'});
   });
@@ -161,6 +165,7 @@ test('personalized cards retry preparing summaries, expose review scopes, and au
   await expect(first.locator('.is-suggested')).toHaveAccessibleName('Practice · Lesson 2');
   await expect(page.locator('.ll-level-nudge')).toHaveCount(1);
   await expect(page.getByRole('button',{name:'Review now · 2'})).toBeVisible();
+  await expect(page.locator('.ll-level-review-all .ll-level-thumbs')).toHaveCount(0);
   await first.getByLabel('Level details · Level 1',{exact:true}).click();
   const days=first.getByRole('spinbutton',{name:'Days before review'});
   await days.fill('45');
@@ -181,10 +186,48 @@ test('returning learner sees the first unfinished level and receives only visibl
   const reqs=await mount(page,{signed:true,sparse:true,completed:true});
   await expect(page.locator('[aria-current="step"]')).toHaveAttribute('data-ll-level-card','2');
   await expect(page.getByRole('img',{name:'Level mastered'})).toBeVisible();
-  await expect(page.locator('[data-ll-level-card="2"] .ll-level-activity img')).toBeVisible();
+  await expect(page.locator('[data-ll-level-card="2"] .ll-level-activity img:visible')).toHaveCount(2);
   const lookups=reqs.filter(r=>r.action==='ll_tools_wordset_page_lazy_cards');
   expect(lookups.length).toBeGreaterThan(0);
-  expect(lookups.every(r=>r.category_ids && r.category_ids.split(',').length<=8 && r.preview_limit==='1')).toBe(true);
+  expect(lookups.every(r=>r.category_ids && r.category_ids.split(',').length<=8 && r.preview_limit==='2')).toBe(true);
+});
+
+test('photos stay distinct, represent mixed Practice and use one image when only one exists',async({page})=>{
+  const previews={1:['/thumbnail-family-150x150.webp'],2:['/thumbnail-cat.webp','/thumbnail-dog.webp'],15:['/thumbnail-bird.webp']};
+  const serverPreviews={1:['/thumbnail-family-300x300.webp','/thumbnail-house.webp'],15:['/thumbnail-bird.webp']};
+  await mount(page,{signed:true,overlap:true,sparse:true,previews,serverPreviews});
+  const practice=page.getByRole('button',{name:'Practice · Level 1'}).locator('.ll-level-thumb');
+  await expect(practice).toHaveCount(2);
+  await expect(practice.nth(0)).toHaveAttribute('src','/thumbnail-cat.webp');
+  await expect(practice.nth(1)).toHaveAttribute('src','/thumbnail-family-150x150.webp');
+  const learn=page.getByRole('button',{name:'Learn · Lesson 1'}).locator('.ll-level-thumb');
+  await expect(learn).toHaveCount(2);
+  await expect(learn.nth(1)).toHaveAttribute('src','/thumbnail-house.webp');
+  await expect(page.getByRole('button',{name:'Learn · Everyday Expressions'}).locator('.ll-level-thumb')).toHaveCount(1);
+  await page.addStyleTag({content:'.ll-wordset-page .ll-level-activity {width:190px}'});
+  await expect(practice.nth(0)).toBeVisible();
+  await expect(practice.nth(1)).toBeHidden();
+});
+
+test('global Review displays photos from the planned due lessons and keeps its text, clock and arrow at narrow widths',async({page})=>{
+  const row={total:10,mastered:3,working:2,new:5,studied:5,due:2,added:0,next_category_id:1,practice_category_id:2,due_category_id:2,days:90};
+  const summary={due:3,levels:{1:row,2:{...row,due:1,due_category_id:15,next_category_id:15}},reviewPreviewCategoryIds:[2,15]};
+  const serverPreviews={2:['/thumbnail-cat.webp','/thumbnail-dog.webp'],15:['/thumbnail-bird.webp']};
+  const reqs=await mount(page,{signed:true,summary,sparse:true,serverPreviews});
+  const review=page.getByRole('button',{name:'Review now · 3'});
+  const photos=review.locator('.ll-level-thumb');
+  await expect(photos).toHaveCount(2);
+  await expect(photos.nth(0)).toHaveAttribute('src','/thumbnail-cat.webp');
+  await expect(photos.nth(1)).toHaveAttribute('src','/thumbnail-bird.webp');
+  await expect(photos.nth(1)).toBeVisible();
+  await page.addStyleTag({content:'.ll-wordset-page [data-ll-wordset-levels] {max-width:260px}'});
+  await expect(photos.nth(0)).toBeVisible();
+  await expect(photos.nth(1)).toBeHidden();
+  await expect(review.locator('.ll-level-status-icon')).toBeVisible();
+  await expect(review.locator('.ll-level-count')).toHaveText('3');
+  await expect(review.locator('.ll-level-glyph--forward')).toBeVisible();
+  await review.click();
+  await expect.poll(()=>reqs.filter(r=>r.operation==='launch').map(r=>[r.level,r.launch_mode])).toEqual([['0','due']]);
 });
 
 test('desktop and phone each show one level per row and keep mode icons, statuses and native details accessible',async({page})=>{
@@ -203,6 +246,7 @@ test('desktop and phone each show one level per row and keep mode icons, statuse
   const due=await badges.first().boundingBox(), added=await badges.last().boundingBox();
   expect(due.width).toBe(added.width);
   expect(due.height).toBe(added.height);
+  await page.addStyleTag({content:'.ll-wordset-page {--ll-wp-main-shell-max-width:860px;--ll-wordset-grid-right-offset:13px!important;}'});
   for(const width of [1240,390,320]) {
     await page.setViewportSize({width,height:820});
     const upper=await rows.nth(0).boundingBox(), lower=await rows.nth(1).boundingBox();
@@ -210,9 +254,18 @@ test('desktop and phone each show one level per row and keep mode icons, statuse
     expect(upper.width).toBe(lower.width);
     expect(upper.y+upper.height).toBeLessThanOrEqual(lower.y);
     expect(upper.x+upper.width).toBeLessThanOrEqual(width);
+    const search=await page.getByRole('searchbox').boundingBox();
+    expect(Math.abs(upper.x-search.x)).toBeLessThanOrEqual(1);
+    expect(Math.abs(upper.x+upper.width-search.x-search.width)).toBeLessThanOrEqual(1);
+    const track=await first.locator('.ll-level-track').boundingBox();
+    const heading=await first.locator('.ll-level-title').boundingBox();
+    expect(track.y+track.height).toBeLessThanOrEqual(heading.y);
+    expect(track.width).toBeGreaterThan(upper.width*.84);
     const a=await first.locator('.ll-level-activity').nth(0).boundingBox(), b=await first.locator('.ll-level-activity').nth(1).boundingBox();
     if(width===1240) expect(a.y).toBe(b.y);
     else expect(a.y+a.height).toBeLessThanOrEqual(b.y);
+    const single=await rows.nth(1).locator('.ll-level-activity').boundingBox();
+    expect(single.width).toBeLessThanOrEqual(321);
   }
   const details=first.getByLabel('Level details · Level 1',{exact:true});
   await details.focus();

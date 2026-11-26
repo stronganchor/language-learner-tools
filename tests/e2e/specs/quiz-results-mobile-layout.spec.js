@@ -7,6 +7,40 @@ const flashcardCssSource = fs.readFileSync(
   'utf8'
 );
 
+test('quiz glyphs follow the control color and stay decorative on lesson, wordset, and result buttons', async ({ page }) => {
+  const icons = ['learning', 'practice', 'listening', 'gender', 'self-check'];
+  const svg = mode => fs.readFileSync(path.resolve(__dirname, '../../../media/' + mode + '-symbol.svg'), 'utf8');
+  const buttons = (className, iconClass) => icons.map(mode =>
+    `<button class="${className}"><span class="${iconClass}" aria-hidden="true">${svg(mode)}</span>${mode}</button>`
+  ).join('');
+  await page.setContent(`
+    <section class="ll-wordset-page">${buttons('ll-wordset-card__quiz-btn', 'll-wordset-card__quiz-icon')}</section>
+    <section class="ll-vocab-lesson-page">${buttons('ll-vocab-lesson-mode-button', 'll-vocab-lesson-mode-icon')}</section>
+    <section id="quiz-results" style="display:block">${buttons('quiz-mode-button', 'button-icon')}</section>`);
+  for (const file of ['wordset-pages.css', 'vocab-lesson-pages.css', 'flashcard/base.css']) {
+    await page.addStyleTag({ path: path.resolve(__dirname, '../../../css/' + file) });
+  }
+  // Exercise themes that apply presentation to every SVG and drawing primitive.
+  await page.addStyleTag({ content: 'svg, svg path { fill: magenta !important; stroke: blue !important; }' });
+  for (const foreground of ['#223344', '#f1f2f3']) {
+    await page.locator('button').evaluateAll((buttons, value) => buttons.forEach(button => {
+      button.style.setProperty('color', value, 'important');
+      button.style.setProperty('background', value === '#223344' ? 'white' : '#16191e', 'important');
+    }), foreground);
+    const checks = await page.locator('button').evaluateAll(buttons => buttons.map(button => {
+      const svg = button.querySelector('svg');
+      const pathStyle = getComputedStyle(svg.querySelector('path'));
+      return pathStyle.fill === 'none' && pathStyle.stroke === getComputedStyle(button).color &&
+        svg.getAttribute('aria-hidden') === 'true' && svg.getAttribute('focusable') === 'false';
+    }));
+    expect(checks).toHaveLength(15);
+    expect(checks.every(Boolean)).toBe(true);
+  }
+  for (const mode of icons) {
+    await expect(page.getByRole('button', { name: mode, exact: true })).toHaveCount(3);
+  }
+});
+
 test('mobile quiz results stay near the top of the popup', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('about:blank');

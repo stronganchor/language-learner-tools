@@ -406,12 +406,6 @@ return [
                     'end' => "esc_attr_e('Course levels'",
                 ],
                 [
-                    'name' => 'course-level-information',
-                    'symbol' => 'll_tools_render_wordset_page_content',
-                    'start' => "esc_html__('About this word set'",
-                    'end' => "esc_html__('About this word set'",
-                ],
-                [
                     'name' => 'course-main-lessons',
                     'symbol' => 'll_tools_render_wordset_page_content',
                     'start' => "esc_html_e('Main lessons'",

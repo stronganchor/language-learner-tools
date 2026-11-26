@@ -83,3 +83,8 @@ templates/assignment-player.php
 js/assignment-player.js
 css/assignment-player.css
 css/lti-accounts.css
+media/practice-symbol.svg
+media/learning-symbol.svg
+media/self-check-symbol.svg
+media/listening-symbol.svg
+media/gender-symbol.svg

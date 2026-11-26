@@ -24913,10 +24913,6 @@ msgstr "Der Lernmodus ist für diese Auswahl nicht verfügbar."
 msgid "Gender mode is not available for this selection."
 msgstr "Der Genusmodus ist für diese Auswahl nicht verfügbar."
 
-#: includes/shortcodes/flashcard-widget.php:864
-msgid "Female and male symbols icon"
-msgstr "Symbol für weibliche und männliche Symbole"
-
 #: includes/shortcodes/flashcard-widget.php:1893 includes/shortcodes/flashcard-widget.php:2091
 msgid "Too many flashcard category requests. Please try again shortly."
 msgstr "Zu viele Lernkarten-Kategorieanfragen. Bitte versuche es in Kürze erneut."

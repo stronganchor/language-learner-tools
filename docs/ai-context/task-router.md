@@ -2,6 +2,8 @@
 
 For curriculum rows, one-based level labels, suggested lesson actions, and review intervals, use the `wordset-vocab-manager` pack. Start with `includes/lib/wordset-curriculum.php`, `includes/lib/wordset-level-page.php`, `includes/lib/wordset-level-progress.php`, `js/wordset-levels.js`, and the `WordsetCurriculumGroupsTest` and `WordsetLevelProgressTest` integration suites.
 
+For the wordset title image and language details, start with `includes/pages/wordset-pages.php` and `css/wordset-pages.css`. For quiz mode icons shared by launch buttons and results, start with `ll_flashcards_get_mode_ui_config()` in `includes/shortcodes/flashcard-widget.php` and the five `media/*-symbol.svg` assets.
+
 For context-based 30-day review, start with `includes/lib/context-review.php`,
 `docs/WORDSET_PROGRESS_SELECTION.md`, the `context-review` route in
 `docs/REST_AUTOMATION.md`, and `UserStudyAnalyticsTest`.

@@ -9,14 +9,21 @@
 .ll-wordset-page [data-ll-wordset-levels][hidden] { display: none !important; }
 
 .ll-wordset-page [data-ll-wordset-levels] {
+    box-sizing: border-box;
+    container: ll-level-section / inline-size;
+    width: 100%;
+    max-width: var(--ll-wp-main-shell-max-width);
+    margin-inline: auto;
+    padding-right: var(--ll-wordset-grid-right-offset, 0px);
     margin-block-end: 1rem;
     color: #172b3a;
 }
+.ll-wordset-page.ll-wordset-page--single-category [data-ll-wordset-levels] { padding-right: 0; }
 .ll-level-grid {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
     gap: .7rem;
-    container-type: inline-size;
+    container: ll-level-catalog / inline-size;
 }
 .ll-wordset-page .ll-level-card {
     box-sizing: border-box;
@@ -130,25 +137,29 @@
 .ll-level-complete { width: 1.65rem; height: 1.65rem; background: #e3f3e9; color: #18603e; }
 .ll-level-complete svg { stroke-width: 2.5; }
 .ll-level-progress-count { display: block; color: #445969; font-size: .84rem; line-height: 1.45; font-variant-numeric: tabular-nums; }
-.ll-level-track { display: flex; overflow: hidden; height: .45rem; margin-top: .35rem; border-radius: 10px; background: #e7edf0; }
+.ll-level-track { display: flex; overflow: hidden; height: .45rem; margin-bottom: .68rem; border-radius: 10px; background: #e7edf0; }
 .ll-level-track > span { flex-basis: 0; }
 .ll-level-track-mastered { background: #258158; }
 .ll-level-track-working { background: #548cc4; }
 .ll-level-track-new { background: #e7edf0; }
 .ll-level-activities { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr)); gap: .5rem; }
 .ll-wordset-page .ll-level-activity {
+    container: ll-level-action / inline-size;
     min-width: 0;
     min-height: 64px;
     justify-content: flex-start;
     padding: .45rem .6rem;
     gap: .6rem;
 }
+.ll-wordset-page .ll-level-activity:only-child { width: min(100%, 20rem); justify-self: start; }
 .ll-wordset-page .ll-level-activity.is-suggested { background: #175779; border-color: #175779; color: #fff; }
 .ll-wordset-page .ll-level-activity.is-suggested:hover { background: #123f5b; border-color: #123f5b; color: #fff; }
-.ll-level-thumb {
+.ll-level-thumbs { display: inline-flex; align-items: center; gap: .2rem; flex: 0 0 auto; }
+.ll-wordset-page .ll-level-thumb {
     flex: 0 0 auto;
     width: 2.65rem;
     height: 2.65rem;
+    max-width: none;
     object-fit: cover;
     border-radius: 6px;
     background: #fff;
@@ -178,12 +189,13 @@
     background: #f4edf9;
 }
 .ll-level-count { min-width: 1.4rem; min-height: 1.4rem; padding-inline: .3rem; background: #fff; }
+.ll-wordset-page .ll-level-review-all .ll-level-thumb { width: 1.9rem; height: 1.9rem; }
 .ll-wordset-page .ll-level-review-all.is-suggested { background: #623589; border-color: #623589; color: #fff; }
 .ll-level-review-all.is-suggested .ll-level-count { color: #592a80; }
 .ll-wordset-page .ll-level-detail-title { font-size: .98rem; }
 .ll-wordset-page summary.ll-level-details-toggle {
     position: absolute;
-    inset-block-start: .85rem;
+    inset-block-start: 1.9rem;
     inset-inline-end: .65rem;
     width: 44px;
     height: 44px;
@@ -207,15 +219,24 @@
 .ll-wordset-page .ll-level-more { margin: .8rem auto; }
 .ll-wordset-page .ll-wordset-level-badge { display:inline-block; margin:.16rem .26rem; padding:.12rem .45rem; border-radius:2rem; color:#24465e; background:#e9f0f5; font:600 .75rem/1.45 system-ui,sans-serif; white-space:nowrap; letter-spacing:normal; text-transform:none; }
 
-@container (max-width: 39rem) {
+@container ll-level-catalog (max-width: 39rem) {
     .ll-level-row { grid-template-columns: minmax(0, 1fr); gap: .7rem; padding-inline-end: 0; }
     .ll-level-card-head { padding-inline-end: 2.7rem; }
     .ll-level-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
-@container (max-width: 29rem) {
+@container ll-level-catalog (max-width: 29rem) {
     .ll-level-activities { grid-template-columns: minmax(0, 1fr); }
     .ll-level-activity { min-height: 54px; }
-    .ll-level-thumb { width: 2.4rem; height: 2.4rem; }
+    .ll-wordset-page .ll-level-thumb { width: 2.4rem; height: 2.4rem; }
+}
+@container ll-level-action (max-width: 13.5rem) {
+    .ll-level-thumb + .ll-level-thumb { display: none; }
+}
+@container ll-level-section (max-width: 18rem) {
+    .ll-level-review-all .ll-level-thumb + .ll-level-thumb { display: none; }
+}
+@container ll-level-section (max-width: 14rem) {
+    .ll-level-review-all .ll-level-thumbs { display: none; }
 }
 @media (prefers-reduced-motion: no-preference) {
     .ll-level-nudge > .ll-level-glyph--forward { animation: ll-level-nudge-arrow .8s ease-in-out .35s 2; }

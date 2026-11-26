@@ -80,7 +80,7 @@
                 entries.forEach(entry => {
                     if (!entry.isIntersecting) return;
                     observer.unobserve(entry.target);
-                    queueThumbnail(Number(entry.target.dataset.llThumbCategory));
+                    queueButtonThumbnails(entry.target);
                 });
             }, {rootMargin:'120px'}) : null;
 
@@ -235,14 +235,54 @@
             }
             submit();
         }
-        function putThumbnail(control, url) {
-            if (!url || control.querySelector('img')) return;
-            const image = element('img','ll-level-thumb');
-            image.src = url;
-            image.alt = '';
-            image.loading = 'lazy';
-            image.decoding = 'async';
-            control.prepend(image);
+        function distinctThumbnails(urls) {
+            const seen = new Set();
+            return urls.filter(url => {
+                if (!url) return false;
+                // WordPress can serve the same upload in different thumbnail sizes.
+                const key = url.replace(/-\d+x\d+(?=\.(?:jpe?g|png|webp|avif|gif)(?:[?#]|$))/i,'');
+                if (seen.has(key)) return false;
+                seen.add(key);
+                return true;
+            });
+        }
+        function categoryThumbnails(id) {
+            const previews = options.category(id)?.preview || [];
+            const images = previews.filter(item => item.type === 'image').map(item => item.url);
+            return distinctThumbnails(images.concat(thumbnailUrls.get(id) || [], options.thumbnails(id))).slice(0,2);
+        }
+        function updateButtonThumbnails(control) {
+            const ids = control.dataset.llThumbCategories.split(' ').map(Number);
+            const sources = ids.map(categoryThumbnails);
+            // A mixed review can show one photo from each lesson before a second from either.
+            const urls = distinctThumbnails(sources.map(images => images[0]).concat(...sources)).slice(0,2);
+            let strip = control.querySelector('.ll-level-thumbs');
+            if (!urls.length) return;
+            if (!strip) {
+                strip = element('span','ll-level-thumbs');
+                strip.setAttribute('aria-hidden','true');
+                control.prepend(strip);
+            }
+            urls.forEach((url,index) => {
+                let image = strip.children[index];
+                if (!image) {
+                    image = element('img','ll-level-thumb');
+                    image.alt = '';
+                    image.loading = 'lazy';
+                    image.decoding = 'async';
+                    strip.append(image);
+                }
+                if (image.getAttribute('src') !== url) image.src = url;
+            });
+        }
+        function queueButtonThumbnails(control) {
+            const ids = control.dataset.llThumbCategories.split(' ').map(Number);
+            const needPair = control.querySelectorAll('.ll-level-thumb').length < 2;
+            ids.forEach(id => {
+                const cat = options.category(id);
+                const count = categoryThumbnails(id).length;
+                if (cat && (cat.preview_deferred || cat.has_images) && (!count || (needPair && count < 2))) queueThumbnail(id);
+            });
         }
         function queueThumbnail(id) {
             if (!id || thumbnailAttempts.has(id) || !options.loadThumbnails) return;
@@ -259,17 +299,18 @@
             if (!result) return;
             thumbnailRequest = result;
             result.done(urls => {
+                const controls = new Set();
                 batchIds.forEach(id => {
-                    const url = urls && urls[id];
-                    if (url) thumbnailUrls.set(id,url);
-                    section.querySelectorAll('[data-ll-thumb-category="' + id + '"]').forEach(el => putThumbnail(el,url));
+                    if (urls && urls[id]) thumbnailUrls.set(id,urls[id]);
+                    section.querySelectorAll('[data-ll-thumb-categories~="' + id + '"]').forEach(control => controls.add(control));
                 });
+                controls.forEach(updateButtonThumbnails);
             }).always(() => {
                 thumbnailRequest = null;
                 if (thumbnailQueue.size) thumbnailTimer = window.setTimeout(loadThumbnails,30);
             });
         }
-        function action(group, plan, categoryId, preview, global, fallback) {
+        function action(group, plan, categoryId, global, fallback) {
             const item = categoryId ? options.category(categoryId) : null;
             const stats = summary && summary.levels[group.level];
             const planned = stats && (plan === 'due' ? stats.due_activity : plan === 'practice' && stats.practice_activity);
@@ -285,11 +326,24 @@
             btn.dataset.level = String(group.level);
             btn.dataset.category = String(categoryId);
             btn.dataset.llFocusKey = 'activity-' + group.level + '-' + plan;
-            if (preview && item) {
-                const thumb = (item.preview || []).find(it => it.type === 'image' && it.url);
-                const url = (thumb && thumb.url) || thumbnailUrls.get(categoryId) || options.thumbnail(categoryId);
-                if (url) putThumbnail(btn,url);
-                else if (item.preview_deferred || item.has_images) btn.dataset.llThumbCategory = String(categoryId);
+            const previewIds = global ? (summary.reviewPreviewCategoryIds || []) :
+                (severalLessons ? [categoryId,...planned.category_ids] : [categoryId]);
+            if (Array.isArray(previewIds) && previewIds.length) {
+                const ids = new Set((global ? previewIds.slice(0,2) : previewIds).map(Number));
+                const imaged = [];
+                const deferred = [];
+                for (const id of ids) {
+                    const cat = options.category(id);
+                    if (!cat) continue;
+                    if (cat.has_images || categoryThumbnails(id).length) imaged.push(id);
+                    else if (cat.preview_deferred) deferred.push(id);
+                    if (imaged.length === 2) break;
+                }
+                const imageIds = imaged.concat(deferred).slice(0,2);
+                if (imageIds.length) {
+                    btn.dataset.llThumbCategories = imageIds.join(' ');
+                    updateButtonThumbnails(btn);
+                }
             }
             if (global) {
                 btn.insertAdjacentHTML('beforeend',options.progressIcon('older','ll-level-status-icon'));
@@ -412,7 +466,7 @@
             open.append(icon('forward'));
             overview.append(head);
             row.append(overview);
-            shell.append(row);
+            shell.append(progressBar(stats),row);
             const badges = element('div','ll-level-badges');
             if (id === current) {
                 shell.classList.add('is-current');
@@ -448,15 +502,15 @@
             const progress = stats && Number(stats.total) > 0
                 ? t.progressCount.replace(/%1\$d/g,number(stats.mastered)).replace(/%2\$d/g,number(stats.total))
                 : t.lessons + ' · ' + number(group.categoryIds.size + group.contentIds.size);
-            overview.append(element('span','ll-level-progress-count',progress),progressBar(stats));
+            overview.append(element('span','ll-level-progress-count',progress));
             const actions = element('div','ll-level-activities');
             if (stats) {
-                if (Number(stats.due) > 0 && stats.due_category_id) actions.append(action(group,'due',Number(stats.due_category_id),true,false));
-                else if (stats.practice_category_id) actions.append(action(group,'practice',Number(stats.practice_category_id),true,false));
-                if (stats.next_category_id) actions.append(action(group,'learn',Number(stats.next_category_id),true,false));
+                if (Number(stats.due) > 0 && stats.due_category_id) actions.append(action(group,'due',Number(stats.due_category_id),false));
+                else if (stats.practice_category_id) actions.append(action(group,'practice',Number(stats.practice_category_id),false));
+                if (stats.next_category_id) actions.append(action(group,'learn',Number(stats.next_category_id),false));
             }
             if (!actions.childElementCount && (group.nextId || group.practiceId)) {
-                actions.append(action(group,group.nextId ? 'learn' : 'practice',Number(group.nextId || group.practiceId),true,false,true));
+                actions.append(action(group,group.nextId ? 'learn' : 'practice',Number(group.nextId || group.practiceId),false,true));
             }
             if (actions.childElementCount) {
                 if (id === current) {
@@ -500,7 +554,7 @@
                         (stat.next_category_id || stat.practice_category_id || stat.due_category_id || row.nextId || row.practiceId);
                 });
                 if (summary && Number(summary.due) > 0) {
-                    const review = action({level:0},'due',0,false,true);
+                    const review = action({level:0},'due',0,true);
                     if (!current) emphasize(review);
                     fragment.append(review);
                 }
@@ -521,10 +575,10 @@
             section.replaceChildren(fragment);
             section.hidden = false;
             if (observer) observer.disconnect();
-            const previews = section.querySelectorAll('[data-ll-thumb-category]');
+            const previews = section.querySelectorAll('[data-ll-thumb-categories]');
             previews.forEach((btn,index) => {
                 if (observer) observer.observe(btn);
-                else if (index < 8) queueThumbnail(Number(btn.dataset.llThumbCategory));
+                else if (index < 8) queueButtonThumbnails(btn);
             });
             if (key) {
                 const target = section.querySelector('[data-ll-focus-key="' + key + '"]');

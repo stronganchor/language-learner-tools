@@ -4195,9 +4195,9 @@ function ll_tools_get_wordset_profile_summary($wordset, string $image_size = 'la
     ];
 }
 
-function ll_tools_wordset_page_render_profile_section(WP_Term $wordset_term, array $profile): string {
+function ll_tools_wordset_page_render_profile_section(WP_Term $wordset_term, array $profile, bool $under_title = false): string {
     $image = isset($profile['image']) && is_array($profile['image']) ? $profile['image'] : [];
-    $image_url = trim((string) ($image['url'] ?? ''));
+    $image_url = $under_title ? '' : trim((string) ($image['url'] ?? ''));
     $image_title = trim((string) ($image['title'] ?? ''));
     $language_code = trim((string) ($profile['language_code'] ?? ''));
     $translation_language = trim((string) ($profile['translation_language'] ?? ''));
@@ -4209,9 +4209,12 @@ function ll_tools_wordset_page_render_profile_section(WP_Term $wordset_term, arr
         return '';
     }
 
+    $about_label = __('About this word set', 'll-tools-text-domain');
+    $collapse_blurb = $under_title && (strpos($profile_blurb, "\n") !== false || ll_tools_wordset_preview_text_length($profile_blurb) > 160);
+    $profile_class = $under_title ? ' ll-wordset-profile--under-title' : ($image_url !== '' ? ' ll-wordset-profile--has-image' : '');
     ob_start();
     ?>
-    <section class="ll-wordset-profile<?php echo $image_url !== '' ? ' ll-wordset-profile--has-image' : ''; ?>" aria-labelledby="ll-wordset-profile-title-<?php echo esc_attr((string) $wordset_term->term_id); ?>">
+    <section class="ll-wordset-profile<?php echo esc_attr($profile_class); ?>"<?php if (!$under_title) : ?> aria-labelledby="ll-wordset-profile-title-<?php echo esc_attr((string) $wordset_term->term_id); ?>"<?php endif; ?>>
         <?php if ($image_url !== '') : ?>
             <figure class="ll-wordset-profile__media">
                 <img
@@ -4224,9 +4227,9 @@ function ll_tools_wordset_page_render_profile_section(WP_Term $wordset_term, arr
             </figure>
         <?php endif; ?>
         <div class="ll-wordset-profile__body">
-            <h2 id="ll-wordset-profile-title-<?php echo esc_attr((string) $wordset_term->term_id); ?>" class="ll-wordset-profile__title">
-                <?php echo esc_html__('About this word set', 'll-tools-text-domain'); ?>
-            </h2>
+            <?php if (!$under_title) : ?>
+                <h2 id="ll-wordset-profile-title-<?php echo esc_attr((string) $wordset_term->term_id); ?>" class="ll-wordset-profile__title"><?php echo esc_html($about_label); ?></h2>
+            <?php endif; ?>
             <?php if ($language_code !== '' || $translation_language !== '') : ?>
                 <dl class="ll-wordset-profile__meta">
                     <?php if ($language_code !== '') : ?>
@@ -4244,9 +4247,16 @@ function ll_tools_wordset_page_render_profile_section(WP_Term $wordset_term, arr
                 </dl>
             <?php endif; ?>
             <?php if ($profile_blurb !== '') : ?>
+                <?php if ($collapse_blurb) : ?>
+                    <details class="ll-wordset-profile__disclosure">
+                        <summary><?php echo esc_html($about_label); ?></summary>
+                <?php endif; ?>
                 <div class="ll-wordset-profile__blurb">
                     <?php echo wpautop(esc_html($profile_blurb)); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
                 </div>
+                <?php if ($collapse_blurb) : ?>
+                    </details>
+                <?php endif; ?>
             <?php endif; ?>
         </div>
     </section>
@@ -26074,7 +26084,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
         ? (string) ll_tools_get_wordset_translation_language([$wordset_id], true)
         : (string) get_term_meta($wordset_id, LL_TOOLS_WORDSET_TRANSLATION_LANGUAGE_META_KEY, true);
     $wordset_profile = function_exists('ll_tools_get_wordset_profile_summary')
-        ? ll_tools_get_wordset_profile_summary($wordset_term, 'large', true, true)
+        ? ll_tools_get_wordset_profile_summary($wordset_term, $show_title ? 'thumbnail' : 'large', true, true)
         : [];
     $category_translation_enabled = function_exists('ll_tools_is_wordset_category_translation_enabled')
         ? (bool) ll_tools_is_wordset_category_translation_enabled([$wordset_id], true)
@@ -28408,14 +28418,21 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
         <?php else : ?>
             <?php if ($show_title) : ?>
                 <header class="ll-wordset-hero">
-                    <div class="ll-wordset-hero__title-wrap">
-                        <div class="ll-wordset-hero__icon" aria-hidden="true">
-                            <span class="ll-wordset-hero__dot"></span>
-                            <span class="ll-wordset-hero__dot"></span>
-                            <span class="ll-wordset-hero__dot"></span>
-                            <span class="ll-wordset-hero__dot"></span>
+                    <div class="ll-wordset-hero__identity">
+                        <div class="ll-wordset-hero__title-wrap">
+                            <?php if (!empty($wordset_profile['image']['url'])) : ?>
+                                <img class="ll-wordset-hero__image" src="<?php echo esc_url($wordset_profile['image']['url']); ?>" width="52" height="52" alt="" decoding="async" />
+                            <?php else : ?>
+                                <div class="ll-wordset-hero__icon" aria-hidden="true">
+                                    <span class="ll-wordset-hero__dot"></span>
+                                    <span class="ll-wordset-hero__dot"></span>
+                                    <span class="ll-wordset-hero__dot"></span>
+                                    <span class="ll-wordset-hero__dot"></span>
+                                </div>
+                            <?php endif; ?>
+                            <h1 class="ll-wordset-title"><?php echo esc_html($wordset_page_title); ?></h1>
                         </div>
-                        <h1 class="ll-wordset-title"><?php echo esc_html($wordset_page_title); ?></h1>
+                        <?php echo ll_tools_wordset_page_render_profile_section($wordset_term, $wordset_profile, true); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
                     </div>
                     <div class="ll-wordset-hero__tools">
                         <div class="ll-wordset-hero__action-links">
@@ -28505,7 +28522,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                 </header>
             <?php endif; ?>
 
-            <?php if (!$curriculum_levels) : ?>
+            <?php if (!$show_title) : ?>
                 <?php echo ll_tools_wordset_page_render_profile_section($wordset_term, $wordset_profile); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
             <?php endif; ?>
 
@@ -28721,12 +28738,6 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             <?php endif; ?>
 
             <?php
-            $level_profile_html = $curriculum_levels ? ll_tools_wordset_page_render_profile_section($wordset_term, $wordset_profile) : '';
-            if ($level_profile_html !== '') {
-                echo '<details class="ll-wordset-level-extras"><summary>' . esc_html__('About this word set', 'll-tools-text-domain') . '</summary>';
-                echo $level_profile_html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
-                echo '</details>';
-            }
             $selection_priority_focus = function_exists('ll_tools_wordset_page_selection_priority_focus')
                 ? ll_tools_wordset_page_selection_priority_focus((string) ($goals['priority_focus'] ?? ''))
                 : '';
