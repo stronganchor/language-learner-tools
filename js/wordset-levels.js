@@ -126,6 +126,11 @@
             apply(true);
         }
         function apply(focusHeading) {
+            paginationReady = false;
+            paginationNearby = false;
+            manualPage = null;
+            autoPageAt = null;
+            if (pageObserver) pageObserver.unobserve(more);
             root.dataset.llLevelView = state.view;
             if (input) input.value = state.view === 'search' ? state.query : '';
             render();
@@ -310,15 +315,43 @@
                 if (thumbnailQueue.size) thumbnailTimer = window.setTimeout(loadThumbnails,30);
             });
         }
-        function action(group, plan, categoryId, global, fallback) {
+        function dailyReview(review) {
+            const reasons = {
+                due: ['older',t.dueLabel], working: ['studied',t.working], hard: ['hard',t.hard],
+                starred: ['starred',t.starred], least_recent: ['practice',t.leastRecent]
+            };
+            const reason = review && reasons[review.reason];
+            if (!reason || !(Number(review.count) > 0)) return null;
+            const [status,reasonLabel] = reason;
+            const backlog = Number(review.due) || 0;
+            const topic = review.reason === 'due' ? t.due.replace(/%d/g,backlog) : reasonLabel;
+            const verb = review.reason === 'due' ? t.reviewAll : t.practice;
+            const label = [verb,topic,t.roundSize,review.count].join(' · ');
+            const control = button(label,'ll-level-review-all ll-level-metric-' + status,null,() => {
+                announce('');
+                options.launch(0,'review',0,ajax,() => announce(t.launchError));
+            });
+            control.dataset.llLevelAction = 'review';
+            control.dataset.level = '0';
+            control.dataset.llFocusKey = 'daily-review';
+            control.insertAdjacentHTML('beforeend',status === 'practice' ? options.modeIcon('practice','ll-level-daily-icon ll-level-mode-icon') :
+                options.progressIcon(status,'ll-level-daily-icon'));
+            const copy = element('span','ll-level-review-copy');
+            copy.append(element('strong','',verb),element('span','ll-level-review-reason',topic));
+            const size = element('span','ll-level-round-size');
+            size.append(element('span','',t.roundSize),element('strong','',review.count));
+            control.append(copy,size,icon('forward'));
+            return control;
+        }
+        function action(group, plan, categoryId, fallback) {
             const item = categoryId ? options.category(categoryId) : null;
             const stats = summary && summary.levels[group.level];
-            const planned = stats && (plan === 'due' ? stats.due_activity : plan === 'practice' && stats.practice_activity);
+            const planned = stats && plan === 'practice' && stats.practice_activity;
             const severalLessons = !fallback && planned && Array.isArray(planned.category_ids) && planned.category_ids.length > 1;
             const name = severalLessons ? label(group.level) : (item && (item.name || item.translation) || '');
             const verb = plan === 'learn' ? (fallback ? t.start : t.learn) : t.practice;
-            const text = global ? t.reviewAll + ' · ' + summary.due : (name ? verb + ' · ' + name : verb);
-            const btn = button(text, global ? 'll-level-review-all' : 'll-level-activity', null, () => {
+            const text = name ? verb + ' · ' + name : verb;
+            const btn = button(text,'ll-level-activity',null,() => {
                 announce('');
                 options.launch(group.level,plan,categoryId,ajax,() => announce(t.launchError),fallback);
             });
@@ -326,10 +359,9 @@
             btn.dataset.level = String(group.level);
             btn.dataset.category = String(categoryId);
             btn.dataset.llFocusKey = 'activity-' + group.level + '-' + plan;
-            const previewIds = global ? (summary.reviewPreviewCategoryIds || []) :
-                (severalLessons ? [categoryId,...planned.category_ids] : [categoryId]);
+            const previewIds = severalLessons ? [categoryId,...planned.category_ids] : [categoryId];
             if (Array.isArray(previewIds) && previewIds.length) {
-                const ids = new Set((global ? previewIds.slice(0,2) : previewIds).map(Number));
+                const ids = new Set(previewIds.map(Number));
                 const imaged = [];
                 const deferred = [];
                 for (const id of ids) {
@@ -345,24 +377,34 @@
                     updateButtonThumbnails(btn);
                 }
             }
-            if (global) {
-                btn.insertAdjacentHTML('beforeend',options.progressIcon('older','ll-level-status-icon'));
-                btn.append(element('span','',t.reviewAll),element('span','ll-level-count',summary.due));
-            } else {
-                const body = element('span','ll-level-action-text');
-                const mode = element('span','ll-level-action-mode');
-                mode.insertAdjacentHTML('beforeend',options.modeIcon(plan === 'learn' ? 'learning' : 'practice','ll-level-mode-icon'));
-                mode.append(document.createTextNode(verb));
-                body.append(mode);
-                if (name) body.append(element('span','ll-level-action-name',name));
-                btn.append(body);
-            }
-            btn.append(icon('forward'));
+            const body = element('span','ll-level-action-text');
+            const mode = element('span','ll-level-action-mode');
+            mode.insertAdjacentHTML('beforeend',options.modeIcon(plan === 'learn' ? 'learning' : 'practice','ll-level-mode-icon'));
+            mode.append(document.createTextNode(verb));
+            body.append(mode);
+            if (name) body.append(element('span','ll-level-action-name',name));
+            btn.append(body,icon('forward'));
             return btn;
         }
-        function addStat(list, term, value) {
+        function levelDueButton(level, stats, focusKey) {
+            const text = t.due.replace(/%d/g,stats.due);
+            const due = button(t.reviewAll + ' · ' + text + ' · ' + label(level),'ll-level-due-button',null,() => {
+                announce('');
+                options.launch(level,'due',Number(stats.due_category_id),ajax,() => announce(t.launchError));
+            });
+            due.dataset.llFocusKey = focusKey + level;
+            const pill = element('span','ll-level-badge ll-level-overdue');
+            pill.insertAdjacentHTML('beforeend',options.progressIcon('older','ll-level-status-icon'));
+            pill.append(element('span','',stats.due));
+            due.append(pill);
+            return due;
+        }
+        function addStat(list, term, value, status) {
             const pair = element('div','ll-level-fact');
-            pair.append(element('dt','',term),element('dd','',value));
+            const count = element('dd',status ? 'll-level-stat-value ll-level-metric-' + status : '');
+            if (status) count.insertAdjacentHTML('beforeend',options.progressIcon(status,'ll-level-status-icon'));
+            count.append(value);
+            pair.append(element('dt','',term),count);
             list.append(pair);
         }
         function studyDate(value) {
@@ -387,16 +429,24 @@
                 if (info.open) panels.add(level); else panels.delete(level);
             });
             const panel = element('div','ll-level-detail-panel');
-            panel.append(element('h3','ll-level-detail-title',t.stats));
+            const panelHeader = element('div','ll-level-detail-header');
+            const browse = button(t.seeAll + ' · ' + label(level),'ll-level-see-all',null,() => go('level',level));
+            browse.dataset.llFocusKey = 'see-all-' + level;
+            browse.append(element('span','',t.seeAll),icon('forward'));
+            panelHeader.append(element('h3','ll-level-detail-title',t.stats),browse);
+            panel.append(panelHeader);
             info.append(panel);
             const list = element('dl','ll-level-facts');
             addStat(list,t.lessons,group.categoryIds.size + group.contentIds.size);
             if (stats) {
                 addStat(list,t.words,stats.total);
-                addStat(list,t.mastered,stats.mastered);
-                addStat(list,t.working,stats.working);
-                addStat(list,t.unseen,stats.new);
-                addStat(list,t.dueLabel,stats.due);
+                addStat(list,t.mastered,stats.mastered,'mastered');
+                addStat(list,t.working,stats.working,'studied');
+                addStat(list,t.unseen,stats.new,'new');
+                if (stats.starred !== undefined) addStat(list,t.starred,stats.starred,'starred');
+                if (stats.hard !== undefined) addStat(list,t.hard,stats.hard,'hard');
+                if (Number(stats.due) > 0) addStat(list,t.dueLabel,levelDueButton(level,stats,'detail-due-'));
+                else addStat(list,t.dueLabel,stats.due,'older');
                 addStat(list,t.addedLabel,stats.added);
                 addStat(list,t.lastStudy,studyDate(stats.last_studied_at));
             }
@@ -463,7 +513,6 @@
             open.dataset.llFocusKey = 'browse-' + id;
             title.append(open);
             head.append(title);
-            open.append(icon('forward'));
             overview.append(head);
             row.append(overview);
             shell.append(progressBar(stats),row);
@@ -483,13 +532,7 @@
                 head.append(check);
             }
             if (stats && Number(stats.due) > 0) {
-                const dueText = t.due.replace(/%d/g,stats.due);
-                const due = element('span','ll-level-badge ll-level-overdue');
-                due.title = dueText;
-                due.setAttribute('role','img');
-                due.setAttribute('aria-label',dueText);
-                due.insertAdjacentHTML('beforeend',options.progressIcon('older','ll-level-status-icon'));
-                due.append(element('span','',stats.due)); badges.append(due);
+                badges.append(levelDueButton(id,stats,'due-'));
             }
             if (stats && Number(stats.added) > 0) {
                 const newText = t.added.replace(/%d/g,stats.added);
@@ -505,17 +548,16 @@
             overview.append(element('span','ll-level-progress-count',progress));
             const actions = element('div','ll-level-activities');
             if (stats) {
-                if (Number(stats.due) > 0 && stats.due_category_id) actions.append(action(group,'due',Number(stats.due_category_id),false));
-                else if (stats.practice_category_id) actions.append(action(group,'practice',Number(stats.practice_category_id),false));
-                if (stats.next_category_id) actions.append(action(group,'learn',Number(stats.next_category_id),false));
+                if (stats.practice_category_id) actions.append(action(group,'practice',Number(stats.practice_category_id)));
+                if (stats.next_category_id) actions.append(action(group,'learn',Number(stats.next_category_id)));
             }
             if (!actions.childElementCount && (group.nextId || group.practiceId)) {
-                actions.append(action(group,group.nextId ? 'learn' : 'practice',Number(group.nextId || group.practiceId),false,true));
+                actions.append(action(group,group.nextId ? 'learn' : 'practice',Number(group.nextId || group.practiceId),true));
             }
             if (actions.childElementCount) {
                 if (id === current) {
-                    const studied = stats && (stats.studied > 0 || stats.mastered > 0 || stats.working > 0);
-                    const next = (studied && actions.querySelector('[data-ll-level-action="due"]')) ||
+                    const focusPractice = stats && stats.practice_focus && (stats.near_completion || !stats.next_category_id);
+                    const next = (focusPractice && actions.querySelector('[data-ll-level-action="practice"]')) ||
                         actions.querySelector('[data-ll-level-action="learn"]') || actions.firstElementChild;
                     if (next !== actions.firstElementChild) actions.prepend(next);
                     emphasize(next);
@@ -553,8 +595,8 @@
                     return stat && (Number(stat.new) > 0 || Number(stat.working) > 0) &&
                         (stat.next_category_id || stat.practice_category_id || stat.due_category_id || row.nextId || row.practiceId);
                 });
-                if (summary && Number(summary.due) > 0) {
-                    const review = action({level:0},'due',0,true);
+                const review = summary && dailyReview(summary.review);
+                if (review) {
                     if (!current) emphasize(review);
                     fragment.append(review);
                 }
@@ -585,15 +627,59 @@
                 if (target) target.focus({preventScroll:true});
             }
         }
-        const more = button(t.more,'ll-level-more',null,() => {
+        const grid = root.querySelector('[data-ll-wordset-main-grid], .ll-wordset-grid');
+        let paginationReady = false;
+        let paginationNearby = false;
+        let autoPageAt = null;
+        let manualPage = null;
+        function visibleCards() {
+            return Array.from(grid.querySelectorAll('.ll-wordset-card:not([hidden])'));
+        }
+        function loadNextPage(event) {
+            if (state.view !== 'level' || more.hidden) return;
+            if (event && event.detail === 0 && grid) {
+                manualPage = new Set(visibleCards().map(card => card.dataset.catId || 'lesson-' + card.dataset.lessonId));
+            }
             state.limit += batch;
             writeState('replaceState');
             options.change('');
-        });
+        }
+        const more = button(t.more,'ll-level-more',null,loadNextPage);
         more.textContent = t.more;
         more.hidden = true;
-        const grid = root.querySelector('[data-ll-wordset-main-grid], .ll-wordset-grid');
         if (grid) grid.after(more);
+        function loadNearbyPage() {
+            if (state.view !== 'level' || document.hidden || !paginationReady || document.activeElement === more) return;
+            if (autoPageAt !== null && Math.abs(window.scrollY - autoPageAt) < 32) return;
+            const box = more.getBoundingClientRect();
+            if (box.bottom >= 0 && box.top <= window.innerHeight + 180) {
+                autoPageAt = window.scrollY;
+                loadNextPage();
+            }
+        }
+        const pageObserver = typeof window.IntersectionObserver === 'function' ? new IntersectionObserver(entries => {
+            paginationNearby = entries[entries.length-1].isIntersecting;
+            if (paginationNearby) loadNearbyPage();
+        },{rootMargin:'0px 0px 180px 0px'}) : null;
+        let pageScrollFrame = 0;
+        window.addEventListener('scroll',() => {
+            if (!paginationReady || (pageObserver && !paginationNearby) || pageScrollFrame) return;
+            pageScrollFrame = requestAnimationFrame(() => { pageScrollFrame = 0; loadNearbyPage(); });
+        },{passive:true});
+        function updateMore(count, rendered) {
+            more.hidden = state.view !== 'level' || count <= state.limit;
+            const ready = !more.hidden && rendered >= Math.min(state.limit,count);
+            if (ready !== paginationReady && pageObserver) {
+                if (ready) pageObserver.observe(more);
+                else pageObserver.unobserve(more);
+            }
+            paginationReady = ready;
+            if (manualPage && grid) {
+                const next = visibleCards().find(card => !manualPage.has(card.dataset.catId || 'lesson-' + card.dataset.lessonId));
+                const target = next && (next.querySelector('.ll-wordset-card__heading[href],a[href]') || next.querySelector('button:not(:disabled)'));
+                if (target) { manualPage = null; target.focus(); }
+            }
+        }
         function inGroup(type,id) {
             return (type === 'content' ? contentLevels : categoryLevels).get(Number(id)) === state.level;
         }
@@ -644,7 +730,7 @@
             contentIds: () => state.view === 'level' ? Array.from(groups.get(state.level).contentIds) : [],
             allows: (type,id) => state.view === 'search' || (state.view === 'level' && inGroup(type,id)),
             pageLimit: () => state.limit,
-            updateMore(count) { more.hidden = state.view !== 'level' || count <= state.limit; },
+            updateMore,
             input(value) {
                 if (state.view !== 'search') go('search',null);
                 if (input && input.value !== value) input.value = value;

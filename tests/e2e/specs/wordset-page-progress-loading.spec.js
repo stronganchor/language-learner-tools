@@ -1204,6 +1204,29 @@ test('Last shows the historical context review date while a pending review keeps
   await expect(date(3)).not.toHaveText(directDate);
 });
 
+test('Progress waits for a cold curriculum review projection and shows words due on a short interval', async ({ page }) => {
+  await mountProgressPage(page);
+  await expect.poll(() => page.evaluate(() => window.__llAnalyticsRequests.length)).toBe(1);
+  await page.evaluate(() => {
+    window.__llAnalyticsRequests[0].deferred.reject({
+      status: 503, responseJSON: { data: { code: 'll_level_progress_preparing' } }
+    });
+  });
+  await expect.poll(() => page.evaluate(() => window.__llAnalyticsRequests.length)).toBe(2);
+  const words = buildProgressWords(1, 1).map(row => ({
+    ...row, last_seen_at: new Date(Date.now() - 3 * 86400000).toISOString().slice(0, 19).replace('T', ' '),
+    review_due: true
+  }));
+  const payload = buildAnalytics({totalWords: 1, studiedWords: 1, olderWords: 1, words});
+  await page.evaluate(data => window.__resolveAnalyticsRequest(1, data), payload);
+  await page.getByRole('tab', { name: 'Words' }).click();
+  await page.getByRole('combobox', { name: 'Select words' }).selectOption('older');
+  await expect.poll(() => page.evaluate(() => window.__llAnalyticsRequests.length)).toBe(3);
+  expect(await page.evaluate(() => window.__llAnalyticsRequests.every(r => Number(r.request.curriculum_review) === 1))).toBe(true);
+  await page.evaluate(data => window.__resolveAnalyticsRequest(2, data), payload);
+  await expect(page.locator('[data-ll-wordset-progress-words-body] tr[data-word-id="1"]')).toBeVisible();
+});
+
 test('idle visible Progress refreshes older counts as words pass 30 days without study', async ({ page }) => {
   const startedAt = new Date('2026-10-13T10:00:00Z');
   await page.clock.install({ time: startedAt });
@@ -1381,8 +1404,8 @@ test('Select presets and All select complete scopes while Older supports both st
     const requestIndex = (await getAllFilteredLaunchRequestIndexes(page))[index];
     expect(await page.evaluate(i => {
       const request = window.__llAnalyticsRequests[i].request;
-      return { summary: JSON.parse(request.word_filter).summary, rows: Number(request.include_words), idsOnly: Number(request.selection_ids_only) };
-    }, requestIndex)).toEqual({ summary: 'older', rows: 0, idsOnly: 1 });
+      return { summary: JSON.parse(request.word_filter).summary, rows: Number(request.include_words), idsOnly: Number(request.selection_ids_only), course: Number(request.curriculum_review) };
+    }, requestIndex)).toEqual({ summary: 'older', rows: 0, idsOnly: 1, course: 1 });
     await page.locator('#ll-tools-close-flashcard').click();
     await expectFlashcardLaunchUiClosed(page);
   }

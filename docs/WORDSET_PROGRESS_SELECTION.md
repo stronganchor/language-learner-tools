@@ -15,10 +15,13 @@ It stays available at portrait phone widths even when the Last column is hidden.
   still toggle their filter off on a second tap. Clearing the selection hides
   the actions until another filter or selection action. The older-words pill
   uses purple and a clock icon.
-- **Due for review** starts with words last studied over 30 days ago. A
+- **Due for review** uses the learner's review intervals on a curriculum
+  wordset. The overview, Progress count, filtered rows and selection of all
+  matching IDs use the same course queue. Its daily activity takes the oldest
+  due words up to the recommended round size. Flat wordsets use 30 days. A
   previously studied, due phrase can represent its learned component words
   in the current scope. A correct learning, practice, or self-check outcome
-  on that phrase covers them for 30 days. An exposure or an unsuccessful
+  on that phrase credits the corresponding review date. An exposure or an unsuccessful
   attempt alone leaves the base word eligible for direct review. New and
   hard base words retain their own progress. Links can compose through
   learned intermediate cards. Each distinct due phrase keeps its own place.

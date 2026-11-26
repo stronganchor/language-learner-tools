@@ -7,7 +7,8 @@ const LL_TOOLS_LEVEL_REVIEW_INTERVALS_META = 'll_tools_level_review_intervals';
  * Project a complete, already visibility-filtered category catalog into public
  * cards and a signed-in request scope. Neither projection reads vocabulary.
  */
-function ll_tools_wordset_level_page_catalog(int $wordset_id, array $categories, array $mixed_lessons): array {
+function ll_tools_wordset_level_page_catalog(int $wordset_id, array $categories, array $mixed_lessons, ?bool &$complete = null, ?array $assignments = null): array {
+    $complete = true;
     $by_id = [];
     foreach ($categories as $cat) {
         $id = (int) ($cat['id'] ?? 0);
@@ -16,8 +17,12 @@ function ll_tools_wordset_level_page_catalog(int $wordset_id, array $categories,
         }
         $by_id[$id] = $cat;
     }
-    $groups = ll_tools_wordset_curriculum_groups($wordset_id, array_keys($by_id));
-    if (is_wp_error($groups) || empty($groups['enabled']) || empty($groups['levels'])) {
+    $groups = ll_tools_wordset_curriculum_groups($wordset_id, array_keys($by_id), $assignments);
+    if (is_wp_error($groups)) {
+        $complete = false;
+        return [];
+    }
+    if (empty($groups['enabled']) || empty($groups['levels'])) {
         return [];
     }
     $cards = [];
@@ -111,6 +116,71 @@ function ll_tools_wordset_level_save_interval(int $user_id, int $wordset_id, int
     });
 }
 
+/** Split an already ranked, exactly owned practice plan without reordering or hydrating it. */
+function ll_tools_wordset_level_bounded_plan(array $activity): array {
+    $chunks = [];
+    $chunk = ['category_ids' => [], 'word_ids' => []];
+    foreach ($activity['session_word_ids'] as $word_id) {
+        $category_id = $activity['word_category_ids'][$word_id];
+        $new_category = !in_array($category_id, $chunk['category_ids'], true);
+        if (count($chunk['word_ids']) >= 12 || ($new_category && count($chunk['category_ids']) >= 8)) {
+            $chunks[] = $chunk;
+            $chunk = ['category_ids' => [], 'word_ids' => []];
+            $new_category = true;
+        }
+        if ($new_category) { $chunk['category_ids'][] = $category_id; }
+        $chunk['word_ids'][] = $word_id;
+    }
+    if ($chunk['word_ids']) { $chunks[] = $chunk; }
+    $count = count($activity['session_word_ids']);
+    return ($chunks[0] ?? $chunk) + ['mode' => 'practice', 'chunks' => $chunks, 'chunk_count' => count($chunks),
+        'matched_count' => $count, 'planned_count' => $count, 'truncated' => false];
+}
+
+function ll_tools_wordset_level_visible_study_scope(array $scope, int $user_id, ?bool &$complete = null): array {
+    global $wpdb;
+    $wpdb->last_error = '';
+    $goals = ll_tools_get_user_study_goals($user_id);
+    $complete = $wpdb->last_error === '' && !is_wp_error(ll_tools_user_progress_get_source_error());
+    if (!$complete) { return []; }
+    $ignored = array_fill_keys((array) ($goals['ignored_category_ids'] ?? []), true);
+    if ($ignored) {
+        foreach ($scope as $key => $rows) {
+            $scope[$key] = array_values(array_filter($rows, static function ($row) use ($ignored): bool {
+                return !isset($ignored[$row['id']]);
+            }));
+        }
+    }
+    return $scope;
+}
+
+/** Dashboard and Progress must agree on the complete course before applying table filters. */
+function ll_tools_wordset_level_analytics_due_lookup(int $wordset_id, int $user_id, ?array $categories = null) {
+    if (!$wordset_id || $user_id !== get_current_user_id() || !$user_id) { return null; }
+    if (!ll_tools_user_can_view_wordset($wordset_id, $user_id, $complete)) {
+        return $complete ? [] : ll_tools_wordset_level_read_error();
+    }
+    $assignments = ll_tools_wordset_curriculum_assignment_map($wordset_id);
+    if (is_wp_error($assignments)) { return $assignments; }
+    if (!$assignments) { return null; } // Flat wordsets use the ordinary 30-day review window.
+    if ($categories === null) {
+        $categories = ll_tools_get_wordset_page_categories($wordset_id, 2, ['defer_previews' => true], $complete);
+        if (!$complete) { return ll_tools_wordset_level_read_error(); }
+    }
+    $catalog = ll_tools_wordset_level_page_catalog($wordset_id, $categories, [], $complete, $assignments);
+    if (!$complete) { return ll_tools_wordset_level_read_error(); }
+    if (!$catalog) { return []; }
+    $scope = ll_tools_wordset_level_visible_study_scope($catalog['scope'], $user_id, $complete);
+    if (!$complete) { return ll_tools_wordset_level_read_error(); }
+    $intervals = ll_tools_wordset_level_intervals($user_id, $wordset_id, array_keys($scope));
+    if (is_wp_error($intervals)) { return $intervals; }
+    $data = ll_tools_wordset_level_member_progress($wordset_id, $user_id, $scope, true);
+    if (is_wp_error($data)) { return $data; }
+    $reviews = ll_tools_wordset_level_course_reviews($wordset_id, $user_id, $data['levels'], $data['members'], $data['progress'], $intervals, time());
+    if (is_wp_error($reviews)) { return $reviews; }
+    return array_filter(array_column($reviews, 'due', 'id'));
+}
+
 /** Handle only the current learner's own level data and server-issued catalog scope. */
 function ll_tools_wordset_level_request(int $user_id, array $request) {
     if ($user_id < 1 || $user_id !== get_current_user_id() || !ll_tools_user_study_can_access($user_id)) {
@@ -127,21 +197,13 @@ function ll_tools_wordset_level_request(int $user_id, array $request) {
         || empty($payload['level_policy']) || !hash_equals($payload['level_policy'], ll_tools_wordset_level_policy_signature($wordset_id))) {
         return new WP_Error('ll_level_scope_changed', __('Reload this page to update your levels.', 'll-tools-text-domain'), ['status' => 403]);
     }
-    $scope = $payload['level_scope'];
-    $goals = ll_tools_get_user_study_goals($user_id);
-    $ignored = array_fill_keys((array) ($goals['ignored_category_ids'] ?? []), true);
-    if ($ignored) {
-        foreach ($scope as $key => $rows) {
-            $scope[$key] = array_values(array_filter($rows, static function ($row) use ($ignored): bool {
-                return !isset($ignored[$row['id']]);
-            }));
-        }
-    }
+    $scope = ll_tools_wordset_level_visible_study_scope($payload['level_scope'], $user_id, $complete);
+    if (!$complete) { return ll_tools_wordset_level_read_error(); }
     $operation = $request['operation'] ?? '';
     $level = filter_var($request['level'] ?? 0, FILTER_VALIDATE_INT);
     $mode = $request['launch_mode'] ?? '';
-    $all_due = $operation === 'launch' && $mode === 'due' && $level === 0;
-    if ($operation !== 'summary' && !$all_due && (!$level || empty($scope[$level]))) {
+    $global_review = $operation === 'launch' && in_array($mode, ['due', 'review'], true) && $level === 0;
+    if ($operation !== 'summary' && !$global_review && (!$level || empty($scope[$level]))) {
         return new WP_Error('ll_level_unknown', __('This level is unavailable.', 'll-tools-text-domain'), ['status' => 400]);
     }
     if ($operation === 'interval') {
@@ -161,19 +223,25 @@ function ll_tools_wordset_level_request(int $user_id, array $request) {
             $row['days'] = $days[$key];
         }
         unset($row);
+        $overall = $dashboard['overall'];
         return [
             'levels' => $dashboard['levels'],
-            'due' => $dashboard['overall']['due'],
-            'reviewPreviewCategoryIds' => array_slice($dashboard['overall']['activity']['category_ids'] ?? [], 0, 2),
+            'due' => $overall['due'],
+            'review' => ['reason' => $overall['reason'], 'count' => $overall['count'], 'due' => $overall['due']],
         ];
     }
-    if ($all_due) {
+    if ($global_review) {
         $overall = ll_tools_wordset_level_overall_review($wordset_id, $user_id, $scope, $days, $now);
-        $activity = is_wp_error($overall) ? $overall : $overall['activity'];
+        if (is_wp_error($overall)) { return $overall; }
+        $activity = $mode === 'due' && !$overall['due'] ? null : $overall['activity'];
+        if ($activity && $mode === 'review') { $activity['reason'] = $overall['reason']; }
     } elseif ($operation === 'launch' && in_array($mode, ['learn', 'practice', 'due'], true)) {
-        $activity = ll_tools_wordset_level_launch($wordset_id, $user_id, $scope[$level], $days[$level], $mode, $now);
+        $activity = ll_tools_wordset_level_launch($wordset_id, $user_id, $scope[$level], $days[$level], $mode, $now, $level);
     } else {
         return new WP_Error('ll_level_action_invalid', __('Unknown level action.', 'll-tools-text-domain'), ['status' => 400]);
+    }
+    if (!is_wp_error($activity ?? null) && !empty($activity['session_word_ids'])) {
+        $activity['bounded'] = ll_tools_wordset_level_bounded_plan($activity);
     }
     return $activity ?? new WP_Error('ll_level_no_activity', __('There is nothing to practice in this selection right now.', 'll-tools-text-domain'), ['status' => 409]);
 }

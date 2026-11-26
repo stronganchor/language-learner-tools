@@ -53,13 +53,13 @@ function ll_tools_wordset_curriculum_is_turkish_reference(int $wordset_id, int $
  *
  * @return array{enabled:bool,levels:array<int,int[]>}|WP_Error
  */
-function ll_tools_wordset_curriculum_groups(int $wordset_id, array $visible_category_ids) {
+function ll_tools_wordset_curriculum_groups(int $wordset_id, array $visible_category_ids, ?array $assignments = null) {
     $disabled = ['enabled' => false, 'levels' => []];
     $visible_category_ids = ll_tools_wordset_normalize_category_id_list($visible_category_ids);
     if ($wordset_id <= 0 || !$visible_category_ids) {
         return $disabled;
     }
-    $assignments = ll_tools_wordset_curriculum_assignment_map($wordset_id);
+    $assignments = $assignments ?? ll_tools_wordset_curriculum_assignment_map($wordset_id);
     if (is_wp_error($assignments)) {
         return $assignments;
     }

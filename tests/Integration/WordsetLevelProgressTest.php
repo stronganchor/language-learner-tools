@@ -58,9 +58,131 @@ final class WordsetLevelProgressTest extends LL_Tools_TestCase
             'level_policy' => ll_tools_wordset_level_policy_signature($ws), 'level_scope' => [1 => $members],
         ]);
         $request = ['operation' => 'summary', 'wordset_id' => $ws, 'token' => $token];
-        $this->assertSame([], ll_tools_wordset_level_request($uid, $request)['reviewPreviewCategoryIds']);
+        $initial = ll_tools_wordset_level_request($uid, $request);
+        $this->assertSame(['reason' => 'working', 'count' => 1, 'due' => 0], $initial['review']);
+        $this->assertArrayNotHasKey('due_word_ids', $initial['review']);
+        $this->assertArrayNotHasKey('bounded', $initial['levels'][1]['practice_activity']);
+        $review_request = array_merge($request, ['operation' => 'launch', 'level' => 0, 'launch_mode' => 'review']);
+        $fallback = ll_tools_wordset_level_request($uid, $review_request);
+        $this->assertSame('working', $fallback['reason']);
+        $this->assertSame([$ids[0]], $fallback['session_word_ids']);
+        $this->assertSame([$ids[0]], $fallback['bounded']['word_ids']);
+        $this->assertSame('ll_level_no_activity', ll_tools_wordset_level_request($uid,
+            array_merge($review_request, ['launch_mode' => 'due']))->get_error_code());
         ll_tools_wordset_level_save_interval($uid, $ws, 1, 7);
-        $this->assertSame([$cat], ll_tools_wordset_level_request($uid, $request)['reviewPreviewCategoryIds']);
+        $this->assertSame(['reason' => 'due', 'count' => 1, 'due' => 1], ll_tools_wordset_level_request($uid, $request)['review']);
+        $this->assertSame('due', ll_tools_wordset_level_request($uid, $review_request)['reason']);
+    }
+
+    public function test_exact_plan_chunks_preserve_rank_for_large_and_category_scattered_sessions(): void
+    {
+        $targets = range(501, 524);
+        $owners = array_combine($targets, array_merge(range(11, 21), array_fill(0, 13, 21)));
+        $activity = ll_tools_wordset_level_activity('practice', array_values($owners), $targets);
+        $activity['word_category_ids'] = $owners;
+        $plan = ll_tools_wordset_level_bounded_plan($activity);
+        $this->assertFalse($plan['truncated']);
+        $this->assertSame(24, $plan['matched_count']);
+        $this->assertSame(24, $plan['planned_count']);
+        $this->assertSame(3, $plan['chunk_count']);
+        $this->assertSame($plan['chunks'][0]['word_ids'], $plan['word_ids']);
+        $this->assertSame($plan['chunks'][0]['category_ids'], $plan['category_ids']);
+        $this->assertSame($targets, array_merge(...array_column($plan['chunks'], 'word_ids')));
+        foreach ($plan['chunks'] as $chunk) {
+            $this->assertLessThanOrEqual(8, count($chunk['category_ids']));
+            $this->assertLessThanOrEqual(12, count($chunk['word_ids']));
+            $this->assertSame(array_values(array_unique(array_intersect_key($owners, array_flip($chunk['word_ids'])))),
+                $chunk['category_ids']);
+        }
+    }
+
+    public function test_global_review_budget_uses_unique_studied_eligible_words_and_shortest_interval(): void
+    {
+        $now = time();
+        $old = gmdate('Y-m-d H:i:s', $now - 45 * DAY_IN_SECONDS);
+        $all = array_fill_keys(range(1, 3000), $old);
+        $rows = array_fill_keys(array_keys($all), ['total_coverage' => 1, 'last_seen_at' => $old]);
+        $unseen = array_fill_keys(range(3001, 4500), $old);
+        $members = [11 => $all, 12 => $all + $unseen, 13 => [5000 => $old]];
+        $levels = [1 => [11 => []], 2 => [12 => [], 13 => ['practice_supported' => false]]];
+        $rows[5000] = ['total_coverage' => 1, 'last_seen_at' => $old];
+        $result = ll_tools_wordset_level_summarize(0, 0, $levels, $members, [], $rows, [1 => 90, 2 => 30], $now);
+        $overall = $result['overall'];
+        $this->assertSame(0, $result['levels'][1]['due']);
+        $this->assertSame(3000, $result['levels'][2]['due']);
+        $this->assertSame(range(1, 3000), $overall['due_word_ids']);
+        $this->assertSame('due', $overall['reason']);
+        $this->assertSame(120, $overall['count']);
+        $this->assertSame(range(1, 120), $overall['activity']['session_word_ids']);
+        $this->assertSame([12], $overall['activity']['category_ids']);
+        $this->assertSame(array_fill_keys(range(1, 120), 12), $overall['activity']['word_category_ids']);
+        $this->assertCount(12, $result['levels'][2]['due_activity']['session_word_ids']);
+
+        // Only 7 of the 3,000 are still due. Keep the budget from inflating the selection.
+        $recent = gmdate('Y-m-d H:i:s', $now);
+        foreach (range(8, 3000) as $wid) { $rows[$wid]['last_seen_at'] = $recent; }
+        $limited = ll_tools_wordset_level_summarize(0, 0, $levels, $members, [], $rows, [1 => 90, 2 => 30], $now)['overall'];
+        $this->assertSame(7, $limited['count']);
+        $this->assertSame(range(1, 7), $limited['activity']['session_word_ids']);
+    }
+
+    public function test_global_no_due_plan_uses_one_named_pool_and_filters_unsupported_stars(): void
+    {
+        $now = time();
+        $today = gmdate('Y-m-d H:i:s', $now);
+        $studied = ['total_coverage' => 1, 'last_seen_at' => $today];
+        $mastered = $studied + ['mastery_unlocked' => 1, 'stage' => 5];
+        $rows = [1 => $studied, 2 => $studied + ['incorrect' => 8], 3 => $mastered, 4 => $mastered];
+        $members = [11 => array_fill_keys([1, 2, 3, 4], $today), 12 => [7 => $today]];
+        $levels = [1 => [11 => [], 12 => ['practice_supported' => false]]];
+        $plan = static function (array $progress, array $stars) use ($levels, $members, $now): array {
+            return ll_tools_wordset_level_summarize(0, 0, $levels, $members, [], $progress, [1 => 30],
+                $now, [], [], array_fill_keys($stars, true))['overall'];
+        };
+        $working = $plan($rows, [3, 7]);
+        $this->assertSame(['working', 1, 0], [$working['reason'], $working['count'], $working['due']]);
+        $this->assertSame([1], $working['activity']['session_word_ids']);
+        $rows[1] = $mastered;
+        $hard = $plan($rows, [3, 7]);
+        $this->assertSame('hard', $hard['reason']);
+        $this->assertSame([2], $hard['activity']['session_word_ids']);
+        $rows[2] = $mastered;
+        $stars = $plan($rows, [3, 7]);
+        $this->assertSame('starred', $stars['reason']);
+        $this->assertSame([3], $stars['activity']['session_word_ids']);
+        $rows[4]['last_seen_at'] = gmdate('Y-m-d H:i:s', $now - DAY_IN_SECONDS);
+        $least_recent = $plan($rows, [7]);
+        $this->assertSame('least_recent', $least_recent['reason']);
+        $this->assertSame([4, 1, 2, 3], $least_recent['activity']['session_word_ids']);
+        $this->assertNull($plan([], [7])['activity']);
+    }
+
+    public function test_advanced_level_practice_targets_unfinished_words_and_reinforces_only_their_lesson(): void
+    {
+        $now = time();
+        $old = gmdate('Y-m-d H:i:s', $now - 60 * DAY_IN_SECONDS);
+        $today = gmdate('Y-m-d H:i:s', $now);
+        $familiar = ['total_coverage' => 1, 'mastery_unlocked' => 1, 'stage' => 5, 'last_seen_at' => $old];
+        $rows = array_fill_keys(range(1, 11), $familiar);
+        $rows[10] = ['total_coverage' => 1, 'last_seen_at' => $today];
+        $members = [11 => array_fill_keys(range(1, 8), $old), 12 => [3 => $old, 9 => $old, 10 => $old, 11 => $old, 12 => $today]];
+        $level = ll_tools_wordset_level_summarize(0, 0, [1 => [11 => [], 12 => []]], $members, [12 => $old],
+            $rows, [1 => 30], $now)['levels'][1];
+        $this->assertTrue($level['practice_focus']);
+        $this->assertSame(12, $level['next_category_id']);
+        $this->assertSame(12, $level['practice_category_id']);
+        $this->assertSame([12, 10, 3], $level['practice_activity']['session_word_ids']);
+        $this->assertSame([12 => 12, 10 => 12, 3 => 12], $level['practice_activity']['word_category_ids']);
+        $this->assertNotContains(12, $level['due_activity']['session_word_ids']);
+        $this->assertNotContains(10, $level['due_activity']['session_word_ids']);
+        $this->assertSame(11, $level['due_category_id']);
+        // A level with a simple majority mastered still introduces its unseen words through Learn.
+        foreach ([4, 5, 6] as $id) { unset($rows[$id]); }
+        $early = ll_tools_wordset_level_summarize(0, 0, [1 => [11 => [], 12 => []]], $members, [12 => $old],
+            $rows, [1 => 30], $now)['levels'][1];
+        $this->assertContains(10, $early['practice_activity']['session_word_ids']);
+        $this->assertSame([], array_intersect([4, 5, 6, 12], $early['practice_activity']['session_word_ids']));
+        $this->assertNotSame(0, $early['next_category_id']);
     }
 
     public function test_large_generation_checkpoints_250_ids_without_publishing_partial_counts(): void
@@ -283,5 +405,28 @@ final class WordsetLevelProgressTest extends LL_Tools_TestCase
         $this->assertSame([$base], $result['overall']['activity']['session_word_ids']);
         $this->assertSame(1, $result['levels'][2]['mastered']);
         $this->assertSame(1, $result['levels'][2]['working']);
+    }
+
+    public function test_pending_richer_word_in_another_level_suppresses_the_base_only_on_the_whole_course(): void
+    {
+        $uid = self::factory()->user->create(['role' => 'subscriber']);
+        $ws = self::factory()->term->create(['taxonomy' => 'wordset']);
+        $source = self::factory()->post->create(['post_type' => 'words', 'post_status' => 'publish']);
+        $base = self::factory()->post->create(['post_type' => 'words', 'post_status' => 'publish']);
+        foreach ([$source, $base] as $wid) { wp_set_post_terms($wid, [$ws], 'wordset'); }
+        update_option('ll_tools_context_review_' . $ws, wp_json_encode([[$source, $base]]), false);
+        $now = time();
+        $old = gmdate('Y-m-d H:i:s', $now - 100 * DAY_IN_SECONDS);
+        $recent = gmdate('Y-m-d H:i:s', $now - 20 * DAY_IN_SECONDS);
+        $rows = [$base => ['total_coverage' => 1, 'mastery_unlocked' => 1, 'stage' => 5, 'last_seen_at' => $old],
+            $source => ['total_coverage' => 1, 'last_seen_at' => $recent]];
+        $levels = [1 => [11 => []], 2 => [12 => []]];
+        $members = [11 => [$base => $old], 12 => [$source => $old]];
+        $first = ll_tools_wordset_level_summarize($ws, $uid, $levels, $members, [], $rows, [1 => 90, 2 => 7], $now);
+        $this->assertSame(1, $first['levels'][1]['due']);
+        $this->assertSame(1, $first['levels'][2]['due']);
+        $this->assertSame([$source], $first['overall']['due_word_ids']);
+        $reverse = ll_tools_wordset_level_summarize($ws, $uid, $levels, $members, [], $rows, [1 => 7, 2 => 90], $now);
+        $this->assertSame([$base], $reverse['overall']['due_word_ids']);
     }
 }

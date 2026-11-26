@@ -1793,6 +1793,60 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
         $this->assertSame(2, (int) ($category_counts[(string) $cat_b] ?? 0));
     }
 
+    public function test_curriculum_analytics_ajax_reports_cold_membership_read_error_without_serving_default_counts(): void
+    {
+        global $wpdb;
+        $uid = self::factory()->user->create(['role' => 'subscriber']);
+        wp_set_current_user($uid);
+        $fixture = $this->createAnalyticsFixture();
+        [$a, $b] = $fixture['category_ids'];
+        $ws = $fixture['wordset_id'];
+        foreach ([$a, $b] as $cid) {
+            $lesson = self::factory()->post->create(['post_type' => 'll_vocab_lesson', 'post_status' => 'publish']);
+            update_post_meta($lesson, LL_TOOLS_VOCAB_LESSON_WORDSET_META, (string) $ws);
+            update_post_meta($lesson, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, (string) $cid);
+        }
+        update_term_meta($ws, 'll_wordset_category_ordering_mode', 'prerequisite');
+        update_term_meta($ws, 'll_wordset_category_prerequisites', [$b => [$a]]);
+        $this->completeLlToolsSimulatedRequest();
+        $query_count = 0;
+        $fail_membership = static function (string $sql) use (&$query_count): string {
+            if (str_contains($sql, 'category_rel.object_id = p.ID') && str_contains($sql, 'LIMIT 49')) {
+                ++$query_count;
+                return 'SELECT failed_column FROM ll_test_missing_membership_table';
+            }
+            return $sql;
+        };
+        $old_post = $_POST;
+        $old_request = $_REQUEST;
+        $old_suppressed = $wpdb->suppress_errors(true);
+        add_filter('query', $fail_membership);
+        try {
+            $_POST = $_REQUEST = ['nonce' => wp_create_nonce('ll_user_study'), 'wordset_id' => $ws,
+                'curriculum_review' => '1', 'summary_only' => '1'];
+            $response = $this->runJsonEndpoint(static function (): void { ll_tools_user_study_analytics_ajax(); });
+            $this->assertGreaterThan(0, $query_count);
+            $this->assertFalse($response['success']);
+            $this->assertSame('ll_level_progress_unavailable', $response['data']['code']);
+            $this->assertArrayNotHasKey('analytics', $response['data']);
+        } finally {
+            remove_filter('query', $fail_membership);
+            $wpdb->suppress_errors($old_suppressed);
+            $_POST = $old_post;
+            $_REQUEST = $old_request;
+        }
+        $_POST = $_REQUEST = ['nonce' => wp_create_nonce('ll_user_study'), 'wordset_id' => $ws,
+            'curriculum_review' => '1', 'summary_only' => '1'];
+        try {
+            $response = $this->runJsonEndpoint(static function (): void { ll_tools_user_study_analytics_ajax(); });
+            $this->assertTrue($response['success']);
+            $this->assertSame(0, $response['data']['analytics']['summary']['older_words']);
+        } finally {
+            $_POST = $old_post;
+            $_REQUEST = $old_request;
+        }
+    }
+
     public function test_analytics_ajax_returns_filtered_word_ids_without_hydrating_rows(): void
     {
         $user_id = self::factory()->user->create(['role' => 'subscriber']);

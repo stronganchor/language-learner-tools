@@ -25940,11 +25940,12 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
         && !$settings_tool_needs_full_category_catalog;
     $defer_main_category_previews = $is_main_view
         && (bool) apply_filters('ll_tools_wordset_page_defer_main_category_previews', true, $wordset_id);
+    $page_categories_complete = true;
     $categories = ($use_paged_category_manager || $skip_full_category_catalog)
         ? []
         : ll_tools_get_wordset_page_categories($wordset_id, $preview_limit, [
             'defer_previews' => $defer_main_category_previews,
-        ]);
+        ], $page_categories_complete);
     $wordset_url = ll_tools_get_wordset_page_view_url($wordset_term);
     $subpage_return_url = ll_tools_wordset_page_get_subpage_return_url($wordset_term);
     $settings_navigation_back_url = $subpage_return_url;
@@ -26209,8 +26210,22 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
         }
         $study_state['wordset_id'] = $wordset_id;
         if (!$use_paged_category_manager && $should_bootstrap_analytics && function_exists('ll_tools_build_user_study_analytics_payload')) {
-            $analytics_options = ($view === 'progress') ? ['summary_only' => true] : [];
-            $analytics = ll_tools_build_user_study_analytics_payload(get_current_user_id(), $wordset_id, [], 14, false, $analytics_options);
+            $analytics_options = [];
+            if ($view === 'progress') {
+                $analytics_options = ['summary_only' => true, 'curriculum_due' => $page_categories_complete
+                    ? ll_tools_wordset_level_analytics_due_lookup($wordset_id, get_current_user_id(), $categories)
+                    : ll_tools_wordset_level_read_error()];
+            }
+            // Leave a cold/incomplete projection to the deferred request instead of showing a different count.
+            if (is_wp_error($analytics_options['curriculum_due'] ?? null)) {
+                $should_bootstrap_analytics = false;
+            } else {
+                $analytics = ll_tools_build_user_study_analytics_payload(get_current_user_id(), $wordset_id, [], 14, false, $analytics_options, $analytics_complete);
+                if (!$analytics_complete && isset($analytics_options['curriculum_due'])) {
+                    $analytics = [];
+                    $should_bootstrap_analytics = false;
+                }
+            }
         }
         if (!$defer_main_recommendation_refresh && !$use_paged_category_manager && !empty($categories) && function_exists('ll_tools_user_study_categories_for_wordset')) {
             $study_categories = ll_tools_user_study_categories_for_wordset($wordset_id);

@@ -57,6 +57,59 @@ final class WordsetProgressHiddenCategoriesTest extends LL_Tools_TestCase
         $this->assertNotContains((int) $fixture['hidden_category_id'], $scope_category_ids);
     }
 
+    public function test_curriculum_progress_uses_the_complete_course_then_applies_table_filters(): void
+    {
+        $uid = self::factory()->user->create(['role' => 'subscriber']);
+        wp_set_current_user($uid);
+        $fixture = $this->createWordsetFixture();
+        $ws = $fixture['wordset_id'];
+        $a = $fixture['visible_category_id'];
+        $b = $fixture['hidden_category_id'];
+        $long = $fixture['visible_word_id'];
+        $short = $fixture['hidden_word_id'];
+        $shared = $this->createWordWithAudio('Shared word', 'Shared translation', $a, $ws, 'shared-review.mp3');
+        wp_set_post_terms($shared, [$b], 'word-category', true);
+        foreach ([[$long, $a, 45], [$short, $b, 14], [$shared, $b, 14]] as [$word, $category, $days]) {
+            $this->seedWordProgressRow($uid, $word, $category, $ws, [
+                'total_coverage' => 1, 'last_seen_at' => gmdate('Y-m-d H:i:s', time() - $days * DAY_IN_SECONDS),
+            ]);
+        }
+        $this->assertNull(ll_tools_wordset_level_analytics_due_lookup($ws, $uid));
+        $this->assertSame(1, ll_tools_build_user_study_analytics_payload($uid, $ws, [], 14, false,
+            ['summary_only' => true])['summary']['older_words']);
+        update_term_meta($ws, 'll_wordset_category_ordering_mode', 'prerequisite');
+        update_term_meta($ws, 'll_wordset_category_prerequisites', [$b => [$a]]);
+        ll_tools_wordset_level_save_interval($uid, $ws, 2, 7);
+        $this->completeLlToolsSimulatedRequest();
+        $due = ll_tools_wordset_level_analytics_due_lookup($ws, $uid);
+        $this->assertIsArray($due);
+        $this->assertEqualsCanonicalizing([$short, $shared], array_keys($due));
+        $options = ['curriculum_due' => $due];
+        $all = ll_tools_build_user_study_analytics_payload($uid, $ws, [], 14, false, $options);
+        $this->assertSame(2, $all['summary']['older_words']);
+        $flags = array_column($all['words'], 'review_due', 'id');
+        $this->assertSame(false, $flags[$long]);
+        $this->assertSame(true, $flags[$shared]);
+        $summary = ll_tools_build_user_study_analytics_payload($uid, $ws, [$a], 14, false, $options + ['summary_only' => true]);
+        $this->assertSame(1, $summary['summary']['older_words']);
+        $filtered = $options + ['include_words' => false, 'include_word_ids' => true, 'selection_ids_only' => true];
+        $review_ids = ll_tools_build_user_study_analytics_payload($uid, $ws, [$a], 14, false,
+            $filtered + ['word_filter' => ['summary' => 'older']]);
+        $this->assertSame([$shared], $review_ids['word_ids']);
+        $age_ids = ll_tools_build_user_study_analytics_payload($uid, $ws, [$a], 14, false,
+            $filtered + ['word_filter' => ['column_filters' => ['last' => ['older']]]]);
+        $this->assertSame([$long], $age_ids['word_ids']);
+        $config = $this->renderProgressConfig($ws);
+        $this->assertSame(2, $config['analytics']['summary']['older_words']);
+
+        ll_tools_save_user_study_goals(['ignored_category_ids' => [$b]], $uid);
+        $this->completeLlToolsSimulatedRequest();
+        $this->assertSame([], ll_tools_wordset_level_analytics_due_lookup($ws, $uid));
+        update_user_meta($uid, LL_TOOLS_LEVEL_REVIEW_INTERVALS_META, 'invalid');
+        $incomplete = $this->renderProgressConfig($ws);
+        $this->assertTrue((bool) $incomplete['summaryCountsDeferred']);
+    }
+
     /**
      * @return array{
      *   wordset_id:int,
@@ -209,10 +262,10 @@ final class WordsetProgressHiddenCategoriesTest extends LL_Tools_TestCase
 
         $localized = (string) wp_scripts()->get_data('ll-wordset-pages-js', 'data');
         $this->assertNotSame('', $localized);
-        preg_match('/var llWordsetPageData = (\{.*?\});/s', $localized, $matches);
+        preg_match_all('/var llWordsetPageData = (\{.*?\});/s', $localized, $matches);
         $this->assertArrayHasKey(1, $matches);
 
-        $decoded = json_decode((string) $matches[1], true);
+        $decoded = json_decode((string) end($matches[1]), true);
         $this->assertIsArray($decoded);
 
         return $decoded;

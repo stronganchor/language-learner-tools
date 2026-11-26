@@ -133,6 +133,7 @@
     let analyticsTimer = null;
     let analyticsTimerOptions = null;
     let analyticsRequestToken = 0;
+    let progressPreparationDeadline = 0;
     let analyticsInFlightRequest = null;
     let analyticsInFlightOptions = null;
     let queuedAnalyticsRefreshOptions = null;
@@ -2126,6 +2127,7 @@
                 last_seen_at: String(row.last_seen_at || ''),
                 last_reviewed_at: String(row.last_reviewed_at || row.last_seen_at || ''),
                 review_in_context: !!row.review_in_context,
+                review_due: typeof row.review_due === 'boolean' ? row.review_due : null,
                 is_starred: !!row.is_starred,
                 prompt_blocked: !!row.prompt_blocked,
                 normalized_grammatical_gender: String(row.normalized_grammatical_gender || ''),
@@ -4501,7 +4503,7 @@
                 return analyticsWordIsDifficult(row);
             }
             if (key === 'older') {
-                return !row.review_in_context && analyticsWordMatchesLastFilter(row, 'older');
+                return row.review_due ?? (!row.review_in_context && analyticsWordMatchesLastFilter(row, 'older'));
             }
             return true;
         });
@@ -6742,6 +6744,7 @@
             include_words: 0,
             include_word_ids: 1,
             selection_ids_only: 1,
+            curriculum_review: 1,
             word_limit: 0,
             word_offset: 0
         };
@@ -7787,6 +7790,7 @@
         }
         const analyticsRequestData = {
             action: 'll_user_study_analytics',
+            curriculum_review: 1,
             nonce: nonce,
             wordset_id: wordsetId,
             days: 14,
@@ -7849,6 +7853,7 @@
                     : '';
                 progressWordIdsSnapshotRequestedAt = progressWordIdsSnapshotSignature ? requestStartedAt : null;
                 progressAnalyticsLoaded = true;
+                progressPreparationDeadline = 0;
                 setSummaryMetricsLoadingState(false);
                 renderProgressAnalytics();
                 setProgressStatus('', '');
@@ -7864,12 +7869,21 @@
                 renderProgressAnalytics();
             }
             setProgressStatus(i18n.analyticsUnavailable || '', 'error');
-        }).fail(function () {
+        }).fail(function (xhr) {
             if (token !== analyticsRequestToken || wordFilterKey !== getCurrentProgressWordRequestFilterKey()) { return; }
             if (isFlashcardOpen && !opts.allowWhileFlashcardOpen) {
                 deferProgressAnalyticsRefreshUntilClose(opts);
                 return;
             }
+            if (xhr?.responseJSON?.data?.code === 'll_level_progress_preparing') {
+                if (!progressPreparationDeadline) progressPreparationDeadline = Date.now() + 180000;
+                if (Date.now() < progressPreparationDeadline) {
+                    progressAnalyticsLoading = false;
+                    scheduleProgressAnalyticsRefresh(2000, opts);
+                    return;
+                }
+            }
+            progressPreparationDeadline = 0;
             progressWordPendingFilterKey = null;
             invalidateProgressWordIdsSnapshot();
             progressAnalyticsLoading = false;
@@ -8023,6 +8037,7 @@
         setProgressWordPageLoading(true);
         const requestData = {
             action: 'll_user_study_analytics',
+            curriculum_review: 1,
             nonce: nonce,
             wordset_id: wordsetId,
             days: 14,
@@ -11195,6 +11210,8 @@
             return;
         }
 
+        const focus = document.activeElement;
+        const focusedCard = curriculum && focus && $grid[0].contains(focus) && focus.closest('.ll-wordset-card');
         clearLazyCardsPlaceholders();
 
         const parsedNodes = $.parseHTML(String(html), document, true) || [];
@@ -11225,6 +11242,15 @@
 
         if ((curriculum && curriculum.isScoped()) || String(mainCategorySearchQuery || '').trim() !== '') {
             renderMainCategorySearch();
+            if (focusedCard && document.activeElement === document.body) {
+                const replacement = focusedCard.dataset.catId ? getWordsetCardByCategoryId(focusedCard.dataset.catId)[0] :
+                    getContentLessonCardById(focusedCard.dataset.lessonId)[0];
+                if (replacement && !replacement.hidden) {
+                    const selector = focus.matches('[data-ll-wordset-select]') ? '[data-ll-wordset-select]' : 'a.ll-wordset-card__heading, a[href]';
+                    const target = focus.isConnected ? focus : replacement.querySelector(selector);
+                    if (target) target.focus({preventScroll:true});
+                }
+            }
             scheduleLazyCardsAutoLoadCheck();
             return;
         }
@@ -11631,7 +11657,6 @@
         const levelContentIds = scoped ? curriculum.contentIds() : [];
         const pageContentIds = levelContentIds.slice(0, Math.max(0, pageLimit - totalMatchingCount));
         const contentOnPage = new Set(pageContentIds);
-        if (curriculum) curriculum.updateMore(totalMatchingCount + levelContentIds.length);
         syncAddCategoryCardSearchState(!!query || !!scoped);
         if (!query && !scoped) {
             removeTemporarySearchResultCards();
@@ -11708,6 +11733,7 @@
                 .attr('aria-hidden', shouldShow ? 'false' : 'true');
         });
 
+        if (curriculum) curriculum.updateMore(totalMatchingCount + levelContentIds.length, visibleCount);
         const searchHasError = syncMainCategorySearchError(query);
         const pendingMatches = !!(searchRenderResult && searchRenderResult.pendingMatches) || searchRequestPending;
 
@@ -18777,19 +18803,29 @@
                 launchSelectionMode(mode, {categoryIds: ids, ignoreSelectionFilters: true, source: 'wordset_level_start', curriculumLevel: level});
                 return;
             }
-            launchFlashcards(mode, ids, wordIds, {
+            const bounded = plan.bounded;
+            const targets = new Set(wordIds);
+            const ownsTargets = chunk => {
+                if (!Array.isArray(chunk?.category_ids) || !Array.isArray(chunk.word_ids)) return false;
+                return chunk.word_ids.every(id => targets.has(id) && chunk.category_ids.includes(plan.word_category_ids?.[id]));
+            };
+            if (bounded?.planned_count !== targets.size || !Array.isArray(bounded.chunks) || !bounded.chunks.every(ownsTargets)) {
+                fail();
+                return;
+            }
+            launchBoundedSelectionPlan(bounded, {
+                mode: mode,
+                categoryIds: ids,
+                minimumWordCount: 1,
                 launchToken: token,
                 launchUi: ui,
                 launchUiCleanup: cleanup,
                 source: 'wordset_level_start',
-                boundedSelectionPlan: true,
-                skipCompatibilityFilter: true,
                 details: Object.assign({}, plan.details || {}, {
                     curriculum_exact: true, curriculum_level: level, preserve_mixed_presentation: true,
                     word_category_ids: plan.word_category_ids
                 }),
-                rejectOnLoadFailure: true,
-                suppressFailureAlert: true,
+                onEmpty: fail,
                 onLaunchFailure: error
             });
         }).fail(fail);

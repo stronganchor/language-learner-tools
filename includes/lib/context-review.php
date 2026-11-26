@@ -129,7 +129,7 @@ function ll_tools_context_review_ancestor_rows(int $uid, int $wordset_id, array 
 
 // Direct progress is authoritative for mastery and outcomes. Project actual
 // event dates onto linked components only in this learner's analytics response.
-function ll_tools_context_review_mark_rows(int $uid, int $wordset_id, array &$rows, array $scope_ids, int $days = 30, ?int $now = null, ?bool &$complete = null): void {
+function ll_tools_context_review_mark_rows(int $uid, int $wordset_id, array &$rows, array $scope_ids, int $days = 30, ?int $now = null, ?bool &$complete = null, array $days_by_word = []): void {
     global $wpdb;
     $complete = true;
     if (!$rows || $wordset_id <= 0) { return; }
@@ -166,7 +166,7 @@ function ll_tools_context_review_mark_rows(int $uid, int $wordset_id, array &$ro
     $pending = [];
     while ($queue) {
         $source = array_pop($queue);
-        $source_pending = isset($rows[$source]) && (isset($pending[$source]) || ll_tools_context_review_word_due($rows[$source], $days, $now));
+        $source_pending = isset($rows[$source]) && (isset($pending[$source]) || ll_tools_context_review_word_due($rows[$source], $days_by_word[$source] ?? $days, $now));
         foreach ($graph[$source] ?? [] as $base) {
             if ($source_pending && isset($rows[$base])) {
                 $pending[$base] = true;
@@ -177,7 +177,7 @@ function ll_tools_context_review_mark_rows(int $uid, int $wordset_id, array &$ro
                 $latest[$base] = max($latest[$base] ?? '', $date);
                 if (isset($rows[$base])) {
                     $rows[$base]['context_reviewed_at'] = max($rows[$base]['context_reviewed_at'] ?? '', $date);
-                    if (strtotime($date . ' UTC') >= ($now ?? time()) - max(1, $days) * DAY_IN_SECONDS) {
+                    if (strtotime($date . ' UTC') >= ($now ?? time()) - max(1, $days_by_word[$base] ?? $days) * DAY_IN_SECONDS) {
                         $rows[$base]['review_in_context'] = true;
                     }
                 }

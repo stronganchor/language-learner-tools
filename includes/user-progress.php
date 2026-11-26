@@ -4205,8 +4205,9 @@ function ll_tools_record_server_progress_event(int $user_id, array $event): bool
     }
 }
 
-function ll_tools_get_user_word_progress_rows(int $user_id, array $word_ids): array {
+function ll_tools_get_user_word_progress_rows(int $user_id, array $word_ids, ?bool &$complete = null): array {
     global $wpdb;
+    $complete = true;
     if ($user_id <= 0 || empty($word_ids)) {
         return [];
     }
@@ -4225,7 +4226,9 @@ function ll_tools_get_user_word_progress_rows(int $user_id, array $word_ids): ar
         $placeholders = implode(', ', array_fill(0, count($chunk), '%d'));
         $sql = "SELECT * FROM {$table} WHERE user_id = %d AND word_id IN ({$placeholders})";
         $params = array_merge([$user_id], $chunk);
+        $wpdb->last_error = '';
         $rows = $wpdb->get_results($wpdb->prepare($sql, $params), ARRAY_A);
+        if ($wpdb->last_error !== '') { $complete = false; return []; }
         foreach ((array) $rows as $row) {
             $wid = isset($row['word_id']) ? (int) $row['word_id'] : 0;
             if ($wid > 0) {
@@ -4235,7 +4238,8 @@ function ll_tools_get_user_word_progress_rows(int $user_id, array $word_ids): ar
     }
 
     if (!empty($out)) {
-        $required_types_map = ll_tools_get_word_practice_recording_types_map(array_keys($out));
+        $required_types_map = ll_tools_get_word_practice_recording_types_map(array_keys($out), $complete);
+        if (!$complete) { return []; }
         foreach ($out as $wid => $row) {
             $out[$wid]['practice_required_recording_types_json'] = (string) ($row['practice_required_recording_types'] ?? '');
             $out[$wid]['practice_correct_recording_types_json'] = (string) ($row['practice_correct_recording_types'] ?? '');
@@ -6098,10 +6102,15 @@ function ll_tools_build_user_study_analytics_summary_only_payload(
     array $category_word_ids,
     array $all_word_ids,
     int $days,
-    bool $card_metrics_only = false
+    bool $card_metrics_only = false,
+    ?array $curriculum_due = null,
+    ?bool &$complete = null
 ): array {
-    $progress_rows = ll_tools_get_user_word_progress_summary_rows($uid, $all_word_ids);
-    ll_tools_context_review_mark_rows($uid, $scope_wordset_id, $progress_rows, $all_word_ids);
+    $progress_rows = ll_tools_get_user_word_progress_summary_rows($uid, $all_word_ids, $complete);
+    if ($curriculum_due !== null && !$complete) { return []; }
+    if ($curriculum_due === null) {
+        ll_tools_context_review_mark_rows($uid, $scope_wordset_id, $progress_rows, $all_word_ids);
+    }
     $category_progress = ll_tools_get_user_category_progress($uid);
     $category_url_map = $card_metrics_only ? [] : ll_tools_user_progress_get_vocab_lesson_url_map($scope_wordset_id);
     $progress_modes = ll_tools_progress_modes();
@@ -6127,7 +6136,7 @@ function ll_tools_build_user_study_analytics_summary_only_payload(
         if (ll_tools_user_progress_word_is_hard($progress)) {
             $summary_hard++;
         }
-        if (ll_tools_context_review_word_due($progress)) {
+        if ($curriculum_due === null ? ll_tools_context_review_word_due($progress) : isset($curriculum_due[$wid])) {
             $summary_older++;
         }
     }
@@ -6604,7 +6613,7 @@ function ll_tools_user_progress_analytics_word_matches_filter(
     if ($summary === 'hard' && !$is_hard) {
         return false;
     }
-    if ($summary === 'older' && !ll_tools_context_review_word_due($progress)) {
+    if ($summary === 'older' && !($progress['review_due'] ?? ll_tools_context_review_word_due($progress))) {
         return false;
     }
 
@@ -7085,7 +7094,7 @@ function ll_tools_build_user_study_analytics_payload(
         $scope_wordset_id,
         $membership_complete
     );
-    if ($selection_ids_only && !$membership_complete) {
+    if (($selection_ids_only || isset($options['curriculum_due'])) && !$membership_complete) {
         $complete = false;
         return [];
     }
@@ -7152,8 +7161,11 @@ function ll_tools_build_user_study_analytics_payload(
             $category_word_ids,
             $all_word_ids,
             (int) $days,
-            $card_metrics_only
+            $card_metrics_only,
+            $options['curriculum_due'] ?? null,
+            $complete
         );
+        if (isset($options['curriculum_due']) && !$complete) { return []; }
         $summary_payload['word_filter_counts'] = ll_tools_user_progress_empty_analytics_word_filter_counts();
         return $summary_payload;
     }
@@ -7174,9 +7186,19 @@ function ll_tools_build_user_study_analytics_payload(
             return [];
         }
     } else {
-        $progress_rows = ll_tools_get_user_word_progress_rows($uid, $all_word_ids);
+        $progress_rows = ll_tools_get_user_word_progress_rows($uid, $all_word_ids, $progress_rows_complete);
+        if (isset($options['curriculum_due']) && !$progress_rows_complete) { $complete = false; return []; }
     }
-    ll_tools_context_review_mark_rows($uid, $scope_wordset_id, $progress_rows, $all_word_ids);
+    ll_tools_context_review_mark_rows($uid, $scope_wordset_id, $progress_rows, $all_word_ids, 30, null, $context_complete);
+    if (isset($options['curriculum_due']) && !$context_complete) { $complete = false; return []; }
+    // The last-studied column keeps its calendar windows. The review action
+    // follows the learner's course intervals and exact practice eligibility.
+    if (isset($options['curriculum_due'])) {
+        foreach ($progress_rows as $wid => &$row) {
+            $row['review_due'] = isset($options['curriculum_due'][$wid]);
+        }
+        unset($row);
+    }
     $starred_word_ids = function_exists('ll_tools_get_user_study_starred_word_ids')
         ? ll_tools_get_user_study_starred_word_ids($uid)
         : (array) ((function_exists('ll_tools_get_user_study_state') ? ll_tools_get_user_study_state($uid) : [])['starred_word_ids'] ?? []);
@@ -7275,7 +7297,7 @@ function ll_tools_build_user_study_analytics_payload(
             if (ll_tools_user_progress_word_is_hard($progress)) {
                 $summary_hard++;
             }
-            if (ll_tools_context_review_word_due($progress)) {
+            if ($progress['review_due'] ?? ll_tools_context_review_word_due($progress)) {
                 $summary_older++;
             }
             if (isset($starred_lookup[$word_id])) {
@@ -7696,6 +7718,7 @@ function ll_tools_build_user_study_analytics_payload(
                 'last_seen_at' => $last_seen_at,
                 'last_reviewed_at' => ll_tools_context_review_last_studied_at($progress),
                 'review_in_context' => !empty($progress['review_in_context']),
+                'review_due' => $progress['review_due'] ?? ll_tools_context_review_word_due($progress),
                 'due_at' => $due_at,
                 'is_starred' => !empty($starred_lookup[$wid]),
                 'prompt_blocked' => !empty($word['prompt_blocked']),
@@ -7720,7 +7743,7 @@ function ll_tools_build_user_study_analytics_payload(
         if (ll_tools_user_progress_word_is_hard($progress)) {
             $summary_hard++;
         }
-        if (ll_tools_context_review_word_due($progress)) {
+        if ($progress['review_due'] ?? ll_tools_context_review_word_due($progress)) {
             $summary_older++;
         }
         if (!empty($starred_lookup[$wid])) {
@@ -13864,6 +13887,13 @@ function ll_tools_user_study_analytics_ajax() {
         }
     }
 
+    $curriculum_due = null;
+    if (!empty($_POST['curriculum_review'])) {
+        $curriculum_due = ll_tools_wordset_level_analytics_due_lookup($wordset_id, get_current_user_id());
+        if (is_wp_error($curriculum_due)) {
+            wp_send_json_error(['code' => $curriculum_due->get_error_code(), 'message' => $curriculum_due->get_error_message()], 503);
+        }
+    }
     $analytics_complete = true;
     $analytics = ll_tools_build_user_study_analytics_payload(get_current_user_id(), $wordset_id, $category_ids, $days, $include_ignored, [
         'include_words' => $include_words,
@@ -13871,11 +13901,12 @@ function ll_tools_user_study_analytics_ajax() {
         'selection_ids_only' => $selection_ids_only,
         'summary_only' => $summary_only,
         'card_metrics_only' => !empty($_POST['card_metrics_only']),
+        'curriculum_due' => $curriculum_due,
         'word_limit' => $word_limit,
         'word_offset' => $word_offset,
         'word_filter' => $word_filter,
     ], $analytics_complete);
-    if ($selection_ids_only && !$analytics_complete) {
+    if (($selection_ids_only || $curriculum_due !== null) && !$analytics_complete) {
         wp_send_json_error([
             'code' => 'selection_query_failed',
             'message' => __('Something went wrong. Please try again.', 'll-tools-text-domain'),

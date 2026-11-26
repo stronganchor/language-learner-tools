@@ -4,7 +4,12 @@ For curriculum rows, one-based level labels, suggested lesson actions, and revie
 
 For the wordset title image and language details, start with `includes/pages/wordset-pages.php` and `css/wordset-pages.css`. For quiz mode icons shared by launch buttons and results, start with `ll_flashcards_get_mode_ui_config()` in `includes/shortcodes/flashcard-widget.php` and the five `media/*-symbol.svg` assets.
 
-For context-based 30-day review, start with `includes/lib/context-review.php`,
+For daily review size, exact Practice batches, and count agreement between
+the level overview and Progress, use `includes/lib/wordset-level-progress.php`,
+`includes/lib/wordset-level-page.php`, `includes/user-progress.php` and
+`tests/e2e/specs/wordset-curriculum-levels.spec.js`.
+
+For review credit from linked words and phrases, start with `includes/lib/context-review.php`,
 `docs/WORDSET_PROGRESS_SELECTION.md`, the `context-review` route in
 `docs/REST_AUTOMATION.md`, and `UserStudyAnalyticsTest`.
 
