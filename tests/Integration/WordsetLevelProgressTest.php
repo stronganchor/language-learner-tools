@@ -63,7 +63,12 @@ final class WordsetLevelProgressTest extends LL_Tools_TestCase
         $initial = ll_tools_wordset_level_request($uid, $request);
         $this->assertSame(['reason' => 'working', 'count' => 1, 'due' => 0], $initial['review']);
         $this->assertArrayNotHasKey('due_word_ids', $initial['review']);
-        $this->assertArrayNotHasKey('bounded', $initial['levels'][1]['practice_activity']);
+        $this->assertSame(['mode' => 'practice', 'category_ids' => [$cat], 'word_count' => 1],
+            $initial['levels'][1]['practice_activity']);
+        $level_practice = ll_tools_wordset_level_request($uid, array_merge($request,
+            ['operation' => 'launch', 'level' => 1, 'launch_mode' => 'practice']));
+        $this->assertSame([$ids[0]], $level_practice['bounded']['word_ids']);
+        $this->assertSame([$ids[0] => $cat], $level_practice['word_category_ids']);
         $review_request = array_merge($request, ['operation' => 'launch', 'level' => 0, 'launch_mode' => 'review']);
         $fallback = ll_tools_wordset_level_request($uid, $review_request);
         $this->assertSame('working', $fallback['reason']);
@@ -187,7 +192,7 @@ final class WordsetLevelProgressTest extends LL_Tools_TestCase
         $this->assertNotSame(0, $early['next_category_id']);
     }
 
-    public function test_mixed_lesson_practice_describes_the_exact_selected_words(): void
+    public function test_mixed_lesson_practice_labels_the_focus_of_the_round(): void
     {
         $now = time();
         $last = gmdate('Y-m-d H:i:s', $now - DAY_IN_SECONDS);
@@ -207,7 +212,44 @@ final class WordsetLevelProgressTest extends LL_Tools_TestCase
         $summary = ll_tools_wordset_level_summarize(0, 0, $levels, $members, [], $rows, [1 => 30], $now);
         $practice = $summary['levels'][1]['practice_activity'];
         $this->assertCount(4, $practice['session_word_ids']);
-        $this->assertSame('1 new word · 2 words in progress · 1 learned word', $practice['label']);
+        $this->assertSame('New and in progress', $practice['label']);
+    }
+
+    public function test_ten_or_more_eligible_in_progress_words_form_the_whole_level_session(): void
+    {
+        $now = time();
+        $recent = ['total_coverage' => 1, 'last_seen_at' => gmdate('Y-m-d H:i:s', $now)];
+        $hard = ['incorrect' => 8, 'last_seen_at' => gmdate('Y-m-d H:i:s', $now - DAY_IN_SECONDS)] + $recent;
+        $learned = ['mastery_unlocked' => 1, 'stage' => 5] + $recent;
+        $members = [
+            11 => array_fill_keys(array_merge(range(1, 5), range(41, 140)), true),
+            12 => array_fill_keys(array_merge([3], range(6, 40)), true),
+            13 => [200 => true],
+        ];
+        $levels = [1 => [11 => [], 12 => [], 13 => ['practice_supported' => false]]];
+        foreach ([9, 10, 11, 25] as $count) {
+            $rows = array_fill_keys(range(1, 139), $learned); // 140 is new in this nearly complete level.
+            foreach (range(1, $count) as $id) { $rows[$id] = $recent; }
+            $rows[$count] = $hard;
+            $rows[200] = $recent; // Studied, but its only category cannot launch Practice.
+            $level = ll_tools_wordset_level_summarize(0, 0, $levels, $members, [], $rows, [], $now)['levels'][1];
+            $activity = $level['practice_activity'];
+            if ($count === 9) {
+                $this->assertContains(140, $activity['session_word_ids']);
+                $this->assertCount(12, $activity['session_word_ids']);
+                $this->assertNotContains(200, $activity['session_word_ids']);
+                continue;
+            }
+            // Keep the older hard word first and a shared word in its first practice-eligible lesson.
+            $expected = array_merge([$count], range(1, $count - 1));
+            $this->assertSame($expected, $activity['session_word_ids']);
+            $this->assertSame($count . ' words in progress', $activity['label']);
+            foreach ($expected as $id) {
+                $this->assertSame($id <= 5 ? 11 : 12, $activity['word_category_ids'][$id]);
+            }
+            $plan = ll_tools_wordset_level_bounded_plan($activity);
+            $this->assertSame(array_chunk($expected, 12), array_column($plan['chunks'], 'word_ids'));
+        }
     }
 
     public function test_large_generation_checkpoints_250_ids_without_publishing_partial_counts(): void

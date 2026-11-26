@@ -269,15 +269,20 @@ function ll_tools_wordset_level_exact_practice(array $selected, bool $describe_m
     return $activity;
 }
 
-/** Give unfinished words most of the session, with a few familiar peers from their own lessons. */
+/** Practice in-progress words together. Small pools can draw familiar peers from the same lessons. */
 function ll_tools_wordset_level_focused_practice(array $ordered, array $members, bool $near_completion): ?array {
+    $in_progress = array_filter($ordered, static function (array $word): bool {
+        return $word['status'] === 'working' || $word['status'] === 'hard';
+    });
+    if (count($in_progress) >= 10) {
+        return ll_tools_wordset_level_exact_practice($in_progress, true);
+    }
     $familiar = [];
     $focus = [];
     foreach ($ordered as $wid => $word) {
-        if ($word['status'] === 'mastered') { $familiar[$wid] = $word; }
-    }
-    foreach ($ordered as $wid => $word) {
-        if ($word['status'] !== 'mastered' && ($word['status'] !== 'unseen' || $near_completion)) {
+        if ($word['status'] === 'mastered') {
+            $familiar[$wid] = $word;
+        } elseif ($word['status'] !== 'unseen' || $near_completion) {
             $focus[$wid] = $word;
         }
     }

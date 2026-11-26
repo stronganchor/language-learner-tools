@@ -54,6 +54,7 @@
         const historyKey = 'llWordsetCurriculum';
         const wordset = options.wordsetId;
         const panels = new Set();
+        const reviewPanels = new Set();
         const saves = new Map();
         let state = readState(history.state);
         let summary = null;
@@ -347,7 +348,7 @@
             const planned = stats && plan === 'practice' && stats.practice_activity;
             const severalLessons = !fallback && planned && Array.isArray(planned.category_ids) && planned.category_ids.length > 1;
             const name = severalLessons
-                ? (planned.label || [t.words,planned.session_word_ids?.length].filter(Boolean).join(' · '))
+                ? (planned.label || [t.words,planned.word_count || planned.session_word_ids?.length].filter(Boolean).join(' · '))
                 : (item && (item.name || item.translation) || '');
             const verb = plan === 'learn' ? t.learn : t.practice;
             const text = name ? verb + ' · ' + name : verb;
@@ -381,18 +382,38 @@
             btn.insertAdjacentHTML('beforeend',options.modeIcon(plan === 'learn' ? 'learning' : 'practice','ll-level-mode-icon'));
             return btn;
         }
-        function levelDueButton(level, stats, focusKey) {
-            const text = t.due.replace(/%d/g,stats.due);
-            const due = button(t.reviewAll + ' · ' + text + ' · ' + label(level),'ll-level-due-button',null,() => {
+        function levelDueDisclosure(level, stats, location) {
+            const key = location + '-due-' + level;
+            const title = t.due.replace(/%d/g,stats.due);
+            const panel = element('div','ll-level-due-panel');
+            panel.id = 'll-level-' + wordset + '-' + key;
+            panel.hidden = !reviewPanels.has(key);
+            const toggle = button(title + ' · ' + label(level),'ll-level-due-button',null,() => {
+                panel.hidden = !panel.hidden;
+                toggle.setAttribute('aria-expanded',String(!panel.hidden));
+                if (panel.hidden) reviewPanels.delete(key); else reviewPanels.add(key);
+            });
+            toggle.dataset.llFocusKey = key;
+            toggle.setAttribute('aria-controls',panel.id);
+            toggle.setAttribute('aria-expanded',String(!panel.hidden));
+            const pill = element('span','ll-level-badge ll-level-overdue');
+            pill.insertAdjacentHTML('beforeend',options.progressIcon('older','ll-level-status-icon'));
+            pill.append(element('span','',stats.due),icon('chevron'));
+            toggle.append(pill);
+
+            panel.append(element('strong','',title),element('p','',t.dueHelp));
+            const launch = button(t.reviewAll + ' · ' + label(level),'ll-level-due-start',null,() => {
                 announce('');
                 options.launch(level,'due',Number(stats.due_category_id),ajax,() => announce(t.launchError));
             });
-            due.dataset.llFocusKey = focusKey + level;
-            const pill = element('span','ll-level-badge ll-level-overdue');
-            pill.insertAdjacentHTML('beforeend',options.progressIcon('older','ll-level-status-icon'));
-            pill.append(element('span','',stats.due));
-            due.append(pill);
-            return due;
+            launch.dataset.llFocusKey = key + '-start';
+            launch.append(element('span','',t.reviewAll),icon('forward'));
+            const round = stats.due_activity?.session_word_ids?.length;
+            if (round && round < Number(stats.due)) {
+                panel.append(element('small','',t.roundSize + ' · ' + round));
+            }
+            panel.append(launch);
+            return {toggle,panel};
         }
         function addStat(list, term, value, status) {
             const pair = element('div','ll-level-fact');
@@ -432,6 +453,7 @@
             panel.append(panelHeader);
             info.append(panel);
             const list = element('dl','ll-level-facts');
+            panel.append(list);
             addStat(list,t.lessons,group.categoryIds.size + group.contentIds.size);
             if (stats) {
                 addStat(list,t.words,stats.total);
@@ -440,11 +462,14 @@
                 addStat(list,t.unseen,stats.new,'new');
                 if (stats.starred !== undefined) addStat(list,t.starred,stats.starred,'starred');
                 if (stats.hard !== undefined) addStat(list,t.hard,stats.hard,'hard');
-                if (Number(stats.due) > 0) addStat(list,t.dueLabel,levelDueButton(level,stats,'detail-due-'));
+                if (Number(stats.due) > 0) {
+                    const due = levelDueDisclosure(level,stats,'detail');
+                    addStat(list,t.dueLabel,due.toggle);
+                    panel.append(due.panel);
+                }
                 else addStat(list,t.dueLabel,stats.due,'older');
                 addStat(list,t.lastStudy,studyDate(stats.last_studied_at));
             }
-            panel.append(list);
             if (stats && options.signedIn) {
                 const pending = saves.get(level);
                 const wrap = element('div','ll-level-interval');
@@ -523,7 +548,9 @@
                 head.append(check);
             }
             if (stats && Number(stats.due) > 0) {
-                badges.append(levelDueButton(id,stats,'due-'));
+                const due = levelDueDisclosure(id,stats,'head');
+                badges.append(due.toggle);
+                overview.append(due.panel);
             }
             if (badges.childElementCount) head.append(badges);
             const number = value => Number(value).toLocaleString(document.documentElement.lang || undefined);

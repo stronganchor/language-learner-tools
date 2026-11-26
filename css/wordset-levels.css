@@ -6,6 +6,7 @@
 .ll-wordset-page[data-ll-level-view="level"] .ll-wordset-top-actions,
 .ll-wordset-page[data-ll-level-view="home"] [data-ll-wordset-selection-bar],
 .ll-wordset-page .ll-level-more[hidden],
+.ll-wordset-page .ll-level-due-panel[hidden],
 .ll-wordset-page [data-ll-wordset-levels][hidden] { display: none !important; }
 
 .ll-wordset-page [data-ll-wordset-levels] {
@@ -138,6 +139,32 @@
     background: transparent;
 }
 .ll-level-due-button:hover .ll-level-overdue { border-color: var(--ll-wp-pill-purple-text); }
+.ll-level-due-button .ll-level-glyph--chevron { width: .7rem; height: .7rem; stroke-width: 2.5; }
+.ll-level-due-button[aria-expanded="true"] .ll-level-glyph--chevron { transform: rotate(180deg); }
+.ll-wordset-page .ll-level-due-panel {
+    display: grid;
+    justify-items: start;
+    gap: .35rem;
+    box-sizing: border-box;
+    width: fit-content;
+    max-width: min(100%, 32rem);
+    margin: .25rem 0 .65rem;
+    padding: .65rem .75rem;
+    border-inline-start: 3px solid var(--ll-wp-pill-purple-border);
+    border-radius: 5px;
+    background: var(--ll-wp-pill-purple);
+    color: var(--ll-wp-text);
+    font-size: .88rem;
+    line-height: 1.45;
+}
+.ll-wordset-page .ll-level-due-panel p { margin: 0; font: inherit; color: inherit; }
+.ll-wordset-page .ll-level-due-panel strong { color: var(--ll-wp-pill-purple-text); }
+.ll-wordset-page .ll-level-due-start, .ll-wordset-page .ll-level-due-start:hover {
+    margin-top: .2rem;
+    border-color: var(--ll-wp-pill-purple-text);
+    background: var(--ll-wp-card);
+    color: var(--ll-wp-pill-purple-text);
+}
 .ll-level-complete { width: 1.65rem; height: 1.65rem; background: var(--ll-wp-pill-green); color: var(--ll-wp-pill-green-text); }
 .ll-level-complete svg { stroke-width: 2.5; }
 .ll-level-progress-count { display: block; color: var(--ll-wp-muted); font-size: .84rem; line-height: 1.45; font-variant-numeric: tabular-nums; }

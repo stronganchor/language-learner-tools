@@ -2,14 +2,14 @@
 # This file is distributed under the same license as the Language Learner Tools plugin.
 msgid ""
 msgstr ""
-"Project-Id-Version: Language Learner Tools 6.7.95\n"
+"Project-Id-Version: Language Learner Tools 6.7.99\n"
 "Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/language-learner-tools\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-11-26T12:33:45+00:00\n"
+"POT-Creation-Date: 2026-11-26T17:01:02+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.10.0\n"
 "X-Domain: ll-tools-text-domain\n"
@@ -307,7 +307,7 @@ msgstr ""
 #: includes/admin/bulk-translation-admin.php:147
 #: includes/admin/image-aspect-normalizer-admin.php:111
 #: includes/admin/user-progress-report.php:1119
-#: includes/lib/wordset-level-labels.php:35
+#: includes/lib/wordset-level-labels.php:36
 #: includes/pages/wordset-editor.php:4658
 #: includes/pages/wordset-pages.php:27608
 #: includes/pages/wordset-pages.php:27867
@@ -762,7 +762,7 @@ msgstr ""
 #: includes/content-lesson-cloze.php:289
 #: includes/lib/recording-history.php:279
 #: includes/lib/word-copy.php:465
-#: includes/lib/wordset-level-labels.php:50
+#: includes/lib/wordset-level-labels.php:51
 #: includes/lms/assignment-experience.php:416
 #: includes/pages/content-lesson-pages.php:1308
 #: includes/pages/quiz-pages.php:1120
@@ -5135,7 +5135,7 @@ msgstr ""
 
 #: includes/admin/export-import.php:4908
 #: includes/admin/user-progress-report.php:1092
-#: includes/lib/wordset-level-labels.php:32
+#: includes/lib/wordset-level-labels.php:33
 #: includes/pages/wordset-pages.php:13688
 #: includes/pages/wordset-pages.php:26490
 #: includes/pages/wordset-pages.php:27598
@@ -7277,14 +7277,14 @@ msgstr ""
 #: includes/user-progress.php:11631
 #: includes/user-progress.php:11787
 #: includes/user-progress.php:11837
-#: includes/user-progress.php:13320
-#: includes/user-progress.php:13346
-#: includes/user-progress.php:13429
-#: includes/user-progress.php:13505
-#: includes/user-progress.php:13570
-#: includes/user-progress.php:13594
-#: includes/user-progress.php:13731
-#: includes/user-progress.php:13912
+#: includes/user-progress.php:13329
+#: includes/user-progress.php:13355
+#: includes/user-progress.php:13438
+#: includes/user-progress.php:13514
+#: includes/user-progress.php:13588
+#: includes/user-progress.php:13613
+#: includes/user-progress.php:13754
+#: includes/user-progress.php:13936
 #: includes/user-study.php:1489
 msgid "Something went wrong. Please try again."
 msgstr ""
@@ -12008,7 +12008,7 @@ msgstr ""
 #: includes/admin/teacher-classes-page.php:1036
 #: includes/admin/user-progress-report.php:919
 #: includes/admin/user-progress-report.php:1094
-#: includes/lib/wordset-level-labels.php:33
+#: includes/lib/wordset-level-labels.php:34
 #: includes/pages/wordset-pages.php:13146
 #: includes/pages/wordset-pages.php:13283
 #: includes/pages/wordset-pages.php:13693
@@ -15936,12 +15936,12 @@ msgstr ""
 #: includes/taxonomies/word-category-taxonomy.php:11819
 #: includes/taxonomies/word-category-taxonomy.php:11829
 #: includes/user-progress.php:1815
-#: includes/user-progress.php:13269
-#: includes/user-progress.php:13758
-#: includes/user-progress.php:13768
-#: includes/user-progress.php:13790
-#: includes/user-progress.php:13799
-#: includes/user-progress.php:13802
+#: includes/user-progress.php:13278
+#: includes/user-progress.php:13781
+#: includes/user-progress.php:13791
+#: includes/user-progress.php:13813
+#: includes/user-progress.php:13822
+#: includes/user-progress.php:13825
 msgid "Invalid request."
 msgstr ""
 
@@ -17401,7 +17401,7 @@ msgstr ""
 #. translators: %d: curriculum level number
 #. translators: %d: lesson level number
 #: includes/lib/wordset-level-labels.php:9
-#: includes/lib/wordset-level-page.php:278
+#: includes/lib/wordset-level-page.php:283
 #: includes/shortcodes/content-lesson-index-shortcode.php:584
 msgid "Level %d"
 msgstr ""
@@ -17473,6 +17473,10 @@ msgid "Due for review"
 msgstr ""
 
 #: includes/lib/wordset-level-labels.php:30
+msgid "These words are due because your review interval has passed."
+msgstr ""
+
+#: includes/lib/wordset-level-labels.php:31
 #: includes/pages/wordset-pages.php:13678
 #: includes/pages/wordset-pages.php:26478
 #: includes/pages/wordset-pages.php:27596
@@ -17480,7 +17484,7 @@ msgstr ""
 msgid "Learned"
 msgstr ""
 
-#: includes/lib/wordset-level-labels.php:31
+#: includes/lib/wordset-level-labels.php:32
 #: includes/pages/wordset-pages.php:13683
 #: includes/pages/wordset-pages.php:26484
 #: includes/pages/wordset-pages.php:27597
@@ -17488,7 +17492,7 @@ msgstr ""
 msgid "In progress"
 msgstr ""
 
-#: includes/lib/wordset-level-labels.php:34
+#: includes/lib/wordset-level-labels.php:35
 #: includes/pages/wordset-pages.php:26496
 #: includes/pages/wordset-pages.php:27599
 #: includes/pages/wordset-pages.php:27622
@@ -17496,56 +17500,56 @@ msgstr ""
 msgid "Starred"
 msgstr ""
 
-#: includes/lib/wordset-level-labels.php:36
+#: includes/lib/wordset-level-labels.php:37
 #: includes/pages/wordset-pages.php:118
 #: includes/shortcodes/content-lesson-index-shortcode.php:587
 #: includes/wordset-isolation.php:5505
 msgid "Lessons"
 msgstr ""
 
-#: includes/lib/wordset-level-labels.php:37
+#: includes/lib/wordset-level-labels.php:38
 msgid "Last studied"
 msgstr ""
 
-#: includes/lib/wordset-level-labels.php:38
+#: includes/lib/wordset-level-labels.php:39
 msgid "No activity yet"
 msgstr ""
 
-#: includes/lib/wordset-level-labels.php:39
+#: includes/lib/wordset-level-labels.php:40
 msgid "How often do you want to review words in this level?"
 msgstr ""
 
-#: includes/lib/wordset-level-labels.php:40
+#: includes/lib/wordset-level-labels.php:41
 msgid "days"
 msgstr ""
 
-#: includes/lib/wordset-level-labels.php:41
+#: includes/lib/wordset-level-labels.php:42
 msgid "The interval starts again each time you study a word."
 msgstr ""
 
-#: includes/lib/wordset-level-labels.php:42
+#: includes/lib/wordset-level-labels.php:43
 #: includes/lms/assignment-experience.php:416
 #: includes/pages/wordset-transcription-review.php:283
 #: includes/shortcodes/editor-hub-shortcode.php:1067
 msgid "Saving…"
 msgstr ""
 
-#: includes/lib/wordset-level-labels.php:43
+#: includes/lib/wordset-level-labels.php:44
 #: includes/pages/wordset-pages.php:27569
 #: includes/pages/wordset-transcription-review.php:284
 #: includes/shortcodes/audio-recording-shortcode.php:1677
 msgid "Saved"
 msgstr ""
 
-#: includes/lib/wordset-level-labels.php:44
+#: includes/lib/wordset-level-labels.php:45
 msgid "Loading progress…"
 msgstr ""
 
-#: includes/lib/wordset-level-labels.php:45
+#: includes/lib/wordset-level-labels.php:46
 msgid "Could not load progress."
 msgstr ""
 
-#: includes/lib/wordset-level-labels.php:46
+#: includes/lib/wordset-level-labels.php:47
 #: includes/lib/wordset-level-page.php:189
 #: includes/lib/wordset-level-page.php:192
 #: includes/lib/wordset-level-page.php:197
@@ -17553,36 +17557,40 @@ msgstr ""
 msgid "Reload this page to update your levels."
 msgstr ""
 
-#: includes/lib/wordset-level-labels.php:47
+#: includes/lib/wordset-level-labels.php:48
 #: includes/pages/wordset-transcription-review.php:291
 #: templates/vocab-lesson-template.php:1404
 msgid "Reload"
 msgstr ""
 
-#: includes/lib/wordset-level-labels.php:48
+#: includes/lib/wordset-level-labels.php:49
 msgid "Could not start this activity."
 msgstr ""
 
-#: includes/lib/wordset-level-labels.php:49
+#: includes/lib/wordset-level-labels.php:50
 msgid "Could not save this interval."
 msgstr ""
 
+#: includes/lib/wordset-level-labels.php:61
+msgid "New and in progress"
+msgstr ""
+
 #. translators: %d: number of new words in this practice round.
-#: includes/lib/wordset-level-labels.php:62
+#: includes/lib/wordset-level-labels.php:65
 msgid "%d new word"
 msgid_plural "%d new words"
 msgstr[0] ""
 msgstr[1] ""
 
 #. translators: %d: number of words still in progress in this practice round.
-#: includes/lib/wordset-level-labels.php:66
+#: includes/lib/wordset-level-labels.php:69
 msgid "%d word in progress"
 msgid_plural "%d words in progress"
 msgstr[0] ""
 msgstr[1] ""
 
 #. translators: %d: number of already learned words in this practice round.
-#: includes/lib/wordset-level-labels.php:70
+#: includes/lib/wordset-level-labels.php:73
 msgid "%d learned word"
 msgid_plural "%d learned words"
 msgstr[0] ""
@@ -17608,11 +17616,11 @@ msgstr ""
 msgid "This level is unavailable."
 msgstr ""
 
-#: includes/lib/wordset-level-page.php:252
+#: includes/lib/wordset-level-page.php:257
 msgid "Unknown level action."
 msgstr ""
 
-#: includes/lib/wordset-level-page.php:257
+#: includes/lib/wordset-level-page.php:262
 msgid "There is nothing to practice in this selection right now."
 msgstr ""
 
@@ -21013,8 +21021,8 @@ msgstr ""
 #: includes/user-progress.php:11650
 #: includes/user-progress.php:11806
 #: includes/user-progress.php:11875
-#: includes/user-progress.php:13749
-#: includes/user-progress.php:13835
+#: includes/user-progress.php:13772
+#: includes/user-progress.php:13859
 #: includes/user-study.php:1377
 #: includes/user-study.php:1415
 #: includes/user-study.php:1529
@@ -24231,18 +24239,18 @@ msgid "Unable to save right now."
 msgstr ""
 
 #: includes/pages/wordset-pages.php:27571
-#: includes/user-progress.php:13289
+#: includes/user-progress.php:13298
 msgid "Select at least one category."
 msgstr ""
 
 #: includes/pages/wordset-pages.php:27572
 #: includes/user-progress.php:12486
-#: includes/user-progress.php:12899
-#: includes/user-progress.php:13304
-#: includes/user-progress.php:13333
-#: includes/user-progress.php:13362
-#: includes/user-progress.php:13581
-#: includes/user-progress.php:13682
+#: includes/user-progress.php:12904
+#: includes/user-progress.php:13313
+#: includes/user-progress.php:13342
+#: includes/user-progress.php:13371
+#: includes/user-progress.php:13600
+#: includes/user-progress.php:13702
 msgid "No quiz words are available for this selection."
 msgstr ""
 

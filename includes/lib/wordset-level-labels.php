@@ -27,6 +27,7 @@ function ll_tools_wordset_level_labels(): array {
         /* translators: 1: number of learned words, 2: total words in the level. */
         'progressCount' => __('%1$d / %2$d learned', 'll-tools-text-domain'),
         'dueLabel' => __('Due for review', 'll-tools-text-domain'),
+        'dueHelp' => __('These words are due because your review interval has passed.', 'll-tools-text-domain'),
         'mastered' => __('Learned', 'll-tools-text-domain'),
         'working' => __('In progress', 'll-tools-text-domain'),
         'unseen' => __('New', 'll-tools-text-domain'),
@@ -51,23 +52,25 @@ function ll_tools_wordset_level_labels(): array {
     ];
 }
 
-/** Describe the targets of a practice round spanning several lessons. */
+/** Name the focus of a multi-lesson practice round, leaving out supporting words. */
 function ll_tools_wordset_level_practice_label(array $counts): string {
     $new = (int) ($counts['unseen'] ?? 0);
     $working = (int) ($counts['working'] ?? 0) + (int) ($counts['hard'] ?? 0);
     $learned = (int) ($counts['mastered'] ?? 0);
-    $parts = [];
+    if ($new && $working) {
+        return __('New and in progress', 'll-tools-text-domain');
+    }
     if ($new) {
         /* translators: %d: number of new words in this practice round. */
-        $parts[] = sprintf(_n('%d new word', '%d new words', $new, 'll-tools-text-domain'), $new);
+        return sprintf(_n('%d new word', '%d new words', $new, 'll-tools-text-domain'), $new);
     }
     if ($working) {
         /* translators: %d: number of words still in progress in this practice round. */
-        $parts[] = sprintf(_n('%d word in progress', '%d words in progress', $working, 'll-tools-text-domain'), $working);
+        return sprintf(_n('%d word in progress', '%d words in progress', $working, 'll-tools-text-domain'), $working);
     }
     if ($learned) {
         /* translators: %d: number of already learned words in this practice round. */
-        $parts[] = sprintf(_n('%d learned word', '%d learned words', $learned, 'll-tools-text-domain'), $learned);
+        return sprintf(_n('%d learned word', '%d learned words', $learned, 'll-tools-text-domain'), $learned);
     }
-    return implode(' · ', $parts);
+    return '';
 }

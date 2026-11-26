@@ -232,6 +232,11 @@ function ll_tools_wordset_level_request_in_scope(int $user_id, int $wordset_id, 
         }
         foreach ($dashboard['levels'] as $key => &$row) {
             $row['days'] = $days[$key];
+            if ($row['practice_activity']) {
+                // Cards need only the preview. Resolve exact targets again when the learner starts.
+                $row['practice_activity']['word_count'] = count($row['practice_activity']['session_word_ids']);
+                unset($row['practice_activity']['session_word_ids'], $row['practice_activity']['word_category_ids']);
+            }
         }
         unset($row);
         $overall = $dashboard['overall'];

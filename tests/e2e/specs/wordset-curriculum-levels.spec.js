@@ -71,7 +71,7 @@ async function mount(page, options = {}) {
           return route.fulfill({status:503,json:{success:false,data:{code:'ll_level_progress_preparing',retry_after:1}}});
         }
         const first=options.completed ? {...summaryRow,mastered:10,working:0,new:0,next_category_id:0} : summaryRow;
-        if (options.overlap) first.practice_activity={category_ids:[1,2],label:'2 words in progress · 1 learned word'};
+        if (options.overlap) first.practice_activity={category_ids:[1,2],word_count:3,label:'2 words in progress'};
         const second = {...summaryRow,days:30,due:0,practice_category_id:0,next_category_id:options.exerciseOnly ? 0 : 15};
         const totals=options.summary || {due:2,review:{reason:'due',count:2,due:2},levels:{1:first,2:second}};
         return route.fulfill({json:{success:true,data:totals}});
@@ -192,7 +192,7 @@ test('personalized cards retry preparing summaries, expose review scopes, and au
   const first=page.locator('[data-ll-level-card="1"]');
   await expect(first.getByRole('img',{name:'Learned 3, In progress 2, New 5'})).toBeVisible();
   await expect(first.getByRole('img',{name:/Added since/})).toHaveCount(0);
-  const localDue=first.locator('.ll-level-card-head').getByRole('button',{name:'Review now · Due for review (2) · Level 1'});
+  const localDue=first.locator('.ll-level-card-head').getByRole('button',{name:'Due for review (2) · Level 1'});
   await expect(localDue).toBeVisible();
   await expect(first.getByText('3 / 10 learned')).toBeVisible();
   await expect(first.getByRole('button',{name:'Learn · Lesson 1'})).toBeVisible();
@@ -212,7 +212,12 @@ test('personalized cards retry preparing summaries, expose review scopes, and au
   await expect(page.locator('.ll-level-nudge')).toHaveCount(0);
   await page.locator('.ll-level-review-all').click();
   await localDue.click();
-  await first.locator('.ll-level-detail-panel').getByRole('button',{name:'Review now · Due for review (2) · Level 1'}).click();
+  await expect(localDue).toHaveAttribute('aria-expanded','true');
+  await first.locator('.ll-level-overview').getByRole('button',{name:'Review now · Level 1'}).click();
+  const detailPanel=first.locator('.ll-level-detail-panel');
+  await detailPanel.getByRole('button',{name:'Due for review (2) · Level 1'}).click();
+  await expect(detailPanel.getByText(labels.dueHelp)).toBeVisible();
+  await detailPanel.getByRole('button',{name:'Review now · Level 1'}).click();
   await first.getByRole('button',{name:'Practice · Lesson 2'}).click();
   await expect.poll(()=>reqs.filter(r=>r.operation==='launch').map(r=>[r.level,r.launch_mode])).toEqual([['0','review'],['1','due'],['1','due'],['1','practice']]);
   await expect(page.getByText('Could not start this activity.')).toBeVisible();
@@ -255,7 +260,7 @@ test('photos stay distinct, represent mixed Practice and use one image when only
   const previews={1:['/thumbnail-family-150x150.webp'],2:['/thumbnail-cat.webp','/thumbnail-dog.webp'],15:['/thumbnail-bird.webp']};
   const serverPreviews={1:['/thumbnail-family-300x300.webp','/thumbnail-house.webp'],15:['/thumbnail-bird.webp']};
   await mount(page,{signed:true,overlap:true,sparse:true,previews,serverPreviews});
-  const practice=page.getByRole('button',{name:'Practice · 2 words in progress · 1 learned word'}).locator('.ll-level-thumb');
+  const practice=page.getByRole('button',{name:'Practice · 2 words in progress'}).locator('.ll-level-thumb');
   await expect(practice).toHaveCount(2);
   await expect(practice.nth(0)).toHaveAttribute('src','/thumbnail-cat.webp');
   await expect(practice.nth(1)).toHaveAttribute('src','/thumbnail-family-150x150.webp');
@@ -263,7 +268,7 @@ test('photos stay distinct, represent mixed Practice and use one image when only
   await expect(learn).toHaveCount(2);
   await expect(learn.nth(1)).toHaveAttribute('src','/thumbnail-house.webp');
   const mixed=page.locator('[data-ll-level-card="1"] [data-ll-level-action="practice"]');
-  await expect(mixed).toHaveText('2 words in progress · 1 learned word');
+  await expect(mixed).toHaveText('2 words in progress');
   const photo=await practice.first().boundingBox(), mode=await mixed.locator(':scope > .ll-level-mode-icon:last-child').boundingBox();
   expect(mode.x).toBeGreaterThan(photo.x+photo.width);
   expect(Math.abs(mode.width-photo.width)).toBeLessThanOrEqual(2);
@@ -275,7 +280,8 @@ test('photos stay distinct, represent mixed Practice and use one image when only
 });
 
 test('daily review separates the complete due backlog from the next round and follows the fallback reason',async({page})=>{
-  const row={total:900,mastered:800,working:80,new:20,studied:880,due:681,next_category_id:1,practice_category_id:2,due_category_id:3,days:90};
+  const row={total:900,mastered:800,working:80,new:20,studied:880,due:681,next_category_id:1,practice_category_id:2,due_category_id:3,days:90,
+    due_activity:{session_word_ids:Array.from({length:12},(_,i)=>i+1)}};
   const summary={due:681,review:{reason:'due',count:64,due:681},levels:{1:row,2:{...row,due:0,next_category_id:15,practice_category_id:15,due_category_id:0}}};
   const reqs=await mount(page,{signed:true,summary});
   const review=page.locator('.ll-level-review-all');
@@ -286,6 +292,22 @@ test('daily review separates the complete due backlog from the next round and fo
   await expect(page.getByRole('button',{name:'Practice · Lesson 2'})).toBeVisible();
   await expect(page.getByRole('button',{name:'Learn · Lesson 1'})).toBeVisible();
   await page.setViewportSize({width:320,height:640});
+  const first=page.locator('[data-ll-level-card="1"]');
+  const badge=first.locator('.ll-level-card-head .ll-level-due-button');
+  const panel=page.locator('#'+await badge.getAttribute('aria-controls'));
+  await expect(panel).toBeHidden();
+  await badge.focus();
+  await page.keyboard.press('Enter');
+  await expect(badge).toHaveAttribute('aria-expanded','true');
+  await expect(panel.getByText(labels.dueHelp)).toBeVisible();
+  await expect(panel.getByText('Words this round · 12')).toBeVisible();
+  await page.keyboard.press('Tab');
+  await expect(panel.getByRole('button',{name:'Review now · Level 1'})).toBeFocused();
+  expect(await panel.evaluate(el=>el.getBoundingClientRect().right<=window.innerWidth)).toBe(true);
+  await badge.focus();
+  await page.keyboard.press('Space');
+  await expect(panel).toBeHidden();
+  expect(reqs.filter(r=>r.operation==='launch')).toHaveLength(0);
   await expect(review.getByText('Due for review (681)')).toBeVisible();
   await expect(review.locator('.ll-level-round-size strong')).toHaveText('64');
   await expect(review.locator('.ll-level-glyph--forward')).toBeVisible();
@@ -460,7 +482,7 @@ test('one-word review and Repeat keep the exact target, then another level start
 test('per-level review uses server-assigned category ownership for overlapping words and remains in that level',async({page})=>{
   await instrumentQuiz(page);
   await mount(page,{signed:true,successful:true,overlap:true});
-  await page.getByRole('button',{name:'Practice · 2 words in progress · 1 learned word'}).click();
+  await page.getByRole('button',{name:'Practice · 2 words in progress'}).click();
   await expect.poll(()=>page.evaluate(()=>window.launchedQuizzes)).toMatchObject([{mode:'practice',scope:1,ownership:{'1':[1001],'2':[2002]}}]);
   await showResults(page,'practice');
   await expect(page.getByRole('button',{name:'Continue Level 1'})).toBeVisible();
