@@ -15,7 +15,6 @@ final class WordsetPageDeferredStudyCatalogResourceTest extends LL_Tools_TestCas
             $ids = $fixture['category_ids'];
             update_term_meta($wordset_id, 'll_wordset_category_ordering_mode', 'prerequisite');
             update_term_meta($wordset_id, 'll_wordset_category_prerequisites', [$ids[7] => [$ids[0]], $ids[8] => [$ids[7]]]);
-            update_term_meta($wordset_id, LL_TOOLS_CURRICULUM_ADDITIONAL_META, [$ids[9]]);
             $learner = self::factory()->user->create(['role' => 'subscriber']);
             ll_tools_save_user_study_goals(['ignored_category_ids' => [$ids[0]]], $learner);
             foreach ([0, $learner] as $user_id) {
@@ -29,7 +28,7 @@ final class WordsetPageDeferredStudyCatalogResourceTest extends LL_Tools_TestCas
                 $this->assertSame([1, 2, 3], array_keys($levels));
                 $this->assertSame([$ids[7]], $levels[2]);
                 $this->assertSame([$ids[8]], $levels[3]);
-                $this->assertSame([$ids[9]], $curriculum['additionalCategoryIds']);
+                $this->assertContains($ids[9], $levels[1]);
                 $this->assertSame($user_id === 0, in_array($ids[0], $levels[1], true));
                 $this->assertSame(6, $data['lazyCards']['initialCount']);
                 $this->assertTrue($data['lazyCards']['enabled']);

@@ -4,13 +4,11 @@
 
     const batch = 12;
     const paths = {
-        play: 'm8 5 11 7-11 7Z',
         repeat: 'M19 10a7 7 0 1 0-1 7M19 4v6h-6',
-        clock: 'M12 7v5l3 2M21 12a9 9 0 1 1-18 0 9 9 0 1 1 18 0Z',
         bell: 'M5 17h14l-2-3V9a5 5 0 0 0-10 0v5ZM10 20h4',
-        list: 'M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01',
         back: 'm12 5-7 7 7 7M5 12h15',
-        stats: 'M4 20h16M7 16v-5M12 16V4M17 16V8',
+        forward: 'M4 12h15m-6-6 6 6-6 6',
+        more: 'M4 12h.1M12 12h.1M20 12h.1',
         check: 'm4 12 5 5L20 6'
     };
 
@@ -23,6 +21,7 @@
 
     function icon(name) {
         const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('class','ll-level-glyph ll-level-glyph--' + name);
         svg.setAttribute('viewBox', '0 0 24 24');
         svg.setAttribute('aria-hidden', 'true');
         svg.setAttribute('focusable', 'false');
@@ -57,6 +56,7 @@
         const wordset = options.wordsetId;
         const panels = new Set();
         const saves = new Map();
+        const suggestedActionsShown = new Set();
         let state = readState(history.state);
         let summary = null;
         let fetchError = false;
@@ -93,23 +93,21 @@
             group.categoryIds.forEach(id => categoryLevels.set(id, Number(row.level)));
             group.contentIds.forEach(id => contentLevels.set(id, Number(row.level)));
         }
-        config.levels.forEach(register);
-        if ((config.additionalCategoryIds || []).length || (config.additionalContentIds || []).length) {
-            register({level: 0, categoryIds: config.additionalCategoryIds, contentIds: config.additionalContentIds});
-        }
+        config.levels.filter(row => Number(row.level) > 0).forEach(register);
         if (state.view === 'level' && !groups.has(state.level)) state = home();
 
         function home() { return {wordset, view: 'home', level: null, query: '', limit: batch, parent: false}; }
         function readState(raw) {
             const saved = raw && raw[historyKey];
             if (!saved || saved.wordset !== wordset || !['home','level','search'].includes(saved.view)) return home();
+            if (saved.view === 'level' && (!saved.level || (groups.size && !groups.has(saved.level)))) return home();
             return Object.assign(home(), saved);
         }
         function writeState(method) {
             const next = Object.assign({}, history.state, {[historyKey]: state});
             try { history[method](next, '', location.href); } catch (_) { /* History can be disabled. */ }
         }
-        function label(level) { return level ? t.level.replace(/%d/g, level) : t.additional; }
+        function label(level) { return t.level.replace(/%d/g, level); }
         function go(view, level) {
             if (state.view === view && state.level === level) return;
             state.scroll = window.scrollY;
@@ -273,15 +271,19 @@
         }
         function action(group, plan, categoryId, preview, global, fallback) {
             const item = categoryId ? options.category(categoryId) : null;
-            const name = item && (item.name || item.translation) || '';
-            const verb = plan === 'due' ? t.review : (plan === 'learn' ? (fallback ? t.start : t.learn) : t.practice);
-            const text = global ? t.reviewAll : (name ? verb + ' · ' + name : verb);
-            const btn = button(text, global ? 'll-level-review-all' : 'll-level-activity', plan === 'learn' ? 'play' : 'repeat', () => {
+            const stats = summary && summary.levels[group.level];
+            const planned = stats && (plan === 'due' ? stats.due_activity : plan === 'practice' && stats.practice_activity);
+            const severalLessons = !fallback && planned && Array.isArray(planned.category_ids) && planned.category_ids.length > 1;
+            const name = severalLessons ? label(group.level) : (item && (item.name || item.translation) || '');
+            const verb = plan === 'learn' ? (fallback ? t.start : t.learn) : t.practice;
+            const text = global ? t.reviewAll + ' · ' + summary.due : (name ? verb + ' · ' + name : verb);
+            const btn = button(text, global ? 'll-level-review-all' : 'll-level-activity', null, () => {
                 announce('');
                 options.launch(group.level,plan,categoryId,ajax,() => announce(t.launchError),fallback);
             });
             btn.dataset.llLevelAction = plan;
             btn.dataset.level = String(group.level);
+            btn.dataset.category = String(categoryId);
             btn.dataset.llFocusKey = 'activity-' + group.level + '-' + plan;
             if (preview && item) {
                 const thumb = (item.preview || []).find(it => it.type === 'image' && it.url);
@@ -289,11 +291,25 @@
                 if (url) putThumbnail(btn,url);
                 else if (item.preview_deferred || item.has_images) btn.dataset.llThumbCategory = String(categoryId);
             }
-            btn.append(element('span','',text));
+            if (global) {
+                btn.insertAdjacentHTML('beforeend',options.progressIcon('older','ll-level-status-icon'));
+                btn.append(element('span','',t.reviewAll),element('span','ll-level-count',summary.due));
+            } else {
+                const body = element('span','ll-level-action-text');
+                const mode = element('span','ll-level-action-mode');
+                mode.insertAdjacentHTML('beforeend',options.modeIcon(plan === 'learn' ? 'learning' : 'practice','ll-level-mode-icon'));
+                mode.append(document.createTextNode(verb));
+                body.append(mode);
+                if (name) body.append(element('span','ll-level-action-name',name));
+                btn.append(body);
+            }
+            btn.append(icon('forward'));
             return btn;
         }
         function addStat(list, term, value) {
-            list.append(element('dt','',term),element('dd','',value));
+            const pair = element('div','ll-level-fact');
+            pair.append(element('dt','',term),element('dd','',value));
+            list.append(pair);
         }
         function studyDate(value) {
             if (!value) return t.never;
@@ -307,14 +323,18 @@
             const info = element('details','ll-level-details');
             info.open = panels.has(level);
             const heading = element('summary','ll-level-details-toggle');
-            heading.title = t.stats;
+            heading.title = t.stats + ' · ' + label(level);
+            heading.setAttribute('aria-label',heading.title);
             heading.dataset.llFocusKey = 'stats-' + level;
-            heading.append(icon('stats'),element('span','',t.stats));
+            heading.append(icon('more'));
             info.append(heading);
             info.addEventListener('toggle',() => {
                 if (!info.isConnected) return;
                 if (info.open) panels.add(level); else panels.delete(level);
             });
+            const panel = element('div','ll-level-detail-panel');
+            panel.append(element('h3','ll-level-detail-title',t.stats));
+            info.append(panel);
             const list = element('dl','ll-level-facts');
             addStat(list,t.lessons,group.categoryIds.size + group.contentIds.size);
             if (stats) {
@@ -326,7 +346,7 @@
                 addStat(list,t.addedLabel,stats.added);
                 addStat(list,t.lastStudy,studyDate(stats.last_studied_at));
             }
-            info.append(list);
+            panel.append(list);
             if (stats && options.signedIn) {
                 const pending = saves.get(level);
                 const wrap = element('label','ll-level-interval',t.interval);
@@ -342,10 +362,10 @@
                 const feedback = element('span','ll-level-save',pending ? pending.status : '');
                 feedback.dataset.llLevelSave = String(level);
                 feedback.setAttribute('role','status');
-                info.append(wrap,feedback);
+                panel.append(wrap,feedback);
                 if (pending && pending.status === t.saveError) {
                     const retry = button(t.retry,'ll-level-retry','repeat',() => saveDays(level,pending.value));
-                    retry.append(document.createTextNode(t.retry)); info.append(retry);
+                    retry.append(document.createTextNode(t.retry)); panel.append(retry);
                 }
             }
             return info;
@@ -367,11 +387,21 @@
             } else { bar.setAttribute('aria-hidden','true'); }
             return bar;
         }
+        function emphasize(button) {
+            button.classList.add('is-suggested');
+            const key = [button.dataset.level,button.dataset.llLevelAction,button.dataset.category].join('-');
+            if ((!options.signedIn || summary) && !suggestedActionsShown.has(key)) {
+                suggestedActionsShown.add(key);
+                button.classList.add('ll-level-nudge');
+            }
+        }
         function card(group,current) {
             const id = Number(group.level);
             const stats = summary && summary.levels && summary.levels[id];
             const shell = element('article','ll-level-card');
             shell.dataset.llLevelCard = String(id);
+            const row = element('div','ll-level-row');
+            const overview = element('div','ll-level-overview');
             const head = element('div','ll-level-card-head');
             const title = element('h2','ll-level-title');
             const open = button(t.browse + ' · ' + label(id),'ll-level-open',null,() => go('level',id));
@@ -379,15 +409,18 @@
             open.dataset.llFocusKey = 'browse-' + id;
             title.append(open);
             head.append(title);
-            open.append(icon('list'));
-            shell.append(head);
-            if (!id) return shell;
+            open.append(icon('forward'));
+            overview.append(head);
+            row.append(overview);
+            shell.append(row);
             const badges = element('div','ll-level-badges');
             if (id === current) {
                 shell.classList.add('is-current');
                 shell.setAttribute('aria-current','step');
-                head.append(element('span','ll-level-current',t.current));
-            } else if (stats && Number(stats.total) > 0 && Number(stats.mastered) === Number(stats.total)) {
+                shell.setAttribute('aria-label',label(id) + ' · ' + t.current);
+                open.title += ' · ' + t.current;
+            }
+            if (stats && Number(stats.total) > 0 && Number(stats.mastered) === Number(stats.total)) {
                 const check = element('span','ll-level-complete');
                 check.setAttribute('role','img');
                 check.setAttribute('aria-label',t.complete);
@@ -397,8 +430,11 @@
             }
             if (stats && Number(stats.due) > 0) {
                 const dueText = t.due.replace(/%d/g,stats.due);
-                const due = button(dueText,'ll-level-badge ll-level-overdue','clock',() =>
-                    options.launch(id,'due',Number(stats.due_category_id),ajax,() => announce(t.launchError)));
+                const due = element('span','ll-level-badge ll-level-overdue');
+                due.title = dueText;
+                due.setAttribute('role','img');
+                due.setAttribute('aria-label',dueText);
+                due.insertAdjacentHTML('beforeend',options.progressIcon('older','ll-level-status-icon'));
                 due.append(element('span','',stats.due)); badges.append(due);
             }
             if (stats && Number(stats.added) > 0) {
@@ -407,11 +443,12 @@
                 marker.title = newText; marker.setAttribute('aria-label',newText); marker.setAttribute('role','img');
                 marker.append(icon('bell'),element('span','',stats.added)); badges.append(marker);
             }
-            shell.append(progressBar(stats));
-            if (badges.childElementCount) shell.append(badges);
-            if (!stats) {
-                shell.append(element('small','ll-level-lesson-count',t.lessons + ' · ' + (group.categoryIds.size + group.contentIds.size)));
-            }
+            if (badges.childElementCount) head.append(badges);
+            const number = value => Number(value).toLocaleString(document.documentElement.lang || undefined);
+            const progress = stats && Number(stats.total) > 0
+                ? t.progressCount.replace(/%1\$d/g,number(stats.mastered)).replace(/%2\$d/g,number(stats.total))
+                : t.lessons + ' · ' + number(group.categoryIds.size + group.contentIds.size);
+            overview.append(element('span','ll-level-progress-count',progress),progressBar(stats));
             const actions = element('div','ll-level-activities');
             if (stats) {
                 if (Number(stats.due) > 0 && stats.due_category_id) actions.append(action(group,'due',Number(stats.due_category_id),true,false));
@@ -421,7 +458,16 @@
             if (!actions.childElementCount && (group.nextId || group.practiceId)) {
                 actions.append(action(group,group.nextId ? 'learn' : 'practice',Number(group.nextId || group.practiceId),true,false,true));
             }
-            if (actions.childElementCount) shell.append(actions);
+            if (actions.childElementCount) {
+                if (id === current) {
+                    const studied = stats && (stats.studied > 0 || stats.mastered > 0 || stats.working > 0);
+                    const next = (studied && actions.querySelector('[data-ll-level-action="due"]')) ||
+                        actions.querySelector('[data-ll-level-action="learn"]') || actions.firstElementChild;
+                    if (next !== actions.firstElementChild) actions.prepend(next);
+                    emphasize(next);
+                }
+                row.append(actions);
+            }
             shell.append(detail(group,stats));
             return shell;
         }
@@ -446,17 +492,18 @@
                     }
                     fragment.append(status);
                 }
-                if (summary && Number(summary.due) > 0) {
-                    const review = action({level:0},'due',0,false,true);
-                    review.append(element('span','ll-level-count',summary.due)); fragment.append(review);
-                }
                 const grid = element('div','ll-level-grid');
-                const rows = Array.from(groups.values()).filter(row => Number(row.level) > 0);
-                const current = !summary ? rows[0] : rows.find(row => {
+                const rows = Array.from(groups.values());
+                const current = !summary ? (!options.signedIn && rows.find(row => row.nextId || row.practiceId)) : rows.find(row => {
                     const stat = summary.levels[row.level];
                     return stat && (Number(stat.new) > 0 || Number(stat.working) > 0) &&
                         (stat.next_category_id || stat.practice_category_id || stat.due_category_id || row.nextId || row.practiceId);
                 });
+                if (summary && Number(summary.due) > 0) {
+                    const review = action({level:0},'due',0,false,true);
+                    if (!current) emphasize(review);
+                    fragment.append(review);
+                }
                 groups.forEach(group => grid.append(card(group,current && Number(current.level))));
                 fragment.append(grid);
             } else {
@@ -498,9 +545,10 @@
         }
         function badges(container) {
             container.querySelectorAll('.ll-wordset-card[data-cat-id],.ll-wordset-card[data-lesson-id]').forEach(node => {
-                if (node.querySelector('[data-ll-level-badge]')) return;
                 const level = node.hasAttribute('data-cat-id') ? categoryLevels.get(Number(node.dataset.catId)) : contentLevels.get(Number(node.dataset.lessonId));
-                if (level === undefined) return;
+                const existing = node.querySelector('[data-ll-level-badge]');
+                if (!level) { existing?.remove(); return; }
+                if (existing) return;
                 const heading = node.querySelector('.ll-wordset-card__heading');
                 if (!heading) return;
                 const badge = element('span','ll-wordset-level-badge',label(level));

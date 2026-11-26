@@ -12421,7 +12421,7 @@ function ll_tools_import_job_process(array $job) {
 
         $result = isset($job['result']) && is_array($job['result']) ? $job['result'] : ll_tools_import_job_default_result();
         $options = isset($job['options']) && is_array($job['options']) ? $job['options'] : [];
-        $wordset_map = ll_tools_import_prepare_wordset_map($wordsets, $options, $result, (array) ($job['category_map'] ?? []));
+        $wordset_map = ll_tools_import_prepare_wordset_map($wordsets, $options, $result);
         $job['result'] = $result;
         $job['wordset_map'] = $wordset_map;
         $job['wordsets_processed'] = count($wordsets);
@@ -12911,37 +12911,6 @@ function ll_tools_export_get_wordset_template_manual_order_slugs(int $wordset_id
     return array_values(array_unique(array_filter(array_map('sanitize_title', $slugs))));
 }
 
-/** Export portable category references only when the curriculum setting exists. */
-function ll_tools_export_curriculum_additional_field(int $wordset_id): array {
-    $ids = ll_tools_wordset_curriculum_additional_ids($wordset_id);
-    if (is_wp_error($ids) || (!$ids && !metadata_exists('term', $wordset_id, LL_TOOLS_CURRICULUM_ADDITIONAL_META))) {
-        return [];
-    }
-    $slugs = $ids ? get_terms(['taxonomy' => 'word-category', 'include' => $ids, 'hide_empty' => false, 'fields' => 'slugs']) : [];
-    return is_wp_error($slugs) ? [] : ['curriculum_additional_categories' => array_values($slugs)];
-}
-
-/** A partial import preserves additional categories outside the imported scope. */
-function ll_tools_import_curriculum_additional_meta(array $meta, array $wordset, array $categories, int $wordset_id): array {
-    unset($meta[LL_TOOLS_CURRICULUM_ADDITIONAL_META]);
-    if (!isset($wordset['curriculum_additional_categories']) || !is_array($wordset['curriculum_additional_categories'])) {
-        return $meta;
-    }
-    $selected = [];
-    foreach ($wordset['curriculum_additional_categories'] as $slug) {
-        if (is_string($slug) && isset($categories[$slug])) {
-            $selected[] = (int) $categories[$slug];
-        }
-    }
-    $previous = ll_tools_wordset_curriculum_additional_ids($wordset_id);
-    if (!is_wp_error($previous)) {
-        $meta[LL_TOOLS_CURRICULUM_ADDITIONAL_META] = [ll_tools_wordset_normalize_category_id_list(
-            array_merge(array_diff($previous, $categories), $selected)
-        )];
-    }
-    return $meta;
-}
-
 function ll_tools_export_get_wordset_template_prerequisite_slugs(int $wordset_id, array $terms_by_id): array {
     $wordset_id = (int) $wordset_id;
     if ($wordset_id <= 0 || empty($terms_by_id) || !function_exists('ll_tools_wordset_get_category_prereq_map')) {
@@ -13134,7 +13103,7 @@ function ll_tools_build_wordset_template_export_payload(int $wordset_id, array $
                 'meta' => $wordset_meta,
                 'template_category_manual_order' => ll_tools_export_get_wordset_template_manual_order_slugs($wordset_id, $terms_by_id),
                 'template_category_prerequisites' => ll_tools_export_get_wordset_template_prerequisite_slugs($wordset_id, $terms_by_id),
-            ] + ll_tools_export_curriculum_additional_field($wordset_id)],
+            ]],
             'words'          => [],
             'media_estimate' => [
                 'attachment_count' => (int) $attachment_tracker['attachment_count'],
@@ -13633,8 +13602,8 @@ function ll_tools_export_collect_wordsets(array $wordset_ids): array {
             'slug'        => (string) $term->slug,
             'name'        => (string) $term->name,
             'description' => (string) $term->description,
-            'meta'        => ll_tools_prepare_meta_for_export(get_term_meta($term->term_id), ['manager_user_id', 'manager_user_ids', LL_TOOLS_CURRICULUM_ADDITIONAL_META]),
-        ] + ll_tools_export_curriculum_additional_field($wordset_id);
+            'meta'        => ll_tools_prepare_meta_for_export(get_term_meta($term->term_id), ['manager_user_id', 'manager_user_ids']),
+        ];
     }
 
     return $wordsets;
@@ -15466,7 +15435,6 @@ function ll_tools_import_apply_template_wordset_meta(int $target_wordset_id, arr
     }
 
     $wordset_meta = isset($wordset_payload['meta']) && is_array($wordset_payload['meta']) ? $wordset_payload['meta'] : [];
-    $wordset_meta = ll_tools_import_curriculum_additional_meta($wordset_meta, $wordset_payload, $category_slug_to_id, $target_wordset_id);
     $visibility_meta_key = defined('LL_TOOLS_WORDSET_VISIBILITY_META_KEY')
         ? (string) constant('LL_TOOLS_WORDSET_VISIBILITY_META_KEY')
         : 'll_wordset_visibility';
@@ -18545,8 +18513,7 @@ function ll_tools_import_full_bundle_payload(array $payload, $extract_dir, array
     $wordset_map = ll_tools_import_prepare_wordset_map(
         isset($payload['wordsets']) && is_array($payload['wordsets']) ? $payload['wordsets'] : [],
         $options,
-        $result,
-        $slug_to_category_term_id
+        $result
     );
     $result['history_context']['wordsets'] = ll_tools_import_build_history_wordset_entries(
         isset($payload['wordsets']) && is_array($payload['wordsets']) ? $payload['wordsets'] : [],
@@ -19035,7 +19002,7 @@ function ll_tools_import_apply_preferred_wrong_image_groups(array $pending, arra
  * @param array $result
  * @return array
  */
-function ll_tools_import_prepare_wordset_map(array $wordsets, array $options, array &$result, array $category_map = []): array {
+function ll_tools_import_prepare_wordset_map(array $wordsets, array $options, array &$result): array {
     $mode = isset($options['wordset_mode']) ? sanitize_key((string) $options['wordset_mode']) : 'create_from_export';
     $target_wordset_id = isset($options['target_wordset_id']) ? (int) $options['target_wordset_id'] : 0;
     $name_overrides = isset($options['wordset_name_overrides']) && is_array($options['wordset_name_overrides'])
@@ -19093,7 +19060,6 @@ function ll_tools_import_prepare_wordset_map(array $wordsets, array $options, ar
         }
 
         $wordset_meta = isset($wordset['meta']) && is_array($wordset['meta']) ? $wordset['meta'] : [];
-        $wordset_meta = ll_tools_import_curriculum_additional_meta($wordset_meta, $wordset, $category_map, $term_id);
         foreach (['manager_user_id', 'manager_user_ids'] as $manager_meta_key) {
             if (isset($wordset_meta[$manager_meta_key])) {
                 unset($wordset_meta[$manager_meta_key]);

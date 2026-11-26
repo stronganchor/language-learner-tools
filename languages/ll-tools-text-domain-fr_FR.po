@@ -222,6 +222,7 @@ msgstr "Vérifiez les pages publiques de quiz générées sans les mélanger aux
 
 #. ll-tools-public-key: 24c1a2ab72a89beccebe410ab92a273a599fca49
 #: includes/admin/admin-dashboard-menu.php:356 includes/admin/admin-dashboard-menu.php:824 includes/admin/admin-dashboard-menu.php:825 includes/admin/audio-processor-admin.php:2888 includes/admin/bulk-translation-admin.php:147 includes/admin/image-aspect-normalizer-admin.php:111 includes/admin/user-progress-report.php:1119 includes/pages/wordset-editor.php:4658 includes/pages/wordset-pages.php:27547 includes/pages/wordset-pages.php:27806 includes/post-types/words-post-type.php:21 includes/post-types/words-post-type.php:26 includes/wordset-isolation.php:5478
+#: includes/lib/wordset-level-labels.php:35
 msgid "Words"
 msgstr "Mots"
 
@@ -372,6 +373,7 @@ msgstr "Charger plus"
 
 #. ll-tools-public-key: e0074b8b19544bd789cefcb9f4cbf174f333771f
 #: includes/admin/audio-image-matcher.php:76 includes/admin/audio-processor-admin.php:1409 includes/admin/audio-processor-admin.php:213 includes/admin/ipa-keyboard-admin.php:450 includes/admin/site-sync-admin.php:1934 includes/admin/site-sync-admin.php:655 includes/admin/word-option-rules-admin.php:297 includes/content-lesson-cloze.php:289 includes/lib/recording-history.php:279 includes/lib/word-copy.php:465 includes/lms/assignment-experience.php:416 includes/pages/content-lesson-pages.php:1308 includes/pages/quiz-pages.php:1120 includes/pages/quiz-pages.php:2075 includes/pages/vocab-lesson-pages.php:4833 includes/pages/wordset-pages.php:13584 includes/pages/wordset-pages.php:24954 includes/pages/wordset-pages.php:25017 includes/pages/wordset-pages.php:27509 includes/pages/wordset-pages.php:27626 includes/pages/wordset-pages.php:27741 includes/pages/wordset-pages.php:28163 includes/pages/wordset-pages.php:28672 includes/pages/wordset-pages.php:29753 includes/shortcodes/audio-recording-shortcode.php:1660 includes/shortcodes/audio-recording-shortcode.php:1899 includes/shortcodes/dictionary-shortcode.php:345 includes/shortcodes/flashcard-widget.php:803 includes/shortcodes/quiz-pages-shortcodes.php:2403 includes/taxonomies/word-category-taxonomy.php:3667 templates/audio-image-matcher-template.php:57 templates/quiz-page-template.php:25 templates/vocab-lesson-template.php:447
+#: includes/lib/wordset-level-labels.php:48
 msgid "Retry"
 msgstr "Réessayer"
 
@@ -692,6 +694,7 @@ msgstr "Activité"
 
 #. ll-tools-public-key: d30f2cc61b6b398722fae6459a9c69d04d007d1f
 #: includes/admin/lti-integration.php:192 includes/flashcard-shell.php:51 includes/pages/wordset-pages.php:26122 includes/pages/wordset-pages.php:27610 includes/pages/wordset-pages.php:6777 includes/shortcodes/flashcard-widget.php:753 includes/shortcodes/flashcard-widget.php:758 includes/shortcodes/flashcard-widget.php:818 includes/shortcodes/flashcard-widget.php:823 includes/shortcodes/flashcard-widget.php:883 templates/content-lesson-template.php:263 templates/offline-app-shell-template.php:820 templates/vocab-lesson-template.php:197
+#: includes/lib/wordset-level-labels.php:19
 msgid "Practice"
 msgstr "Entraînement"
 
@@ -1300,6 +1303,7 @@ msgstr "Écouter"
 
 #. ll-tools-public-key: ccd0f6b0d11dbf7e250aa729280429c30d6ad3ec
 #: includes/flashcard-shell.php:52 includes/pages/wordset-pages.php:26123 includes/pages/wordset-pages.php:27611 includes/pages/wordset-pages.php:6778 includes/shortcodes/flashcard-widget.php:754 includes/shortcodes/flashcard-widget.php:819 includes/shortcodes/flashcard-widget.php:824 includes/shortcodes/flashcard-widget.php:888 templates/offline-app-shell-template.php:817 templates/vocab-lesson-template.php:198
+#: includes/lib/wordset-level-labels.php:18
 msgid "Learn"
 msgstr "Apprendre"
 
@@ -1320,6 +1324,7 @@ msgstr "Tout désélectionner"
 
 #. ll-tools-public-key: 384e1a3829b7a557a15197145d0e87b19e519e56
 #: includes/flashcard-shell.php:80 includes/pages/wordset-pages.php:13575 templates/flashcard-widget-template.php:29
+#: includes/lib/wordset-level-labels.php:17
 msgid "Start"
 msgstr "Commencer"
 
@@ -2156,6 +2161,7 @@ msgstr "Réponse enregistrée."
 
 #. ll-tools-public-key: 2e50e09155fa8eff3221bfc7a2e98a6f0e2e2275
 #: includes/lms/assignment-experience.php:416 includes/pages/wordset-transcription-review.php:283 includes/shortcodes/editor-hub-shortcode.php:1067
+#: includes/lib/wordset-level-labels.php:40
 msgid "Saving…"
 msgstr "Enregistrement…"
 
@@ -3065,6 +3071,7 @@ msgstr "Jeu non valide."
 
 #. ll-tools-public-key: 49b760185efd63afeaf135592f4950acd4407eef
 #: includes/pages/wordset-pages.php:118 includes/shortcodes/content-lesson-index-shortcode.php:587 includes/wordset-isolation.php:5482
+#: includes/lib/wordset-level-labels.php:36
 msgid "Lessons"
 msgstr "Leçons"
 
@@ -3682,11 +3689,13 @@ msgstr "Validés : %1$d sur %2$d"
 
 #. ll-tools-public-key: 678ebb62b38f5480d3f097b5b3d3072b32661a48
 #: includes/pages/wordset-pages.php:13663 includes/pages/wordset-pages.php:26441 includes/pages/wordset-pages.php:27535 includes/pages/wordset-pages.php:27553
+#: includes/lib/wordset-level-labels.php:32
 msgid "Learned"
 msgstr "Appris"
 
 #. ll-tools-public-key: 21dbed87b76ca7fbde1b07882d94a4dd3804ebb1
 #: includes/pages/wordset-pages.php:13668 includes/pages/wordset-pages.php:26447 includes/pages/wordset-pages.php:27536 includes/pages/wordset-pages.php:27554
+#: includes/lib/wordset-level-labels.php:33
 msgid "In progress"
 msgstr "En cours"
 
@@ -4145,6 +4154,7 @@ msgid "Starred"
 msgstr "Favoris"
 
 #: includes/pages/wordset-pages.php:26471 includes/pages/wordset-pages.php:27540
+#: includes/lib/wordset-level-labels.php:30
 msgid "Due for review"
 msgstr "À réviser"
 
@@ -4309,6 +4319,7 @@ msgid "Unable to save right now."
 msgstr "Impossible d'enregistrer pour le moment."
 
 #: includes/pages/wordset-pages.php:27508 includes/pages/wordset-transcription-review.php:284 includes/shortcodes/audio-recording-shortcode.php:1677
+#: includes/lib/wordset-level-labels.php:41
 msgid "Saved"
 msgstr "Enregistré"
 
@@ -4978,6 +4989,7 @@ msgstr "Aucun cours n'a été trouvé."
 
 #. ll-tools-public-key: c00de4d95e0780655e95092fccd6fa03fc8adf5b
 #: includes/shortcodes/content-lesson-index-shortcode.php:584
+#: includes/lib/wordset-level-labels.php:9
 msgid "Level %d"
 msgstr "Niveau %d"
 
@@ -5251,6 +5263,7 @@ msgstr "Pause / Lecture"
 
 #. ll-tools-public-key: bcf9cd34f0948b6de0a39d6c9159164c73493434
 #: includes/shortcodes/flashcard-widget.php:725
+#: includes/lib/wordset-level-labels.php:15
 msgid "Back"
 msgstr "Retour"
 
@@ -5907,87 +5920,77 @@ msgstr "Supprimer la catégorie vide"
 #: includes/admin/user-progress-report.php:918
 #: includes/admin/user-progress-report.php:1088
 #: includes/admin/user-progress-report.php:1121
-#: includes/lib/wordset-level-labels.php:27
 #: includes/pages/wordset-pages.php:13132
 #: includes/pages/wordset-pages.php:13267
 msgid "Mastered"
 msgstr "Maîtrisés"
 
 #: includes/admin/user-progress-report.php:542
-#: includes/lib/wordset-level-labels.php:18
 #: includes/post-types/dictionary-entry-post-type.php:1967
 msgid "Review"
 msgstr "Réviser"
 
 #: includes/lib/wordset-level-labels.php:10
-msgid "Additional lessons"
-msgstr "Leçons supplémentaires"
-
-#: includes/lib/wordset-level-labels.php:11
 msgid "All lessons"
 msgstr "Toutes les leçons"
 
-#: includes/lib/wordset-level-labels.php:12
+#: includes/lib/wordset-level-labels.php:14
 msgid "Browse lessons"
 msgstr "Parcourir les leçons"
 
-#: includes/lib/wordset-level-labels.php:14
+#: includes/lib/wordset-level-labels.php:16
 msgid "Show more lessons"
 msgstr "Afficher plus de leçons"
 
-#: includes/lib/wordset-level-labels.php:19
-msgid "Review across levels"
-msgstr "Réviser plusieurs niveaux"
-
-#: includes/lib/wordset-level-labels.php:20
+#: includes/lib/wordset-level-labels.php:21
 msgid "Recommended level"
 msgstr "Niveau recommandé"
 
-#: includes/lib/wordset-level-labels.php:21
+#: includes/lib/wordset-level-labels.php:22
 msgid "Level mastered"
 msgstr "Niveau maîtrisé"
 
-#: includes/lib/wordset-level-labels.php:23
+#: includes/lib/wordset-level-labels.php:24
 msgid "Due for review (%d)"
 msgstr "À réviser (%d)"
 
-#: includes/lib/wordset-level-labels.php:25
+#: includes/lib/wordset-level-labels.php:26
 msgid "Added since you last studied this level (%d)"
 msgstr "Ajoutés depuis ta dernière séance à ce niveau (%d)"
 
-#: includes/lib/wordset-level-labels.php:26
+#: includes/lib/wordset-level-labels.php:27
 msgid "Level details"
 msgstr "Détails du niveau"
 
-#: includes/lib/wordset-level-labels.php:29
+#: includes/lib/wordset-level-labels.php:34
 msgid "Unseen"
 msgstr "Pas encore vus"
 
-#: includes/lib/wordset-level-labels.php:32
+#: includes/lib/wordset-level-labels.php:37
 msgid "Last studied"
 msgstr "Dernière séance"
 
-#: includes/lib/wordset-level-labels.php:33
+#: includes/lib/wordset-level-labels.php:38
 msgid "No activity yet"
 msgstr "Aucune activité pour le moment"
 
-#: includes/lib/wordset-level-labels.php:34
+#: includes/lib/wordset-level-labels.php:39
 msgid "Days before review"
 msgstr "Jours avant la révision"
 
-#: includes/lib/wordset-level-labels.php:37
+#: includes/lib/wordset-level-labels.php:42
 msgid "Loading progress…"
 msgstr "Chargement de la progression…"
 
-#: includes/lib/wordset-level-labels.php:38
+#: includes/lib/wordset-level-labels.php:43
 msgid "Could not load progress."
 msgstr "Impossible de charger la progression."
 
-#: includes/lib/wordset-level-labels.php:39
+#: includes/lib/wordset-level-labels.php:46
 msgid "Could not start this activity."
 msgstr "Impossible de démarrer cette activité."
 
-#: includes/lib/wordset-level-labels.php:40
+#: includes/lib/wordset-level-labels.php:47
 msgid "Could not save this interval."
 msgstr "Impossible d’enregistrer cet intervalle."
 
@@ -6009,6 +6012,7 @@ msgstr "Connecte-toi pour voir ta progression."
 
 #: includes/lib/wordset-level-page.php:132
 #: includes/lib/wordset-level-page.php:136
+#: includes/lib/wordset-level-labels.php:44
 msgid "Reload this page to update your levels."
 msgstr "Recharge cette page pour mettre tes niveaux à jour."
 
@@ -6048,11 +6052,11 @@ msgstr "Leçons principales"
 msgid "Course levels"
 msgstr "Niveaux du cours"
 
-#: includes/lib/wordset-level-labels.php:12
+#: includes/lib/wordset-level-labels.php:11
 msgid "Back to levels"
 msgstr "Retour aux niveaux"
 
-#: includes/lib/wordset-level-labels.php:14
+#: includes/lib/wordset-level-labels.php:13
 msgid "Continue Level %d"
 msgstr "Continuer le niveau %d"
 
@@ -6060,11 +6064,20 @@ msgstr "Continuer le niveau %d"
 msgid "Added since last study"
 msgstr "Ajoutés depuis la dernière séance"
 
-#: includes/lib/wordset-level-labels.php:45
 #: includes/pages/wordset-transcription-review.php:291
 #: templates/vocab-lesson-template.php:1404
+#: includes/lib/wordset-level-labels.php:45
 msgid "Reload"
 msgstr "Recharger"
+
+#. translators: 1: number of learned words, 2: total words in the level.
+#: includes/lib/wordset-level-labels.php:29
+msgid "%1$d / %2$d learned"
+msgstr "%1$d sur %2$d appris"
+
+#: includes/lib/wordset-level-labels.php:20
+msgid "Review now"
+msgstr "Réviser maintenant"
 
 #~ #. ll-tools-public-key: 91649783c0e23511c87fd6ea6b7e7b29d6353216
 #~ #: includes/flashcard-shell.php:174

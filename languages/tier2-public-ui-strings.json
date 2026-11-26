@@ -4,7 +4,7 @@
     "source_policy": "Public visitor and learner-facing UI strings. Excludes wp-admin, REST/CLI/admin tooling, front-end manager-only settings, recorder queue management, and teacher-class management. Includes language switching, auth, public lesson/card/game/dictionary surfaces, learner progress, hidden-category controls, and learner study preferences.",
     "source_config": "languages/tier2-public-ui-sources.php",
     "source_pot": "languages/ll-tools-text-domain.pot",
-    "entry_count": 901,
+    "entry_count": 899,
     "entries": [
         {
             "key": "adee136dff8d8dc5540c5fcb347c2f4f5f0b9304",
@@ -1004,7 +1004,7 @@
             "msgid": "Text",
             "msgid_plural": null,
             "references": [
-                "includes/admin/export-import.php:13981",
+                "includes/admin/export-import.php:13950",
                 "includes/admin/ipa-keyboard-admin.php:428",
                 "includes/lib/interlinear.php:1792",
                 "includes/lib/interlinear.php:2010",
@@ -1080,7 +1080,7 @@
                 "includes/lib/interlinear.php:1829",
                 "includes/pages/wordset-pages.php:14726",
                 "includes/pages/wordset-pages.php:4240",
-                "includes/taxonomies/wordset-taxonomy.php:3842"
+                "includes/taxonomies/wordset-taxonomy.php:3792"
             ],
             "public_references": [
                 "includes/lib/interlinear.php:1829",
@@ -1167,8 +1167,8 @@
             "references": [
                 "includes/admin/audio-processor-admin.php:1320",
                 "includes/admin/audio-processor-admin.php:156",
-                "includes/admin/export-import.php:13949",
-                "includes/admin/export-import.php:13984",
+                "includes/admin/export-import.php:13918",
+                "includes/admin/export-import.php:13953",
                 "includes/admin/user-progress-report.php:1158",
                 "includes/lib/interlinear.php:2007",
                 "includes/pages/wordset-editor.php:4880",
@@ -2259,27 +2259,15 @@
             ]
         },
         {
-            "key": "9aa158f982d5f19ad6b9a1ae62d91b47e58e2194",
-            "context": "",
-            "msgid": "Additional lessons",
-            "msgid_plural": null,
-            "references": [
-                "includes/lib/wordset-level-labels.php:10"
-            ],
-            "public_references": [
-                "includes/lib/wordset-level-labels.php:10"
-            ]
-        },
-        {
             "key": "f56899afe3bd56e1cf85e0973c09060b135f86ac",
             "context": "",
             "msgid": "All lessons",
             "msgid_plural": null,
             "references": [
-                "includes/lib/wordset-level-labels.php:11"
+                "includes/lib/wordset-level-labels.php:10"
             ],
             "public_references": [
-                "includes/lib/wordset-level-labels.php:11"
+                "includes/lib/wordset-level-labels.php:10"
             ]
         },
         {
@@ -2288,10 +2276,10 @@
             "msgid": "Back to levels",
             "msgid_plural": null,
             "references": [
-                "includes/lib/wordset-level-labels.php:12"
+                "includes/lib/wordset-level-labels.php:11"
             ],
             "public_references": [
-                "includes/lib/wordset-level-labels.php:12"
+                "includes/lib/wordset-level-labels.php:11"
             ]
         },
         {
@@ -2300,10 +2288,10 @@
             "msgid": "Continue Level %d",
             "msgid_plural": null,
             "references": [
-                "includes/lib/wordset-level-labels.php:14"
+                "includes/lib/wordset-level-labels.php:13"
             ],
             "public_references": [
-                "includes/lib/wordset-level-labels.php:14"
+                "includes/lib/wordset-level-labels.php:13"
             ]
         },
         {
@@ -2312,10 +2300,10 @@
             "msgid": "Browse lessons",
             "msgid_plural": null,
             "references": [
-                "includes/lib/wordset-level-labels.php:15"
+                "includes/lib/wordset-level-labels.php:14"
             ],
             "public_references": [
-                "includes/lib/wordset-level-labels.php:15"
+                "includes/lib/wordset-level-labels.php:14"
             ]
         },
         {
@@ -2324,11 +2312,11 @@
             "msgid": "Back",
             "msgid_plural": null,
             "references": [
-                "includes/lib/wordset-level-labels.php:16",
+                "includes/lib/wordset-level-labels.php:15",
                 "includes/shortcodes/flashcard-widget.php:725"
             ],
             "public_references": [
-                "includes/lib/wordset-level-labels.php:16",
+                "includes/lib/wordset-level-labels.php:15",
                 "includes/shortcodes/flashcard-widget.php:725"
             ]
         },
@@ -2338,10 +2326,10 @@
             "msgid": "Show more lessons",
             "msgid_plural": null,
             "references": [
-                "includes/lib/wordset-level-labels.php:17"
+                "includes/lib/wordset-level-labels.php:16"
             ],
             "public_references": [
-                "includes/lib/wordset-level-labels.php:17"
+                "includes/lib/wordset-level-labels.php:16"
             ]
         },
         {
@@ -2351,12 +2339,12 @@
             "msgid_plural": null,
             "references": [
                 "includes/flashcard-shell.php:80",
-                "includes/lib/wordset-level-labels.php:18",
+                "includes/lib/wordset-level-labels.php:17",
                 "includes/pages/wordset-pages.php:13580",
                 "templates/flashcard-widget-template.php:29"
             ],
             "public_references": [
-                "includes/lib/wordset-level-labels.php:18",
+                "includes/lib/wordset-level-labels.php:17",
                 "includes/pages/wordset-pages.php:13580",
                 "templates/flashcard-widget-template.php:29"
             ]
@@ -2368,7 +2356,7 @@
             "msgid_plural": null,
             "references": [
                 "includes/flashcard-shell.php:52",
-                "includes/lib/wordset-level-labels.php:19",
+                "includes/lib/wordset-level-labels.php:18",
                 "includes/pages/wordset-pages.php:26132",
                 "includes/pages/wordset-pages.php:27646",
                 "includes/pages/wordset-pages.php:6779",
@@ -2380,7 +2368,7 @@
                 "templates/vocab-lesson-template.php:198"
             ],
             "public_references": [
-                "includes/lib/wordset-level-labels.php:19",
+                "includes/lib/wordset-level-labels.php:18",
                 "includes/pages/wordset-pages.php:26132",
                 "includes/pages/wordset-pages.php:27646",
                 "includes/pages/wordset-pages.php:6779",
@@ -2400,7 +2388,7 @@
             "references": [
                 "includes/admin/lti-integration.php:192",
                 "includes/flashcard-shell.php:51",
-                "includes/lib/wordset-level-labels.php:20",
+                "includes/lib/wordset-level-labels.php:19",
                 "includes/pages/wordset-pages.php:26131",
                 "includes/pages/wordset-pages.php:27645",
                 "includes/pages/wordset-pages.php:6778",
@@ -2414,7 +2402,7 @@
                 "templates/vocab-lesson-template.php:197"
             ],
             "public_references": [
-                "includes/lib/wordset-level-labels.php:20",
+                "includes/lib/wordset-level-labels.php:19",
                 "includes/pages/wordset-pages.php:26131",
                 "includes/pages/wordset-pages.php:27645",
                 "includes/pages/wordset-pages.php:6778",
@@ -2429,29 +2417,15 @@
             ]
         },
         {
-            "key": "c34fe85113df4019445dd7b7605e9ca0fb2c3b42",
+            "key": "d994f2fa88b4f119e050aff3d09f90f88113cecc",
             "context": "",
-            "msgid": "Review",
+            "msgid": "Review now",
             "msgid_plural": null,
             "references": [
-                "includes/admin/user-progress-report.php:542",
-                "includes/lib/wordset-level-labels.php:21",
-                "includes/post-types/dictionary-entry-post-type.php:1967"
+                "includes/lib/wordset-level-labels.php:20"
             ],
             "public_references": [
-                "includes/lib/wordset-level-labels.php:21"
-            ]
-        },
-        {
-            "key": "9001e6a20efc5c9515171566be8470661bfd2d6d",
-            "context": "",
-            "msgid": "Review across levels",
-            "msgid_plural": null,
-            "references": [
-                "includes/lib/wordset-level-labels.php:22"
-            ],
-            "public_references": [
-                "includes/lib/wordset-level-labels.php:22"
+                "includes/lib/wordset-level-labels.php:20"
             ]
         },
         {
@@ -2460,10 +2434,10 @@
             "msgid": "Recommended level",
             "msgid_plural": null,
             "references": [
-                "includes/lib/wordset-level-labels.php:23"
+                "includes/lib/wordset-level-labels.php:21"
             ],
             "public_references": [
-                "includes/lib/wordset-level-labels.php:23"
+                "includes/lib/wordset-level-labels.php:21"
             ]
         },
         {
@@ -2472,10 +2446,10 @@
             "msgid": "Level mastered",
             "msgid_plural": null,
             "references": [
-                "includes/lib/wordset-level-labels.php:24"
+                "includes/lib/wordset-level-labels.php:22"
             ],
             "public_references": [
-                "includes/lib/wordset-level-labels.php:24"
+                "includes/lib/wordset-level-labels.php:22"
             ]
         },
         {
@@ -2484,10 +2458,10 @@
             "msgid": "Due for review (%d)",
             "msgid_plural": null,
             "references": [
-                "includes/lib/wordset-level-labels.php:26"
+                "includes/lib/wordset-level-labels.php:24"
             ],
             "public_references": [
-                "includes/lib/wordset-level-labels.php:26"
+                "includes/lib/wordset-level-labels.php:24"
             ]
         },
         {
@@ -2496,16 +2470,28 @@
             "msgid": "Added since you last studied this level (%d)",
             "msgid_plural": null,
             "references": [
-                "includes/lib/wordset-level-labels.php:28"
+                "includes/lib/wordset-level-labels.php:26"
             ],
             "public_references": [
-                "includes/lib/wordset-level-labels.php:28"
+                "includes/lib/wordset-level-labels.php:26"
             ]
         },
         {
             "key": "a189581b6f30dce7625539f9575a4d2f9a4ac9a8",
             "context": "",
             "msgid": "Level details",
+            "msgid_plural": null,
+            "references": [
+                "includes/lib/wordset-level-labels.php:27"
+            ],
+            "public_references": [
+                "includes/lib/wordset-level-labels.php:27"
+            ]
+        },
+        {
+            "key": "87ded1806d46721c9e2d28a68559d791d1163a41",
+            "context": "",
+            "msgid": "%1$d / %2$d learned",
             "msgid_plural": null,
             "references": [
                 "includes/lib/wordset-level-labels.php:29"
@@ -2543,21 +2529,23 @@
             ]
         },
         {
-            "key": "6b943b8b5fd9f4a181179256b447e61ef79bb141",
+            "key": "678ebb62b38f5480d3f097b5b3d3072b32661a48",
             "context": "",
-            "msgid": "Mastered",
+            "msgid": "Learned",
             "msgid_plural": null,
             "references": [
-                "includes/admin/teacher-classes-page.php:1035",
-                "includes/admin/user-progress-report.php:1088",
-                "includes/admin/user-progress-report.php:1121",
-                "includes/admin/user-progress-report.php:918",
                 "includes/lib/wordset-level-labels.php:32",
-                "includes/pages/wordset-pages.php:13132",
-                "includes/pages/wordset-pages.php:13267"
+                "includes/pages/wordset-pages.php:13668",
+                "includes/pages/wordset-pages.php:26453",
+                "includes/pages/wordset-pages.php:27570",
+                "includes/pages/wordset-pages.php:27588"
             ],
             "public_references": [
-                "includes/lib/wordset-level-labels.php:32"
+                "includes/lib/wordset-level-labels.php:32",
+                "includes/pages/wordset-pages.php:13668",
+                "includes/pages/wordset-pages.php:26453",
+                "includes/pages/wordset-pages.php:27570",
+                "includes/pages/wordset-pages.php:27588"
             ]
         },
         {
@@ -2611,7 +2599,7 @@
                 "includes/pages/wordset-pages.php:27841",
                 "includes/post-types/words-post-type.php:21",
                 "includes/post-types/words-post-type.php:26",
-                "includes/wordset-isolation.php:5509"
+                "includes/wordset-isolation.php:5501"
             ],
             "public_references": [
                 "includes/lib/wordset-level-labels.php:35",
@@ -2628,7 +2616,7 @@
                 "includes/lib/wordset-level-labels.php:36",
                 "includes/pages/wordset-pages.php:118",
                 "includes/shortcodes/content-lesson-index-shortcode.php:587",
-                "includes/wordset-isolation.php:5513"
+                "includes/wordset-isolation.php:5505"
             ],
             "public_references": [
                 "includes/lib/wordset-level-labels.php:36",
@@ -2735,13 +2723,13 @@
             "msgid_plural": null,
             "references": [
                 "includes/lib/wordset-level-labels.php:44",
-                "includes/lib/wordset-level-page.php:135",
-                "includes/lib/wordset-level-page.php:140"
+                "includes/lib/wordset-level-page.php:123",
+                "includes/lib/wordset-level-page.php:128"
             ],
             "public_references": [
                 "includes/lib/wordset-level-labels.php:44",
-                "includes/lib/wordset-level-page.php:135",
-                "includes/lib/wordset-level-page.php:140"
+                "includes/lib/wordset-level-page.php:123",
+                "includes/lib/wordset-level-page.php:128"
             ]
         },
         {
@@ -2848,37 +2836,13 @@
             "msgid_plural": null,
             "references": [
                 "includes/lib/wordset-level-labels.php:9",
-                "includes/lib/wordset-level-page.php:207",
+                "includes/lib/wordset-level-page.php:195",
                 "includes/shortcodes/content-lesson-index-shortcode.php:584"
             ],
             "public_references": [
                 "includes/lib/wordset-level-labels.php:9",
-                "includes/lib/wordset-level-page.php:207",
+                "includes/lib/wordset-level-page.php:195",
                 "includes/shortcodes/content-lesson-index-shortcode.php:584"
-            ]
-        },
-        {
-            "key": "0b73bcdb75282e31f7bb94fc1fea7200f847f286",
-            "context": "",
-            "msgid": "Could not load level progress. Please try again.",
-            "msgid_plural": null,
-            "references": [
-                "includes/lib/wordset-level-page.php:100"
-            ],
-            "public_references": [
-                "includes/lib/wordset-level-page.php:100"
-            ]
-        },
-        {
-            "key": "39444bccfcc6711e8f5e968787bf286b3a844885",
-            "context": "",
-            "msgid": "Choose a review interval from 1 to 365 days.",
-            "msgid_plural": null,
-            "references": [
-                "includes/lib/wordset-level-page.php:105"
-            ],
-            "public_references": [
-                "includes/lib/wordset-level-page.php:105"
             ]
         },
         {
@@ -2887,10 +2851,10 @@
             "msgid": "Could not save this review interval. Please try again.",
             "msgid_plural": null,
             "references": [
-                "includes/lib/wordset-level-page.php:120"
+                "includes/lib/wordset-level-page.php:108"
             ],
             "public_references": [
-                "includes/lib/wordset-level-page.php:120"
+                "includes/lib/wordset-level-page.php:108"
             ]
         },
         {
@@ -2899,10 +2863,10 @@
             "msgid": "Please sign in to view your progress.",
             "msgid_plural": null,
             "references": [
-                "includes/lib/wordset-level-page.php:129"
+                "includes/lib/wordset-level-page.php:117"
             ],
             "public_references": [
-                "includes/lib/wordset-level-page.php:129"
+                "includes/lib/wordset-level-page.php:117"
             ]
         },
         {
@@ -2911,10 +2875,10 @@
             "msgid": "This level is unavailable.",
             "msgid_plural": null,
             "references": [
-                "includes/lib/wordset-level-page.php:157"
+                "includes/lib/wordset-level-page.php:145"
             ],
             "public_references": [
-                "includes/lib/wordset-level-page.php:157"
+                "includes/lib/wordset-level-page.php:145"
             ]
         },
         {
@@ -2923,10 +2887,10 @@
             "msgid": "Unknown level action.",
             "msgid_plural": null,
             "references": [
-                "includes/lib/wordset-level-page.php:184"
+                "includes/lib/wordset-level-page.php:172"
             ],
             "public_references": [
-                "includes/lib/wordset-level-page.php:184"
+                "includes/lib/wordset-level-page.php:172"
             ]
         },
         {
@@ -2935,10 +2899,34 @@
             "msgid": "There is nothing to practice in this selection right now.",
             "msgid_plural": null,
             "references": [
-                "includes/lib/wordset-level-page.php:186"
+                "includes/lib/wordset-level-page.php:174"
             ],
             "public_references": [
-                "includes/lib/wordset-level-page.php:186"
+                "includes/lib/wordset-level-page.php:174"
+            ]
+        },
+        {
+            "key": "0b73bcdb75282e31f7bb94fc1fea7200f847f286",
+            "context": "",
+            "msgid": "Could not load level progress. Please try again.",
+            "msgid_plural": null,
+            "references": [
+                "includes/lib/wordset-level-page.php:88"
+            ],
+            "public_references": [
+                "includes/lib/wordset-level-page.php:88"
+            ]
+        },
+        {
+            "key": "39444bccfcc6711e8f5e968787bf286b3a844885",
+            "context": "",
+            "msgid": "Choose a review interval from 1 to 365 days.",
+            "msgid_plural": null,
+            "references": [
+                "includes/lib/wordset-level-page.php:93"
+            ],
+            "public_references": [
+                "includes/lib/wordset-level-page.php:93"
             ]
         },
         {
@@ -4448,7 +4436,7 @@
             "msgid": "Invalid category.",
             "msgid_plural": null,
             "references": [
-                "includes/admin/export-import.php:16500",
+                "includes/admin/export-import.php:16468",
                 "includes/lib/word-grid-bulk-operations.php:1120",
                 "includes/pages/quiz-pages.php:1131",
                 "includes/pages/vocab-lesson-pages.php:2976",
@@ -4457,7 +4445,7 @@
                 "includes/shortcodes/flashcard-widget.php:2680",
                 "includes/shortcodes/flashcard-widget.php:2856",
                 "includes/shortcodes/word-grid-shortcode.php:10495",
-                "includes/wordset-isolation.php:1661"
+                "includes/wordset-isolation.php:1653"
             ],
             "public_references": [
                 "includes/pages/quiz-pages.php:1131",
@@ -6644,24 +6632,6 @@
             ]
         },
         {
-            "key": "678ebb62b38f5480d3f097b5b3d3072b32661a48",
-            "context": "",
-            "msgid": "Learned",
-            "msgid_plural": null,
-            "references": [
-                "includes/pages/wordset-pages.php:13668",
-                "includes/pages/wordset-pages.php:26453",
-                "includes/pages/wordset-pages.php:27570",
-                "includes/pages/wordset-pages.php:27588"
-            ],
-            "public_references": [
-                "includes/pages/wordset-pages.php:13668",
-                "includes/pages/wordset-pages.php:26453",
-                "includes/pages/wordset-pages.php:27570",
-                "includes/pages/wordset-pages.php:27588"
-            ]
-        },
-        {
             "key": "aa5a22b536ea954586b4e55cd729918186eb60cb",
             "context": "",
             "msgid": "New",
@@ -8022,7 +7992,7 @@
                 "includes/shortcodes/editor-hub-shortcode.php:1077",
                 "includes/shortcodes/editor-hub-shortcode.php:1109",
                 "includes/shortcodes/image-copyright-grid-shortcode.php:222",
-                "includes/taxonomies/wordset-taxonomy.php:3029",
+                "includes/taxonomies/wordset-taxonomy.php:2991",
                 "templates/vocab-lesson-template.php:1104"
             ],
             "public_references": [
@@ -8675,7 +8645,7 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/wordset-pages.php:27640",
-                "includes/taxonomies/wordset-taxonomy.php:3030",
+                "includes/taxonomies/wordset-taxonomy.php:2992",
                 "templates/vocab-lesson-template.php:1218"
             ],
             "public_references": [

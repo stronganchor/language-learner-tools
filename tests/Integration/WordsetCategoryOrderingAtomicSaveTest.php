@@ -103,29 +103,6 @@ final class WordsetCategoryOrderingAtomicSaveTest extends LL_Tools_TestCase
         $this->assertCategorySectionSame($snapshot, $wordsetId);
     }
 
-    public function test_additional_practice_accepts_explicit_empty_and_rejects_unlisted_categories(): void
-    {
-        $fixture = $this->createFixture();
-        $wordset = $fixture['wordset_id'];
-        [$first, $second] = $fixture['category_ids'];
-        $request = [
-            'll_wordset_category_ordering_mode' => 'prerequisite',
-            'll_wordset_category_order_category_ids' => "$first,$second",
-            'll_wordset_category_prereqs_compact_mode' => 'json-v1',
-            'll_wordset_category_prereqs_compact' => wp_json_encode([$second => [$first]]),
-            'll_wordset_curriculum_additional_complete' => '1',
-            'll_wordset_curriculum_additional' => [(string) $second],
-        ];
-        $this->assertTrue(ll_tools_wordset_save_category_ordering_settings($wordset, $request));
-        $this->assertSame([$second], ll_tools_wordset_curriculum_additional_ids($wordset));
-        $request['ll_wordset_curriculum_additional'] = ['99999999'];
-        $this->assertWPError(ll_tools_wordset_save_category_ordering_settings($wordset, $request));
-        $this->assertSame([$second], ll_tools_wordset_curriculum_additional_ids($wordset));
-        unset($request['ll_wordset_curriculum_additional']);
-        $this->assertTrue(ll_tools_wordset_save_category_ordering_settings($wordset, $request));
-        $this->assertSame([[]], get_term_meta($wordset, LL_TOOLS_CURRICULUM_ADDITIONAL_META, false));
-    }
-
     public function test_taxonomy_malformed_payload_preserves_category_section_and_queues_warning(): void
     {
         $fixture = $this->createFixture();

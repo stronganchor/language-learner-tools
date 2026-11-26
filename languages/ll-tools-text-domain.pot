@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-11-26T07:59:13+00:00\n"
+"POT-Creation-Date: 2026-11-26T09:43:07+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.10.0\n"
 "X-Domain: ll-tools-text-domain\n"
@@ -313,7 +313,7 @@ msgstr ""
 #: includes/pages/wordset-pages.php:27841
 #: includes/post-types/words-post-type.php:21
 #: includes/post-types/words-post-type.php:26
-#: includes/wordset-isolation.php:5509
+#: includes/wordset-isolation.php:5501
 msgid "Words"
 msgstr ""
 
@@ -1022,8 +1022,8 @@ msgstr ""
 
 #: includes/admin/audio-processor-admin.php:156
 #: includes/admin/audio-processor-admin.php:1320
-#: includes/admin/export-import.php:13949
-#: includes/admin/export-import.php:13984
+#: includes/admin/export-import.php:13918
+#: includes/admin/export-import.php:13953
 #: includes/admin/user-progress-report.php:1158
 #: includes/lib/interlinear.php:2007
 #: includes/pages/wordset-editor.php:930
@@ -1717,7 +1717,7 @@ msgstr ""
 #: includes/shortcodes/editor-hub-shortcode.php:1077
 #: includes/shortcodes/editor-hub-shortcode.php:1109
 #: includes/shortcodes/image-copyright-grid-shortcode.php:222
-#: includes/taxonomies/wordset-taxonomy.php:3029
+#: includes/taxonomies/wordset-taxonomy.php:2991
 #: templates/vocab-lesson-template.php:1104
 msgid "Category"
 msgstr ""
@@ -1779,7 +1779,7 @@ msgid "ID"
 msgstr ""
 
 #: includes/admin/bulk-translation-admin.php:175
-#: includes/admin/export-import.php:13946
+#: includes/admin/export-import.php:13915
 msgid "Title"
 msgstr ""
 
@@ -3274,12 +3274,12 @@ msgstr ""
 
 #: includes/admin/duplicate-category-words-admin.php:112
 #: includes/admin/duplicate-category-words-admin.php:438
-#: includes/wordset-isolation.php:1698
-#: includes/wordset-isolation.php:1710
-#: includes/wordset-isolation.php:1726
-#: includes/wordset-isolation.php:1968
-#: includes/wordset-isolation.php:1979
-#: includes/wordset-isolation.php:2016
+#: includes/wordset-isolation.php:1690
+#: includes/wordset-isolation.php:1702
+#: includes/wordset-isolation.php:1718
+#: includes/wordset-isolation.php:1960
+#: includes/wordset-isolation.php:1971
+#: includes/wordset-isolation.php:2008
 msgid "A category with that name already exists. Use existing-category mode or choose a different name."
 msgstr ""
 
@@ -3292,7 +3292,7 @@ msgstr ""
 #: includes/pages/wordset-editor.php:468
 #: includes/pages/wordset-editor.php:4064
 #: includes/taxonomies/word-category-taxonomy.php:2216
-#: includes/wordset-isolation.php:1631
+#: includes/wordset-isolation.php:1623
 msgid "The category was created, but its settings were not saved. Reload the category list, open the category, and try again."
 msgstr ""
 
@@ -3330,12 +3330,12 @@ msgid "Unable to copy category settings right now."
 msgstr ""
 
 #: includes/admin/duplicate-category-words-admin.php:361
-#: includes/admin/export-import.php:16507
-#: includes/admin/export-import.php:16510
-#: includes/admin/export-import.php:16521
-#: includes/admin/export-import.php:16524
-#: includes/admin/export-import.php:16624
-#: includes/admin/export-import.php:16631
+#: includes/admin/export-import.php:16475
+#: includes/admin/export-import.php:16478
+#: includes/admin/export-import.php:16489
+#: includes/admin/export-import.php:16492
+#: includes/admin/export-import.php:16592
+#: includes/admin/export-import.php:16599
 #: includes/admin/uploads/image-upload-form.php:1125
 #: includes/pages/wordset-editor.php:405
 #: includes/pages/wordset-pages.php:10247
@@ -3348,9 +3348,9 @@ msgstr ""
 #: includes/admin/duplicate-category-words-admin.php:380
 #: includes/admin/duplicate-category-words-admin.php:477
 #: includes/admin/duplicate-category-words-admin.php:495
-#: includes/admin/export-import.php:16811
-#: includes/admin/export-import.php:17888
-#: includes/admin/export-import.php:19565
+#: includes/admin/export-import.php:16779
+#: includes/admin/export-import.php:17856
+#: includes/admin/export-import.php:19531
 #: includes/admin/uploads/image-upload-form.php:1175
 #: includes/lib/vocab-lesson-activities.php:37
 #: includes/pages/vocab-lesson-pages.php:5691
@@ -3398,25 +3398,25 @@ msgid "Unable to save category settings right now."
 msgstr ""
 
 #: includes/admin/duplicate-category-words-admin.php:427
-#: includes/admin/export-import.php:16553
-#: includes/admin/export-import.php:16588
-#: includes/admin/export-import.php:16652
-#: includes/admin/export-import.php:16656
+#: includes/admin/export-import.php:16521
+#: includes/admin/export-import.php:16556
+#: includes/admin/export-import.php:16620
+#: includes/admin/export-import.php:16624
 #: includes/pages/wordset-editor.php:353
 #: includes/pages/wordset-pages.php:17300
-#: includes/wordset-isolation.php:1664
-#: includes/wordset-isolation.php:1694
-#: includes/wordset-isolation.php:1707
-#: includes/wordset-isolation.php:1723
-#: includes/wordset-isolation.php:1924
-#: includes/wordset-isolation.php:1965
-#: includes/wordset-isolation.php:1980
-#: includes/wordset-isolation.php:1998
-#: includes/wordset-isolation.php:2017
-#: includes/wordset-isolation.php:2029
-#: includes/wordset-isolation.php:2046
-#: includes/wordset-isolation.php:2088
-#: includes/wordset-isolation.php:2095
+#: includes/wordset-isolation.php:1656
+#: includes/wordset-isolation.php:1686
+#: includes/wordset-isolation.php:1699
+#: includes/wordset-isolation.php:1715
+#: includes/wordset-isolation.php:1916
+#: includes/wordset-isolation.php:1957
+#: includes/wordset-isolation.php:1972
+#: includes/wordset-isolation.php:1990
+#: includes/wordset-isolation.php:2009
+#: includes/wordset-isolation.php:2021
+#: includes/wordset-isolation.php:2038
+#: includes/wordset-isolation.php:2080
+#: includes/wordset-isolation.php:2087
 msgid "Unable to create that category right now."
 msgstr ""
 
@@ -3640,7 +3640,7 @@ msgid "Import finished. Loading results..."
 msgstr ""
 
 #: includes/admin/export-import.php:158
-#: includes/admin/export-import.php:17770
+#: includes/admin/export-import.php:17738
 msgid "Import request did not complete. Return to the import page and try again."
 msgstr ""
 
@@ -3946,32 +3946,32 @@ msgid "The import job data file is invalid."
 msgstr ""
 
 #: includes/admin/export-import.php:1510
-#: includes/admin/export-import.php:19790
+#: includes/admin/export-import.php:19756
 msgid "Import failed: zip file is empty."
 msgstr ""
 
 #: includes/admin/export-import.php:1513
-#: includes/admin/export-import.php:19793
+#: includes/admin/export-import.php:19759
 msgid "Import failed: zip contains too many files."
 msgstr ""
 
 #: includes/admin/export-import.php:1524
-#: includes/admin/export-import.php:19803
+#: includes/admin/export-import.php:19769
 msgid "Import failed: zip metadata is invalid."
 msgstr ""
 
 #: includes/admin/export-import.php:1532
-#: includes/admin/export-import.php:19811
+#: includes/admin/export-import.php:19777
 msgid "Import failed: zip contains an invalid file path."
 msgstr ""
 
 #: includes/admin/export-import.php:1537
-#: includes/admin/export-import.php:19828
+#: includes/admin/export-import.php:19794
 msgid "Import failed: zip entry size is invalid."
 msgstr ""
 
 #: includes/admin/export-import.php:1543
-#: includes/admin/export-import.php:19832
+#: includes/admin/export-import.php:19798
 msgid "Import failed: uncompressed zip size is too large."
 msgstr ""
 
@@ -3987,29 +3987,29 @@ msgstr ""
 #: includes/admin/export-import.php:1591
 #: includes/admin/export-import.php:7590
 #: includes/admin/export-import.php:12650
-#: includes/admin/export-import.php:15374
+#: includes/admin/export-import.php:15343
 msgid "Import failed: could not open zip file."
 msgstr ""
 
 #: includes/admin/export-import.php:1601
-#: includes/admin/export-import.php:19816
+#: includes/admin/export-import.php:19782
 msgid "Import failed: zip contains an unsafe file path."
 msgstr ""
 
 #: includes/admin/export-import.php:1606
 #: includes/admin/export-import.php:1613
-#: includes/admin/export-import.php:19821
-#: includes/admin/export-import.php:19837
+#: includes/admin/export-import.php:19787
+#: includes/admin/export-import.php:19803
 msgid "Import failed: could not create extraction folders."
 msgstr ""
 
 #: includes/admin/export-import.php:1619
-#: includes/admin/export-import.php:19842
+#: includes/admin/export-import.php:19808
 msgid "Import failed: could not read a file from the zip."
 msgstr ""
 
 #: includes/admin/export-import.php:1625
-#: includes/admin/export-import.php:19848
+#: includes/admin/export-import.php:19814
 msgid "Import failed: could not write extracted files."
 msgstr ""
 
@@ -4095,7 +4095,7 @@ msgstr ""
 #: includes/admin/export-import.php:5045
 #: includes/admin/export-import.php:5082
 #: includes/admin/export-import.php:5312
-#: includes/admin/export-import.php:15135
+#: includes/admin/export-import.php:15104
 msgid "Export batch token is missing."
 msgstr ""
 
@@ -4150,7 +4150,7 @@ msgstr ""
 #: includes/admin/export-import.php:7937
 #: includes/admin/export-import.php:8002
 #: includes/admin/export-import.php:12611
-#: includes/admin/export-import.php:15010
+#: includes/admin/export-import.php:14979
 #: includes/admin/offline-app-export.php:1722
 #: includes/admin/orphan-media-admin.php:1483
 #: includes/api/automation-rest.php:10313
@@ -4248,7 +4248,7 @@ msgstr ""
 
 #: includes/admin/export-import.php:2760
 #: includes/admin/export-import.php:2888
-#: includes/admin/export-import.php:15314
+#: includes/admin/export-import.php:15283
 msgid "Could not prepare the export download link. Please try again."
 msgstr ""
 
@@ -4337,8 +4337,8 @@ msgid "Word example sentence translation"
 msgstr ""
 
 #: includes/admin/export-import.php:3376
-#: includes/admin/export-import.php:14438
-#: includes/admin/export-import.php:14470
+#: includes/admin/export-import.php:14407
+#: includes/admin/export-import.php:14439
 #: includes/lib/wordset-language-settings.php:1261
 #: includes/pages/wordset-pages.php:17854
 #: includes/pages/wordset-pages.php:26883
@@ -4348,7 +4348,7 @@ msgid "Recording text"
 msgstr ""
 
 #: includes/admin/export-import.php:3384
-#: includes/admin/export-import.php:14444
+#: includes/admin/export-import.php:14413
 #: includes/admin/site-sync-admin.php:1054
 msgid "Recording translation"
 msgstr ""
@@ -5154,24 +5154,24 @@ msgid "Confirm Metadata Updates"
 msgstr ""
 
 #: includes/admin/export-import.php:4981
-#: includes/admin/export-import.php:12994
+#: includes/admin/export-import.php:12963
 msgid "Select a word set when exporting a template bundle."
 msgstr ""
 
 #: includes/admin/export-import.php:4986
-#: includes/admin/export-import.php:12999
+#: includes/admin/export-import.php:12968
 msgid "The selected word set for template export is invalid."
 msgstr ""
 
 #: includes/admin/export-import.php:4990
-#: includes/admin/export-import.php:13181
-#: includes/admin/export-import.php:13493
+#: includes/admin/export-import.php:13150
+#: includes/admin/export-import.php:13462
 msgid "Select a word set when exporting a full category bundle."
 msgstr ""
 
 #: includes/admin/export-import.php:4995
-#: includes/admin/export-import.php:13185
-#: includes/admin/export-import.php:13498
+#: includes/admin/export-import.php:13154
+#: includes/admin/export-import.php:13467
 msgid "The selected word set for full export is invalid."
 msgstr ""
 
@@ -5263,19 +5263,19 @@ msgid "Detected %1$s of media files (warning threshold: %2$s). Large imports can
 msgstr ""
 
 #: includes/admin/export-import.php:5590
-#: includes/admin/export-import.php:16348
+#: includes/admin/export-import.php:16316
 msgid "CSV parsing skipped %d file before import. Review the warnings below for details."
 msgid_plural "CSV parsing skipped %d files before import. Review the warnings below for details."
 msgstr[0] ""
 msgstr[1] ""
 
 #: includes/admin/export-import.php:5606
-#: includes/admin/export-import.php:16364
+#: includes/admin/export-import.php:16332
 msgid "CSV parsing used %1$d of %2$d non-empty rows before import (%3$d skipped)."
 msgstr ""
 
 #: includes/admin/export-import.php:5613
-#: includes/admin/export-import.php:16371
+#: includes/admin/export-import.php:16339
 msgid "CSV parsing skipped %d row before import."
 msgid_plural "CSV parsing skipped %d rows before import."
 msgstr[0] ""
@@ -5371,7 +5371,7 @@ msgid "Import failed: data.json is not valid JSON."
 msgstr ""
 
 #: includes/admin/export-import.php:7457
-#: includes/admin/export-import.php:17173
+#: includes/admin/export-import.php:17141
 msgid "Import failed: payload missing categories or word images."
 msgstr ""
 
@@ -5409,13 +5409,13 @@ msgstr ""
 
 #: includes/admin/export-import.php:7585
 #: includes/admin/export-import.php:7642
-#: includes/admin/export-import.php:15368
+#: includes/admin/export-import.php:15337
 msgid "Import failed: uploaded file is missing."
 msgstr ""
 
 #: includes/admin/export-import.php:7604
 #: includes/admin/export-import.php:7610
-#: includes/admin/export-import.php:15382
+#: includes/admin/export-import.php:15351
 msgid "Import failed: could not create temporary extraction directory."
 msgstr ""
 
@@ -5946,48 +5946,48 @@ msgstr ""
 msgid "You do not have permission to discard LL Tools imports."
 msgstr ""
 
-#: includes/admin/export-import.php:13002
+#: includes/admin/export-import.php:12971
 msgid "Word set template export is not available right now."
 msgstr ""
 
-#: includes/admin/export-import.php:13007
+#: includes/admin/export-import.php:12976
 msgid "The selected word set does not have any template categories to export."
 msgstr ""
 
-#: includes/admin/export-import.php:13018
+#: includes/admin/export-import.php:12987
 msgid "The selected word set does not have any valid template categories to export."
 msgstr ""
 
 #. translators: %d category term ID
-#: includes/admin/export-import.php:13847
+#: includes/admin/export-import.php:13816
 msgid "The selected category (ID %d) is invalid."
 msgstr ""
 
-#: includes/admin/export-import.php:13857
+#: includes/admin/export-import.php:13826
 #: includes/admin/offline-app-export.php:1482
 #: includes/admin/offline-app-export.php:1492
 #: includes/admin/offline-app-export.php:1743
 msgid "Select at least one category to export."
 msgstr ""
 
-#: includes/admin/export-import.php:13927
+#: includes/admin/export-import.php:13896
 msgid "Recording transcription"
 msgstr ""
 
 #. translators: %s transcription mode label, for example IPA
-#: includes/admin/export-import.php:13934
+#: includes/admin/export-import.php:13903
 msgid "Recording transcription (%s)"
 msgstr ""
 
-#: includes/admin/export-import.php:13952
+#: includes/admin/export-import.php:13921
 msgid "Example sentence"
 msgstr ""
 
-#: includes/admin/export-import.php:13955
+#: includes/admin/export-import.php:13924
 msgid "Example sentence translation"
 msgstr ""
 
-#: includes/admin/export-import.php:13981
+#: includes/admin/export-import.php:13950
 #: includes/admin/ipa-keyboard-admin.php:428
 #: includes/lib/interlinear.php:1792
 #: includes/lib/interlinear.php:2010
@@ -6000,170 +6000,170 @@ msgstr ""
 msgid "Text"
 msgstr ""
 
-#: includes/admin/export-import.php:14447
+#: includes/admin/export-import.php:14416
 msgid "Parent word title"
 msgstr ""
 
-#: includes/admin/export-import.php:14450
+#: includes/admin/export-import.php:14419
 msgid "Parent word translation"
 msgstr ""
 
-#: includes/admin/export-import.php:14917
+#: includes/admin/export-import.php:14886
 msgid "Could not prepare STT export metadata."
 msgstr ""
 
-#: includes/admin/export-import.php:14999
+#: includes/admin/export-import.php:14968
 msgid "Could not encode STT export metadata."
 msgstr ""
 
-#: includes/admin/export-import.php:15014
-#: includes/admin/export-import.php:15061
+#: includes/admin/export-import.php:14983
+#: includes/admin/export-import.php:15030
 msgid "No STT training samples were available to export."
 msgstr ""
 
-#: includes/admin/export-import.php:15026
+#: includes/admin/export-import.php:14995
 msgid "Could not create STT export zip."
 msgstr ""
 
-#: includes/admin/export-import.php:15039
-#: includes/admin/export-import.php:15045
-#: includes/admin/export-import.php:15210
-#: includes/admin/export-import.php:15240
+#: includes/admin/export-import.php:15008
+#: includes/admin/export-import.php:15014
+#: includes/admin/export-import.php:15179
+#: includes/admin/export-import.php:15209
 msgid "Could not add one or more audio files to the STT export zip."
 msgstr ""
 
-#: includes/admin/export-import.php:15068
+#: includes/admin/export-import.php:15037
 msgid "Could not add STT export metadata.csv to the zip file."
 msgstr ""
 
-#: includes/admin/export-import.php:15075
+#: includes/admin/export-import.php:15044
 msgid "Could not add STT export metadata.jsonl to the zip file."
 msgstr ""
 
-#: includes/admin/export-import.php:15080
+#: includes/admin/export-import.php:15049
 msgid "Could not finalize STT export zip."
 msgstr ""
 
-#: includes/admin/export-import.php:15093
+#: includes/admin/export-import.php:15062
 msgid "Could not prepare STT export metadata files."
 msgstr ""
 
-#: includes/admin/export-import.php:15106
+#: includes/admin/export-import.php:15075
 msgid "Could not open STT export metadata files."
 msgstr ""
 
-#: includes/admin/export-import.php:15113
+#: includes/admin/export-import.php:15082
 msgid "Could not write STT export metadata.csv."
 msgstr ""
 
-#: includes/admin/export-import.php:15124
+#: includes/admin/export-import.php:15093
 msgid "Could not write STT export metadata files."
 msgstr ""
 
-#: includes/admin/export-import.php:15139
+#: includes/admin/export-import.php:15108
 msgid "This STT export batch is already running."
 msgstr ""
 
-#: includes/admin/export-import.php:15157
+#: includes/admin/export-import.php:15126
 msgid "The STT export word set no longer exists."
 msgstr ""
 
-#: includes/admin/export-import.php:15229
+#: includes/admin/export-import.php:15198
 msgid "Could not open the STT export zip for batched writing."
 msgstr ""
 
-#: includes/admin/export-import.php:15248
+#: includes/admin/export-import.php:15217
 msgid "Could not finalize the current STT export batch."
 msgstr ""
 
-#: includes/admin/export-import.php:15282
+#: includes/admin/export-import.php:15251
 msgid "No recordings with audio files and the selected text field were found for this word set."
 msgstr ""
 
-#: includes/admin/export-import.php:15300
+#: includes/admin/export-import.php:15269
 msgid "Could not finalize STT export metadata files."
 msgstr ""
 
-#: includes/admin/export-import.php:15428
+#: includes/admin/export-import.php:15397
 msgid "Only %1$d of %2$d categories from the import bundle were created or updated."
 msgstr ""
 
-#: includes/admin/export-import.php:15438
+#: includes/admin/export-import.php:15407
 msgid "Only %1$d of %2$d words from the import bundle were created or updated."
 msgstr ""
 
-#: includes/admin/export-import.php:15449
+#: includes/admin/export-import.php:15418
 msgid "Import finished with some errors."
 msgstr ""
 
-#: includes/admin/export-import.php:15451
+#: includes/admin/export-import.php:15420
 msgid "Import complete with warnings."
 msgstr ""
 
-#: includes/admin/export-import.php:15453
+#: includes/admin/export-import.php:15422
 msgid "Import complete."
 msgstr ""
 
-#: includes/admin/export-import.php:15732
-#: includes/admin/export-import.php:15745
-#: includes/admin/export-import.php:15755
-#: includes/admin/export-import.php:15778
-#: includes/admin/export-import.php:15789
-#: includes/admin/export-import.php:15820
-#: includes/admin/export-import.php:16018
-#: includes/admin/export-import.php:16092
-#: includes/admin/export-import.php:16138
-#: includes/admin/export-import.php:16316
+#: includes/admin/export-import.php:15700
+#: includes/admin/export-import.php:15713
+#: includes/admin/export-import.php:15723
+#: includes/admin/export-import.php:15746
+#: includes/admin/export-import.php:15757
+#: includes/admin/export-import.php:15788
+#: includes/admin/export-import.php:15986
+#: includes/admin/export-import.php:16060
+#: includes/admin/export-import.php:16106
+#: includes/admin/export-import.php:16284
 msgid "Template import failed: the destination word set could not be created."
 msgstr ""
 
-#: includes/admin/export-import.php:15746
+#: includes/admin/export-import.php:15714
 msgid "The incomplete word set was retained privately; use Undo Import to remove it."
 msgstr ""
 
-#: includes/admin/export-import.php:15797
+#: includes/admin/export-import.php:15765
 msgid "Imported Template"
 msgstr ""
 
-#: includes/admin/export-import.php:16184
+#: includes/admin/export-import.php:16152
 msgid "Word set category creation is not available right now."
 msgstr ""
 
-#: includes/admin/export-import.php:16186
-#: includes/admin/export-import.php:16287
-#: includes/admin/export-import.php:16592
-#: includes/admin/export-import.php:18051
-#: includes/admin/export-import.php:18067
+#: includes/admin/export-import.php:16154
+#: includes/admin/export-import.php:16255
+#: includes/admin/export-import.php:16560
+#: includes/admin/export-import.php:18019
+#: includes/admin/export-import.php:18035
 msgid "Unknown error"
 msgstr ""
 
-#: includes/admin/export-import.php:16197
+#: includes/admin/export-import.php:16165
 msgid "Failed to create template category \"%1$s\": %2$s"
 msgstr ""
 
-#: includes/admin/export-import.php:16225
+#: includes/admin/export-import.php:16193
 msgid "Failed to import settings for category \"%1$s\": %2$s"
 msgstr ""
 
-#: includes/admin/export-import.php:16250
-#: includes/admin/export-import.php:19076
-#: includes/admin/export-import.php:19105
+#: includes/admin/export-import.php:16218
+#: includes/admin/export-import.php:19043
+#: includes/admin/export-import.php:19071
 msgid "Failed to update word set \"%s\": %s"
 msgstr ""
 
-#: includes/admin/export-import.php:16288
+#: includes/admin/export-import.php:16256
 msgid "Failed to create template word image \"%1$s\": %2$s"
 msgstr ""
 
-#: includes/admin/export-import.php:16288
+#: includes/admin/export-import.php:16256
 msgid "(no slug)"
 msgstr ""
 
-#: includes/admin/export-import.php:16396
+#: includes/admin/export-import.php:16364
 msgid "A bundle item matches content outside the assigned private word set."
 msgstr ""
 
-#: includes/admin/export-import.php:16500
+#: includes/admin/export-import.php:16468
 #: includes/lib/word-grid-bulk-operations.php:1120
 #: includes/pages/quiz-pages.php:1131
 #: includes/pages/vocab-lesson-pages.php:2976
@@ -6172,207 +6172,207 @@ msgstr ""
 #: includes/shortcodes/flashcard-widget.php:2680
 #: includes/shortcodes/flashcard-widget.php:2856
 #: includes/shortcodes/word-grid-shortcode.php:10495
-#: includes/wordset-isolation.php:1661
+#: includes/wordset-isolation.php:1653
 msgid "Invalid category."
 msgstr ""
 
-#: includes/admin/export-import.php:16530
-#: includes/admin/export-import.php:16540
+#: includes/admin/export-import.php:16498
+#: includes/admin/export-import.php:16508
 #: includes/pages/wordset-pages.php:9998
 #: includes/pages/wordset-pages.php:10236
 #: includes/pages/wordset-pages.php:10241
 msgid "Unable to use that category."
 msgstr ""
 
-#: includes/admin/export-import.php:16603
-#: includes/admin/export-import.php:16629
-#: includes/admin/export-import.php:16670
+#: includes/admin/export-import.php:16571
+#: includes/admin/export-import.php:16597
+#: includes/admin/export-import.php:16638
 msgid "Category \"%s\" could not be created: %s"
 msgstr ""
 
-#: includes/admin/export-import.php:17089
+#: includes/admin/export-import.php:17057
 msgid "Failed to update word image \"%s\": %s"
 msgstr ""
 
-#: includes/admin/export-import.php:17098
+#: includes/admin/export-import.php:17066
 msgid "Failed to create word image \"%s\": %s"
 msgstr ""
 
-#: includes/admin/export-import.php:17124
+#: includes/admin/export-import.php:17092
 msgid "Could not verify the imported image’s private word set assignment."
 msgstr ""
 
-#: includes/admin/export-import.php:17195
+#: includes/admin/export-import.php:17163
 msgid "Import failed: select a valid existing word set for assignment."
 msgstr ""
 
-#: includes/admin/export-import.php:17210
+#: includes/admin/export-import.php:17178
 msgid "Import failed while saving category settings."
 msgstr ""
 
-#: includes/admin/export-import.php:17462
-#: includes/admin/export-import.php:17712
-#: includes/admin/export-import.php:17732
-#: includes/admin/export-import.php:17742
+#: includes/admin/export-import.php:17430
+#: includes/admin/export-import.php:17680
+#: includes/admin/export-import.php:17700
+#: includes/admin/export-import.php:17710
 msgid "Imported category settings are invalid."
 msgstr ""
 
-#: includes/admin/export-import.php:17871
-#: includes/admin/export-import.php:17919
+#: includes/admin/export-import.php:17839
+#: includes/admin/export-import.php:17887
 msgid "Imported category settings could not be saved right now."
 msgstr ""
 
-#: includes/admin/export-import.php:18030
+#: includes/admin/export-import.php:17998
 msgid "Skipped thumbnail for \"%s\" because the file path was invalid."
 msgstr ""
 
-#: includes/admin/export-import.php:18034
+#: includes/admin/export-import.php:18002
 msgid "Image file for \"%s\" is missing from the zip."
 msgstr ""
 
-#: includes/admin/export-import.php:18048
-#: includes/admin/export-import.php:18062
-#: includes/wordset-isolation.php:3375
+#: includes/admin/export-import.php:18016
+#: includes/admin/export-import.php:18030
+#: includes/wordset-isolation.php:3367
 msgid "word"
 msgstr ""
 
-#: includes/admin/export-import.php:18048
-#: includes/admin/export-import.php:18062
-#: includes/wordset-isolation.php:3479
+#: includes/admin/export-import.php:18016
+#: includes/admin/export-import.php:18030
+#: includes/wordset-isolation.php:3471
 msgid "word image"
 msgstr ""
 
-#: includes/admin/export-import.php:18052
-#: includes/admin/export-import.php:18064
+#: includes/admin/export-import.php:18020
+#: includes/admin/export-import.php:18032
 msgid "Failed to import image for %1$s \"%2$s\": %3$s"
 msgstr ""
 
-#: includes/admin/export-import.php:18228
+#: includes/admin/export-import.php:18196
 msgid "Failed to update word \"%s\": %s"
 msgstr ""
 
-#: includes/admin/export-import.php:18237
+#: includes/admin/export-import.php:18205
 msgid "Failed to create word \"%s\": %s"
 msgstr ""
 
-#: includes/admin/export-import.php:18291
-#: includes/admin/export-import.php:18455
+#: includes/admin/export-import.php:18259
+#: includes/admin/export-import.php:18423
 msgid "Could not verify the imported word’s private word set assignment."
 msgstr ""
 
-#: includes/admin/export-import.php:18386
+#: includes/admin/export-import.php:18354
 msgid "Could not link word \"%1$s\" to source word image \"%2$s\"."
 msgstr ""
 
-#: includes/admin/export-import.php:18413
+#: includes/admin/export-import.php:18381
 msgid "Failed to update audio \"%1$s\" for word \"%2$s\": %3$s"
 msgstr ""
 
-#: includes/admin/export-import.php:18422
+#: includes/admin/export-import.php:18390
 msgid "Failed to create audio \"%1$s\" for word \"%2$s\": %3$s"
 msgstr ""
 
-#: includes/admin/export-import.php:18848
+#: includes/admin/export-import.php:18815
 msgid "Imported wrong-image preferences were skipped because word option rules are unavailable."
 msgstr ""
 
-#: includes/admin/export-import.php:18948
+#: includes/admin/export-import.php:18915
 msgid "Imported wrong-image preference \"%1$s\" for word \"%2$s\" could not be matched to another imported word in the same category/word set."
 msgstr ""
 
-#: includes/admin/export-import.php:18971
+#: includes/admin/export-import.php:18938
 msgid "%d additional wrong-image preference warning was not shown."
 msgid_plural "%d additional wrong-image preference warnings were not shown."
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/admin/export-import.php:18991
+#: includes/admin/export-import.php:18958
 msgid "Imported image groups could not be saved because the category or its rules changed. Review the current rules before retrying."
 msgstr ""
 
-#: includes/admin/export-import.php:19087
+#: includes/admin/export-import.php:19054
 msgid "Failed to create word set \"%s\": %s"
 msgstr ""
 
-#: includes/admin/export-import.php:19163
+#: includes/admin/export-import.php:19129
 msgid "Could not create %1$s term \"%2$s\": %3$s"
 msgstr ""
 
-#: includes/admin/export-import.php:19218
+#: includes/admin/export-import.php:19184
 msgid "Skipped audio import for \"%s\" because the file path was invalid."
 msgstr ""
 
-#: includes/admin/export-import.php:19222
+#: includes/admin/export-import.php:19188
 msgid "Audio file for \"%s\" is missing from the zip."
 msgstr ""
 
-#: includes/admin/export-import.php:19228
+#: includes/admin/export-import.php:19194
 msgid "Failed to import audio for \"%1$s\": %2$s"
 msgstr ""
 
-#: includes/admin/export-import.php:19253
-#: includes/admin/export-import.php:19680
+#: includes/admin/export-import.php:19219
+#: includes/admin/export-import.php:19646
 msgid "Could not create uploads directory."
 msgstr ""
 
-#: includes/admin/export-import.php:19269
+#: includes/admin/export-import.php:19235
 msgid "Could not copy audio into uploads."
 msgstr ""
 
-#: includes/admin/export-import.php:19291
+#: includes/admin/export-import.php:19257
 msgid "Imported audio file is missing or unreadable."
 msgstr ""
 
-#: includes/admin/export-import.php:19316
+#: includes/admin/export-import.php:19282
 msgid "Imported file is not a supported audio type."
 msgstr ""
 
-#: includes/admin/export-import.php:19320
+#: includes/admin/export-import.php:19286
 msgid "Imported file is not an audio recording."
 msgstr ""
 
-#: includes/admin/export-import.php:19384
-#: includes/admin/export-import.php:19412
-#: includes/admin/export-import.php:19423
-#: includes/admin/export-import.php:19444
-#: includes/admin/export-import.php:19454
-#: includes/admin/export-import.php:19463
-#: includes/admin/export-import.php:19475
-#: includes/admin/export-import.php:19485
-#: includes/admin/export-import.php:19494
-#: includes/admin/export-import.php:19501
+#: includes/admin/export-import.php:19350
+#: includes/admin/export-import.php:19378
+#: includes/admin/export-import.php:19389
+#: includes/admin/export-import.php:19410
+#: includes/admin/export-import.php:19420
+#: includes/admin/export-import.php:19429
+#: includes/admin/export-import.php:19441
+#: includes/admin/export-import.php:19451
+#: includes/admin/export-import.php:19460
+#: includes/admin/export-import.php:19467
 msgid "Imported Line-Up settings are invalid."
 msgstr ""
 
-#: includes/admin/export-import.php:19535
+#: includes/admin/export-import.php:19501
 msgid "Imported Line-Up settings could not be saved right now."
 msgstr ""
 
-#: includes/admin/export-import.php:19597
+#: includes/admin/export-import.php:19563
 msgid "The external image URL is invalid."
 msgstr ""
 
-#: includes/admin/export-import.php:19616
+#: includes/admin/export-import.php:19582
 msgid "The external image URL is not a supported image type."
 msgstr ""
 
-#: includes/admin/export-import.php:19623
+#: includes/admin/export-import.php:19589
 msgid "Imported remote image"
 msgstr ""
 
-#: includes/admin/export-import.php:19697
+#: includes/admin/export-import.php:19663
 msgid "Could not copy image into uploads."
 msgstr ""
 
-#: includes/admin/export-import.php:19924
+#: includes/admin/export-import.php:19890
 msgid "Imported image file is missing or unreadable."
 msgstr ""
 
-#: includes/admin/export-import.php:19929
+#: includes/admin/export-import.php:19895
 msgid "Imported file is not a valid image."
 msgstr ""
 
-#: includes/admin/export-import.php:19934
+#: includes/admin/export-import.php:19900
 msgid "Imported image type is not allowed on this site."
 msgstr ""
 
@@ -9011,7 +9011,7 @@ msgstr ""
 
 #: includes/admin/lti-integration.php:192
 #: includes/flashcard-shell.php:51
-#: includes/lib/wordset-level-labels.php:20
+#: includes/lib/wordset-level-labels.php:19
 #: includes/pages/wordset-pages.php:6778
 #: includes/pages/wordset-pages.php:26131
 #: includes/pages/wordset-pages.php:27645
@@ -11999,7 +11999,6 @@ msgstr ""
 #: includes/admin/user-progress-report.php:918
 #: includes/admin/user-progress-report.php:1088
 #: includes/admin/user-progress-report.php:1121
-#: includes/lib/wordset-level-labels.php:32
 #: includes/pages/wordset-pages.php:13132
 #: includes/pages/wordset-pages.php:13267
 msgid "Mastered"
@@ -12613,7 +12612,6 @@ msgid "High Risk"
 msgstr ""
 
 #: includes/admin/user-progress-report.php:542
-#: includes/lib/wordset-level-labels.php:21
 #: includes/post-types/dictionary-entry-post-type.php:1967
 msgid "Review"
 msgstr ""
@@ -14211,7 +14209,7 @@ msgid "Missing required --set=<field>=<value> argument."
 msgstr ""
 
 #: includes/cli/class-ll-tools-cli-command.php:524
-#: includes/wordset-isolation.php:6364
+#: includes/wordset-isolation.php:6356
 msgid "unknown"
 msgstr ""
 
@@ -14589,7 +14587,7 @@ msgid "Listen"
 msgstr ""
 
 #: includes/flashcard-shell.php:52
-#: includes/lib/wordset-level-labels.php:19
+#: includes/lib/wordset-level-labels.php:18
 #: includes/pages/wordset-pages.php:6779
 #: includes/pages/wordset-pages.php:26132
 #: includes/pages/wordset-pages.php:27646
@@ -14646,7 +14644,7 @@ msgid "Deselect all"
 msgstr ""
 
 #: includes/flashcard-shell.php:80
-#: includes/lib/wordset-level-labels.php:18
+#: includes/lib/wordset-level-labels.php:17
 #: includes/pages/wordset-pages.php:13580
 #: templates/flashcard-widget-template.php:29
 msgid "Start"
@@ -15676,7 +15674,7 @@ msgstr ""
 #: includes/lib/interlinear.php:1829
 #: includes/pages/wordset-pages.php:4240
 #: includes/pages/wordset-pages.php:14726
-#: includes/taxonomies/wordset-taxonomy.php:3842
+#: includes/taxonomies/wordset-taxonomy.php:3792
 msgid "Translation language"
 msgstr ""
 
@@ -16065,7 +16063,7 @@ msgstr ""
 #: includes/pages/wordset-pages.php:26944
 #: includes/taxonomies/word-category-taxonomy.php:2568
 #: includes/taxonomies/word-category-taxonomy.php:2609
-#: includes/taxonomies/wordset-taxonomy.php:3926
+#: includes/taxonomies/wordset-taxonomy.php:3876
 #: templates/vocab-lesson-template.php:1142
 msgid "Private"
 msgstr ""
@@ -16973,7 +16971,7 @@ msgstr ""
 msgid "Missing word set or category."
 msgstr ""
 
-#: includes/lib/wordset-curriculum.php:18
+#: includes/lib/wordset-curriculum.php:16
 msgid "The curriculum could not be loaded. Please try again."
 msgstr ""
 
@@ -17402,65 +17400,66 @@ msgstr ""
 #. translators: %d: curriculum level number
 #. translators: %d: lesson level number
 #: includes/lib/wordset-level-labels.php:9
-#: includes/lib/wordset-level-page.php:207
+#: includes/lib/wordset-level-page.php:195
 #: includes/shortcodes/content-lesson-index-shortcode.php:584
 msgid "Level %d"
 msgstr ""
 
 #: includes/lib/wordset-level-labels.php:10
-msgid "Additional lessons"
-msgstr ""
-
-#: includes/lib/wordset-level-labels.php:11
 msgid "All lessons"
 msgstr ""
 
-#: includes/lib/wordset-level-labels.php:12
+#: includes/lib/wordset-level-labels.php:11
 msgid "Back to levels"
 msgstr ""
 
 #. translators: %d: curriculum level number
-#: includes/lib/wordset-level-labels.php:14
+#: includes/lib/wordset-level-labels.php:13
 msgid "Continue Level %d"
 msgstr ""
 
-#: includes/lib/wordset-level-labels.php:15
+#: includes/lib/wordset-level-labels.php:14
 msgid "Browse lessons"
 msgstr ""
 
-#: includes/lib/wordset-level-labels.php:16
+#: includes/lib/wordset-level-labels.php:15
 #: includes/shortcodes/flashcard-widget.php:725
 msgid "Back"
 msgstr ""
 
-#: includes/lib/wordset-level-labels.php:17
+#: includes/lib/wordset-level-labels.php:16
 msgid "Show more lessons"
 msgstr ""
 
-#: includes/lib/wordset-level-labels.php:22
-msgid "Review across levels"
+#: includes/lib/wordset-level-labels.php:20
+msgid "Review now"
 msgstr ""
 
-#: includes/lib/wordset-level-labels.php:23
+#: includes/lib/wordset-level-labels.php:21
 msgid "Recommended level"
 msgstr ""
 
-#: includes/lib/wordset-level-labels.php:24
+#: includes/lib/wordset-level-labels.php:22
 msgid "Level mastered"
 msgstr ""
 
 #. translators: %d: number of words due for review
-#: includes/lib/wordset-level-labels.php:26
+#: includes/lib/wordset-level-labels.php:24
 msgid "Due for review (%d)"
 msgstr ""
 
 #. translators: %d: number of words added since the learner last studied this level
-#: includes/lib/wordset-level-labels.php:28
+#: includes/lib/wordset-level-labels.php:26
 msgid "Added since you last studied this level (%d)"
 msgstr ""
 
-#: includes/lib/wordset-level-labels.php:29
+#: includes/lib/wordset-level-labels.php:27
 msgid "Level details"
+msgstr ""
+
+#. translators: 1: number of learned words, 2: total words in the level.
+#: includes/lib/wordset-level-labels.php:29
+msgid "%1$d / %2$d learned"
 msgstr ""
 
 #: includes/lib/wordset-level-labels.php:30
@@ -17471,6 +17470,14 @@ msgstr ""
 
 #: includes/lib/wordset-level-labels.php:31
 msgid "Added since last study"
+msgstr ""
+
+#: includes/lib/wordset-level-labels.php:32
+#: includes/pages/wordset-pages.php:13668
+#: includes/pages/wordset-pages.php:26453
+#: includes/pages/wordset-pages.php:27570
+#: includes/pages/wordset-pages.php:27588
+msgid "Learned"
 msgstr ""
 
 #: includes/lib/wordset-level-labels.php:33
@@ -17488,7 +17495,7 @@ msgstr ""
 #: includes/lib/wordset-level-labels.php:36
 #: includes/pages/wordset-pages.php:118
 #: includes/shortcodes/content-lesson-index-shortcode.php:587
-#: includes/wordset-isolation.php:5513
+#: includes/wordset-isolation.php:5505
 msgid "Lessons"
 msgstr ""
 
@@ -17527,8 +17534,8 @@ msgid "Could not load progress."
 msgstr ""
 
 #: includes/lib/wordset-level-labels.php:44
-#: includes/lib/wordset-level-page.php:135
-#: includes/lib/wordset-level-page.php:140
+#: includes/lib/wordset-level-page.php:123
+#: includes/lib/wordset-level-page.php:128
 msgid "Reload this page to update your levels."
 msgstr ""
 
@@ -17546,31 +17553,31 @@ msgstr ""
 msgid "Could not save this interval."
 msgstr ""
 
-#: includes/lib/wordset-level-page.php:100
+#: includes/lib/wordset-level-page.php:88
 msgid "Could not load level progress. Please try again."
 msgstr ""
 
-#: includes/lib/wordset-level-page.php:105
+#: includes/lib/wordset-level-page.php:93
 msgid "Choose a review interval from 1 to 365 days."
 msgstr ""
 
-#: includes/lib/wordset-level-page.php:120
+#: includes/lib/wordset-level-page.php:108
 msgid "Could not save this review interval. Please try again."
 msgstr ""
 
-#: includes/lib/wordset-level-page.php:129
+#: includes/lib/wordset-level-page.php:117
 msgid "Please sign in to view your progress."
 msgstr ""
 
-#: includes/lib/wordset-level-page.php:157
+#: includes/lib/wordset-level-page.php:145
 msgid "This level is unavailable."
 msgstr ""
 
-#: includes/lib/wordset-level-page.php:184
+#: includes/lib/wordset-level-page.php:172
 msgid "Unknown level action."
 msgstr ""
 
-#: includes/lib/wordset-level-page.php:186
+#: includes/lib/wordset-level-page.php:174
 msgid "There is nothing to practice in this selection right now."
 msgstr ""
 
@@ -19311,7 +19318,7 @@ msgstr ""
 
 #: includes/pages/default-shortcode-page-helper.php:357
 #: includes/pages/vocab-lesson-pages.php:9448
-#: includes/wordset-isolation.php:5523
+#: includes/wordset-isolation.php:5515
 msgid "Unknown error."
 msgstr ""
 
@@ -20173,7 +20180,7 @@ msgstr ""
 #: includes/shortcodes/editor-hub-shortcode.php:516
 #: includes/shortcodes/editor-hub-shortcode.php:1060
 #: includes/shortcodes/word-grid-shortcode.php:6678
-#: includes/taxonomies/wordset-taxonomy.php:4116
+#: includes/taxonomies/wordset-taxonomy.php:4066
 #: templates/vocab-lesson-template.php:858
 #: templates/vocab-lesson-template.php:883
 msgid "Plurality"
@@ -21010,7 +21017,7 @@ msgid "Invalid game."
 msgstr ""
 
 #: includes/pages/wordset-pages.php:111
-#: includes/taxonomies/wordset-taxonomy.php:6050
+#: includes/taxonomies/wordset-taxonomy.php:6000
 msgid "Default Word Set"
 msgstr ""
 
@@ -21125,7 +21132,7 @@ msgstr ""
 #: includes/pages/wordset-pages.php:11745
 #: includes/taxonomies/wordset-taxonomy.php:612
 #: includes/taxonomies/wordset-taxonomy.php:617
-#: includes/taxonomies/wordset-taxonomy.php:2107
+#: includes/taxonomies/wordset-taxonomy.php:2105
 msgid "Unable to find that word set."
 msgstr ""
 
@@ -21606,12 +21613,12 @@ msgid "You do not have permission to create a new word set from this template."
 msgstr ""
 
 #: includes/pages/wordset-pages.php:10139
-#: includes/wordset-templates.php:263
+#: includes/wordset-templates.php:258
 msgid "Unable to find that template word set."
 msgstr ""
 
 #: includes/pages/wordset-pages.php:10145
-#: includes/wordset-templates.php:269
+#: includes/wordset-templates.php:264
 msgid "Enter a name for the new word set."
 msgstr ""
 
@@ -22349,13 +22356,6 @@ msgstr ""
 msgid "Cleared: %1$d of %2$d"
 msgstr ""
 
-#: includes/pages/wordset-pages.php:13668
-#: includes/pages/wordset-pages.php:26453
-#: includes/pages/wordset-pages.php:27570
-#: includes/pages/wordset-pages.php:27588
-msgid "Learned"
-msgstr ""
-
 #: includes/pages/wordset-pages.php:13688
 #: includes/pages/wordset-pages.php:27601
 #: includes/pages/wordset-pages.php:28084
@@ -22601,20 +22601,20 @@ msgid "Choose a tool for this word set."
 msgstr ""
 
 #: includes/pages/wordset-pages.php:14658
-#: includes/taxonomies/wordset-taxonomy.php:3799
+#: includes/taxonomies/wordset-taxonomy.php:3749
 msgid "target language"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:14659
-#: includes/taxonomies/wordset-taxonomy.php:3800
+#: includes/taxonomies/wordset-taxonomy.php:3750
 msgid "translation language"
 msgstr ""
 
 #. translators: 1: source language label, 2: destination language label
 #: includes/pages/wordset-pages.php:14663
 #: includes/pages/wordset-pages.php:14665
-#: includes/taxonomies/wordset-taxonomy.php:3803
-#: includes/taxonomies/wordset-taxonomy.php:3805
+#: includes/taxonomies/wordset-taxonomy.php:3753
+#: includes/taxonomies/wordset-taxonomy.php:3755
 msgid "%1$s to %2$s"
 msgstr ""
 
@@ -22627,12 +22627,12 @@ msgid "Word set languages"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:14711
-#: includes/taxonomies/wordset-taxonomy.php:3833
+#: includes/taxonomies/wordset-taxonomy.php:3783
 msgid "Target language"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:14721
-#: includes/taxonomies/wordset-taxonomy.php:3836
+#: includes/taxonomies/wordset-taxonomy.php:3786
 msgid "Enter the language being learned in this word set."
 msgstr ""
 
@@ -22645,12 +22645,12 @@ msgid "Storage and recording text"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:14745
-#: includes/taxonomies/wordset-taxonomy.php:3851
+#: includes/taxonomies/wordset-taxonomy.php:3801
 msgid "Word title language"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:14747
-#: includes/taxonomies/wordset-taxonomy.php:3853
+#: includes/taxonomies/wordset-taxonomy.php:3803
 msgid "Target (language being learned)"
 msgstr ""
 
@@ -22663,32 +22663,32 @@ msgid "Controls whether word post titles are stored in the target language or th
 msgstr ""
 
 #: includes/pages/wordset-pages.php:14756
-#: includes/taxonomies/wordset-taxonomy.php:3863
+#: includes/taxonomies/wordset-taxonomy.php:3813
 msgid "Recording pronunciation text"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:14758
-#: includes/taxonomies/wordset-taxonomy.php:3865
+#: includes/taxonomies/wordset-taxonomy.php:3815
 msgid "Off (basic recording text only)"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:14759
-#: includes/taxonomies/wordset-taxonomy.php:3866
+#: includes/taxonomies/wordset-taxonomy.php:3816
 msgid "IPA (phonetic)"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:14760
-#: includes/taxonomies/wordset-taxonomy.php:3867
+#: includes/taxonomies/wordset-taxonomy.php:3817
 msgid "Transliteration (romanized text)"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:14761
-#: includes/taxonomies/wordset-taxonomy.php:3868
+#: includes/taxonomies/wordset-taxonomy.php:3818
 msgid "Transcription (other notation)"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:14764
-#: includes/taxonomies/wordset-taxonomy.php:3871
+#: includes/taxonomies/wordset-taxonomy.php:3821
 msgid "Keep this off for most word sets. Turn it on only when this word set needs IPA, transliteration, or another secondary transcription field."
 msgstr ""
 
@@ -22717,7 +22717,7 @@ msgid "Category labels"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:14807
-#: includes/taxonomies/wordset-taxonomy.php:3903
+#: includes/taxonomies/wordset-taxonomy.php:3853
 msgid "Enable translated category names for this word set."
 msgstr ""
 
@@ -22726,12 +22726,12 @@ msgid "When enabled, learners can see category names from the translated categor
 msgstr ""
 
 #: includes/pages/wordset-pages.php:14813
-#: includes/taxonomies/wordset-taxonomy.php:3911
+#: includes/taxonomies/wordset-taxonomy.php:3861
 msgid "Translate category names from"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:14819
-#: includes/taxonomies/wordset-taxonomy.php:3917
+#: includes/taxonomies/wordset-taxonomy.php:3867
 msgid "Choose whether this word set’s category titles start in the target language or the translation language."
 msgstr ""
 
@@ -22742,7 +22742,7 @@ msgstr ""
 #: includes/pages/wordset-pages.php:14856
 #: includes/taxonomies/word-category-taxonomy.php:2565
 #: includes/taxonomies/word-category-taxonomy.php:2604
-#: includes/taxonomies/wordset-taxonomy.php:3923
+#: includes/taxonomies/wordset-taxonomy.php:3873
 #: templates/vocab-lesson-template.php:1139
 msgid "Visibility"
 msgstr ""
@@ -22755,7 +22755,7 @@ msgstr ""
 #: includes/pages/wordset-pages.php:26944
 #: includes/taxonomies/word-category-taxonomy.php:2567
 #: includes/taxonomies/word-category-taxonomy.php:2608
-#: includes/taxonomies/wordset-taxonomy.php:3925
+#: includes/taxonomies/wordset-taxonomy.php:3875
 #: templates/vocab-lesson-template.php:1141
 msgid "Public"
 msgstr ""
@@ -22818,13 +22818,13 @@ msgstr ""
 
 #: includes/pages/wordset-pages.php:15144
 #: includes/pages/wordset-pages.php:26983
-#: includes/taxonomies/wordset-taxonomy.php:2959
+#: includes/taxonomies/wordset-taxonomy.php:2926
 msgid "Manual order"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:15145
 #: includes/pages/wordset-pages.php:26985
-#: includes/taxonomies/wordset-taxonomy.php:3034
+#: includes/taxonomies/wordset-taxonomy.php:2993
 #: templates/vocab-lesson-template.php:1208
 msgid "Prerequisites"
 msgstr ""
@@ -22900,17 +22900,17 @@ msgid "Games and Answer Cards"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:15266
-#: includes/taxonomies/wordset-taxonomy.php:3975
+#: includes/taxonomies/wordset-taxonomy.php:3925
 msgid "Word games image size"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:15268
-#: includes/taxonomies/wordset-taxonomy.php:3977
+#: includes/taxonomies/wordset-taxonomy.php:3927
 msgid "Default (4 picture cards)"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:15269
-#: includes/taxonomies/wordset-taxonomy.php:3978
+#: includes/taxonomies/wordset-taxonomy.php:3928
 msgid "Large (3 picture cards)"
 msgstr ""
 
@@ -22919,12 +22919,12 @@ msgid "Controls Space Shooter and Bubble Pop. Large uses 3 picture cards at a ti
 msgstr ""
 
 #: includes/pages/wordset-pages.php:15277
-#: includes/taxonomies/wordset-taxonomy.php:4019
+#: includes/taxonomies/wordset-taxonomy.php:3969
 msgid "Answer option text font"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:15279
-#: includes/taxonomies/wordset-taxonomy.php:3989
+#: includes/taxonomies/wordset-taxonomy.php:3939
 msgid "Default (site/theme/device font)"
 msgstr ""
 
@@ -22933,7 +22933,7 @@ msgid "No site fonts were detected on this screen yet. Add a font via theme/Use 
 msgstr ""
 
 #: includes/pages/wordset-pages.php:15293
-#: includes/taxonomies/wordset-taxonomy.php:3998
+#: includes/taxonomies/wordset-taxonomy.php:3948
 msgid "Saved font \"%s\" is not currently detected on this site, so it is not selectable until the font is loaded again."
 msgstr ""
 
@@ -22942,7 +22942,7 @@ msgid "This font is also used for this word set’s lesson and word-grid word te
 msgstr ""
 
 #: includes/pages/wordset-pages.php:15305
-#: includes/taxonomies/wordset-taxonomy.php:4028
+#: includes/taxonomies/wordset-taxonomy.php:3978
 msgid "Answer option text weight"
 msgstr ""
 
@@ -22951,7 +22951,7 @@ msgid "Default weight for text answer options and supported lesson text."
 msgstr ""
 
 #: includes/pages/wordset-pages.php:15319
-#: includes/taxonomies/wordset-taxonomy.php:4037
+#: includes/taxonomies/wordset-taxonomy.php:3987
 msgid "Answer option text size"
 msgstr ""
 
@@ -22976,7 +22976,7 @@ msgid "Adds gender controls, badges, and bulk-edit options for this word set."
 msgstr ""
 
 #: includes/pages/wordset-pages.php:15351
-#: includes/taxonomies/wordset-taxonomy.php:4062
+#: includes/taxonomies/wordset-taxonomy.php:4012
 msgid "Gender options"
 msgstr ""
 
@@ -22993,7 +22993,7 @@ msgid "Adds singular/plural-style tags to the editor for this word set."
 msgstr ""
 
 #: includes/pages/wordset-pages.php:15364
-#: includes/taxonomies/wordset-taxonomy.php:4124
+#: includes/taxonomies/wordset-taxonomy.php:4074
 msgid "Plurality options"
 msgstr ""
 
@@ -23010,7 +23010,7 @@ msgid "Adds tense tags and bulk-edit helpers for verbs in this word set."
 msgstr ""
 
 #: includes/pages/wordset-pages.php:15377
-#: includes/taxonomies/wordset-taxonomy.php:4141
+#: includes/taxonomies/wordset-taxonomy.php:4091
 msgid "Verb tense options"
 msgstr ""
 
@@ -23027,7 +23027,7 @@ msgid "Adds mood tags and bulk-edit helpers for verbs in this word set."
 msgstr ""
 
 #: includes/pages/wordset-pages.php:15390
-#: includes/taxonomies/wordset-taxonomy.php:4158
+#: includes/taxonomies/wordset-taxonomy.php:4108
 msgid "Verb mood options"
 msgstr ""
 
@@ -23040,52 +23040,52 @@ msgid "Gender Symbols and Colors"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:15403
-#: includes/taxonomies/wordset-taxonomy.php:4071
+#: includes/taxonomies/wordset-taxonomy.php:4021
 msgid "Masculine symbol"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:15406
-#: includes/taxonomies/wordset-taxonomy.php:4074
+#: includes/taxonomies/wordset-taxonomy.php:4024
 msgid "Paste an SVG, emoji, or text. Leave empty to use the default masculine icon."
 msgstr ""
 
 #: includes/pages/wordset-pages.php:15411
-#: includes/taxonomies/wordset-taxonomy.php:4080
+#: includes/taxonomies/wordset-taxonomy.php:4030
 msgid "Feminine symbol"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:15414
-#: includes/taxonomies/wordset-taxonomy.php:4083
+#: includes/taxonomies/wordset-taxonomy.php:4033
 msgid "Paste an SVG, emoji, or text. Leave empty to use the default feminine icon."
 msgstr ""
 
 #: includes/pages/wordset-pages.php:15419
-#: includes/taxonomies/wordset-taxonomy.php:4089
+#: includes/taxonomies/wordset-taxonomy.php:4039
 msgid "Masculine color"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:15422
-#: includes/taxonomies/wordset-taxonomy.php:4092
+#: includes/taxonomies/wordset-taxonomy.php:4042
 msgid "Color used for masculine gender badges."
 msgstr ""
 
 #: includes/pages/wordset-pages.php:15427
-#: includes/taxonomies/wordset-taxonomy.php:4098
+#: includes/taxonomies/wordset-taxonomy.php:4048
 msgid "Feminine color"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:15430
-#: includes/taxonomies/wordset-taxonomy.php:4101
+#: includes/taxonomies/wordset-taxonomy.php:4051
 msgid "Color used for feminine gender badges."
 msgstr ""
 
 #: includes/pages/wordset-pages.php:15435
-#: includes/taxonomies/wordset-taxonomy.php:4107
+#: includes/taxonomies/wordset-taxonomy.php:4057
 msgid "Additional gender color"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:15438
-#: includes/taxonomies/wordset-taxonomy.php:4110
+#: includes/taxonomies/wordset-taxonomy.php:4060
 msgid "Color used for custom gender options beyond masculine and feminine."
 msgstr ""
 
@@ -23562,22 +23562,22 @@ msgid "Loading..."
 msgstr ""
 
 #: includes/pages/wordset-pages.php:24393
-#: includes/taxonomies/wordset-taxonomy.php:3944
+#: includes/taxonomies/wordset-taxonomy.php:3894
 msgid "Recorder text visibility"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:24395
-#: includes/taxonomies/wordset-taxonomy.php:3946
+#: includes/taxonomies/wordset-taxonomy.php:3896
 msgid "Follow lesson/grid text setting"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:24396
-#: includes/taxonomies/wordset-taxonomy.php:3947
+#: includes/taxonomies/wordset-taxonomy.php:3897
 msgid "Show word text in recorder"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:24397
-#: includes/taxonomies/wordset-taxonomy.php:3948
+#: includes/taxonomies/wordset-taxonomy.php:3898
 msgid "Hide word text in recorder"
 msgstr ""
 
@@ -24004,12 +24004,12 @@ msgid "Categories default to image prompts with image answer options. Category q
 msgstr ""
 
 #: includes/pages/wordset-pages.php:25825
-#: includes/taxonomies/wordset-taxonomy.php:3967
+#: includes/taxonomies/wordset-taxonomy.php:3917
 msgid "Automatically play the audio for text + audio answer options during quizzes."
 msgstr ""
 
 #: includes/pages/wordset-pages.php:25828
-#: includes/taxonomies/wordset-taxonomy.php:3969
+#: includes/taxonomies/wordset-taxonomy.php:3919
 msgid "When this is off, learners can play text + audio answer options manually. Audio-only answer options still auto-play."
 msgstr ""
 
@@ -24022,7 +24022,7 @@ msgid "Hide word text on lesson pages and word grids when the category quiz uses
 msgstr ""
 
 #: includes/pages/wordset-pages.php:25845
-#: includes/taxonomies/wordset-taxonomy.php:3938
+#: includes/taxonomies/wordset-taxonomy.php:3888
 msgid "Categories can override this in their quiz settings."
 msgstr ""
 
@@ -24474,7 +24474,7 @@ msgid "Gender progress"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:27640
-#: includes/taxonomies/wordset-taxonomy.php:3030
+#: includes/taxonomies/wordset-taxonomy.php:2992
 #: templates/vocab-lesson-template.php:1218
 msgid "Level"
 msgstr ""
@@ -27415,7 +27415,7 @@ msgstr ""
 #: includes/shortcodes/editor-hub-shortcode.php:517
 #: includes/shortcodes/editor-hub-shortcode.php:1061
 #: includes/shortcodes/word-grid-shortcode.php:6705
-#: includes/taxonomies/wordset-taxonomy.php:4133
+#: includes/taxonomies/wordset-taxonomy.php:4083
 #: templates/vocab-lesson-template.php:908
 #: templates/vocab-lesson-template.php:931
 #: templates/vocab-lesson-template.php:933
@@ -27425,7 +27425,7 @@ msgstr ""
 #: includes/shortcodes/editor-hub-shortcode.php:518
 #: includes/shortcodes/editor-hub-shortcode.php:1062
 #: includes/shortcodes/word-grid-shortcode.php:6732
-#: includes/taxonomies/wordset-taxonomy.php:4150
+#: includes/taxonomies/wordset-taxonomy.php:4100
 #: templates/vocab-lesson-template.php:958
 #: templates/vocab-lesson-template.php:981
 #: templates/vocab-lesson-template.php:983
@@ -29964,350 +29964,338 @@ msgstr ""
 msgid "Managers"
 msgstr ""
 
-#: includes/taxonomies/wordset-taxonomy.php:2081
+#: includes/taxonomies/wordset-taxonomy.php:2079
 msgid "cycle detected"
 msgstr ""
 
-#: includes/taxonomies/wordset-taxonomy.php:2087
+#: includes/taxonomies/wordset-taxonomy.php:2085
 msgid "Category prerequisites were not saved because they contain a loop (%s). Remove the cycle and save again."
 msgstr ""
 
-#: includes/taxonomies/wordset-taxonomy.php:2096
+#: includes/taxonomies/wordset-taxonomy.php:2094
 msgid "Category ordering and prerequisites were not saved because the submitted settings were incomplete. Refresh and save again."
 msgstr ""
 
-#: includes/taxonomies/wordset-taxonomy.php:2133
-#: includes/taxonomies/wordset-taxonomy.php:2146
-#: includes/taxonomies/wordset-taxonomy.php:2167
-#: includes/taxonomies/wordset-taxonomy.php:2250
-#: includes/taxonomies/wordset-taxonomy.php:2285
+#: includes/taxonomies/wordset-taxonomy.php:2131
+#: includes/taxonomies/wordset-taxonomy.php:2144
+#: includes/taxonomies/wordset-taxonomy.php:2165
+#: includes/taxonomies/wordset-taxonomy.php:2248
+#: includes/taxonomies/wordset-taxonomy.php:2283
 msgid "The category list changed after this form loaded. Refresh and save again."
 msgstr ""
 
-#: includes/taxonomies/wordset-taxonomy.php:2223
-#: includes/taxonomies/wordset-taxonomy.php:2231
-#: includes/taxonomies/wordset-taxonomy.php:2239
-#: includes/taxonomies/wordset-taxonomy.php:2260
-#: includes/taxonomies/wordset-taxonomy.php:2270
-#: includes/taxonomies/wordset-taxonomy.php:2276
+#: includes/taxonomies/wordset-taxonomy.php:2221
+#: includes/taxonomies/wordset-taxonomy.php:2229
+#: includes/taxonomies/wordset-taxonomy.php:2237
+#: includes/taxonomies/wordset-taxonomy.php:2258
+#: includes/taxonomies/wordset-taxonomy.php:2268
+#: includes/taxonomies/wordset-taxonomy.php:2274
 msgid "Category prerequisites were not saved because the submitted prerequisite data was incomplete. Refresh and save again."
 msgstr ""
 
-#: includes/taxonomies/wordset-taxonomy.php:2485
+#: includes/taxonomies/wordset-taxonomy.php:2453
 msgid "Category ordering and prerequisites could not be saved. Refresh and try again."
 msgstr ""
 
-#: includes/taxonomies/wordset-taxonomy.php:2486
+#: includes/taxonomies/wordset-taxonomy.php:2454
 msgid "Category ordering and prerequisites could not be saved or fully restored. Review them before trying again."
 msgstr ""
 
-#: includes/taxonomies/wordset-taxonomy.php:2507
+#: includes/taxonomies/wordset-taxonomy.php:2475
 msgid "Other word set settings were saved, but category ordering and prerequisites could not be saved or fully restored. Review them before trying again."
 msgstr ""
 
 #. translators: %s: Specific validation or storage error for category ordering and prerequisites.
-#: includes/taxonomies/wordset-taxonomy.php:2512
+#: includes/taxonomies/wordset-taxonomy.php:2480
 msgid "Other word set settings were saved, but category ordering and prerequisites were left unchanged. %s"
 msgstr ""
 
-#: includes/taxonomies/wordset-taxonomy.php:2956
+#: includes/taxonomies/wordset-taxonomy.php:2923
 msgid "Category ordering mode"
 msgstr ""
 
-#: includes/taxonomies/wordset-taxonomy.php:2958
+#: includes/taxonomies/wordset-taxonomy.php:2925
 msgid "No logical ordering (alphabetical)"
 msgstr ""
 
-#: includes/taxonomies/wordset-taxonomy.php:2960
+#: includes/taxonomies/wordset-taxonomy.php:2927
 msgid "Prerequisite-based"
 msgstr ""
 
-#: includes/taxonomies/wordset-taxonomy.php:2962
+#: includes/taxonomies/wordset-taxonomy.php:2929
 msgid "Controls category ordering on wordset pages. Alphabetical is used when no logical ordering is selected."
 msgstr ""
 
-#: includes/taxonomies/wordset-taxonomy.php:2966
+#: includes/taxonomies/wordset-taxonomy.php:2933
 msgid "Save the word set first, then return to configure category ordering and prerequisites."
 msgstr ""
 
-#: includes/taxonomies/wordset-taxonomy.php:2973
+#: includes/taxonomies/wordset-taxonomy.php:2940
 msgid "No quizzable categories were found for this word set yet. Add words/categories first, then refresh this page."
 msgstr ""
 
-#: includes/taxonomies/wordset-taxonomy.php:2976
+#: includes/taxonomies/wordset-taxonomy.php:2943
 msgid "Manual order defaults to category age (older first, newer later). You can reorder by age or name first, then drag categories or use the arrow buttons to fine-tune."
 msgstr ""
 
-#: includes/taxonomies/wordset-taxonomy.php:2978
+#: includes/taxonomies/wordset-taxonomy.php:2945
 msgid "Manual sort field"
 msgstr ""
 
-#: includes/taxonomies/wordset-taxonomy.php:2980
+#: includes/taxonomies/wordset-taxonomy.php:2947
 msgid "Age"
 msgstr ""
 
-#: includes/taxonomies/wordset-taxonomy.php:2981
+#: includes/taxonomies/wordset-taxonomy.php:2948
 msgid "Name (alphabetical)"
 msgstr ""
 
-#: includes/taxonomies/wordset-taxonomy.php:2983
+#: includes/taxonomies/wordset-taxonomy.php:2950
 msgid "Manual sort direction"
 msgstr ""
 
-#: includes/taxonomies/wordset-taxonomy.php:2985
+#: includes/taxonomies/wordset-taxonomy.php:2952
 msgid "Ascending"
 msgstr ""
 
-#: includes/taxonomies/wordset-taxonomy.php:2986
+#: includes/taxonomies/wordset-taxonomy.php:2953
 msgid "Descending"
 msgstr ""
 
-#: includes/taxonomies/wordset-taxonomy.php:2989
+#: includes/taxonomies/wordset-taxonomy.php:2956
 msgid "Reorder list"
 msgstr ""
 
-#: includes/taxonomies/wordset-taxonomy.php:3008
+#: includes/taxonomies/wordset-taxonomy.php:2975
 msgid "Move %s up"
 msgstr ""
 
-#: includes/taxonomies/wordset-taxonomy.php:3008
+#: includes/taxonomies/wordset-taxonomy.php:2975
 #: templates/vocab-lesson-template.php:1380
 msgid "Up"
 msgstr ""
 
-#: includes/taxonomies/wordset-taxonomy.php:3009
+#: includes/taxonomies/wordset-taxonomy.php:2976
 msgid "Move %s down"
 msgstr ""
 
-#: includes/taxonomies/wordset-taxonomy.php:3009
+#: includes/taxonomies/wordset-taxonomy.php:2976
 #: templates/vocab-lesson-template.php:1381
 msgid "Down"
 msgstr ""
 
-#: includes/taxonomies/wordset-taxonomy.php:3016
+#: includes/taxonomies/wordset-taxonomy.php:2983
 msgid "Set prerequisites for each category. Categories are recommended in prerequisite order (lower levels first). Select multiple prerequisites with Ctrl/Command + click."
 msgstr ""
 
-#: includes/taxonomies/wordset-taxonomy.php:3020
-msgid "Additional practice categories are available for browsing, search and study. Their words do not count toward completing a level unless they also belong to a category in that level."
-msgstr ""
-
-#: includes/taxonomies/wordset-taxonomy.php:3023
+#: includes/taxonomies/wordset-taxonomy.php:2985
 msgid "A prerequisite loop is currently stored. Ordering falls back to alphabetical until the loop is removed."
 msgstr ""
 
-#: includes/taxonomies/wordset-taxonomy.php:3032
-msgid "Additional practice"
-msgstr ""
-
-#: includes/taxonomies/wordset-taxonomy.php:3051
+#: includes/taxonomies/wordset-taxonomy.php:3010
 msgid "Cycle detected"
 msgstr ""
 
-#: includes/taxonomies/wordset-taxonomy.php:3059
-msgid "Additional practice: %s"
-msgstr ""
-
-#: includes/taxonomies/wordset-taxonomy.php:3078
+#: includes/taxonomies/wordset-taxonomy.php:3031
 msgid "%1$s (manual #%2$d)"
 msgstr ""
 
-#: includes/taxonomies/wordset-taxonomy.php:3478
+#: includes/taxonomies/wordset-taxonomy.php:3428
 msgid "Random sample 1"
 msgstr ""
 
-#: includes/taxonomies/wordset-taxonomy.php:3479
+#: includes/taxonomies/wordset-taxonomy.php:3429
 msgid "Random sample 2"
 msgstr ""
 
-#: includes/taxonomies/wordset-taxonomy.php:3484
-#: includes/taxonomies/wordset-taxonomy.php:3510
-#: includes/taxonomies/wordset-taxonomy.php:3517
+#: includes/taxonomies/wordset-taxonomy.php:3434
+#: includes/taxonomies/wordset-taxonomy.php:3460
+#: includes/taxonomies/wordset-taxonomy.php:3467
 msgid "Sample"
 msgstr ""
 
-#: includes/taxonomies/wordset-taxonomy.php:3485
-#: includes/taxonomies/wordset-taxonomy.php:3511
+#: includes/taxonomies/wordset-taxonomy.php:3435
+#: includes/taxonomies/wordset-taxonomy.php:3461
 msgid "Preview answer option"
 msgstr ""
 
-#: includes/taxonomies/wordset-taxonomy.php:3486
+#: includes/taxonomies/wordset-taxonomy.php:3436
 msgid "Longer preview answer option text"
 msgstr ""
 
-#: includes/taxonomies/wordset-taxonomy.php:3487
+#: includes/taxonomies/wordset-taxonomy.php:3437
 msgid "Another example"
 msgstr ""
 
-#: includes/taxonomies/wordset-taxonomy.php:3634
+#: includes/taxonomies/wordset-taxonomy.php:3584
 msgid "Random sample"
 msgstr ""
 
-#: includes/taxonomies/wordset-taxonomy.php:3646
+#: includes/taxonomies/wordset-taxonomy.php:3596
 msgid "chars"
 msgstr ""
 
-#: includes/taxonomies/wordset-taxonomy.php:3654
+#: includes/taxonomies/wordset-taxonomy.php:3604
 msgid "Show 2 Other Words"
 msgstr ""
 
-#: includes/taxonomies/wordset-taxonomy.php:3662
+#: includes/taxonomies/wordset-taxonomy.php:3612
 msgid "Preview cards use random real answer-option text from text-based quiz categories in this word set and auto-fit text like quiz text answer cards."
 msgstr ""
 
-#: includes/taxonomies/wordset-taxonomy.php:3664
+#: includes/taxonomies/wordset-taxonomy.php:3614
 msgid "No text-based answer option labels were found in this word set yet. Add words to a text-based quiz category to preview real examples here."
 msgstr ""
 
-#: includes/taxonomies/wordset-taxonomy.php:3666
+#: includes/taxonomies/wordset-taxonomy.php:3616
 msgid "Save the word set first to preview real words from this word set."
 msgstr ""
 
-#: includes/taxonomies/wordset-taxonomy.php:3671
+#: includes/taxonomies/wordset-taxonomy.php:3621
 msgid "These settings are used for quiz answer-option text. Font family and font weight are also applied to this word set's lesson/word-grid word text where supported."
 msgstr ""
 
-#: includes/taxonomies/wordset-taxonomy.php:3845
+#: includes/taxonomies/wordset-taxonomy.php:3795
 msgid "Enter the helper/known language used for translations in this word set."
 msgstr ""
 
-#: includes/taxonomies/wordset-taxonomy.php:3854
+#: includes/taxonomies/wordset-taxonomy.php:3804
 msgid "Translation (helper/known language)"
 msgstr ""
 
-#: includes/taxonomies/wordset-taxonomy.php:3857
+#: includes/taxonomies/wordset-taxonomy.php:3807
 msgid "Controls whether word post titles are stored in the target language or the translation/helper language for this word set."
 msgstr ""
 
-#: includes/taxonomies/wordset-taxonomy.php:3875
+#: includes/taxonomies/wordset-taxonomy.php:3825
 msgid "None (generic language rules)"
 msgstr ""
 
-#: includes/taxonomies/wordset-taxonomy.php:3891
+#: includes/taxonomies/wordset-taxonomy.php:3841
 msgid "Regional orthography profile"
 msgstr ""
 
-#: includes/taxonomies/wordset-taxonomy.php:3896
+#: includes/taxonomies/wordset-taxonomy.php:3846
 msgid "Select a regional profile only when this word set follows those spelling and lexical conventions."
 msgstr ""
 
-#: includes/taxonomies/wordset-taxonomy.php:3902
+#: includes/taxonomies/wordset-taxonomy.php:3852
 msgid "Category name translations"
 msgstr ""
 
-#: includes/taxonomies/wordset-taxonomy.php:3905
+#: includes/taxonomies/wordset-taxonomy.php:3855
 msgid "When enabled, this word set can display category names from the translated category field."
 msgstr ""
 
-#: includes/taxonomies/wordset-taxonomy.php:3929
+#: includes/taxonomies/wordset-taxonomy.php:3879
 msgid "Private word sets are visible only to users who can manage that word set (or administrators)."
 msgstr ""
 
-#: includes/taxonomies/wordset-taxonomy.php:3935
+#: includes/taxonomies/wordset-taxonomy.php:3885
 msgid "Lesson/grid text visibility"
 msgstr ""
 
-#: includes/taxonomies/wordset-taxonomy.php:3936
+#: includes/taxonomies/wordset-taxonomy.php:3886
 msgid "Hide word text on lesson pages/word grids when the category quiz shows only images/audio."
 msgstr ""
 
-#: includes/taxonomies/wordset-taxonomy.php:3951
+#: includes/taxonomies/wordset-taxonomy.php:3901
 msgid "Use Hide for image-based recording queues where recorders should rely on the picture instead of reading the word."
 msgstr ""
 
-#: includes/taxonomies/wordset-taxonomy.php:3957
+#: includes/taxonomies/wordset-taxonomy.php:3907
 msgid "Sign language presentation"
 msgstr ""
 
-#: includes/taxonomies/wordset-taxonomy.php:3958
+#: includes/taxonomies/wordset-taxonomy.php:3908
 msgid "Treat this as a sign language word set and disable audio requirements for quiz availability."
 msgstr ""
 
-#: includes/taxonomies/wordset-taxonomy.php:3960
+#: includes/taxonomies/wordset-taxonomy.php:3910
 msgid "Categories default to image prompts with image answer options; use a category quiz override for image prompts with text answers."
 msgstr ""
 
-#: includes/taxonomies/wordset-taxonomy.php:3966
+#: includes/taxonomies/wordset-taxonomy.php:3916
 msgid "Text + audio option autoplay"
 msgstr ""
 
-#: includes/taxonomies/wordset-taxonomy.php:3981
+#: includes/taxonomies/wordset-taxonomy.php:3931
 msgid "Controls Space Shooter and Bubble Pop. Large uses 3 picture cards at a time instead of 4 so images can render bigger."
 msgstr ""
 
-#: includes/taxonomies/wordset-taxonomy.php:3995
+#: includes/taxonomies/wordset-taxonomy.php:3945
 msgid "No site fonts were detected on this screen yet. Add a font via theme/Use Any Font, or set LL Tools Font stylesheet URL in settings, then reload this page."
 msgstr ""
 
-#: includes/taxonomies/wordset-taxonomy.php:4010
+#: includes/taxonomies/wordset-taxonomy.php:3960
 msgid "Answer option text preview"
 msgstr ""
 
-#: includes/taxonomies/wordset-taxonomy.php:4013
+#: includes/taxonomies/wordset-taxonomy.php:3963
 msgid "Preview shows 2 random answer-option labels from text-based quiz categories in this word set. Use the button to cycle to 2 more examples. The quiz still auto-resizes text to fit each answer card."
 msgstr ""
 
-#: includes/taxonomies/wordset-taxonomy.php:4022
+#: includes/taxonomies/wordset-taxonomy.php:3972
 msgid "Choose from fonts currently available on this site. Leave empty for the theme/device default. This font is also used for this word set's lesson/word-grid word text where supported."
 msgstr ""
 
-#: includes/taxonomies/wordset-taxonomy.php:4031
+#: includes/taxonomies/wordset-taxonomy.php:3981
 msgid "Default weight for text answer options. This weight is also used for this word set's lesson/word-grid word text where supported."
 msgstr ""
 
-#: includes/taxonomies/wordset-taxonomy.php:4040
+#: includes/taxonomies/wordset-taxonomy.php:3990
 msgid "Preferred size for quiz text answer cards (in px). The quiz still scales text down when needed to fit smaller screens or longer words."
 msgstr ""
 
-#: includes/taxonomies/wordset-taxonomy.php:4046
+#: includes/taxonomies/wordset-taxonomy.php:3996
 msgid "Category ordering"
 msgstr ""
 
-#: includes/taxonomies/wordset-taxonomy.php:4054
+#: includes/taxonomies/wordset-taxonomy.php:4004
 msgid "Grammatical gender"
 msgstr ""
 
-#: includes/taxonomies/wordset-taxonomy.php:4055
+#: includes/taxonomies/wordset-taxonomy.php:4005
 msgid "Enable grammatical gender for this word set."
 msgstr ""
 
-#: includes/taxonomies/wordset-taxonomy.php:4065
+#: includes/taxonomies/wordset-taxonomy.php:4015
 msgid "One option per line (for example: masculine, feminine, neuter)."
 msgstr ""
 
-#: includes/taxonomies/wordset-taxonomy.php:4117
+#: includes/taxonomies/wordset-taxonomy.php:4067
 msgid "Enable plurality for this word set."
 msgstr ""
 
-#: includes/taxonomies/wordset-taxonomy.php:4127
+#: includes/taxonomies/wordset-taxonomy.php:4077
 msgid "One option per line (for example: singular, plural, dual)."
 msgstr ""
 
-#: includes/taxonomies/wordset-taxonomy.php:4134
+#: includes/taxonomies/wordset-taxonomy.php:4084
 msgid "Enable verb tense tags for this word set."
 msgstr ""
 
-#: includes/taxonomies/wordset-taxonomy.php:4144
+#: includes/taxonomies/wordset-taxonomy.php:4094
 msgid "One option per line (for example: present, past, future)."
 msgstr ""
 
-#: includes/taxonomies/wordset-taxonomy.php:4151
+#: includes/taxonomies/wordset-taxonomy.php:4101
 msgid "Enable verb mood tags for this word set."
 msgstr ""
 
-#: includes/taxonomies/wordset-taxonomy.php:4161
+#: includes/taxonomies/wordset-taxonomy.php:4111
 msgid "One option per line (for example: indicative, subjunctive, imperative)."
 msgstr ""
 
-#: includes/taxonomies/wordset-taxonomy.php:5408
+#: includes/taxonomies/wordset-taxonomy.php:5358
 msgid "Grammar label update completed for wordset #%1$d: %2$d words checked, %3$d updated."
 msgstr ""
 
-#: includes/taxonomies/wordset-taxonomy.php:5415
+#: includes/taxonomies/wordset-taxonomy.php:5365
 msgid "Grammar label update failed for wordset #%1$d after checking %2$d words: %3$s"
 msgstr ""
 
-#: includes/taxonomies/wordset-taxonomy.php:5422
+#: includes/taxonomies/wordset-taxonomy.php:5372
 msgid "Grammar label update is queued or running for wordset #%1$d: %2$d words checked, %3$d updated."
 msgstr ""
 
@@ -30603,329 +30591,329 @@ msgstr ""
 msgid "Flashcard words must be requested with a bounded candidate list or the paged flashcard endpoint."
 msgstr ""
 
-#: includes/wordset-isolation.php:2109
+#: includes/wordset-isolation.php:2101
 msgid "Missing category name."
 msgstr ""
 
-#: includes/wordset-isolation.php:3141
+#: includes/wordset-isolation.php:3133
 msgid "Could not read posts for the wordset isolation migration."
 msgstr ""
 
-#: includes/wordset-isolation.php:3159
+#: includes/wordset-isolation.php:3151
 msgid "Could not read wordsets for the wordset isolation migration."
 msgstr ""
 
-#: includes/wordset-isolation.php:3194
+#: includes/wordset-isolation.php:3186
 msgid "Could not read users for the wordset isolation migration."
 msgstr ""
 
-#: includes/wordset-isolation.php:3215
+#: includes/wordset-isolation.php:3207
 msgid "Could not read category owners for the wordset isolation migration."
 msgstr ""
 
 #. translators: 1: post type label, 2: post ID.
-#: includes/wordset-isolation.php:3240
+#: includes/wordset-isolation.php:3232
 msgid "Could not verify isolated categories for %1$s %2$d."
 msgstr ""
 
 #. translators: 1: post type label, 2: post ID.
-#: includes/wordset-isolation.php:3254
+#: includes/wordset-isolation.php:3246
 msgid "Isolated categories could not be saved for %1$s %2$d."
 msgstr ""
 
 #. translators: %d is a wordset term ID.
-#: includes/wordset-isolation.php:3274
+#: includes/wordset-isolation.php:3266
 msgid "Category ordering could not be saved for wordset %d."
 msgstr ""
 
 #. translators: %d is a wordset term ID.
-#: includes/wordset-isolation.php:3288
+#: includes/wordset-isolation.php:3280
 msgid "Category prerequisites could not be saved for wordset %d."
 msgstr ""
 
 #. translators: %d is a lesson post ID.
-#: includes/wordset-isolation.php:3315
+#: includes/wordset-isolation.php:3307
 msgid "The isolated category could not be saved for lesson %d."
 msgstr ""
 
 #. translators: %d is a word post ID.
-#: includes/wordset-isolation.php:3343
+#: includes/wordset-isolation.php:3335
 msgid "Could not read categories for word %d."
 msgstr ""
 
 #. translators: %d is a word post ID.
-#: includes/wordset-isolation.php:3370
+#: includes/wordset-isolation.php:3362
 msgid "Isolated categories could not be created for word %d."
 msgstr ""
 
 #. translators: 1: word post ID, 2: error message.
-#: includes/wordset-isolation.php:3399
+#: includes/wordset-isolation.php:3391
 msgid "Word %1$d could not be linked to an isolated word image: %2$s"
 msgstr ""
 
 #. translators: 1: image post ID, 2: wordset term ID.
-#: includes/wordset-isolation.php:3417
-#: includes/wordset-isolation.php:3510
+#: includes/wordset-isolation.php:3409
+#: includes/wordset-isolation.php:3502
 msgid "Word image %1$d could not be isolated for wordset %2$d."
 msgstr ""
 
 #. translators: %d is a word post ID.
-#: includes/wordset-isolation.php:3436
+#: includes/wordset-isolation.php:3428
 msgid "The isolated image could not be linked to word %d."
 msgstr ""
 
 #. translators: %d is a word image post ID.
-#: includes/wordset-isolation.php:3461
-#: includes/wordset-isolation.php:3491
+#: includes/wordset-isolation.php:3453
+#: includes/wordset-isolation.php:3483
 msgid "Could not read categories for word image %d."
 msgstr ""
 
 #. translators: %d is a word image post ID.
-#: includes/wordset-isolation.php:3470
+#: includes/wordset-isolation.php:3462
 msgid "Isolated categories could not be created for word image %d."
 msgstr ""
 
 #. translators: %d is a WordPress user ID.
-#: includes/wordset-isolation.php:3548
-#: includes/wordset-isolation.php:3577
-#: includes/wordset-isolation.php:3602
-#: includes/wordset-isolation.php:3626
-#: includes/wordset-isolation.php:3643
-#: includes/wordset-isolation.php:3667
-#: includes/wordset-isolation.php:3729
-#: includes/wordset-isolation.php:3742
-#: includes/wordset-isolation.php:3761
-#: includes/wordset-isolation.php:3784
-#: includes/wordset-isolation.php:3915
-#: includes/wordset-isolation.php:4004
-#: includes/wordset-isolation.php:4066
-#: includes/wordset-isolation.php:4111
-#: includes/wordset-isolation.php:4266
-#: includes/wordset-isolation.php:4324
-#: includes/wordset-isolation.php:4609
-#: includes/wordset-isolation.php:4709
-#: includes/wordset-isolation.php:4753
+#: includes/wordset-isolation.php:3540
+#: includes/wordset-isolation.php:3569
+#: includes/wordset-isolation.php:3594
+#: includes/wordset-isolation.php:3618
+#: includes/wordset-isolation.php:3635
+#: includes/wordset-isolation.php:3659
+#: includes/wordset-isolation.php:3721
+#: includes/wordset-isolation.php:3734
+#: includes/wordset-isolation.php:3753
+#: includes/wordset-isolation.php:3776
+#: includes/wordset-isolation.php:3907
+#: includes/wordset-isolation.php:3996
+#: includes/wordset-isolation.php:4058
+#: includes/wordset-isolation.php:4103
+#: includes/wordset-isolation.php:4258
+#: includes/wordset-isolation.php:4316
+#: includes/wordset-isolation.php:4601
+#: includes/wordset-isolation.php:4701
+#: includes/wordset-isolation.php:4745
 msgid "Isolated category data could not be saved for user %d."
 msgstr ""
 
-#: includes/wordset-isolation.php:5305
+#: includes/wordset-isolation.php:5297
 msgid "Could not inspect word option rules for the isolation migration."
 msgstr ""
 
-#: includes/wordset-isolation.php:5313
+#: includes/wordset-isolation.php:5305
 msgid "Word option rules are too large for the background migration. Run the WP-CLI migration with --allow-large-option-rules."
 msgstr ""
 
-#: includes/wordset-isolation.php:5328
+#: includes/wordset-isolation.php:5320
 msgid "Isolated word option rules could not be saved."
 msgstr ""
 
-#: includes/wordset-isolation.php:5337
+#: includes/wordset-isolation.php:5329
 msgid "Wordset isolation migration has unresolved errors."
 msgstr ""
 
-#: includes/wordset-isolation.php:5371
+#: includes/wordset-isolation.php:5363
 msgid "Generated-page reconciliation could not be scheduled after the isolation migration."
 msgstr ""
 
-#: includes/wordset-isolation.php:5382
+#: includes/wordset-isolation.php:5374
 msgid "The wordset isolation migration version could not be saved."
 msgstr ""
 
-#: includes/wordset-isolation.php:5488
+#: includes/wordset-isolation.php:5480
 msgid "You are not allowed to retry this migration."
 msgstr ""
 
-#: includes/wordset-isolation.php:5510
+#: includes/wordset-isolation.php:5502
 msgid "Word images"
 msgstr ""
 
-#: includes/wordset-isolation.php:5511
+#: includes/wordset-isolation.php:5503
 msgid "Word sets"
 msgstr ""
 
-#: includes/wordset-isolation.php:5512
+#: includes/wordset-isolation.php:5504
 msgid "Word option rules"
 msgstr ""
 
-#: includes/wordset-isolation.php:5514
+#: includes/wordset-isolation.php:5506
 msgid "Users"
 msgstr ""
 
-#: includes/wordset-isolation.php:5515
+#: includes/wordset-isolation.php:5507
 msgid "Finalizing"
 msgstr ""
 
 #. translators: 1: migration phase, 2: error message.
-#: includes/wordset-isolation.php:5521
+#: includes/wordset-isolation.php:5513
 msgid "Wordset isolation migration stopped in phase %1$s: %2$s"
 msgstr ""
 
 #. translators: 1: migration phase, 2: number of words scanned.
-#: includes/wordset-isolation.php:5527
+#: includes/wordset-isolation.php:5519
 msgid "Wordset isolation migration is continuing in the background. Phase: %1$s. Words scanned: %2$d."
 msgstr ""
 
-#: includes/wordset-isolation.php:5536
+#: includes/wordset-isolation.php:5528
 msgid "Retry migration"
 msgstr ""
 
-#: includes/wordset-isolation.php:5555
+#: includes/wordset-isolation.php:5547
 msgid "Wordset isolation migration completed. Words scanned: %1$d. Words updated: %2$d. Categories created: %3$d. Word images created: %4$d. Word-image links updated: %5$d. Lessons repaired: %6$d. Wordsets repaired: %7$d. Word option rule scopes repaired: %8$d. User study records repaired: %9$d."
 msgstr ""
 
-#: includes/wordset-isolation.php:5752
+#: includes/wordset-isolation.php:5744
 msgid "You are not allowed to run this maintenance check."
 msgstr ""
 
-#: includes/wordset-isolation.php:5767
+#: includes/wordset-isolation.php:5759
 msgid "You are not allowed to run this maintenance repair."
 msgstr ""
 
-#: includes/wordset-isolation.php:5787
+#: includes/wordset-isolation.php:5779
 msgid "Health check queued or running."
 msgstr ""
 
-#: includes/wordset-isolation.php:5792
+#: includes/wordset-isolation.php:5784
 msgid "Check now"
 msgstr ""
 
-#: includes/wordset-isolation.php:5799
+#: includes/wordset-isolation.php:5791
 msgid "Vocab lesson repair: %1$d processed, %2$d repaired."
 msgstr ""
 
-#: includes/wordset-isolation.php:5807
+#: includes/wordset-isolation.php:5799
 msgid "Repair vocab lessons"
 msgstr ""
 
-#: includes/wordset-isolation.php:5819
-#: includes/wordset-isolation.php:5836
-#: includes/wordset-isolation.php:5858
-#: includes/wordset-isolation.php:5879
+#: includes/wordset-isolation.php:5811
+#: includes/wordset-isolation.php:5828
+#: includes/wordset-isolation.php:5850
+#: includes/wordset-isolation.php:5871
 msgid "none"
 msgstr ""
 
-#: includes/wordset-isolation.php:6349
+#: includes/wordset-isolation.php:6341
 msgid "LL Tools Maintenance"
 msgstr ""
 
-#: includes/wordset-isolation.php:6350
+#: includes/wordset-isolation.php:6342
 msgid "Wordset isolation health has not been checked since the last data change or cache expiry."
 msgstr ""
 
-#: includes/wordset-isolation.php:6375
+#: includes/wordset-isolation.php:6367
 msgid "Stored migration version is %1$d, expected %2$d."
 msgstr ""
 
-#: includes/wordset-isolation.php:6384
+#: includes/wordset-isolation.php:6376
 msgid "%d word has suspicious category isolation state."
 msgid_plural "%d words have suspicious category isolation state."
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/wordset-isolation.php:6397
+#: includes/wordset-isolation.php:6389
 msgid "%d word image has suspicious category isolation state."
 msgid_plural "%d word images have suspicious category isolation state."
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/wordset-isolation.php:6410
+#: includes/wordset-isolation.php:6402
 msgid "%d vocab lesson points at a non-owned category."
 msgid_plural "%d vocab lessons point at non-owned categories."
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/wordset-isolation.php:6423
+#: includes/wordset-isolation.php:6415
 msgid "%d wordset has category ordering or prerequisite metadata that still references non-owned categories."
 msgid_plural "%d wordsets have category ordering or prerequisite metadata that still reference non-owned categories."
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/wordset-isolation.php:6434
+#: includes/wordset-isolation.php:6426
 msgid "LL Tools Maintenance Alert"
 msgstr ""
 
-#: includes/wordset-isolation.php:6435
+#: includes/wordset-isolation.php:6427
 msgid "Wordset isolation health checks found data that may need repair."
 msgstr ""
 
-#: includes/wordset-isolation.php:6437
+#: includes/wordset-isolation.php:6429
 msgid "Last checked: %1$s. Stored migration version: %2$d. Expected version: %3$d."
 msgstr ""
 
-#: includes/wordset-isolation.php:6451
+#: includes/wordset-isolation.php:6443
 msgid "Debug details"
 msgstr ""
 
-#: includes/wordset-isolation.php:6454
+#: includes/wordset-isolation.php:6446
 msgid "Word samples"
 msgstr ""
 
-#: includes/wordset-isolation.php:6462
+#: includes/wordset-isolation.php:6454
 msgid "Wordsets: %s."
 msgstr ""
 
-#: includes/wordset-isolation.php:6463
-#: includes/wordset-isolation.php:6497
+#: includes/wordset-isolation.php:6455
+#: includes/wordset-isolation.php:6489
 msgid "Categories: %s."
 msgstr ""
 
-#: includes/wordset-isolation.php:6466
-#: includes/wordset-isolation.php:6500
+#: includes/wordset-isolation.php:6458
+#: includes/wordset-isolation.php:6492
 msgid "Shared categories: %s."
 msgstr ""
 
-#: includes/wordset-isolation.php:6469
-#: includes/wordset-isolation.php:6503
+#: includes/wordset-isolation.php:6461
+#: includes/wordset-isolation.php:6495
 msgid "Foreign-owner categories: %s."
 msgstr ""
 
-#: includes/wordset-isolation.php:6472
-#: includes/wordset-isolation.php:6506
+#: includes/wordset-isolation.php:6464
+#: includes/wordset-isolation.php:6498
 msgid "Missing owned copies: %s."
 msgstr ""
 
-#: includes/wordset-isolation.php:6488
+#: includes/wordset-isolation.php:6480
 msgid "Word image samples"
 msgstr ""
 
-#: includes/wordset-isolation.php:6496
+#: includes/wordset-isolation.php:6488
 msgid "Owner wordset: %s."
 msgstr ""
 
-#: includes/wordset-isolation.php:6522
+#: includes/wordset-isolation.php:6514
 msgid "Vocab lesson samples"
 msgstr ""
 
-#: includes/wordset-isolation.php:6530
+#: includes/wordset-isolation.php:6522
 msgid "Wordset: %s."
 msgstr ""
 
-#: includes/wordset-isolation.php:6531
+#: includes/wordset-isolation.php:6523
 msgid "Category: %s."
 msgstr ""
 
-#: includes/wordset-isolation.php:6534
+#: includes/wordset-isolation.php:6526
 msgid "Existing owned copy: %s."
 msgstr ""
 
-#: includes/wordset-isolation.php:6550
+#: includes/wordset-isolation.php:6542
 msgid "Wordset metadata samples"
 msgstr ""
 
-#: includes/wordset-isolation.php:6559
+#: includes/wordset-isolation.php:6551
 msgid "Manual order refs: %s."
 msgstr ""
 
-#: includes/wordset-isolation.php:6562
+#: includes/wordset-isolation.php:6554
 msgid "Prerequisite keys: %s."
 msgstr ""
 
-#: includes/wordset-isolation.php:6565
+#: includes/wordset-isolation.php:6557
 msgid "Prerequisite dependencies: %s."
 msgstr ""
 
-#: includes/wordset-templates.php:288
+#: includes/wordset-templates.php:283
 msgid "Unable to create the new word set right now."
 msgstr ""
 

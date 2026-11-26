@@ -860,14 +860,6 @@ function ll_tools_repair_wordset_category_ordering_meta_for_isolation(int $words
 
     $updated = false;
 
-    $additional = get_term_meta($wordset_id, LL_TOOLS_CURRICULUM_ADDITIONAL_META, true);
-    if (is_array($additional) && $additional) {
-        $mapped = ll_tools_wordset_isolation_remap_category_id_list_for_wordset_complete($additional, $wordset_id, true);
-        if ($mapped !== null && $mapped !== $additional && update_term_meta($wordset_id, LL_TOOLS_CURRICULUM_ADDITIONAL_META, $mapped)) {
-            $updated = true;
-        }
-    }
-
     $manual_raw = get_term_meta($wordset_id, 'll_wordset_category_manual_order', true);
     $manual_current = ll_tools_wordset_isolation_parse_category_id_list($manual_raw);
     if (!empty($manual_current)) {

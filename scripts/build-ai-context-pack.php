@@ -323,7 +323,6 @@ function ll_tools_context_pack_definitions(): array
                 'category shell',
                 'curriculum levels',
                 'level review intervals',
-                'additional lessons',
                 'lazy card',
                 'sparse category registry',
                 'ID-only lazy shell',

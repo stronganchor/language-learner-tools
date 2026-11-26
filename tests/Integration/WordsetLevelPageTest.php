@@ -34,7 +34,7 @@ final class WordsetLevelPageTest extends LL_Tools_TestCase
         $this->assertContains(LL_TOOLS_LEVEL_REVIEW_INTERVALS_META, ll_tools_privacy_local_erasure_meta_keys());
         $export = ll_tools_privacy_export_study_settings($learner->user_email);
         $this->assertContains('ll-tools-level-intervals-' . $learner->ID, array_column($export['data'], 'item_id'));
-        update_term_meta($wordset, LL_TOOLS_CURRICULUM_ADDITIONAL_META, [$category]);
+        update_term_meta($wordset, 'll_wordset_category_ordering_mode', 'manual');
         $this->assertSame('ll_level_scope_changed', ll_tools_wordset_level_request($learner->ID, $request)->get_error_code());
         wp_set_current_user($other);
         $this->assertSame('ll_level_scope_changed', ll_tools_wordset_level_request($other, $request)->get_error_code());

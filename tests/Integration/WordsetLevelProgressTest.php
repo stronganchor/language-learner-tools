@@ -158,16 +158,15 @@ final class WordsetLevelProgressTest extends LL_Tools_TestCase
             $categories[] = $category;
         }
         [$root, $middle, $leaf, $reference, $new_root] = $categories;
-        $initial = [$middle => [$root], $leaf => [$middle]];
+        $initial = [$middle => [$root], $leaf => [$middle], $reference => [$root]];
         update_term_meta($wordset, 'll_wordset_category_ordering_mode', 'prerequisite');
         update_term_meta($wordset, 'll_wordset_category_prerequisites', $initial);
-        update_term_meta($wordset, LL_TOOLS_CURRICULUM_ADDITIONAL_META, [$reference]);
         ll_tools_wordset_level_record_graph_changes();
         $this->assertSame([], ll_tools_wordset_level_entry_dates($wordset, $categories));
 
         $changed = $initial + [$root => [$new_root]];
+        unset($changed[$reference]);
         update_term_meta($wordset, 'll_wordset_category_prerequisites', $changed);
-        delete_term_meta($wordset, LL_TOOLS_CURRICULUM_ADDITIONAL_META);
         ll_tools_wordset_level_record_graph_changes();
         $entries = ll_tools_wordset_level_entry_dates($wordset, $categories);
         $this->assertArrayHasKey($reference, $entries[1]);

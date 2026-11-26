@@ -60,7 +60,7 @@ add_action('deleted_post_meta', 'll_tools_wordset_level_note_lesson_release', 10
 // The settings editor saves several metadata keys and may roll them back.
 // Compare the first snapshot to the final graph, regardless of the entry point.
 function ll_tools_wordset_level_before_graph_change($wordset_id, $key): void {
-    if (!in_array($key, [LL_TOOLS_CURRICULUM_ADDITIONAL_META, 'll_wordset_category_prerequisites', 'll_wordset_category_ordering_mode'], true)
+    if (!in_array($key, ['ll_wordset_category_prerequisites', 'll_wordset_category_ordering_mode'], true)
         || $wordset_id <= 0 || isset($GLOBALS['ll_tools_level_graph_snapshots'][$wordset_id])) {
         return;
     }

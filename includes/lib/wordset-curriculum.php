@@ -1,11 +1,9 @@
 <?php
 if (!defined('WPINC')) { die; }
 
-const LL_TOOLS_CURRICULUM_ADDITIONAL_META = 'll_wordset_curriculum_additional_categories';
-
 function ll_tools_wordset_curriculum_purge_public_pages($meta_id, int $wordset_id, string $meta_key): void {
     if ($wordset_id > 0 && in_array($meta_key, [
-        LL_TOOLS_CURRICULUM_ADDITIONAL_META, 'll_wordset_category_prerequisites', 'll_wordset_category_ordering_mode',
+        'll_wordset_category_prerequisites', 'll_wordset_category_ordering_mode',
     ], true) && function_exists('ll_tools_purge_public_static_cache_once')) {
         ll_tools_purge_public_static_cache_once(['wordset_ids' => [$wordset_id]]);
     }
@@ -19,41 +17,33 @@ function ll_tools_wordset_curriculum_read_error(): WP_Error {
 }
 
 /**
- * The original Turkish Textbook reference list predates curriculum settings.
- * Explicit settings, including an empty list, take precedence over that default.
+ * Turkish Textbook publishes its ranked reference list as a playable category.
+ * Keep the list in the ordinary catalog without counting it as a course lesson.
  *
- * @return int[]|WP_Error
+ * @return bool|WP_Error
  */
-function ll_tools_wordset_curriculum_additional_ids(int $wordset_id) {
+function ll_tools_wordset_curriculum_is_turkish_reference(int $wordset_id, int $category_id) {
+    if ($wordset_id !== 8062 || $category_id !== 8121) {
+        return false;
+    }
+    $host = strtolower((string) wp_parse_url(home_url('/'), PHP_URL_HOST));
+    if (!in_array($host, ['www.turkishtextbook.com', 'turkishtextbook.com'], true)) {
+        return false;
+    }
     global $wpdb;
     $wpdb->last_error = '';
-    $values = get_term_meta($wordset_id, LL_TOOLS_CURRICULUM_ADDITIONAL_META, false);
-    if ($wpdb->last_error !== '' || !is_array($values)) {
-        return ll_tools_wordset_curriculum_read_error();
-    }
-    if ($values !== []) {
-        if (count($values) !== 1 || !is_array($values[0])) {
-            return ll_tools_wordset_curriculum_read_error();
-        }
-        return ll_tools_wordset_normalize_category_id_list($values[0]);
-    }
-
-    $host = strtolower((string) wp_parse_url(home_url('/'), PHP_URL_HOST));
-    if ($wordset_id !== 8062 || !in_array($host, ['www.turkishtextbook.com', 'turkishtextbook.com'], true)) {
-        return [];
-    }
     $wordset = get_term($wordset_id, 'wordset');
     if ($wpdb->last_error !== '' || is_wp_error($wordset)) {
         return ll_tools_wordset_curriculum_read_error();
     }
     if (!($wordset instanceof WP_Term) || $wordset->slug !== 'vocab') {
-        return [];
+        return false;
     }
-    $category = get_term(8121, 'word-category');
+    $category = get_term($category_id, 'word-category');
     if ($wpdb->last_error !== '' || is_wp_error($category)) {
         return ll_tools_wordset_curriculum_read_error();
     }
-    return $category instanceof WP_Term && $category->slug === 'most-common-words-vocab' ? [8121] : [];
+    return $category instanceof WP_Term && $category->slug === 'most-common-words-vocab';
 }
 
 /**
@@ -61,10 +51,10 @@ function ll_tools_wordset_curriculum_additional_ids(int $wordset_id) {
  * authorized, active category IDs. No hidden category IDs, names or counts are
  * returned. Raw prerequisite depths in storage and existing APIs remain zero-based.
  *
- * @return array{enabled:bool,levels:array<int,int[]>,additional:int[]}|WP_Error
+ * @return array{enabled:bool,levels:array<int,int[]>}|WP_Error
  */
 function ll_tools_wordset_curriculum_groups(int $wordset_id, array $visible_category_ids) {
-    $disabled = ['enabled' => false, 'levels' => [], 'additional' => []];
+    $disabled = ['enabled' => false, 'levels' => []];
     $visible_category_ids = ll_tools_wordset_normalize_category_id_list($visible_category_ids);
     if ($wordset_id <= 0 || !$visible_category_ids) {
         return $disabled;
@@ -76,20 +66,23 @@ function ll_tools_wordset_curriculum_groups(int $wordset_id, array $visible_cate
     if (!$assignments) {
         return $disabled;
     }
-    $groups = ['enabled' => true, 'levels' => [], 'additional' => []];
+    $groups = ['enabled' => true, 'levels' => []];
     foreach ($visible_category_ids as $category_id) {
-        $level = $assignments[$category_id] ?? 1;
-        if ($level === 0) {
-            $groups['additional'][] = $category_id;
-        } else {
-            $groups['levels'][$level][] = $category_id;
+        $reference = ll_tools_wordset_curriculum_is_turkish_reference($wordset_id, $category_id);
+        if (is_wp_error($reference)) {
+            return $reference;
         }
+        if ($reference) {
+            continue;
+        }
+        $level = $assignments[$category_id] ?? 1;
+        $groups['levels'][$level][] = $category_id;
     }
     ksort($groups['levels'], SORT_NUMERIC);
     return $groups;
 }
 
-/** Only graph and Additional settings are read. Unlisted categories belong to level one. */
+/** Unlisted categories belong to level one when the wordset has a prerequisite graph. */
 function ll_tools_wordset_curriculum_assignment_map(int $wordset_id) {
     global $wpdb;
     $wpdb->last_error = '';
@@ -125,16 +118,9 @@ function ll_tools_wordset_curriculum_assignment_map(int $wordset_id) {
         return [];
     }
 
-    $additional = ll_tools_wordset_curriculum_additional_ids($wordset_id);
-    if (is_wp_error($additional)) {
-        return $additional;
-    }
     $assignments = [];
     foreach ($level_info['levels'] as $category_id => $depth) {
         $assignments[$category_id] = 1 + $depth;
-    }
-    foreach ($additional as $category_id) {
-        $assignments[$category_id] = 0;
     }
     return $assignments;
 }

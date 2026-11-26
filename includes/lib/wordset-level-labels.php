@@ -7,7 +7,6 @@ function ll_tools_wordset_level_labels(): array {
     return [
         /* translators: %d: curriculum level number */
         'level' => __('Level %d', 'll-tools-text-domain'),
-        'additional' => __('Additional lessons', 'll-tools-text-domain'),
         'allLessons' => __('All lessons', 'll-tools-text-domain'),
         'allLevels' => __('Back to levels', 'll-tools-text-domain'),
         /* translators: %d: curriculum level number */
@@ -18,8 +17,7 @@ function ll_tools_wordset_level_labels(): array {
         'start' => __('Start', 'll-tools-text-domain'),
         'learn' => __('Learn', 'll-tools-text-domain'),
         'practice' => __('Practice', 'll-tools-text-domain'),
-        'review' => __('Review', 'll-tools-text-domain'),
-        'reviewAll' => __('Review across levels', 'll-tools-text-domain'),
+        'reviewAll' => __('Review now', 'll-tools-text-domain'),
         'current' => __('Recommended level', 'll-tools-text-domain'),
         'complete' => __('Level mastered', 'll-tools-text-domain'),
         /* translators: %d: number of words due for review */
@@ -27,9 +25,11 @@ function ll_tools_wordset_level_labels(): array {
         /* translators: %d: number of words added since the learner last studied this level */
         'added' => __('Added since you last studied this level (%d)', 'll-tools-text-domain'),
         'stats' => __('Level details', 'll-tools-text-domain'),
+        /* translators: 1: number of learned words, 2: total words in the level. */
+        'progressCount' => __('%1$d / %2$d learned', 'll-tools-text-domain'),
         'dueLabel' => __('Due for review', 'll-tools-text-domain'),
         'addedLabel' => __('Added since last study', 'll-tools-text-domain'),
-        'mastered' => __('Mastered', 'll-tools-text-domain'),
+        'mastered' => __('Learned', 'll-tools-text-domain'),
         'working' => __('In progress', 'll-tools-text-domain'),
         'unseen' => __('Unseen', 'll-tools-text-domain'),
         'words' => __('Words', 'll-tools-text-domain'),

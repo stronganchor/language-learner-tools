@@ -18800,6 +18800,7 @@
             curriculum = window.LLWordsetLevels.create({
                 root: $root[0], config: cfg.curriculumLevels, signedIn: isLoggedIn, wordsetId: wordsetId,
                 ajaxUrl: ajaxUrl, category: getCategoryById, launch: launchCurriculumActivity,
+                modeIcon: getModeIconMarkup, progressIcon: buildProgressIconMarkup,
                 thumbnail: function (id) {
                     return getWordsetCardByCategoryId(id).find('.ll-wordset-preview-item--image img').first().attr('src') || '';
                 },

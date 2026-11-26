@@ -718,7 +718,8 @@ final class PublicUiTranslationManifestTest extends LL_Tools_TestCase
         $this->assertContains('Search dictionary', $msgids);
         $this->assertContains('Star word', $msgids);
         $this->assertContains('Loading next recommendation...', $msgids);
-        $this->assertContains('Review across levels', $msgids);
+        $this->assertContains('Review now', $msgids);
+        $this->assertContains('%1$d / %2$d learned', $msgids);
         $this->assertContains('Course levels', $msgids);
         $this->assertContains('Create an account to track your next lessons', $msgids);
         $this->assertContains('Could not save this review interval. Please try again.', $msgids);

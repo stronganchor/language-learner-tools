@@ -9,14 +9,9 @@ const LL_TOOLS_LEVEL_REVIEW_INTERVALS_META = 'll_tools_level_review_intervals';
  */
 function ll_tools_wordset_level_page_catalog(int $wordset_id, array $categories, array $mixed_lessons): array {
     $by_id = [];
-    $additional_virtual = [];
     foreach ($categories as $cat) {
         $id = (int) ($cat['id'] ?? 0);
-        if ($id <= 0 || !empty($cat['hidden']) || empty($cat['is_public'])) {
-            continue;
-        }
-        if (!empty($cat['is_virtual_category'])) {
-            $additional_virtual[] = $id;
+        if ($id <= 0 || !empty($cat['hidden']) || empty($cat['is_public']) || !empty($cat['is_virtual_category'])) {
             continue;
         }
         $by_id[$id] = $cat;
@@ -55,24 +50,17 @@ function ll_tools_wordset_level_page_catalog(int $wordset_id, array $categories,
     if (!$cards) {
         return [];
     }
-    $additional_content = [];
     foreach ($mixed_lessons as $lesson) {
         $id = (int) ($lesson['id'] ?? 0);
         $level = (int) ($lesson['menu_order'] ?? 0);
         if ($id > 0 && isset($cards[$level])) {
             $cards[$level]['contentIds'][] = $id;
-        } elseif ($id > 0) {
-            $additional_content[] = $id;
         }
     }
     ksort($cards, SORT_NUMERIC);
     return [
         'scope' => $scope,
-        'public' => [
-            'levels' => array_values($cards),
-            'additionalCategoryIds' => array_values(array_merge($groups['additional'], $additional_virtual)),
-            'additionalContentIds' => $additional_content,
-        ],
+        'public' => ['levels' => array_values($cards)],
     ];
 }
 
@@ -211,7 +199,7 @@ function ll_tools_wordset_level_badge(int $level): string {
 function ll_tools_wordset_level_policy_signature(int $wordset_id): string {
     global $wpdb;
     $policy = [];
-    foreach (['ll_wordset_category_ordering_mode', 'll_wordset_category_prerequisites', LL_TOOLS_CURRICULUM_ADDITIONAL_META] as $key) {
+    foreach (['ll_wordset_category_ordering_mode', 'll_wordset_category_prerequisites'] as $key) {
         $wpdb->last_error = '';
         $policy[] = get_term_meta($wordset_id, $key, false);
         if ($wpdb->last_error !== '') {
