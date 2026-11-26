@@ -1116,7 +1116,8 @@ body.ll-qpg-popup-active #ll-tools-flashcard-content {
     align-content: start;
 }
 
-#ll-tools-flashcard.ll-phone-caption-choices > .ll-answer-option-image-caption-card:last-child:nth-child(odd) {
+/* Prompt audio can share the grid without occupying an answer cell. */
+#ll-tools-flashcard.ll-phone-caption-choices > :nth-child(odd of .ll-answer-option-image-caption-card):nth-last-child(1 of .ll-answer-option-image-caption-card) {
     grid-column: 1 / -1;
     justify-self: center;
 }

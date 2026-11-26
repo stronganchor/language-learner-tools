@@ -178,6 +178,8 @@ async function renderQuizFrame(page, options = {}) {
       // The target may be last in the shuffled DOM, even though it was selected first.
       const grid = document.getElementById('ll-tools-flashcard');
       grid.appendChild(grid.firstElementChild);
+      // In live audio rounds the prompt audio can be a hidden child before the choices.
+      grid.prepend(document.createElement('audio'));
       window.LLFlashcards.Cards.prepareCaptionChoices(words);
     }
     document.querySelectorAll('#ll-tools-flashcard .flashcard-container').forEach((card) => {
