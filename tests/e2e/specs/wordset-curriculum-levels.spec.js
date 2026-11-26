@@ -125,7 +125,11 @@ test('mobile browse, bounded pages, global search, clear, and Back preserve thei
   const home=page.locator('[data-ll-wordset-page]');
   await expect(grid).toBeHidden();
   await expect(page.locator('[aria-current="step"],.ll-level-card.is-current')).toHaveCount(0);
-  await expect(page.getByRole('button',{name:'Learn · Lesson 1'})).toHaveText('Lesson 1');
+  const guestLearn=page.getByRole('button',{name:'Learn · Lesson 1',exact:true});
+  await expect(guestLearn).toHaveText('Lesson 1');
+  await expect(guestLearn.locator(':scope > .ll-level-mode-icon:first-child')).toBeVisible();
+  await expect(guestLearn.locator('.ll-level-thumbs')).toHaveCount(0);
+  await expect(guestLearn.locator(':scope > .ll-level-glyph--forward:last-child')).toBeVisible();
   await page.getByRole('button',{name:'Browse lessons · Level 1'}).focus();
   await page.keyboard.press('Enter');
   await expect(grid.locator('article:visible')).toHaveCount(12);
@@ -269,14 +273,42 @@ test('photos stay distinct, represent mixed Practice and use one image when only
   await expect(learn.nth(1)).toHaveAttribute('src','/thumbnail-house.webp');
   const mixed=page.locator('[data-ll-level-card="1"] [data-ll-level-action="practice"]');
   await expect(mixed).toHaveText('2 words in progress');
-  const photo=await practice.first().boundingBox(), mode=await mixed.locator(':scope > .ll-level-mode-icon:last-child').boundingBox();
-  expect(mode.x).toBeGreaterThan(photo.x+photo.width);
-  expect(Math.abs(mode.width-photo.width)).toBeLessThanOrEqual(2);
   expect((await learn.first().boundingBox()).width).toBeGreaterThanOrEqual(48);
   await expect(page.getByRole('button',{name:'Learn · Everyday Expressions'}).locator('.ll-level-thumb')).toHaveCount(1);
+  for (const width of [1240,390,320]) {
+    await page.setViewportSize({width,height:820});
+    for (const name of ['Learn · Lesson 1','Practice · 2 words in progress']) {
+      const button=page.getByRole('button',{name,exact:true});
+      const mode=button.locator(':scope > .ll-level-mode-icon:first-child');
+      const arrow=button.locator(':scope > .ll-level-glyph--forward:last-child');
+      await expect(mode).toHaveAttribute('aria-hidden','true');
+      await expect(arrow).toHaveAttribute('aria-hidden','true');
+      await expect(arrow).toHaveAttribute('focusable','false');
+      const firstPhoto=button.locator('.ll-level-thumb:visible').first();
+      const lastPhoto=button.locator('.ll-level-thumb:visible').last();
+      const [icon,first,last,label,go,control]=await Promise.all(
+        [mode,firstPhoto,lastPhoto,button.locator('.ll-level-action-name'),arrow,button].map(node=>node.boundingBox())
+      );
+      expect(icon.x).toBeGreaterThanOrEqual(control.x);
+      expect(first.x).toBeGreaterThan(icon.x+icon.width);
+      expect(Math.abs(icon.width-first.width)).toBeLessThanOrEqual(2);
+      expect(label.x).toBeGreaterThan(last.x+last.width);
+      expect(go.x).toBeGreaterThan(label.x+label.width);
+      expect(go.x+go.width).toBeLessThanOrEqual(control.x+control.width);
+    }
+  }
   await page.addStyleTag({content:'.ll-wordset-page .ll-level-activity {width:190px}'});
   await expect(practice.nth(0)).toBeVisible();
   await expect(practice.nth(1)).toBeHidden();
+  await page.locator('html').evaluate(el=>el.dir='rtl');
+  const forward=mixed.locator('.ll-level-glyph--forward');
+  await expect(forward).toHaveCSS('transform','matrix(-1, 0, 0, 1, 0, 0)');
+  const icon=await mixed.locator('.ll-level-mode-icon').boundingBox();
+  const picture=await practice.first().boundingBox();
+  const label=await mixed.locator('.ll-level-action-name').boundingBox();
+  const arrow=await forward.boundingBox();
+  expect(icon.x).toBeGreaterThan(picture.x+picture.width);
+  expect(label.x).toBeGreaterThan(arrow.x+arrow.width);
 });
 
 test('daily review separates the complete due backlog from the next round and follows the fallback reason',async({page})=>{

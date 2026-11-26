@@ -265,7 +265,7 @@
             if (!strip) {
                 strip = element('span','ll-level-thumbs');
                 strip.setAttribute('aria-hidden','true');
-                control.prepend(strip);
+                control.querySelector('.ll-level-mode-icon').after(strip);
             }
             urls.forEach((url,index) => {
                 let image = strip.children[index];
@@ -360,6 +360,7 @@
             btn.dataset.level = String(group.level);
             btn.dataset.category = String(categoryId);
             btn.dataset.llFocusKey = 'activity-' + group.level + '-' + plan;
+            btn.insertAdjacentHTML('beforeend',options.modeIcon(plan === 'learn' ? 'learning' : 'practice','ll-level-mode-icon'));
             const previewIds = severalLessons ? [categoryId,...planned.category_ids] : [categoryId];
             if (Array.isArray(previewIds) && previewIds.length) {
                 const ids = new Set(previewIds.map(Number));
@@ -379,7 +380,7 @@
                 }
             }
             if (name) btn.append(element('span','ll-level-action-name',name));
-            btn.insertAdjacentHTML('beforeend',options.modeIcon(plan === 'learn' ? 'learning' : 'practice','ll-level-mode-icon'));
+            btn.append(icon('forward'));
             return btn;
         }
         function levelDueDisclosure(level, stats, location) {

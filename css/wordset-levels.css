@@ -211,10 +211,11 @@
 .ll-level-activity > .ll-level-mode-icon {
     width: var(--ll-level-image-size);
     height: var(--ll-level-image-size);
-    margin-inline-start: auto;
     font-size: var(--ll-level-image-size);
 }
 .ll-level-activity > .ll-level-mode-icon svg { width: 100%; height: 100%; }
+.ll-level-activity > .ll-level-glyph--forward { margin-inline-start: auto; }
+.ll-level-activity:dir(rtl) > .ll-level-glyph--forward { transform: scaleX(-1); }
 .ll-wordset-page .ll-level-review-all {
     justify-content: flex-start;
     gap: .75rem;
@@ -305,7 +306,7 @@
 @container ll-level-action (max-width: 18rem) {
     .ll-wordset-page .ll-level-thumb, .ll-level-activity > .ll-level-mode-icon { --ll-level-image-size: 2.4rem; }
 }
-@container ll-level-action (max-width: 13rem) {
+@container ll-level-action (max-width: 14.75rem) {
     .ll-level-thumb + .ll-level-thumb { display: none; }
 }
 @container ll-level-section (max-width: 23rem) {
