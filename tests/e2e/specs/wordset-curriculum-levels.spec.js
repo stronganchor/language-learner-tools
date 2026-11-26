@@ -412,14 +412,17 @@ test('desktop and phone each show one level per row and keep mode icons, statuse
   await expect(chevron).toHaveCSS('transform','matrix(-1, 0, 0, -1, 0, 0)');
   expect(await tail()).toBeLessThan(20);
   await expect(first.getByRole('spinbutton',{name:labels.interval, exact:true})).toBeVisible();
-  for (const [status,count] of [['mastered',3],['studied',2],['new',5]]) {
+  for (const [status,count] of [['mastered',3],['studied',2],['new',5],['starred',3]]) {
     const badge=first.locator('.ll-level-stat-value.ll-level-metric-'+status);
     await expect(badge).toHaveText(String(count));
     await expect(badge.locator('.ll-level-status-icon')).toBeVisible();
   }
-  for (const [filter,count] of [['due',2],['hard',1],['starred',3]]) {
+  for (const [filter,count] of [['due',2],['hard',1]]) {
     await expect(first.locator('.ll-level-detail-panel [data-ll-level-filter="'+filter+'"]')).toHaveText(String(count));
   }
+  const detail=first.locator('.ll-level-detail-panel');
+  await expect(detail.locator('[data-ll-level-filter="starred"],.ll-level-filter-panel.ll-level-metric-starred')).toHaveCount(0);
+  await expect(detail.locator('.ll-level-stat-value.ll-level-metric-starred').getByRole('button')).toHaveCount(0);
   await expect(rows.nth(1).locator('.ll-level-detail-panel [data-ll-level-filter="due"]')).toHaveCount(0);
   await expect(rows.nth(1).locator('.ll-level-detail-panel .ll-level-metric-older')).toHaveText('0');
   await page.keyboard.press('Space');
@@ -471,6 +474,7 @@ for (const filter of ['hard','starred']) {
     const header=card.locator('.ll-level-card-head');
     await expect(header.locator('[data-ll-level-filter]')).toHaveCount(3);
     await expect(page.locator('[data-ll-level-card="2"] [data-ll-level-filter]')).toHaveCount(0);
+    await expect(page.locator('[data-ll-level-card="2"] .ll-level-detail-panel .ll-level-stat-value.ll-level-metric-starred')).toHaveText('0');
     const due=header.locator('[data-ll-level-filter="due"]');
     await due.click();
     const badge=header.locator('[data-ll-level-filter="'+filter+'"]');
@@ -488,13 +492,13 @@ for (const filter of ['hard','starred']) {
     expect(await card.evaluate(el=>el.scrollWidth<=el.clientWidth+1)).toBe(true);
     const launchLabel='Practice · '+labels[filter]+' · Level 1';
     let launch=preview.getByRole('button',{name:launchLabel,exact:true});
-    if (filter==='starred') {
+    if (filter==='hard') {
       await badge.click();
       await card.getByLabel('Level details · Level 1',{exact:true}).click();
       const detail=card.locator('.ll-level-detail-panel');
       const inner=detail.locator('[data-ll-level-filter="'+filter+'"]');
       await inner.click();
-      await expect(detail.getByText(labels.starredHelp)).toBeVisible();
+      await expect(detail.getByText(labels.hardHelp)).toBeVisible();
       launch=detail.getByRole('button',{name:launchLabel,exact:true});
     }
     expect(reqs.filter(r=>r.operation==='launch')).toHaveLength(0);

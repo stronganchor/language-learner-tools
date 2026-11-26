@@ -394,8 +394,8 @@
             levelFilters.forEach(({mode,status,name,help}) => {
                 const count = Number(stats[mode]);
                 if (!Number.isFinite(count)) return;
-                if (count <= 0) {
-                    if (location === 'detail') addCount(name,0,status);
+                if (count <= 0 || (location === 'detail' && mode === 'starred')) {
+                    if (location === 'detail') addCount(name,Math.max(0,count),status);
                     return;
                 }
                 const key = location + '-' + mode + '-' + level;
