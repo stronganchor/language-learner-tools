@@ -540,6 +540,29 @@ test.describe('full-screen phone Practice', () => {
     expect(last.y + last.height).toBeLessThanOrEqual(285);
   });
 
+  test('the last picture choice is centered when the final row has one card', async ({ page }) => {
+    const result = await mount(page, short.slice(0, 5));
+    expect(result.cards).toHaveLength(5);
+    const cards = page.locator('#ll-tools-flashcard .ll-answer-option-image-caption-card');
+    const checkCentered = async () => {
+      const left = await cards.first().boundingBox();
+      const right = await cards.nth(1).boundingBox();
+      const last = await cards.last().boundingBox();
+      expect(left.y).toBe(right.y);
+      expect(last.y).toBeGreaterThan(left.y);
+      expect(last.width).toBe(150);
+      expect(last.x + last.width / 2).toBeCloseTo((left.x + right.x + right.width) / 2, 1);
+    };
+
+    await checkCentered();
+    // Incorrect answers are removed from the grid without rebuilding the choices.
+    await cards.nth(1).evaluate(card => card.remove());
+    await expect(cards).toHaveCount(4);
+    await cards.nth(1).evaluate(card => card.remove());
+    await expect(cards).toHaveCount(3);
+    await checkCentered();
+  });
+
   test('the header stays still and incoming choices stay hidden until the round is ready', async ({ page }) => {
     await mount(page, short);
     await addFrameScript(page, domSource);

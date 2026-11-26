@@ -6894,6 +6894,7 @@
             notifyLaunchStage('plan');
             requestSelectionLaunchPlan(initialLaunchPlan.categoryIds, '', normalizedMode, {
                 candidateWordIds: initialSessionWordIds,
+                randomize: opts.randomize,
                 onRequest: notifyLaunchRequest,
                 requestTimeoutMs: requestTimeoutMs
             }).done(function (serverPlan) {
@@ -6971,15 +6972,16 @@
             }
 
             chunkSession = null;
-            launchFlashcards(normalizedMode, launchPlan.categoryIds, launchSessionWordIds, {
+            const randomize = opts.randomize === true && boundedModeAutomaticallyContinues(normalizedMode);
+            const launchWordIds = randomize ? shuffleList(launchSessionWordIds) : launchSessionWordIds;
+            launchFlashcards(normalizedMode, launchPlan.categoryIds, launchWordIds, {
                 source: 'wordset_progress_selection_start',
                 chunked: false,
                 sessionStarMode: 'normal',
-                randomizeSessionCategoryOrder: false,
+                randomizeSessionCategoryOrder: randomize,
                 allowSessionCategoryDisplay: true,
                 skipCompatibilityFilter: true,
-                preserveCategoryOrder: true,
-                details: launchPlan.details,
+                details: Object.assign({}, launchPlan.details, { preserve_category_order: !randomize }),
                 launchUi: launchUi,
                 launchUiCleanup: launchUiCleanup,
                 isLaunchCurrent: isLaunchCurrent,
@@ -7097,6 +7099,7 @@
                 }
                 launchProgressSelectionModeWithIds(launchSpec.mode, wordIds, {
                     categoryIds: launchSpec.launchCategoryIds,
+                    randomize: true,
                     launchSpec: launchSpec,
                     launchUi: launchUi,
                     launchUiCleanup: launchUiCleanup,
@@ -7166,6 +7169,7 @@
             finishFlashcardLaunch(reservedFlashcardLaunchToken);
         };
         launchProgressSelectionModeWithIds(normalizedMode, getProgressSelectedWordIds(), {
+            randomize: true,
             launchToken: reservedFlashcardLaunchToken,
             isLaunchCurrent: function () {
                 return flashcardLaunchIsCurrent(reservedFlashcardLaunchToken);
@@ -15203,6 +15207,9 @@
             // Keep the exact selection in one form variable. Array serialization
             // can be truncated by PHP's max_input_vars on large progress queues.
             request.candidate_word_ids = candidateWordIds.join(',');
+        }
+        if (opts.randomize === true) {
+            request.randomize = 1;
         }
 
         const parsedRequestTimeoutMs = parseInt(opts.requestTimeoutMs, 10);

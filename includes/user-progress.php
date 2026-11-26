@@ -12728,7 +12728,8 @@ function ll_tools_build_user_study_gender_selection_launch_chunks(
     array $gender_progress_rows,
     int $level_one_max_words = 10,
     int $review_max_words = 15,
-    int $max_categories = 8
+    int $max_categories = 8,
+    bool $randomize = false
 ): array {
     $level_one_max_words = max(1, min(10, $level_one_max_words));
     $review_max_words = max(1, min(15, $review_max_words));
@@ -12781,6 +12782,9 @@ function ll_tools_build_user_study_gender_selection_launch_chunks(
             1
         )) {
             return [];
+        }
+        if ($randomize) {
+            shuffle($level_chunks);
         }
         foreach ($level_chunks as $chunk) {
             $chunk['details'] = [
@@ -12888,7 +12892,8 @@ function ll_tools_build_user_study_learning_selection_launch_chunks(
     int $max_categories = 8,
     int $preferred_max_words = 12,
     array $word_recency_lookup = [],
-    int $minimum_words = 8
+    int $minimum_words = 8,
+    bool $randomize = false
 ) {
     $max_words = max(8, min(15, $max_words));
     $preferred_max_words = max($minimum_words, min($max_words, $preferred_max_words));
@@ -13240,6 +13245,9 @@ function ll_tools_build_user_study_learning_selection_launch_chunks(
         return $unlaunchable();
     }
 
+    if ($randomize) {
+        shuffle($chunks);
+    }
     return ll_tools_user_study_order_launch_chunks_by_recency($chunks, $word_recency_lookup);
 }
 
@@ -13259,7 +13267,8 @@ function ll_tools_build_user_study_selection_launch_plan(
     array $requested_category_ids,
     string $criteria = '',
     string $mode = 'practice',
-    array $candidate_word_ids = []
+    array $candidate_word_ids = [],
+    bool $randomize = false
 ) {
     global $wpdb;
 
@@ -13545,6 +13554,15 @@ function ll_tools_build_user_study_selection_launch_plan(
         return $empty_plan;
     }
 
+    if ($randomize) {
+        // Shuffle eligible IDs before the first chunk is chosen. Category
+        // ownership, Learn recency and Gender levels still govern grouping.
+        foreach ($matched_by_category as &$word_ids) {
+            shuffle($word_ids);
+        }
+        unset($word_ids);
+    }
+
     if ($mode === 'gender') {
         $selection_max_words = max(1, (int) ($limits['max_words'] ?? 15));
         $level_one_hard_cap = min(10, $selection_max_words);
@@ -13575,7 +13593,8 @@ function ll_tools_build_user_study_selection_launch_plan(
             $gender_progress_rows,
             $level_one_max_words,
             $review_max_words,
-            (int) ($limits['hard_max_categories'] ?? 8)
+            (int) ($limits['hard_max_categories'] ?? 8),
+            $randomize
         );
         if (empty($gender_chunks)) {
             return new WP_Error('selection_plan_unlaunchable', __('No quiz words are available for this selection.', 'll-tools-text-domain'));
@@ -13645,7 +13664,8 @@ function ll_tools_build_user_study_selection_launch_plan(
             (int) ($limits['hard_max_categories'] ?? 8),
             $learning_preferred_max_words,
             $word_recency_lookup,
-            $learning_min_words
+            $learning_min_words,
+            $randomize
         );
         if (is_wp_error($learning_chunks)) {
             return $learning_chunks;
@@ -13713,6 +13733,9 @@ function ll_tools_build_user_study_selection_launch_plan(
     );
     if (is_wp_error($chunks)) {
         return $chunks;
+    }
+    if ($randomize) {
+        shuffle($chunks);
     }
     $first_chunk = isset($chunks[0]) && is_array($chunks[0])
         ? $chunks[0]
@@ -13815,7 +13838,8 @@ function ll_tools_user_study_selection_launch_plan_ajax() {
         $category_ids,
         $criteria,
         $mode,
-        $candidate_word_ids
+        $candidate_word_ids,
+        ($_POST['randomize'] ?? '') === '1'
     );
     if (is_wp_error($plan)) {
         $error_code = (string) $plan->get_error_code();

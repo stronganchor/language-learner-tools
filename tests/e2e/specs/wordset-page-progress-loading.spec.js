@@ -1022,7 +1022,7 @@ async function prepareAllFilteredProgressSelection(page, options = {}) {
     masteredWords: 0,
     studiedWords: allMatchingIds.length,
     newWords: Math.max(0, 40 - allMatchingIds.length),
-    hardWords: 0,
+    hardWords: filterKey === 'hard' ? allMatchingIds.length : 0,
     starredWords: allMatchingIds.length,
     olderWords: filterKey === 'older' || filterKey === 'last' ? allMatchingIds.length : 0
   };
@@ -1070,6 +1070,7 @@ async function prepareAllFilteredProgressSelection(page, options = {}) {
     ...summary,
     words: allMatchingIds.slice(0, 30).map((id) => ({
       ...buildProgressWords(id, 1, { starredIds: allMatchingIds })[0],
+      ...(filterKey === 'hard' ? { status: 'studied', difficulty_score: 8 } : {}),
       last_seen_at: filterKey === 'older' || filterKey === 'last' ? '2000-01-01 00:00:00' : ''
     })),
     wordIds: options.primeSnapshot ? allMatchingIds : [],
@@ -1473,7 +1474,7 @@ for (const [control, mode] of [['dropdown', 'listening'], ['pill', 'practice']])
     await expect.poll(() => page.evaluate(() => window.__llFlashcardLaunches.length)).toBe(1);
     expect(await page.evaluate(() => ({
       mode: window.__llFlashcardLaunches[0].mode,
-      ids: window.__llFlashcardLaunches[0].sessionWordIds
+      ids: window.__llFlashcardLaunches[0].sessionWordIds.slice().sort((a, b) => a - b)
     }))).toEqual({ mode, ids: exactIds });
     await page.locator('#ll-tools-close-flashcard').click();
   });
@@ -1504,7 +1505,7 @@ test('an uncounted search launches from exact matching IDs while its table is pe
     index: requestIndex, payload: buildAllFilteredWordIdAnalytics(exactIds)
   });
   await expect.poll(() => page.evaluate(() => window.__llFlashcardLaunches.length)).toBe(1);
-  expect(await page.evaluate(() => window.__llFlashcardLaunches[0].sessionWordIds)).toEqual(exactIds);
+  expect(await page.evaluate(() => window.__llFlashcardLaunches[0].sessionWordIds.slice().sort((a, b) => a - b))).toEqual(exactIds);
   await page.locator('#ll-tools-close-flashcard').click();
 });
 
@@ -1529,7 +1530,7 @@ test('a table refresh failure does not block an Older ID-only launch', async ({ 
     index: requestIndex, payload: buildAllFilteredWordIdAnalytics(exactIds)
   });
   await expect.poll(() => page.evaluate(() => window.__llFlashcardLaunches.length)).toBe(1);
-  expect(await page.evaluate(() => window.__llFlashcardLaunches[0].sessionWordIds)).toEqual(exactIds);
+  expect(await page.evaluate(() => window.__llFlashcardLaunches[0].sessionWordIds.slice().sort((a, b) => a - b))).toEqual(exactIds);
   await page.locator('#ll-tools-close-flashcard').click();
 });
 
@@ -1811,7 +1812,7 @@ for (const filter of ['new', 'starred', 'hard']) {
     expect(await page.evaluate(() => ({
       analytics: window.__llAnalyticsRequests[0].deferred.state(),
       mode: window.__llFlashcardLaunches[0].mode,
-      ids: window.__llFlashcardLaunches[0].sessionWordIds
+      ids: window.__llFlashcardLaunches[0].sessionWordIds.slice().sort((a, b) => a - b)
     }))).toEqual({ analytics: 'pending', mode: 'practice', ids });
     // A late failed chart/table request must not cancel the active activity.
     await page.evaluate(() => window.__rejectAnalyticsRequest(0));
@@ -3004,6 +3005,7 @@ async function assertFilteredProgressPracticeLaunch(page, options) {
         .filter(Boolean);
       return {
         candidatePayloadType: typeof planRequest.candidate_word_ids,
+        randomize: planRequest.randomize,
         plannedCandidateCount: plannedCandidateIds.length,
         firstPlannedCandidate: plannedCandidateIds[0] || 0,
         lastPlannedCandidate: plannedCandidateIds[plannedCandidateIds.length - 1] || 0,
@@ -3021,6 +3023,7 @@ async function assertFilteredProgressPracticeLaunch(page, options) {
     });
   }).toEqual({
     candidatePayloadType: 'string',
+    randomize: 1,
     plannedCandidateCount: allMatchingIds.length,
     firstPlannedCandidate: allMatchingIds[0],
     lastPlannedCandidate: allMatchingIds[allMatchingIds.length - 1],
@@ -3153,7 +3156,7 @@ test('replacement explicit progress row launch aborts stale hydration and keeps 
       secondAborted: window.__llFetchWordsRequests[1].aborted,
       secondState: window.__llFetchWordsRequests[1].deferred.state(),
       launchMode: String(launch.mode || ''),
-      sessionWordIds: Array.isArray(launch.sessionWordIds) ? launch.sessionWordIds : [],
+      sessionWordIds: Array.isArray(launch.sessionWordIds) ? launch.sessionWordIds.slice().sort((a, b) => a - b) : [],
       alerts: window.__llAlerts.slice()
     };
   })).toEqual({
@@ -4020,6 +4023,38 @@ test('progress all-filtered small Practice keeps the same modal visible through 
   await expect(page.locator('[data-ll-wordset-progress-launch-feedback]')).toBeHidden();
   expect(await page.evaluate(() => window.__llAlerts.slice())).toEqual([]);
 });
+
+for (const filterKey of ['hard', 'starred']) {
+  test(`reopening a small ${filterKey} Practice selection shuffles the same eligible IDs`, async ({ page }) => {
+    const allMatchingIds = Array.from({ length: 10 }, (_unused, index) => 101 + index);
+    await prepareAllFilteredProgressSelection(page, { allMatchingIds, filterKey, primeSnapshot: true });
+    const practice = page.locator('[data-ll-wordset-progress-selection-mode][data-mode="practice"]');
+    await page.evaluate(() => {
+      const $ = window.jQuery;
+      // The harness stubs the widget, so simulate its post-launch close event.
+      $('#ll-tools-close-flashcard').on('click', function () {
+        $('body').removeClass('ll-tools-flashcard-open');
+        $('#ll-tools-flashcard-popup, #ll-tools-flashcard-quiz-popup').hide();
+        $(document).trigger('lltools:flashcard-closed');
+      });
+    });
+
+    const launchOrders = [];
+    for (const randomValue of [0.99, 0]) {
+      await page.evaluate((random) => { Math.random = () => random; }, randomValue);
+      await practice.click();
+      await expect.poll(() => page.evaluate(() => window.__llFlashcardLaunches.length)).toBe(launchOrders.length + 1);
+      const launchOrder = await page.evaluate(() => window.__llFlashcardLaunches.at(-1).sessionWordIds);
+      expect(launchOrder.slice().sort((a, b) => a - b)).toEqual(allMatchingIds);
+      launchOrders.push(launchOrder);
+      await page.locator('#ll-tools-close-flashcard').click();
+      await expect(page.locator('#ll-tools-flashcard-popup')).toBeHidden();
+    }
+    expect(launchOrders[0][0]).not.toBe(launchOrders[1][0]);
+    expect(await getAllFilteredLaunchRequestIndexes(page)).toEqual([]);
+    expect(await page.evaluate(() => window.__llSelectionPlanRequests.length)).toBe(0);
+  });
+}
 
 test('Escape aborts bounded hydration and an immediate retry launches once', async ({ page }) => {
   const { allMatchingIds } = await prepareAllFilteredProgressSelection(page);

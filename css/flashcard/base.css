@@ -1116,6 +1116,11 @@ body.ll-qpg-popup-active #ll-tools-flashcard-content {
     align-content: start;
 }
 
+#ll-tools-flashcard.ll-phone-caption-choices > .ll-answer-option-image-caption-card:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+    justify-self: center;
+}
+
 /* The phone shell has its final spacing before a round or its choices exist. */
 @media (max-width: 520px) {
     #ll-tools-flashcard-quiz-popup {

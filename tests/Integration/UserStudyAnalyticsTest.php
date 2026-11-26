@@ -2307,7 +2307,7 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
         $this->assertSame('learned', (string) ($plan['criteria'] ?? ''));
     }
 
-    public function test_exact_candidate_planner_stays_bounded_at_zazaca_scale(): void
+    public function test_randomized_exact_candidate_planner_stays_bounded_at_zazaca_scale(): void
     {
         $user_id = self::factory()->user->create(['role' => 'subscriber']);
         wp_set_current_user($user_id);
@@ -2357,7 +2357,8 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
                 $category_ids,
                 'new',
                 'practice',
-                $candidate_word_ids
+                $candidate_word_ids,
+                true
             );
         } finally {
             remove_action(
@@ -2377,11 +2378,6 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
 
         $chunks = array_values((array) ($plan['chunks'] ?? []));
         $this->assertNotEmpty($chunks);
-        $this->assertSame(
-            [$category_ids[0]],
-            array_values(array_map('intval', (array) ($chunks[0]['category_ids'] ?? []))),
-            'The first Zazaca-scale chunk should need one category hydration request.'
-        );
         $this->assertLessThanOrEqual(15, count((array) ($chunks[0]['word_ids'] ?? [])));
 
         $planned_word_ids = [];
@@ -2396,6 +2392,23 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
         $this->assertCount(2714, array_unique($planned_word_ids));
         sort($planned_word_ids);
         $this->assertSame($candidate_word_ids, $planned_word_ids);
+
+        $next_plan = ll_tools_build_user_study_selection_launch_plan(
+            $user_id,
+            $wordset_id,
+            $category_ids,
+            'new',
+            'practice',
+            $candidate_word_ids,
+            true
+        );
+        $this->assertNotWPError($next_plan);
+        $this->assertEqualsCanonicalizing($candidate_word_ids, array_merge(...array_column($next_plan['chunks'], 'word_ids')));
+        $this->assertNotEqualsCanonicalizing(
+            $plan['word_ids'],
+            $next_plan['word_ids'],
+            'A fresh launch should sample a different opening batch from the same large candidate scope.'
+        );
     }
 
     public function test_selection_launch_plan_ajax_rejects_an_empty_exact_candidate_scope(): void
@@ -3429,7 +3442,7 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
             array_fill_keys($right['word_ids'], $right['category_id'])
         );
         $first = ll_tools_build_user_study_selection_launch_plan(
-            $user_id, $wordset_id, $category_ids, '', 'learning', $candidate_word_ids
+            $user_id, $wordset_id, $category_ids, '', 'learning', $candidate_word_ids, true
         );
         $this->assertIsArray($first);
         $events = [];
@@ -3448,7 +3461,7 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
         $this->assertSame(count($events), (int) ($stats['processed'] ?? 0));
 
         $second = ll_tools_build_user_study_selection_launch_plan(
-            $user_id, $wordset_id, $category_ids, '', 'learning', $candidate_word_ids
+            $user_id, $wordset_id, $category_ids, '', 'learning', $candidate_word_ids, true
         );
         $this->assertIsArray($second);
         $this->assertSame([], array_values(array_intersect($first['word_ids'], $second['word_ids'])));
@@ -4245,7 +4258,8 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
 
         $chunks = ll_tools_build_user_study_gender_selection_launch_chunks(
             $matched_by_category,
-            $gender_progress_rows
+            $gender_progress_rows,
+            randomize: true
         );
 
         $this->assertCount(6, $chunks);

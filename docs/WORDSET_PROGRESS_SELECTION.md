@@ -79,21 +79,29 @@ It stays available at portrait phone widths even when the Last column is hidden.
 - Filtered gender-table selections retain the existing locally displayed
   gender-eligible selection behavior; named progress groups switch back to
   ordinary word progress, as summary pills do.
+- Each Progress launch shuffles the selected words. The bounded planner
+  shuffles eligible targets within each category before forming chunks, so a
+  large selection can open with a different batch even when the exact filtered
+  IDs are reused. It retains every target and shuffles the completed batches
+  within their mode's priorities. Gender batches stay within their assigned
+  levels.
 - Fresh Learn launches order selected targets by the learner's last-seen time,
-  preferring unseen and least recently studied words. A recently studied set
-  moves behind remaining sets for Hard, Starred, other filters, and exact word
-  selections. Recency applies before bounded set formation and across compatible
-  presentation groups; every selected target remains in the plan. Small or
-  sparse selections can still need repeated words to form playable sets.
+  preferring unseen and least recently studied words. Equal-recency targets
+  can shuffle within their category. A recently studied set moves behind
+  remaining sets for Hard, Starred, other filters, and exact word selections.
+  Recency applies before bounded set formation and across compatible
+  presentation groups. Small or sparse selections can still need repeated
+  words to form playable sets.
 - A Learn question hides its category heading when the displayed answer choices
   mix categories. Introductions and questions with choices from one category
   retain their heading.
 
 ## Focused verification
 
-`UserStudyAnalyticsTest` verifies older counts and equivalent Last/summary
-filters without hydrating selection rows, including fresh counts with a warm
-membership cache. `wordset-page-progress-loading.spec.js`
+`UserStudyAnalyticsTest` verifies randomized opening batches retain the entire
+filtered ID scope at Zazaca scale. It also verifies older counts and equivalent
+Last/summary filters without hydrating selection rows, including fresh counts
+with a warm membership cache. `wordset-page-progress-loading.spec.js`
 verifies complete selection scopes, both older-word study modes, empty/failing
 filters, retry recovery, immediate actions before table responses, mobile refresh concurrency,
 pending selection, bounded launches, and age-based analytics/selection freshness.
