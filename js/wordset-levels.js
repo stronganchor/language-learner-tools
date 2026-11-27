@@ -54,6 +54,8 @@
         const contentLevels = new Map();
         const historyKey = 'llWordsetCurriculum';
         const wordset = options.wordsetId;
+        const badgeLayout = options.signedIn && config.badgeLayout;
+        let badgeSlots = badgeLayout?.slots || '';
         const completionHistory = options.signedIn && config.completionHistory
             ? Object.assign({},config.completionHistory) : null;
         const pendingCelebrations = new Set();
@@ -712,7 +714,26 @@
                 syncCompletions();
             });
         }
-        function card(group, existingPreviews) {
+        function rememberBadgeCounts(changes) {
+            if (!changes.size) return;
+            const key = badgeLayout.cookie + '=';
+            let slots = badgeSlots;
+            try {
+                // Another tab may already have rendered levels that are still pending here.
+                const saved = document.cookie.split(/;\s*/).find(pair => pair.startsWith(key))?.slice(key.length);
+                if (saved && /^[0-3-]{1,3800}$/.test(saved)) slots = saved;
+            } catch (_) { /* Storage can be unavailable in an embedded page. */ }
+            const digits = slots.padEnd(Math.max(...changes.keys()),'-').split('');
+            for (const [level,count] of changes) digits[level - 1] = String(count);
+            badgeSlots = digits.join('');
+            if (badgeSlots === slots) return;
+            try {
+                const path = location.pathname.replace(/;/g,'%3B').replace(/\/+$/,'') || '/';
+                document.cookie = key + badgeSlots + '; Path=' + path + '; Max-Age=31536000; SameSite=Lax'
+                    + (location.protocol === 'https:' ? '; Secure' : '');
+            } catch (_) { /* The live counts still render when cookies are blocked. */ }
+        }
+        function card(group, existingPreviews, badgeChanges) {
             const id = Number(group.level);
             const stats = summary && summary.levels && summary.levels[id];
             const shell = element('article','ll-level-card');
@@ -743,14 +764,20 @@
                 head.prepend(check);
             }
             const loadingStats = options.signedIn && !stats && !fetchError && (!summary || summary.preparing);
-            if (stats) addLevelFilterButtons(id,stats,badges,overview);
-            else if (loadingStats && group.categoryIds.size) {
+            if (stats) {
+                addLevelFilterButtons(id,stats,badges,overview);
+                if (badgeLayout && id <= 3800 && badgeSlots[id - 1] !== String(badges.childElementCount)) {
+                    badgeChanges.set(id,badges.childElementCount);
+                }
+            } else if (loadingStats && group.categoryIds.size) {
                 badges.setAttribute('aria-hidden','true');
-                levelFilters.forEach(() => {
+                const slot = badgeSlots[id - 1];
+                const count = slot === undefined || slot === '-' ? 1 : Number(slot);
+                for (let i = 0; i < count; ++i) {
                     const placeholder = element('span','ll-level-badge-placeholder');
                     placeholder.append(element('span','ll-level-badge ll-level-sheen'));
                     badges.append(placeholder);
-                });
+                }
             }
             if (badges.childElementCount) head.append(badges);
             const number = value => Number(value).toLocaleString(document.documentElement.lang || undefined);
@@ -813,13 +840,15 @@
                 else if (options.signedIn && (!summary || summary.preparing) && !fetchError && !credentialsExpired) {
                     fragment.append(loadingPlaceholder('ll-level-review-placeholder'));
                 }
+                const badgeChanges = new Map();
                 groups.forEach(group => {
-                    const levelCard = card(group,visiblePreviews.get(Number(group.level)));
+                    const levelCard = card(group,visiblePreviews.get(Number(group.level)),badgeChanges);
                     if (openProgress.has(levelCard.dataset.llLevelCard) && !levelCard.classList.contains('is-complete')) {
                         levelCard.querySelector(':scope > .ll-wordset-card__progress').open = true;
                     }
                     grid.append(levelCard);
                 });
+                rememberBadgeCounts(badgeChanges);
                 fragment.append(grid);
             } else {
                 const nav = element('div','ll-level-nav');

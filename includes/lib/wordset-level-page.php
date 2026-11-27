@@ -73,7 +73,18 @@ function ll_tools_wordset_level_page_catalog(int $wordset_id, array $categories,
     ];
 }
 
-/** Public catalog data is enough to paint the level layout before the interactive controls load. */
+/** One digit per level records only how many filter buttons were visible. A dash is an unseen level. */
+function ll_tools_wordset_level_badge_layout(int $user_id, int $wordset_id): array {
+    $scope = get_current_blog_id() . ':' . $user_id . ':' . $wordset_id;
+    $cookie = 'll_level_badges_' . substr(wp_hash($scope), 0, 16);
+    $slots = $_COOKIE[$cookie] ?? '';
+    if (!is_string($slots) || strlen($slots) > 3800 || !preg_match('/\A[0-3-]*\z/', $slots)) {
+        $slots = '';
+    }
+    return ['cookie' => $cookie, 'slots' => $slots];
+}
+
+/** Public catalog data and an optional learner layout hint paint the level shell without loading progress. */
 function ll_tools_wordset_level_render_initial_catalog(array $catalog, bool $signed_in): string {
     ob_start();
     ?>
@@ -85,6 +96,8 @@ function ll_tools_wordset_level_render_initial_catalog(array $catalog, bool $sig
             <?php foreach ($catalog['levels'] as $group) :
                 $has_activity = !empty($group['nextId']) || !empty($group['practiceId']);
                 $has_categories = !empty($group['categoryIds']);
+                $slot = $catalog['badgeLayout']['slots'][(int) $group['level'] - 1] ?? '-';
+                $badge_count = $slot === '-' ? 1 : (int) $slot;
                 ?>
                 <article class="ll-level-card" data-ll-level-card="<?php echo (int) $group['level']; ?>">
                     <div class="ll-level-row">
@@ -93,9 +106,9 @@ function ll_tools_wordset_level_render_initial_catalog(array $catalog, bool $sig
                                 <h2 class="ll-level-title"><span class="ll-level-shell-title"><?php
                                     echo esc_html(sprintf($catalog['i18n']['level'], (int) $group['level']));
                                 ?></span></h2>
-                                <?php if ($signed_in && $has_categories) : ?>
+                                <?php if ($signed_in && $has_categories && $badge_count) : ?>
                                     <div class="ll-level-badges" aria-hidden="true">
-                                        <?php for ($i = 0; $i < 3; ++$i) : ?>
+                                        <?php for ($i = 0; $i < $badge_count; ++$i) : ?>
                                             <span class="ll-level-badge-placeholder"><span class="ll-level-badge ll-level-sheen"></span></span>
                                         <?php endfor; ?>
                                     </div>

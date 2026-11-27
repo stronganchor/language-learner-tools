@@ -68,7 +68,7 @@ async function mount(page, options = {}) {
   if (options.flat) delete config.curriculumLevels;
   const shell = options.flat ? '' : '<section data-ll-wordset-levels><div class="ll-level-grid">' +
     config.curriculumLevels.levels.map(group => '<article class="ll-level-card"><h2 class="ll-level-title">Level ' + group.level + '</h2></article>').join('') + '</div></section>';
-  const body = '<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/core.css"><link rel="stylesheet" href="/catalog.css"><link rel="stylesheet" href="/levels.css">' +
+  const body = () => '<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/core.css"><link rel="stylesheet" href="/catalog.css"><link rel="stylesheet" href="/levels.css">' +
     '<main class="ll-wordset-page" data-ll-wordset-page' + (options.flat ? '' : ' data-ll-level-initial') + '><div class="ll-wordset-grid-tools"><div class="ll-wordset-grid-search-tools"><div class="ll-wordset-progress-search ll-wordset-progress-search--wordset-page"><input class="ll-wordset-progress-search__input" aria-label="Search" placeholder="Search words or translations" type="search" data-ll-wordset-page-search><button class="ll-wordset-progress-search__clear" data-ll-wordset-page-search-clear hidden>Clear</button></div></div><button data-ll-wordset-select-all>Select all</button></div>' +
     shell + '<div data-ll-wordset-main-grid class="ll-wordset-grid">' + catalog.slice(0,options.sparse ? 1 : options.initialCards).map(item=>existing(item)).join('') +
     '</div><div data-ll-wordset-page-search-empty hidden>Empty</div></main><div id="ll-study-results-actions" style="display:none"><button id="ll-study-results-same-chunk"></button><button id="ll-study-results-different-chunk"></button><button id="ll-study-results-next-chunk"></button></div><script>window.llWordsetPageData='+JSON.stringify(config)+'</script>' +
@@ -176,7 +176,12 @@ async function mount(page, options = {}) {
     }
     if (url.pathname === '/jquery.js' && options.scriptGate) await options.scriptGate;
     if (files[url.pathname]) return route.fulfill({contentType:url.pathname.endsWith('.css')?'text/css':'text/javascript',body:files[url.pathname]});
-    return route.fulfill({contentType:'text/html',body:url.pathname === '/' ? body : '<h1>Lesson</h1>'});
+    if (options.badgeCookie && options.signed) {
+      const cookies = (await route.request().headerValue('cookie') || '').split(/;\s*/);
+      const pair = cookies.find(value=>value.startsWith(options.badgeCookie+'='));
+      config.curriculumLevels.badgeLayout = {cookie:options.badgeCookie,slots:pair?.split('=')[1] || ''};
+    }
+    return route.fulfill({contentType:'text/html',body:url.pathname === '/' ? body() : '<h1>Lesson</h1>'});
   });
   await page.goto(base+'/', {waitUntil: options.scriptGate ? 'commit' : 'load'});
   if (!options.scriptGate && !options.noScripts && !options.flat) {
@@ -577,7 +582,7 @@ for (const width of [360,1240]) {
     const first=page.locator('[data-ll-level-card="1"]');
     const badges=first.locator('.ll-level-badges');
     const placeholders=badges.locator('.ll-level-sheen');
-    await expect(placeholders).toHaveCount(3);
+    await expect(placeholders).toHaveCount(1);
     await expect(badges).toHaveAttribute('aria-hidden','true');
     await expect(first.locator('[data-ll-level-filter]')).toHaveCount(0);
     const animation=width===360 ? 'none' : 'll-wordset-skeleton-shimmer';
@@ -608,6 +613,33 @@ for (const width of [360,1240]) {
     expect(await dimensions()).toEqual(before);
   });
 }
+
+test('a returning learner sees the last rendered badge count for each level throughout partial loading',async({page})=>{
+  const row = {total:10,mastered:2,working:8,due:0,hard:2,starred:1,practice_category_id:2};
+  const options = {signed:true,badgeCookie:'ll_level_badges_fixture',groups:[...groups,{...groups[1],level:3}],
+    summary:{levels:{1:row,2:{...row,hard:0,starred:0},3:{...row,due:1}}}};
+  const saved = async ()=>(await page.context().cookies(base)).find(cookie=>cookie.name===options.badgeCookie)?.value;
+  await mount(page,options);
+  await expect.poll(saved).toBe('203');
+
+  let releaseInitial,releaseRest;
+  options.pauseSummary=new Promise(resolve=>{releaseInitial=resolve;});
+  options.partialSummary=new Promise(resolve=>{releaseRest=resolve;});
+  options.summary.levels[2].starred=1;
+  const chips=(level,selector)=>page.locator('[data-ll-level-card="'+level+'"] '+selector);
+  try {
+    await page.reload();
+    for(const [level,count] of [[1,2],[2,0],[3,3]]) {
+      await expect(chips(level,'.ll-level-badge-placeholder')).toHaveCount(count);
+    }
+    releaseInitial();
+    await expect(chips(1,'[data-ll-level-filter]')).toHaveCount(3);
+    await expect(chips(3,'.ll-level-badge-placeholder')).toHaveCount(3);
+    await expect.poll(saved).toBe('303');
+  } finally { releaseInitial(); releaseRest(); }
+  await expect(chips(2,'[data-ll-level-filter]')).toHaveCount(1);
+  await expect.poll(saved).toBe('213');
+});
 
 test('empty previews, failed lookups and broken images leave no loading sheen or broken image',async({page})=>{
   for (const thumbnailLookupFails of [false,true]) {
@@ -1456,4 +1488,35 @@ test('hidden tabs pause warming and refresh once when a stale catalog returns',a
   await page.waitForFunction(()=>window.jQuery.active===0);
   await page.evaluate(()=>window.dispatchEvent(new PageTransitionEvent('pageshow',{persisted:true})));
   await expect.poll(reads).toBe(4);
+});
+
+test('level status buttons stay together and reserve a shared activity column', async ({page}) => {
+  const complete = {total:1000, mastered:1000, working:0, new:0, due:601, hard:120, starred:399, practice_category_id:2};
+  const next = {...complete, total:1100, new:100, due:0, hard:0, next_category_id:15, practice_category_id:15};
+  await mount(page, {signed:true, summary:{levels:{1:complete, 2:next}}});
+  const first = page.locator('[data-ll-level-card="1"]');
+  const chips = first.locator('.ll-level-filter-toggle');
+  const activity = first.locator('.ll-level-activity');
+  await expect(chips).toHaveCount(3);
+
+  for (const width of [1240, 850, 320]) {
+    await page.setViewportSize({width, height:850});
+    const title = await first.locator('.ll-level-title').boundingBox();
+    const boxes = await Promise.all((await chips.all()).map(chip => chip.boundingBox()));
+    const button = await activity.boundingBox();
+    for (const box of boxes) expect(box.y).toBeCloseTo(boxes[0].y, 0);
+    if (width === 320) {
+      expect(boxes[0].y).toBeGreaterThanOrEqual(title.y + title.height);
+      expect(button.y).toBeGreaterThanOrEqual(boxes[0].y + boxes[0].height);
+    } else {
+      expect(boxes[0].x).toBeGreaterThanOrEqual(title.x + title.width);
+      expect(boxes[0].y + boxes[0].height / 2).toBeCloseTo(title.y + title.height / 2, 0);
+      expect(button.x).toBeGreaterThanOrEqual(boxes[2].x + boxes[2].width);
+      const nextButton = await page.locator('[data-ll-level-card="2"] .ll-level-activity').first().boundingBox();
+      expect(nextButton.x).toBeCloseTo(button.x, 0);
+      await chips.first().click();
+      expect((await activity.boundingBox()).x).toBeCloseTo(button.x, 0);
+      await chips.first().click();
+    }
+  }
 });

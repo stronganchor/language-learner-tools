@@ -27298,20 +27298,20 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
         'minQueryLength' => 1,
     ] : [];
     // Keep the regular catalog usable if a private, expiring progress scope could not be stored.
-    $curriculum_levels = $level_catalog['public'] ?? [];
-    if ($curriculum_levels && (!$is_study_user || $category_search_token !== '')) {
+    $can_show_levels = !$is_study_user || $category_search_token !== '';
+    $curriculum_levels = $can_show_levels ? ($level_catalog['public'] ?? []) : [];
+    if ($curriculum_levels) {
         $level_token = !empty($category_search_payload['level_scope']) ? $category_search_token : '';
         $curriculum_levels['nonce'] = $level_token !== '' ? wp_create_nonce('ll_tools_wordset_levels') : '';
         $curriculum_levels['token'] = $level_token;
         $curriculum_levels['i18n'] = ll_tools_wordset_level_labels();
         if ($is_study_user && $level_token !== '') {
+            $curriculum_levels['badgeLayout'] = ll_tools_wordset_level_badge_layout($category_search_user_id, $wordset_id);
             $history = ll_tools_wordset_level_completion_history($category_search_user_id);
             if (is_array($history) && is_array($history[$wordset_id] ?? [])) {
                 $curriculum_levels['completionHistory'] = array_intersect_key($history[$wordset_id] ?? [], $category_search_payload['level_scope']);
             }
         }
-    } else {
-        $curriculum_levels = [];
     }
 
     $script_categories_source = [];

@@ -73,6 +73,10 @@ final class WordsetPageDeferredStudyCatalogResourceTest extends LL_Tools_TestCas
             update_term_meta($wordset_id, 'll_wordset_category_prerequisites', [$ids[7] => [$ids[0]], $ids[8] => [$ids[7]]]);
             $learner = self::factory()->user->create(['role' => 'subscriber']);
             ll_tools_save_user_study_goals(['ignored_category_ids' => [$ids[0]]], $learner);
+            $layout = ll_tools_wordset_level_badge_layout($learner, $wordset_id);
+            $_COOKIE[$layout['cookie']] = '2-0';
+            $this->assertSame('', ll_tools_wordset_level_badge_layout($learner + 1, $wordset_id)['slots']);
+            $this->assertSame('', ll_tools_wordset_level_badge_layout($learner, $wordset_id + 1)['slots']);
             foreach ([0, $learner] as $user_id) {
                 $this->completeLlToolsSimulatedRequest();
                 wp_set_current_user($user_id);
@@ -98,8 +102,14 @@ final class WordsetPageDeferredStudyCatalogResourceTest extends LL_Tools_TestCas
                 $this->assertStringContainsString('data-ll-wordset-levels', $html);
                 $this->assertStringContainsString('data-ll-level-initial', $html);
                 $this->assertSame(1, preg_match('/<section data-ll-wordset-levels[^>]*>(.*?)<\/section>/s', $html, $shell));
+                if ($user_id) {
+                    $this->assertSame('2-0', $curriculum['badgeLayout']['slots']);
+                } else {
+                    $this->assertArrayNotHasKey('badgeLayout', $curriculum);
+                }
                 foreach ($levels as $level => $_) {
-                    $this->assertStringContainsString('data-ll-level-card="' . $level . '"', $shell[1]);
+                    $this->assertSame(1, preg_match('/data-ll-level-card="' . $level . '"(.*?)<\/article>/s', $shell[1], $card));
+                    $this->assertSame($user_id ? [1 => 2, 2 => 1, 3 => 0][$level] : 0, substr_count($card[1], 'll-level-badge-placeholder'));
                     $this->assertStringContainsString(esc_html(sprintf($curriculum['i18n']['level'], $level)), $shell[1]);
                 }
                 $expected_rows = array_filter($curriculum['levels'], static function ($level) {
@@ -118,6 +128,9 @@ final class WordsetPageDeferredStudyCatalogResourceTest extends LL_Tools_TestCas
                 $this->assertTrue(wp_style_is('ll-wordset-levels-css', 'enqueued'));
             }
         } finally {
+            if (isset($layout)) {
+                unset($_COOKIE[$layout['cookie']]);
+            }
             wp_set_current_user(0);
             remove_filter('ll_tools_wordset_page_lazy_card_batch_size', $batch);
             remove_filter('ll_tools_quiz_min_words', $minimum);

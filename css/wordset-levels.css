@@ -47,7 +47,8 @@
 .ll-level-row {
     display: grid;
     align-items: center;
-    grid-template-columns: minmax(0, .72fr) minmax(0, 2fr);
+    /* Reserve a common start for the activities, with room for a longer translated heading. */
+    grid-template-columns: minmax(clamp(23rem, 36%, 29rem), max-content) minmax(15rem, 1fr);
     gap: 1rem;
 }
 .ll-level-card-head, .ll-level-badges, .ll-level-nav, .ll-level-state {
@@ -56,6 +57,7 @@
     flex-wrap: wrap;
     gap: .4rem;
 }
+.ll-level-badges { flex: 0 0 auto; max-inline-size: 100%; }
 .ll-wordset-page .ll-level-title, .ll-wordset-page .ll-level-detail-title {
     margin: 0;
     padding: 0;
@@ -155,7 +157,9 @@
     justify-items: start;
     gap: .35rem;
     box-sizing: border-box;
-    width: fit-content;
+    /* Opening a filter must not widen its column and move the activities. */
+    contain: inline-size;
+    width: 100%;
     max-width: min(100%, 32rem);
     margin: .25rem 0 .65rem;
     padding: .65rem .75rem;
@@ -194,7 +198,7 @@
 }
 .ll-level-progress-count { display: block; color: var(--ll-wp-muted); font-size: .84rem; line-height: 1.45; font-variant-numeric: tabular-nums; }
 .ll-level-card > .ll-wordset-card__progress { margin-block-start: .7rem; }
-.ll-level-activities { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); gap: .65rem; }
+.ll-level-activities { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 12.5rem), 1fr)); gap: .65rem; }
 .ll-wordset-page .ll-level-activity {
     container: ll-level-action / inline-size;
     --ll-level-image-size: 3.5rem;
@@ -414,6 +418,8 @@
     .ll-level-activities { grid-template-columns: minmax(0, 1fr); }
     .ll-wordset-page .ll-level-activity { --ll-level-image-size: 2.4rem; min-height: 58px; }
     .ll-level-activity-mode { --ll-level-mode-size: 1.55rem; }
+    .ll-level-badges { gap: .25rem; }
+    .ll-level-filter-toggle .ll-level-badge { gap: .23rem; padding-inline: .35rem; }
 }
 @container ll-level-action (max-width: 18rem) {
     .ll-level-thumb-slot { --ll-level-image-size: 2.4rem; }

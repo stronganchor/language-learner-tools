@@ -2838,17 +2838,17 @@
             "msgid_plural": null,
             "references": [
                 "includes/lib/wordset-level-labels.php:50",
-                "includes/lib/wordset-level-page.php:245",
-                "includes/lib/wordset-level-page.php:248",
-                "includes/lib/wordset-level-page.php:253",
-                "includes/lib/wordset-level-page.php:272"
+                "includes/lib/wordset-level-page.php:258",
+                "includes/lib/wordset-level-page.php:261",
+                "includes/lib/wordset-level-page.php:266",
+                "includes/lib/wordset-level-page.php:285"
             ],
             "public_references": [
                 "includes/lib/wordset-level-labels.php:50",
-                "includes/lib/wordset-level-page.php:245",
-                "includes/lib/wordset-level-page.php:248",
-                "includes/lib/wordset-level-page.php:253",
-                "includes/lib/wordset-level-page.php:272"
+                "includes/lib/wordset-level-page.php:258",
+                "includes/lib/wordset-level-page.php:261",
+                "includes/lib/wordset-level-page.php:266",
+                "includes/lib/wordset-level-page.php:285"
             ]
         },
         {
@@ -3015,12 +3015,12 @@
             "msgid_plural": null,
             "references": [
                 "includes/lib/wordset-level-labels.php:9",
-                "includes/lib/wordset-level-page.php:375",
+                "includes/lib/wordset-level-page.php:388",
                 "includes/shortcodes/content-lesson-index-shortcode.php:584"
             ],
             "public_references": [
                 "includes/lib/wordset-level-labels.php:9",
-                "includes/lib/wordset-level-page.php:375",
+                "includes/lib/wordset-level-page.php:388",
                 "includes/shortcodes/content-lesson-index-shortcode.php:584"
             ]
         },
@@ -3030,10 +3030,10 @@
             "msgid": "Could not load level progress. Please try again.",
             "msgid_plural": null,
             "references": [
-                "includes/lib/wordset-level-page.php:142"
+                "includes/lib/wordset-level-page.php:155"
             ],
             "public_references": [
-                "includes/lib/wordset-level-page.php:142"
+                "includes/lib/wordset-level-page.php:155"
             ]
         },
         {
@@ -3042,10 +3042,10 @@
             "msgid": "Choose a review interval from 1 to 365 days.",
             "msgid_plural": null,
             "references": [
-                "includes/lib/wordset-level-page.php:147"
+                "includes/lib/wordset-level-page.php:160"
             ],
             "public_references": [
-                "includes/lib/wordset-level-page.php:147"
+                "includes/lib/wordset-level-page.php:160"
             ]
         },
         {
@@ -3054,10 +3054,10 @@
             "msgid": "Could not save this review interval. Please try again.",
             "msgid_plural": null,
             "references": [
-                "includes/lib/wordset-level-page.php:162"
+                "includes/lib/wordset-level-page.php:175"
             ],
             "public_references": [
-                "includes/lib/wordset-level-page.php:162"
+                "includes/lib/wordset-level-page.php:175"
             ]
         },
         {
@@ -3066,10 +3066,10 @@
             "msgid": "Please sign in to view your progress.",
             "msgid_plural": null,
             "references": [
-                "includes/lib/wordset-level-page.php:239"
+                "includes/lib/wordset-level-page.php:252"
             ],
             "public_references": [
-                "includes/lib/wordset-level-page.php:239"
+                "includes/lib/wordset-level-page.php:252"
             ]
         },
         {
@@ -3078,10 +3078,10 @@
             "msgid": "This level is unavailable.",
             "msgid_plural": null,
             "references": [
-                "includes/lib/wordset-level-page.php:285"
+                "includes/lib/wordset-level-page.php:298"
             ],
             "public_references": [
-                "includes/lib/wordset-level-page.php:285"
+                "includes/lib/wordset-level-page.php:298"
             ]
         },
         {
@@ -3090,12 +3090,12 @@
             "msgid": "Unknown level action.",
             "msgid_plural": null,
             "references": [
-                "includes/lib/wordset-level-page.php:289",
-                "includes/lib/wordset-level-page.php:337"
+                "includes/lib/wordset-level-page.php:302",
+                "includes/lib/wordset-level-page.php:350"
             ],
             "public_references": [
-                "includes/lib/wordset-level-page.php:289",
-                "includes/lib/wordset-level-page.php:337"
+                "includes/lib/wordset-level-page.php:302",
+                "includes/lib/wordset-level-page.php:350"
             ]
         },
         {
@@ -3104,7 +3104,7 @@
             "msgid": "No quiz words are available for this selection.",
             "msgid_plural": null,
             "references": [
-                "includes/lib/wordset-level-page.php:292",
+                "includes/lib/wordset-level-page.php:305",
                 "includes/pages/wordset-pages.php:27600",
                 "includes/user-progress.php:12486",
                 "includes/user-progress.php:12912",
@@ -3115,7 +3115,7 @@
                 "includes/user-progress.php:13700"
             ],
             "public_references": [
-                "includes/lib/wordset-level-page.php:292",
+                "includes/lib/wordset-level-page.php:305",
                 "includes/pages/wordset-pages.php:27600"
             ]
         },
@@ -3125,10 +3125,10 @@
             "msgid": "There is nothing to practice in this selection right now.",
             "msgid_plural": null,
             "references": [
-                "includes/lib/wordset-level-page.php:342"
+                "includes/lib/wordset-level-page.php:355"
             ],
             "public_references": [
-                "includes/lib/wordset-level-page.php:342"
+                "includes/lib/wordset-level-page.php:355"
             ]
         },
         {
@@ -3137,10 +3137,10 @@
             "msgid": "Course levels",
             "msgid_plural": null,
             "references": [
-                "includes/lib/wordset-level-page.php:80"
+                "includes/lib/wordset-level-page.php:91"
             ],
             "public_references": [
-                "includes/lib/wordset-level-page.php:80"
+                "includes/lib/wordset-level-page.php:91"
             ]
         },
         {
