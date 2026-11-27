@@ -20,14 +20,16 @@ function ll_tools_wordset_level_is_availability_meta(string $key): bool {
  * A published target may be a word or a prompt with answer-word tracking.
  * Multiple prompt forms of the same word count once. Standalone prompts are exercises.
  */
-function ll_tools_wordset_level_project_targets(array $ids, array &$members, bool $materialized_targets = false, string $projection = '') {
+// Store mode eligibility in the same compact membership used by the overview.
+const LL_TOOLS_LEVEL_MEMBER_RECORDED = 2;
+const LL_TOOLS_LEVEL_MEMBER_DIRECT = 4;
+function ll_tools_wordset_level_project_targets(array $ids, array &$members, bool $materialized_targets = false) {
     global $wpdb;
     if (!$ids) { return true; }
     $slots = implode(',', array_fill(0, count($ids), '%d'));
-    $sql = "SELECT ID, post_type FROM {$wpdb->posts} w
+    $recorded = ll_tools_flashcards_playable_target_sql();
+    $sql = "SELECT ID, post_type, $recorded AS recorded FROM {$wpdb->posts} w
         WHERE ID IN ($slots) AND post_status='publish' AND post_type IN ('words','ll_prompt_card')";
-    if ($projection === 'listening') { $sql .= ' AND ' . ll_tools_flashcards_playable_target_sql(); }
-    if ($projection === 'gender') { $sql .= " AND post_type='words'"; }
     $records = $wpdb->get_results($wpdb->prepare($sql, $ids), ARRAY_A);
     if ($wpdb->last_error !== '') { return ll_tools_wordset_level_progress_error(); }
     $words = [];
@@ -47,17 +49,20 @@ function ll_tools_wordset_level_project_targets(array $ids, array &$members, boo
         $id = (int) $record['ID'];
         if (isset($wrong[$id])) { continue; }
         $word = $record['post_type'] === 'words' ? $id : (int) ($answers[$id] ?? 0);
-        if ($word) { $members[$word] = true; }
+        if ($word) {
+            $members[$word] = ($members[$word] ?? 0) | 1
+                | ($record['recorded'] ? LL_TOOLS_LEVEL_MEMBER_RECORDED : 0)
+                | ($record['post_type'] === 'words' ? LL_TOOLS_LEVEL_MEMBER_DIRECT : 0);
+        }
     }
     return true;
 }
 
-function ll_tools_wordset_level_member_key(int $wordset_id, int $category_id, string $projection = ''): string {
-    return 'll_lvl_m4_' . md5(wp_json_encode([$wordset_id, $category_id, get_locale(),
+function ll_tools_wordset_level_member_key(int $wordset_id, int $category_id): string {
+    return 'll_lvl_m5_' . md5(wp_json_encode([$wordset_id, $category_id, get_locale(),
         ll_tools_get_category_cache_versions([$category_id]), ll_tools_get_category_dependency_epoch(), ll_tools_get_wordset_cache_epoch(),
         ll_tools_get_category_versioned_content_epoch([$wordset_id], [$category_id]),
-        (int) apply_filters('ll_tools_quiz_min_words', LL_TOOLS_MIN_WORDS_PER_QUIZ)]))
-        . ($projection !== '' ? '_' . $projection : '');
+        (int) apply_filters('ll_tools_quiz_min_words', LL_TOOLS_MIN_WORDS_PER_QUIZ)]));
 }
 
 /**
@@ -65,7 +70,7 @@ function ll_tools_wordset_level_member_key(int $wordset_id, int $category_id, st
  * reader still checks source and local visibility, the current viewer, and
  * expiration through WordPress. Cache keys and invalidation are identical.
  */
-function ll_tools_wordset_level_prime_member_keys(int $wordset_id, array $category_ids, array &$object_cache, string $projection = '') {
+function ll_tools_wordset_level_prime_member_keys(int $wordset_id, array $category_ids, array &$object_cache) {
     global $wpdb;
     $wpdb->last_error = '';
     _prime_term_caches($category_ids, false);
@@ -87,7 +92,7 @@ function ll_tools_wordset_level_prime_member_keys(int $wordset_id, array $catego
     $keys = [];
     $transients = [];
     foreach ($category_ids as $category_id) {
-        $key = ll_tools_wordset_level_member_key($wordset_id, $category_id, $projection);
+        $key = ll_tools_wordset_level_member_key($wordset_id, $category_id);
         $keys[$category_id] = $key;
         $transients[] = $key;
         $transients[] = $key . '_u' . $viewer;
@@ -113,7 +118,7 @@ function ll_tools_wordset_level_prime_member_keys(int $wordset_id, array $catego
  * their raw input is bounded. Large lessons reuse the flashcard worker and read
  * compact IDs out of its completed generation without loading media or posts.
  */
-function ll_tools_wordset_level_members(int $wordset_id, int $category_id, int &$cold_budget, ?string $key = null, array $object_cache = [], string $projection = '') {
+function ll_tools_wordset_level_members(int $wordset_id, int $category_id, int &$cold_budget, ?string $key = null, array $object_cache = []) {
     global $wpdb;
     $complete = true;
     $category_private = ll_tools_is_category_private($category_id, $complete);
@@ -121,7 +126,7 @@ function ll_tools_wordset_level_members(int $wordset_id, int $category_id, int &
     $wordset_private = ll_tools_is_wordset_private($wordset_id, $complete);
     if (!$complete) { return ll_tools_wordset_level_progress_error(); }
     $public = !$category_private && !$wordset_private;
-    $key = $key ?? ll_tools_wordset_level_member_key($wordset_id, $category_id, $projection);
+    $key = $key ?? ll_tools_wordset_level_member_key($wordset_id, $category_id);
     $personal_key = $key . '_u' . get_current_user_id();
     $cached = $public ? ($object_cache[$key] ?? get_transient($key)) : false;
     if (!is_array($cached)) { $cached = $object_cache[$personal_key] ?? get_transient($personal_key); }
@@ -138,7 +143,7 @@ function ll_tools_wordset_level_members(int $wordset_id, int $category_id, int &
         $targets = ll_tools_user_study_renderable_word_ids_by_category([$category_id], $wordset_id, $complete);
         if (!$complete) { return ll_tools_wordset_level_progress_error(); }
         $primary_targets = array_intersect($targets[$category_id] ?? [], array_merge($raw_words, $raw_prompts));
-        $ready = ll_tools_wordset_level_project_targets($primary_targets, $members, false, $projection);
+        $ready = ll_tools_wordset_level_project_targets($primary_targets, $members);
         if (is_wp_error($ready)) { return $ready; }
         // Regular published words belonging to the public wordset and public
         // category share a scope. Small prompt lessons can reference words from
@@ -162,14 +167,14 @@ function ll_tools_wordset_level_members(int $wordset_id, int $category_id, int &
         if ($generation === '' || $state['generation'] !== $generation) { return ll_tools_wordset_level_preparing(); }
         // Spend the remainder of the cold budget on this larger page.
         $cold_budget = 0;
-        return ll_tools_wordset_level_project_generation($key, $hash, $generation, $projection);
+        return ll_tools_wordset_level_project_generation($key, $hash, $generation);
     }
     set_transient($key, $members, DAY_IN_SECONDS);
     return $members;
 }
 
 /** Checkpoint one compact target page, retaining only complete published generations. */
-function ll_tools_wordset_level_project_generation(string $key, string $hash, string $generation, string $projection = '') {
+function ll_tools_wordset_level_project_generation(string $key, string $hash, string $generation) {
     global $wpdb;
     $checkpoint_key = $key . '_p_' . substr($generation, 0, 20);
     if (!ll_tools_wordset_page_acquire_cache_rebuild_lock($checkpoint_key, 60)) {
@@ -189,7 +194,7 @@ function ll_tools_wordset_level_project_generation(string $key, string $hash, st
             ORDER BY sort_group,row_id LIMIT 250", $hash, $generation, $group, $group, $cursor), ARRAY_A);
         if ($wpdb->last_error !== '') { return ll_tools_wordset_level_progress_error(); }
         $ids = array_column($page, 'row_id');
-        $step = ll_tools_wordset_level_project_targets($ids, $members, true, $projection);
+        $step = ll_tools_wordset_level_project_targets($ids, $members, true);
         if (is_wp_error($step)) { return $step; }
         $latest = ll_tools_get_flashcard_payload_state($hash);
         if ($latest['generation'] !== $generation || $latest['published_generation'] !== $generation
@@ -344,7 +349,7 @@ function ll_tools_wordset_level_course_reviews(int $wordset_id, int $user_id, ar
 }
 
 /** Load exact membership IDs and bounded progress columns for the complete visible course. */
-function ll_tools_wordset_level_member_progress(int $wordset_id, int $user_id, array $level_categories, bool $practice_only = false, string $quiz_mode = '') {
+function ll_tools_wordset_level_member_progress(int $wordset_id, int $user_id, array $level_categories, bool $practice_only = false, string $quiz_mode = '', bool $cache_only = false) {
     $levels = [];
     $category_ids = [];
     foreach ($level_categories as $level => $rows) {
@@ -358,24 +363,27 @@ function ll_tools_wordset_level_member_progress(int $wordset_id, int $user_id, a
             $category_ids[$cid] = $cid;
         }
     }
-    $cold_budget = 8;
+    $cold_budget = $cache_only ? 0 : 8;
     $members = [];
     $all_ids = [];
     $preparing = false;
     // Listen needs recorded items, and Gender needs direct nouns rather than tracked prompt answers.
-    $projection = in_array($quiz_mode, ['listening', 'gender'], true) ? $quiz_mode : '';
+    $required_flag = ['listening' => LL_TOOLS_LEVEL_MEMBER_RECORDED, 'gender' => LL_TOOLS_LEVEL_MEMBER_DIRECT][$quiz_mode] ?? 0;
     foreach (array_chunk($category_ids, 100) as $chunk) {
         $object_cache = [];
-        $keys = ll_tools_wordset_level_prime_member_keys($wordset_id, $chunk, $object_cache, $projection);
+        $keys = ll_tools_wordset_level_prime_member_keys($wordset_id, $chunk, $object_cache);
         if (is_wp_error($keys)) { return $keys; }
         foreach ($keys as $cid => $key) {
-            $items = ll_tools_wordset_level_members($wordset_id, $cid, $cold_budget, $key, $object_cache, $projection);
+            $items = ll_tools_wordset_level_members($wordset_id, $cid, $cold_budget, $key, $object_cache);
             if (is_wp_error($items) && $items->get_error_code() === 'll_level_progress_preparing') {
                 $preparing = true;
                 if ($cold_budget <= 0) { return $items; }
                 continue;
             }
             if (is_wp_error($items)) { return $items; }
+            if ($required_flag) {
+                $items = array_filter($items, static function ($flags) use ($required_flag) { return $flags & $required_flag; });
+            }
             $members[$cid] = $items;
             $all_ids += $items;
         }

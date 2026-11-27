@@ -5,6 +5,119 @@ const path = require('path');
 const listeningScriptPath = path.resolve(__dirname, '../../../js/flashcard-widget/modes/listening.js');
 const jquerySource = fs.readFileSync(require.resolve('jquery'), 'utf8');
 
+async function mountStreamedLevel(page, inlineStarter = false) {
+  await page.goto('about:blank');
+  await page.route('https://audio.test/**', route => route.fulfill({
+    path: path.resolve(__dirname, '../../../media/right-answer.mp3'),
+    contentType: 'audio/mpeg', headers: { 'Access-Control-Allow-Origin': '*' }
+  }));
+  await page.setContent(`
+    <div id="ll-tools-flashcard-popup"><div id="ll-tools-flashcard-quiz-popup">
+      <div id="ll-tools-flashcard-header"><button id="ll-tools-close-flashcard">Close</button></div>
+      <div id="ll-tools-flashcard-content"><div id="ll-tools-flashcard"></div></div>
+      <div id="quiz-results" style="display:none"><h2 id="quiz-results-title">Results</h2></div>
+    </div></div>
+  `);
+  await page.addScriptTag({ content: jquerySource });
+  await page.evaluate(inlineStarter => {
+    window.llToolsFlashcardsData = {
+      wordset: 'test', wordsetIds: [7], wordsetFallback: false, ajaxurl: '/ajax',
+      categories: [{ id: 1, name: 'Lesson', slug: 'lesson', prompt_type: 'audio', option_type: 'text_translation', listening_supported: true }],
+      lastLaunchPlan: { mode: 'listening', details: { curriculum_listening_stream: true } }
+    };
+    window.llToolsFlashcardsMessages = {};
+    window.heardClips = [];
+    window.payloadRequests = [];
+    window.abortedCursors = [];
+    window.jQuery.fx.off = true;
+    const word = (id, audio) => ({
+      id, title: 'Word ' + id, label: 'Word ' + id, translation: 'Word ' + id,
+      wordset_ids: [7], audio: audio ? 'https://audio.test/' + id + '.mp3' : ''
+    });
+    // Only the prompt that tracks its answer word belongs in level Listen.
+    const prompt = (id, progressId) => ({
+      ...word(id, true), is_prompt_card: true, prompt_card_id: id, answer_word_id: 31,
+      progress_word_id: progressId, prompt_audio: 'https://audio.test/prompt.mp3'
+    });
+    const starter = { rows: [word(6, false), prompt(81, 0), prompt(91, 31)], next_cursor: 'page-two' };
+    if (inlineStarter) window.llToolsFlashcardsData.levelListeningStarterPage = { category_id: 1, ...starter };
+    window.jQuery.ajax = options => {
+      const { cursor = '', page_size } = options.data;
+      window.payloadRequests.push({ cursor, size: Number(page_size) });
+      const request = window.jQuery.Deferred();
+      const complete = data => {
+        options.success({ success: true, data });
+        request.resolve();
+      };
+      if (!cursor) {
+        queueMicrotask(() => complete(starter));
+      } else {
+        window.releaseListeningPage = () => complete({
+          rows: [word(31, true), word(32, true)], next_cursor: ''
+        });
+      }
+      return request.promise({ abort() {
+        window.abortedCursors.push(cursor);
+        options.error({ status: 0 }, 'abort');
+        request.reject();
+      } });
+    };
+  }, inlineStarter);
+  const widgetDir = path.dirname(path.dirname(listeningScriptPath));
+  for (const module of ['audio', 'loader', 'options', 'util', 'state', 'dom', 'effects', 'cards',
+    'selection', 'results', 'modes/listening', 'main']) {
+    await page.addScriptTag({ path: path.join(widgetDir, module + '.js') });
+  }
+  await page.evaluate(() => {
+    // Hold playback open until the user presses Next, independent of media codecs and clocks.
+    let audio;
+    window.FlashcardAudio.setTargetWordAudio = (_word, options) => {
+      audio = document.createElement('audio');
+      audio.dataset.clip = options.audioUrl;
+    };
+    window.FlashcardAudio.getCurrentTargetAudio = () => audio;
+    window.FlashcardAudio.playAudio = clip => {
+      window.FlashcardAudio.setTargetAudioHasPlayed(true);
+      window.heardClips.push(clip.dataset.clip);
+    };
+    window.initFlashcardWidget(['Lesson'], 'listening');
+  });
+}
+
+for (const inlineStarter of [false, true]) {
+  test('level Listen with '+(inlineStarter ? 'inline' : 'fetched')+' recordings plays before the next page arrives and Next waits for the remaining words', async ({ page }) => {
+    await mountStreamedLevel(page, inlineStarter);
+    await expect.poll(() => page.evaluate(() => window.heardClips)).toEqual(['https://audio.test/prompt.mp3']);
+    const expectedRequests = inlineStarter ? [] : [{ cursor: '', size: 12 }];
+    expectedRequests.push({ cursor: 'page-two', size: 200 });
+    await expect.poll(() => page.evaluate(() => window.payloadRequests)).toEqual(expectedRequests);
+    await page.locator('#ll-listen-forward').click();
+    await expect(page.locator('#quiz-results')).toBeHidden();
+    await page.evaluate(() => window.releaseListeningPage());
+    await expect.poll(() => page.evaluate(() => window.heardClips)).toEqual([
+      'https://audio.test/prompt.mp3', 'https://audio.test/32.mp3'
+    ]);
+    await page.locator('#ll-listen-forward').click();
+    await expect(page.locator('#quiz-results')).toBeVisible();
+    expect(await page.evaluate(() => window.payloadRequests)).toEqual(expectedRequests);
+  });
+}
+
+test('closing a streamed level before its remaining page arrives keeps the player closed', async ({ page }) => {
+  await mountStreamedLevel(page);
+  await expect.poll(() => page.evaluate(() => window.heardClips.length)).toBe(1);
+  await page.waitForFunction(() => !!window.releaseListeningPage);
+  await page.locator('#ll-tools-close-flashcard').click();
+  await expect(page.locator('#ll-tools-flashcard-popup')).toBeHidden();
+  expect(await page.evaluate(() => window.abortedCursors)).toEqual(['page-two']);
+  // Deliver an already-dispatched response after close, even if transport abort was requested.
+  await page.evaluate(() => window.releaseListeningPage());
+  expect(await page.evaluate(() => ({
+    active: window.LLFlashcards.State.widgetActive, clips: window.heardClips,
+    installed: (window.wordsByCategory.Lesson || []).some(row => row.id === 32)
+  }))).toEqual({ active: false, clips: ['https://audio.test/prompt.mp3'], installed: false });
+});
+
 test('listening initialize defers bulk category loads until after startup', async ({ page }) => {
   await page.goto('about:blank');
 

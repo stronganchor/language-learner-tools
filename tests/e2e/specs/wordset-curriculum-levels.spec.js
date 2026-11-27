@@ -16,6 +16,17 @@ const groups = [
 ];
 const base = 'https://wordset-levels.test';
 
+async function paletteColor(locator, property) {
+  return locator.evaluate((el, property) => {
+    const sample = document.createElement('span');
+    sample.style.color = 'var(' + property + ')';
+    el.append(sample);
+    const color = getComputedStyle(sample).color;
+    sample.remove();
+    return color;
+  }, property);
+}
+
 async function mount(page, options = {}) {
   const catalog = options.categories || categories;
   const ids = catalog.map(item => item.id);
@@ -43,8 +54,11 @@ async function mount(page, options = {}) {
     '/catalog.css': fs.readFileSync(path.join(root,'css/wordset-pages.css'),'utf8'),
     '/levels.css': fs.readFileSync(path.join(root,'css/wordset-levels.css'),'utf8')
   };
-  function existing(item) {
-    return '<article class="ll-wordset-card" data-cat-id="'+item.id+'"><div class="ll-wordset-card__top"><label><input type="checkbox" data-ll-wordset-select value="'+item.id+'"></label><a class="ll-wordset-card__heading" href="'+item.url+'"><h2 class="ll-wordset-card__title">'+item.name+'</h2></a></div></article>';
+  function existing(item, preview='') {
+    const actions=options.previewActions ? '<div class="ll-wordset-card__quiz-actions"><button type="button" class="ll-wordset-card__quiz-btn" data-ll-wordset-category-mode data-cat-id="'+item.id+'" data-mode="listening" aria-label="Listen: '+item.name+'">Listen</button></div>' : '';
+    const progress=options.previewActions ? '<details class="ll-wordset-card__progress"><summary class="ll-wordset-card__progress-toggle">Progress</summary></details>' : '';
+    const media=preview ? '<a class="ll-wordset-card__lesson-link" aria-label="'+item.name+'" href="'+item.url+'"><div class="ll-wordset-card__preview has-images">'+preview+'</div></a>' : '';
+    return '<article class="ll-wordset-card" data-cat-id="'+item.id+'"><div class="ll-wordset-card__top"><label class="ll-wordset-card__select"><input type="checkbox" data-ll-wordset-select value="'+item.id+'"></label><a class="ll-wordset-card__heading" href="'+item.url+'"><h2 class="ll-wordset-card__title">'+item.name+'</h2></a></div>'+media+progress+actions+'</article>';
   }
   if (options.sparse) {
     config.categories = config.categories.map(cat=>({...cat,preview_deferred:true,has_images:true}));
@@ -55,7 +69,7 @@ async function mount(page, options = {}) {
     config.curriculumLevels.levels.map(group => '<article class="ll-level-card"><h2 class="ll-level-title">Level ' + group.level + '</h2></article>').join('') + '</div></section>';
   const body = '<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/core.css"><link rel="stylesheet" href="/catalog.css"><link rel="stylesheet" href="/levels.css">' +
     '<main class="ll-wordset-page" data-ll-wordset-page' + (options.flat ? '' : ' data-ll-level-initial') + '><div class="ll-wordset-grid-tools"><div class="ll-wordset-grid-search-tools"><div class="ll-wordset-progress-search ll-wordset-progress-search--wordset-page"><input class="ll-wordset-progress-search__input" aria-label="Search" placeholder="Search words or translations" type="search" data-ll-wordset-page-search><button class="ll-wordset-progress-search__clear" data-ll-wordset-page-search-clear hidden>Clear</button></div></div><button data-ll-wordset-select-all>Select all</button></div>' +
-    shell + '<div data-ll-wordset-main-grid class="ll-wordset-grid">' + catalog.slice(0,options.sparse ? 1 : options.initialCards).map(existing).join('') +
+    shell + '<div data-ll-wordset-main-grid class="ll-wordset-grid">' + catalog.slice(0,options.sparse ? 1 : options.initialCards).map(item=>existing(item)).join('') +
     '</div><div data-ll-wordset-page-search-empty hidden>Empty</div></main><div id="ll-study-results-actions" style="display:none"><button id="ll-study-results-same-chunk"></button><button id="ll-study-results-different-chunk"></button><button id="ll-study-results-next-chunk"></button></div><script>window.llWordsetPageData='+JSON.stringify(config)+'</script>' +
     '<script src="/jquery.js"></script><script src="/loader.js"></script><script src="/levels.js"></script><script src="/main.js"></script>';
   await page.route(base+'/**', async route => {
@@ -65,12 +79,13 @@ async function mount(page, options = {}) {
       reqs.push(data);
       if(data.action === 'll_tools_wordset_page_lazy_cards' && data.category_ids) {
         if (options.pauseThumbnails) await options.pauseThumbnails;
+        if (options.holdPreview && data.category_ids.split(',').includes(options.holdPreview.id)) await options.holdPreview.until;
         if (options.thumbnailLookupFails) return route.fulfill({status:500,body:''});
         const ids=data.category_ids.split(',').map(Number);
         const html=ids.map(id=>{
           const urls=options.serverPreviews?.[id] || ['/thumbnail.svg','/thumbnail-two.svg'];
-          return existing(catalog.find(cat=>cat.id===id)).replace('</article>',
-            urls.map(src=>'<span class="ll-wordset-preview-item--image"><img src="'+src+'" alt=""></span>').join('')+'</article>');
+          return existing(catalog.find(cat=>cat.id===id),
+            urls.map(src=>'<span class="ll-wordset-preview-item ll-wordset-preview-item--image"><img src="'+src+'" alt=""></span>').join(''));
         }).join('');
         return route.fulfill({json:{success:true,data:{category_ids:ids,html}}});
       }
@@ -95,6 +110,9 @@ async function mount(page, options = {}) {
         return route.fulfill({json:{success:true,data:{level:1,days:summaryRow.days}}});
       }
       if ((data.operation === 'launch' || data.operation === 'quiz') && options.successful) {
+        if (data.launch_mode === 'listening' && options.coldListening) {
+          return route.fulfill({json:{success:true,data:{mode:'listening',stream_categories:true,category_ids:[2,1],session_word_ids:[]}}});
+        }
         if (data.operation==='quiz' && options.quizWarming && data.launch_mode==='practice') {
           const attempt=reqs.filter(req=>req.operation==='quiz' && req.launch_mode==='practice').length;
           if(attempt<=2) return route.fulfill({status:attempt===1?429:503,headers:{'Retry-After':'1'},
@@ -119,6 +137,9 @@ async function mount(page, options = {}) {
         return route.fulfill({json:{success:true,data:{mode,...plan,bounded}}});
       }
       if (data.action === 'll_get_words_by_category' || data.action === 'll_get_flashcard_payload_page') {
+        if (options.holdCandidate && data.candidate_word_ids?.split(',')[0] === options.holdCandidate.id) {
+          await options.holdCandidate.until;
+        }
         const wordIds=options.plan && data.candidate_word_ids ? data.candidate_word_ids.split(',').map(Number) :
           data.category_id === '15' ? [1501,1502,1503,1504,1505,1506] : [1001,2002,9999];
         const rows=wordIds.map(id=>({id,title:'Word '+id,label:'Word '+id,translation:'Translation '+id,audio:'/sound.mp3',image:'/thumbnail.svg',
@@ -269,7 +290,7 @@ test('personalized cards retry preparing summaries, expose review scopes, and au
   await expect(page.getByText('Loading progress…')).toBeVisible();
   await expect(page.locator('.ll-level-review-all')).toBeVisible();
   const first=page.locator('[data-ll-level-card="1"]');
-  await expect(first.getByLabel('Learned 3, In progress 2, New 5',{exact:true})).toBeVisible();
+  await expect(first.getByLabel('3 Learned, 2 In progress, 5 New',{exact:true})).toBeVisible();
   await expect(first.getByRole('img',{name:/Added since/})).toHaveCount(0);
   const localDue=first.locator('.ll-level-card-head').getByRole('button',{name:'Due for review (2) · Level 1'});
   await expect(localDue).toBeVisible();
@@ -330,6 +351,101 @@ test('returning learner sees completed levels and receives only visible CTA thum
   expect(lookups.length).toBeGreaterThan(0);
   expect(lookups.every(r=>r.category_ids && r.category_ids.split(',').length<=8 && r.preview_limit==='2')).toBe(true);
 });
+
+test('loading lesson thumbnails and refreshing level stats preserve the learner’s open lesson progress and focus',async({page})=>{
+  await page.emulateMedia({reducedMotion:'reduce'});
+  let release;
+  const until=new Promise(resolve=>{ release=resolve; });
+  const stats={total:6,mastered:1,working:2,new:3,next_category_id:7,practice_category_id:7};
+  const catalog=categories.map(cat=>({...cat,count:6,mastered_words:1,studied_words:3,new_words:3}));
+  const requests=await mount(page,{signed:true,sparse:true,previewActions:true,categories:catalog,
+    groups:[{level:1,categoryIds:[3,4,7],contentIds:[],nextId:7,practiceId:7}],
+    summary:{levels:{1:stats}},holdPreview:{id:'3',until}});
+  const card=page.locator('[data-ll-level-card="1"]');
+  const levelBar=card.locator(':scope > .ll-wordset-card__progress');
+  const lesson=card.locator('[data-ll-level-preview-category="3"]');
+  const lessonBar=lesson.locator('.ll-wordset-card__progress');
+  const toggle=lessonBar.locator('summary');
+  try {
+    await expect(levelBar.locator('summary')).toHaveAccessibleName('1 Learned, 2 In progress, 3 New');
+    await card.locator('.ll-level-details-toggle').press('Enter');
+    await expect.poll(()=>requests.some(r=>r.category_ids?.split(',').includes('3'))).toBe(true);
+    await toggle.press('Enter');
+    await expect(lessonBar).toHaveJSProperty('open',true);
+  } finally { release(); }
+  await expect(lesson.locator('img').first()).toBeVisible();
+  await expect(lessonBar).toHaveJSProperty('open',true);
+  await expect(toggle).toBeFocused();
+  stats.mastered=2; stats.new=2;
+  await page.evaluate(()=>window.jQuery(document).trigger('lltools:progress-updated'));
+  await expect(levelBar.locator('summary')).toHaveAccessibleName('2 Learned, 2 In progress, 2 New');
+  await expect(levelBar).toHaveJSProperty('open',false);
+  await expect(lessonBar).toHaveJSProperty('open',true);
+  await expect(toggle).toBeFocused();
+});
+
+for (const width of [390,1240]) {
+  test('expanded level previews link and launch its lessons at '+width+'px',async({page})=>{
+    await page.setViewportSize({width,height:850});
+    await page.emulateMedia({reducedMotion:'reduce'});
+    await instrumentQuiz(page);
+    const catalog=categories.map(cat=>({...cat,listening_supported:true}));
+    const scoped=[3,4,5,6,7,8];
+    const requests=await mount(page,{sparse:true,previewActions:true,categories:catalog,groups:[
+      {level:1,categoryIds:scoped,contentIds:[],nextId:7,practiceId:7,modes:['listening']},
+      {level:2,categoryIds:[15],contentIds:[],nextId:15,practiceId:15,modes:['listening']}
+    ]});
+    const card=page.locator('[data-ll-level-card="1"]');
+    const preview=card.locator('.ll-level-lessons');
+    const lessons=preview.locator('.ll-level-lesson-previews .ll-wordset-card');
+    const seeAll=preview.getByRole('button',{name:'See all lessons · Level 1'});
+    const fetches=()=>requests.filter(req=>req.action==='ll_tools_wordset_page_lazy_cards');
+    const previewIds=()=>fetches().flatMap(req=>String(req.category_ids).split(',').map(Number)).filter(id=>id===3 || id===4);
+    await expect(card.locator('.ll-level-activity img').first()).toBeVisible();
+    expect(previewIds()).toEqual([]);
+    await expect(preview).toBeHidden();
+    await card.locator('.ll-level-details-toggle').press('Enter');
+    await expect(preview.getByRole('heading',{name:'Lessons in this level'})).toBeVisible();
+    await expect(lessons).toHaveCount(2);
+    await expect(lessons.getByRole('checkbox')).toHaveCount(0);
+    const links=lessons.locator('a.ll-wordset-card__heading');
+    await expect(links).toHaveText(['Lesson 3','Lesson 4']);
+    await expect(links.first()).toHaveAttribute('href','/lesson/3');
+    await expect(links.nth(1)).toHaveAttribute('href','/lesson/4');
+    await expect(lessons.first().locator('img').first()).toBeVisible();
+    expect([...new Set(previewIds())].sort()).toEqual([3,4]);
+    expect(fetches().every(req=>req.preview_limit==='2' && req.category_ids)).toBe(true);
+    expect(requests.filter(req=>req.action==='ll_get_words_by_category' || req.action==='ll_get_flashcard_payload_page')).toEqual([]);
+    await expect(seeAll).toBeVisible();
+    await expect(seeAll.locator('svg').first()).toBeVisible();
+    const modes=await card.locator('.ll-level-quiz-section').boundingBox();
+    const details=await card.locator('.ll-level-detail-header').boundingBox();
+    const section=await preview.boundingBox();
+    expect(modes.y+modes.height).toBeLessThanOrEqual(section.y+1);
+    expect(section.y+section.height).toBeLessThanOrEqual(details.y+1);
+    const first=await lessons.first().boundingBox(), second=await lessons.nth(1).boundingBox(), browse=await seeAll.boundingBox();
+    if(width>=1000) {
+      expect(Math.abs(first.y-second.y)).toBeLessThan(2);
+      expect(browse.x).toBeGreaterThanOrEqual(second.x+second.width);
+      expect(browse.y+browse.height).toBeGreaterThan(second.y);
+      expect(browse.y).toBeLessThan(second.y+second.height);
+    } else {
+      expect(browse.y).toBeGreaterThanOrEqual(Math.max(first.y+first.height,second.y+second.height)-1);
+      expect(browse.x+browse.width).toBeLessThanOrEqual(width);
+    }
+    await lessons.first().locator('[data-ll-wordset-category-mode][data-mode="listening"]').click();
+    await expect.poll(()=>page.evaluate(()=>window.launchedQuizzes.map(q=>[q.mode,q.categories]))).toEqual([['listening',['Lesson 3']]]);
+    await seeAll.click();
+    await expect(page.locator('[data-ll-wordset-page]')).toHaveAttribute('data-ll-level-view','level');
+    const grid=page.locator('[data-ll-wordset-main-grid]');
+    await expect(grid.locator('article:visible')).toHaveCount(scoped.length);
+    expect(await grid.locator('article:visible').evaluateAll(items=>items.map(el=>Number(el.dataset.catId)))).toEqual(scoped);
+    await page.getByRole('button',{name:'Back',exact:true}).click();
+    if (!await seeAll.isVisible()) await card.locator('.ll-level-details-toggle').press('Enter');
+    await links.first().click();
+    await expect(page).toHaveURL(/\/lesson\/3$/);
+  });
+}
 
 for (const width of [360,1240]) {
   test('level thumbnails and status flags reserve their space on delayed responses at '+width+'px',async({page})=>{
@@ -472,6 +588,23 @@ test('daily review separates the complete due backlog from the next round and fo
   await expect(review).toHaveAccessibleName('Review now · Due for review (681) · Words left today · 64');
   await expect(review.locator('img')).toHaveCount(0);
   await expect(review).toHaveClass(/ll-level-metric-older/);
+  async function checkDailyColors(palette) {
+    await page.mouse.move(0,0);
+    await review.evaluate(el => el.blur());
+    const tint = await paletteColor(review,palette);
+    const cardColor = await paletteColor(review,'--ll-wp-card');
+    expect(cardColor).not.toBe(tint);
+    await expect(review).toHaveCSS('background-color',tint);
+    await review.hover();
+    await expect(review).toHaveCSS('background-color',cardColor);
+    await page.mouse.move(0,0);
+    await page.keyboard.press('ArrowRight');
+    await review.focus();
+    expect(await review.evaluate(el => el.matches(':focus-visible'))).toBe(true);
+    await expect(review).toHaveCSS('background-color',cardColor);
+    await expect(review).toHaveCSS('outline-style','solid');
+  }
+  await checkDailyColors('--ll-wp-pill-purple');
   await expect(page.locator('.is-suggested')).toHaveCount(0);
   await expect(page.getByRole('button',{name:'Practice · Lesson 2'})).toBeVisible();
   await expect(page.getByRole('button',{name:'Learn · Lesson 1'})).toBeVisible();
@@ -502,13 +635,15 @@ test('daily review separates the complete due backlog from the next round and fo
   await review.click();
   await expect.poll(()=>reqs.filter(r=>r.operation==='launch').map(r=>[r.level,r.launch_mode])).toEqual([['0','review']]);
   await expect(page.getByText(labels.launchError)).toBeVisible();
-  for (const [reason,status,text] of [['working','studied','In progress'],['hard','hard','Hard'],['starred','starred','Starred'],['least_recent','practice','Least recently studied']]) {
+  for (const [reason,status,text,palette] of [['working','studied','In progress','--ll-wp-pill-blue'],['hard','hard','Hard','--ll-wp-pill-red'],
+    ['starred','starred','Starred','--ll-wp-pill-gold'],['least_recent','practice','Least recently studied','--ll-wp-bg-accent']]) {
     summary.due=0;
     summary.review={reason,count:5,due:0};
     await page.evaluate(()=>window.jQuery(document).trigger('lltools:progress-updated'));
     await expect(review).toHaveAccessibleName('Practice · '+text+' · Words left today · 5');
     await expect(review).toHaveClass(new RegExp('ll-level-metric-'+status));
     await expect(review.locator('.ll-level-daily-icon')).toBeVisible();
+    await checkDailyColors(palette);
   }
   summary.review={reason:'',count:0,due:0};
   await page.evaluate(()=>window.jQuery(document).trigger('lltools:progress-updated'));
@@ -560,6 +695,17 @@ test('desktop and phone each show one level per row and keep mode icons, statuse
   const details=first.getByLabel('Level details · Level 1',{exact:true});
   const chevron=details.locator('.ll-level-glyph--chevron');
   await expect(chevron).toBeVisible();
+  await page.mouse.move(0,0);
+  await expect(chevron).toHaveCSS('color',await paletteColor(details,'--ll-wp-muted'));
+  await expect(chevron).toHaveCSS('background-color',await paletteColor(details,'--ll-wp-bg'));
+  await details.hover();
+  await expect(chevron).toHaveCSS('color',await paletteColor(details,'--ll-wp-text'));
+  await expect(chevron).toHaveCSS('background-color',await paletteColor(details,'--ll-wp-border'));
+  await page.mouse.move(0,0);
+  await page.keyboard.press('ArrowRight');
+  await details.focus();
+  await expect(details).toHaveCSS('outline-color',await paletteColor(details,'--ll-wp-muted'));
+  await expect(details).toHaveCSS('outline-style','solid');
   const tail=async()=>first.evaluate(node=>node.getBoundingClientRect().bottom-node.querySelector('.ll-level-details-toggle').getBoundingClientRect().bottom);
   expect(await tail()).toBeLessThan(20);
   await expect(chevron).toHaveCSS('transform','none');
@@ -607,10 +753,10 @@ test('progress disclosures show the tooltip counts on levels and lessons, and gl
   const icon=status=>progress.locator('.ll-wordset-card__progress-segment--'+status+' .ll-wordset-card__progress-icon');
   const checkLegend=async target=>{
     const keys=target.locator('.ll-wordset-card__progress-key');
-    await expect(keys).toHaveText(['Learned 1','In progress 3','New 96']);
+    await expect(keys).toHaveText(['1 Learned','3 In progress','96 New']);
     expect((await keys.allTextContents()).join(', ')).toBe(await target.locator('summary').getAttribute('title'));
   };
-  await expect(summary).toHaveAccessibleName('Learned 1, In progress 3, New 96');
+  await expect(summary).toHaveAccessibleName('1 Learned, 3 In progress, 96 New');
   await expect(icon('mastered')).toBeHidden();
   await expect(icon('studied')).toBeHidden();
   await expect(icon('new')).toBeVisible();
@@ -624,7 +770,7 @@ test('progress disclosures show the tooltip counts on levels and lessons, and gl
   stats.working=2;
   stats.new=97;
   await page.evaluate(()=>window.jQuery(document).trigger('lltools:progress-updated'));
-  await expect(summary).toHaveAttribute('title','Learned 1, In progress 2, New 97');
+  await expect(summary).toHaveAttribute('title','1 Learned, 2 In progress, 97 New');
   await expect(progress).toHaveJSProperty('open',true);
   await expect(summary).toBeFocused();
   await summary.press('Enter');
@@ -828,15 +974,43 @@ for (const signed of [true,false]) {
       expect(await button.evaluate(el=>el.scrollWidth<=el.clientWidth+1)).toBe(true);
       await button.click();
       await expect.poll(()=>page.evaluate(()=>window.launchedQuizzes.length)).toBe(index+1);
-      expect(await page.evaluate(()=>window.launchedQuizzes.at(-1))).toMatchObject({mode,scope:1,ownership:{2:ids}});
+      const launched = await page.evaluate(()=>window.launchedQuizzes.at(-1));
+      expect(launched).toMatchObject({mode,scope:1});
+      if (!signed && mode === 'listening') {
+        expect(launched.categories.slice().sort()).toEqual(catalog.filter(cat=>firstLevel.includes(cat.id)).map(cat=>cat.name).sort());
+      } else {
+        expect(launched.ownership).toEqual({2:ids});
+      }
       if(mode==='gender') expect(await page.evaluate(()=>window.llToolsFlashcardsData.genderSessionPlan)).toMatchObject({level:2,word_ids:ids});
     }
-    expect(requests.filter(req=>req.operation==='quiz').map(req=>[req.level,req.launch_mode,req.token])).toEqual(modes.map(mode=>['1',mode,'scope']));
+    expect(requests.filter(req=>req.operation==='quiz').map(req=>[req.level,req.launch_mode,req.token])).toEqual(
+      modes.filter(mode=>signed || mode!=='listening').map(mode=>['1',mode,'scope']));
     const second=page.locator('[data-ll-level-card="2"]');
     await second.getByLabel('Level details · Level 2',{exact:true}).click();
     await expect(second.locator('[data-ll-level-quiz-mode="gender"]')).toBeDisabled();
   });
 }
+
+test('cold and warm signed-in level Listen launch before any separate candidate hydration',async({page})=>{
+  await instrumentQuiz(page);
+  const catalog=categories.map(cat=>({...cat,listening_supported:true}));
+  const groupsWithListen=groups.map(group=>({...group,modes:['listening']}));
+  for (const coldListening of [true,false]) {
+    const row={id:2002,title:'Word',audio:'/sound.mp3',image:'/thumbnail.svg'};
+    const plan={category_ids:[2],session_word_ids:[row.id],word_category_ids:{2002:2},starter_rows:[row]};
+    const requests=await mount(page,{signed:true,successful:true,groups:groupsWithListen,categories:catalog,
+      secondSummaryModes:['listening'],plan,coldListening});
+    const card=page.locator('[data-ll-level-card="1"]');
+    await card.getByLabel('Level details · Level 1',{exact:true}).click();
+    await card.locator('[data-ll-level-quiz-mode="listening"]').click();
+    await expect.poll(()=>page.evaluate(()=>window.launchedQuizzes.length)).toBe(1);
+    const result=await page.evaluate(()=>window.launchedQuizzes[0]);
+    expect(result.categories).toEqual(coldListening?['Lesson 2','Lesson 1']:['Lesson 2']);
+    expect(requests.filter(req=>req.operation==='quiz').map(req=>req.fast_start)).toEqual(['1']);
+    expect(requests.filter(req=>req.action==='ll_get_words_by_category' || req.action==='ll_get_flashcard_payload_page')).toHaveLength(0);
+    await page.unrouteAll({behavior:'wait'});
+  }
+});
 
 test('a guest level quiz waits for its exact selection and ignores a superseded retry',async({page})=>{
   await instrumentQuiz(page);
@@ -985,7 +1159,7 @@ test('an open wordset refreshes its goal at site midnight',async({page})=>{
   await expect(daily).toHaveAccessibleName('Review now · Due for review (12) · Words left today · 10');
 });
 
-test('a daily round hydrates 16 exact targets in two batches and appends the second to the active quiz',async({page})=>{
+test('daily practice prefetches one batch after launch and shares it with a waiting continuation',async({page})=>{
   const ids=Array.from({length:16},(_,i)=>2001+i);
   const plan={category_ids:[2],session_word_ids:ids,word_category_ids:Object.fromEntries(ids.map(id=>[id,2]))};
   await instrumentQuiz(page);
@@ -995,13 +1169,18 @@ test('a daily round hydrates 16 exact targets in two batches and appends the sec
       window.appendedTargets.push(window.llToolsFlashcardsData.sessionWordIds.slice());
     }}};
   });
-  const reqs=await mount(page,{signed:true,successful:true,plan});
+  let release;
+  const until=new Promise(resolve=>{release=resolve;});
+  const reqs=await mount(page,{signed:true,successful:true,plan,holdCandidate:{id:String(ids[12]),until}});
   await page.locator('.ll-level-review-all').click();
   await expect.poll(()=>page.evaluate(()=>window.launchedQuizzes.length)).toBe(1);
   const hydrated=()=>reqs.filter(r=>r.action==='ll_get_words_by_category').map(r=>r.candidate_word_ids.split(',').map(Number));
-  expect(hydrated()).toEqual([ids.slice(0,12)]);
+  await expect.poll(hydrated).toEqual([ids.slice(0,12),ids.slice(12)]);
+  expect(reqs.filter(r=>r.action==='ll_get_words_by_category').every(r=>r.include_option_pool==='1')).toBe(true);
   expect(await page.evaluate(()=>window.llToolsFlashcardsData.logicalSessionTotal)).toBe(16);
-  await page.evaluate(()=>window.llToolsFlashcardsData.boundedSessionContinuation());
+  const continuation=page.evaluate(()=>window.llToolsFlashcardsData.boundedSessionContinuation());
+  release();
+  await continuation;
   expect(hydrated()).toEqual([ids.slice(0,12),ids.slice(12)]);
   expect(await page.evaluate(()=>window.appendedTargets)).toEqual([ids.slice(12)]);
   expect(await page.evaluate(()=>window.launchedQuizzes.length)).toBe(1);
@@ -1016,6 +1195,33 @@ test('a mismatched exact batch owner is rejected before fetching candidate words
   await page.locator('.ll-level-review-all').click();
   await expect(page.getByText('Could not start this activity.')).toBeVisible();
   expect(reqs.filter(r=>r.action==='ll_get_words_by_category' || r.action==='ll_get_flashcard_payload_page')).toHaveLength(0);
+});
+
+test('closing a level quiz aborts its speculative batch before another launch',async({page})=>{
+  await instrumentQuiz(page);
+  await page.addInitScript(()=>{
+    window.canceledQuizReads=[];
+    const send=XMLHttpRequest.prototype.send;
+    XMLHttpRequest.prototype.send=function(body) {
+      const ids=new URLSearchParams(String(body)).get('candidate_word_ids');
+      if (ids) this.addEventListener('abort',()=>window.canceledQuizReads.push(ids));
+      return send.call(this,body);
+    };
+  });
+  const ids=Array.from({length:16},(_,i)=>2001+i);
+  const plan={category_ids:[2],session_word_ids:ids,word_category_ids:Object.fromEntries(ids.map(id=>[id,2]))};
+  let release;
+  const until=new Promise(resolve=>{release=resolve;});
+  const reqs=await mount(page,{signed:true,successful:true,plan,holdCandidate:{id:String(ids[12]),until}});
+  try {
+    await page.locator('.ll-level-review-all').click();
+    await expect.poll(()=>reqs.filter(r=>r.action==='ll_get_words_by_category').length).toBe(2);
+    await page.evaluate(()=>window.jQuery(document).trigger('lltools:flashcard-closed'));
+    await expect.poll(()=>page.evaluate(()=>window.canceledQuizReads)).toEqual([ids.slice(12).join(',')]);
+    expect(await page.evaluate(()=>window.llToolsFlashcardsData.boundedSessionContinuation)).toBeUndefined();
+  } finally {
+    release();
+  }
 });
 
 test('one-word review and Repeat keep the exact target, then another level starts with a fresh scope',async({page})=>{

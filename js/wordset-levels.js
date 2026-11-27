@@ -7,6 +7,7 @@
         repeat: 'M19 10a7 7 0 1 0-1 7M19 4v6h-6',
         back: 'm12 5-7 7 7 7M5 12h15',
         forward: 'M4 12h15m-6-6 6 6-6 6',
+        lessons: 'M3.5 3.5h7v7h-7zM13.5 3.5h7v7h-7zM3.5 13.5h7v7h-7zM13.5 13.5h7v7h-7z',
         chevron: 'm3 8 9 9 9-9',
         check: 'm4 12 5 5L20 6'
     };
@@ -507,11 +508,12 @@
             const parsed = new Date(date);
             return Number.isFinite(parsed.getTime()) ? parsed.toLocaleDateString(document.documentElement.lang || undefined) : String(value);
         }
-        function bindDetailToggle(level, info, heading, body) {
+        function bindDetailToggle(level, info, heading, body, showLessons) {
             let motion = null;
             function reflect(open) {
                 if (open) panels.add(level); else panels.delete(level);
                 heading.setAttribute('aria-expanded',String(open));
+                if (open) showLessons();
             }
             function settle(open) {
                 info.open = open;
@@ -553,7 +555,7 @@
                 motion.onfinish = () => settle(open);
             });
         }
-        function detail(group, stats) {
+        function detail(group, stats, existingPreviews) {
             const level = Number(group.level);
             const info = element('details','ll-level-details');
             info.open = panels.has(level);
@@ -566,17 +568,27 @@
             const panel = element('div','ll-level-detail-panel');
             body.append(panel);
             info.append(heading,body);
-            bindDetailToggle(level,info,heading,body);
             const modes = options.signedIn && Array.isArray(stats?.modes) ? stats.modes : group.modes;
             panel.append(options.quizButtons(level,modes,label(level),credentialsExpired || !config.nonce || !config.token,mode => {
                 announce('');
                 options.launchQuiz(level,mode,ajax,() => announce(t.launchError));
             }));
-            const panelHeader = element('div','ll-level-detail-header');
-            const browse = button(t.seeAll + ' · ' + label(level),'ll-level-see-all',null,() => go('level',level));
+            const lessons = element('section','ll-level-lessons');
+            const lessonsHeading = element('h3','ll-level-detail-title',t.levelLessons);
+            lessonsHeading.id = 'll-level-lessons-' + wordset + '-' + level;
+            lessons.setAttribute('aria-labelledby',lessonsHeading.id);
+            const shelf = element('div','ll-level-lesson-shelf');
+            const previews = existingPreviews || element('div','ll-level-lesson-previews');
+            previews.setAttribute('role','list');
+            const browse = button(t.seeAll + ' · ' + label(level),'ll-level-see-all','lessons',() => go('level',level));
             browse.dataset.llFocusKey = 'see-all-' + level;
             browse.append(element('span','',t.seeAll),icon('forward'));
-            panelHeader.append(element('h3','ll-level-detail-title',t.stats),browse);
+            shelf.append(previews,browse);
+            lessons.append(lessonsHeading,shelf);
+            panel.append(lessons);
+            bindDetailToggle(level,info,heading,body,() => options.showLessons(group,previews));
+            const panelHeader = element('div','ll-level-detail-header');
+            panelHeader.append(element('h3','ll-level-detail-title',t.stats));
             panel.append(panelHeader);
             const list = element('dl','ll-level-facts');
             panel.append(list);
@@ -626,7 +638,7 @@
             }
             return info;
         }
-        function card(group) {
+        function card(group, existingPreviews) {
             const id = Number(group.level);
             const stats = summary && summary.levels && summary.levels[id];
             const shell = element('article','ll-level-card');
@@ -684,7 +696,7 @@
                 progress.querySelector('summary').dataset.llFocusKey = 'progress-' + id;
                 shell.append(progress);
             }
-            shell.append(detail(group,stats));
+            shell.append(detail(group,stats,existingPreviews));
             return shell;
         }
         function render() {
@@ -700,8 +712,11 @@
                 return;
             }
             const key = section.contains(focused) && focused.dataset.llFocusKey;
-            const openProgress = new Set(Array.from(section.querySelectorAll('.ll-wordset-card__progress[open]'),
+            const openProgress = new Set(Array.from(section.querySelectorAll('[data-ll-level-card] > .ll-wordset-card__progress[open]'),
                 progress => progress.closest('[data-ll-level-card]').dataset.llLevelCard));
+            const visiblePreviews = new Map(Array.from(section.querySelectorAll('.ll-level-details[open] .ll-level-lesson-previews'),
+                previews => [Number(previews.closest('[data-ll-level-card]').dataset.llLevelCard),previews]));
+            const focusedPreview = section.contains(focused) && focused.closest('.ll-level-lesson-previews');
             const fragment = document.createDocumentFragment();
             if (state.view === 'home') {
                 if (credentialsExpired || (options.signedIn && (!summary || fetchError))) {
@@ -722,9 +737,9 @@
                     fragment.append(loadingPlaceholder('ll-level-review-placeholder'));
                 }
                 groups.forEach(group => {
-                    const levelCard = card(group);
+                    const levelCard = card(group,visiblePreviews.get(Number(group.level)));
                     if (openProgress.has(levelCard.dataset.llLevelCard)) {
-                        levelCard.querySelector('.ll-wordset-card__progress').open = true;
+                        levelCard.querySelector(':scope > .ll-wordset-card__progress').open = true;
                     }
                     grid.append(levelCard);
                 });
@@ -750,7 +765,8 @@
                 unobservedThumbnails = Array.from(previews);
                 loadNearbyThumbnails();
             }
-            if (key) {
+            if (focusedPreview && section.contains(focused)) focused.focus({preventScroll:true});
+            else if (key) {
                 const target = section.querySelector('[data-ll-focus-key="' + key + '"]');
                 if (target) target.focus({preventScroll:true});
             }

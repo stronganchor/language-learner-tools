@@ -250,9 +250,15 @@
     margin-block-end: .7rem;
     padding: .55rem .85rem;
     border-color: var(--ll-level-ink);
+    background: var(--ll-level-tint);
     color: var(--ll-level-ink);
 }
-.ll-wordset-page .ll-level-review-all:hover { background: var(--ll-level-tint); color: var(--ll-level-ink); border-color: var(--ll-level-ink); }
+.ll-wordset-page .ll-level-review-all:is(:hover, :focus-visible) {
+    background: var(--ll-wp-card);
+    color: var(--ll-level-ink);
+    border-color: var(--ll-level-ink);
+    outline-color: var(--ll-level-ink);
+}
 .ll-wordset-page .ll-level-review-all,
 .ll-wordset-page .ll-level-review-placeholder { display: flex; width: fit-content; min-height: 3.5rem; }
 .ll-wordset-page .ll-level-review-placeholder { width: min(100%, 19rem); margin-block-end: .7rem; }
@@ -275,11 +281,11 @@
 }
 .ll-level-review-copy { display: grid; gap: .1rem; }
 .ll-level-review-reason { font-size: .82rem; font-weight: 500; }
-.ll-level-round-size { display: grid; gap: .1rem; margin-inline-start: auto; padding-inline-start: .7rem; border-inline-start: 1px solid var(--ll-level-tint); font-size: .82rem; font-weight: 500; }
+.ll-level-round-size { display: grid; gap: .1rem; margin-inline-start: auto; padding-inline-start: .7rem; border-inline-start: 1px solid var(--ll-level-border); font-size: .82rem; font-weight: 500; }
 .ll-level-review-copy strong, .ll-level-round-size strong { font-size: .94rem; }
-.ll-level-metric-practice { --ll-level-tint: var(--ll-wp-bg-accent); --ll-level-ink: var(--ll-wp-accent); }
+.ll-level-metric-practice { --ll-level-tint: var(--ll-wp-bg-accent); --ll-level-ink: var(--ll-wp-accent); --ll-level-border: var(--ll-wp-border); }
 .ll-level-metric-mastered { --ll-level-tint: var(--ll-wp-pill-green); --ll-level-ink: var(--ll-wp-pill-green-text); }
-.ll-level-metric-studied { --ll-level-tint: var(--ll-wp-pill-blue); --ll-level-ink: var(--ll-wp-pill-blue-text); }
+.ll-level-metric-studied { --ll-level-tint: var(--ll-wp-pill-blue); --ll-level-ink: var(--ll-wp-pill-blue-text); --ll-level-border: var(--ll-wp-pill-blue-border); }
 .ll-level-metric-new { --ll-level-tint: var(--ll-wp-pill-slate); --ll-level-ink: var(--ll-wp-pill-slate-text); }
 .ll-level-metric-starred { --ll-level-tint: var(--ll-wp-pill-gold); --ll-level-ink: var(--ll-wp-pill-gold-text); --ll-level-border: var(--ll-wp-pill-gold-border); }
 .ll-level-metric-hard { --ll-level-tint: var(--ll-wp-pill-red); --ll-level-ink: var(--ll-wp-pill-red-text); --ll-level-border: var(--ll-wp-pill-red-border); }
@@ -309,7 +315,7 @@
     list-style: none;
     background: transparent;
     border-color: transparent;
-    color: var(--ll-wp-accent);
+    color: var(--ll-wp-muted);
 }
 .ll-level-details-toggle .ll-level-glyph {
     box-sizing: content-box;
@@ -322,9 +328,11 @@
     stroke-width: 2.2;
 }
 .ll-level-details-toggle:hover .ll-level-glyph, .ll-level-details-toggle:focus-visible .ll-level-glyph {
-    border-color: var(--ll-wp-accent);
-    background: var(--ll-wp-bg-accent);
+    border-color: var(--ll-wp-muted);
+    background: var(--ll-wp-border);
+    color: var(--ll-wp-text);
 }
+.ll-wordset-page summary.ll-level-details-toggle:focus-visible { outline-color: var(--ll-wp-muted); }
 .ll-level-details-toggle::-webkit-details-marker { display: none; }
 .ll-level-details-toggle[aria-expanded="true"] .ll-level-glyph { transform: rotate(180deg); }
 @media (prefers-reduced-motion: no-preference) {
@@ -334,6 +342,15 @@
 .ll-level-detail-body.is-animating { overflow: hidden; }
 .ll-level-detail-panel { margin-top: .85rem; padding: .85rem .15rem .15rem; border-top: 1px solid var(--ll-wp-border); }
 .ll-level-quiz-section { margin: 0 0 .85rem; padding-block-end: .85rem; border-bottom: 1px solid var(--ll-wp-border); }
+.ll-level-lessons { margin-block-end: .85rem; padding-block-end: .85rem; border-bottom: 1px solid var(--ll-wp-border); }
+.ll-level-lesson-shelf { display: flex; flex-wrap: wrap; align-items: center; gap: .8rem; margin-block-start: .6rem; }
+.ll-level-lesson-previews { flex: 1 1 25rem; max-width: 34rem; min-width: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr)); gap: .6rem; }
+.ll-level-lesson-previews:empty { display: none; }
+.ll-level-lesson-previews .ll-wordset-card { min-width: 0; margin: 0; }
+.ll-level-lesson-previews .ll-wordset-card__top { grid-template-columns: minmax(0, 1fr); }
+.ll-level-lesson-previews .ll-wordset-card__quiz-actions { flex-wrap: wrap; }
+.ll-wordset-page .ll-level-see-all { flex: 0 0 auto; max-width: 100%; background: var(--ll-wp-bg); }
+.ll-level-see-all .ll-level-glyph--lessons { width: 1.25rem; height: 1.25rem; }
 .ll-level-quiz-modes { display: flex; flex-wrap: wrap; gap: .5rem; margin-block-start: .6rem; }
 :is(.ll-level-quiz-modes, .ll-level-filter-start) .ll-level-mode-icon,
 :is(.ll-level-quiz-modes, .ll-level-filter-start) .ll-level-mode-icon svg { width: 1.35rem; height: 1.35rem; font-size: 1.35rem; }
@@ -363,6 +380,10 @@
 @container ll-level-catalog (max-width: 44rem) {
     .ll-level-row { grid-template-columns: minmax(0, 1fr); gap: .7rem; }
     .ll-level-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@container ll-level-catalog (max-width: 38rem) {
+    .ll-level-lesson-shelf { justify-content: center; }
+    .ll-level-lesson-previews { flex-basis: 100%; }
 }
 @container ll-level-catalog (max-width: 29rem) {
     .ll-level-activities { grid-template-columns: minmax(0, 1fr); }

@@ -2253,7 +2253,7 @@
         }
         const mode = config.option_type || getCategoryDisplayMode(targetCategoryName);
         const cardsApi = root.LLFlashcards.Cards;
-        const phoneCaptions = cardsApi.usesPhoneCaptionChoices && cardsApi.usesPhoneCaptionChoices(mode);
+        const phoneImageChoices = cardsApi.usesPhoneImageChoices && cardsApi.usesPhoneImageChoices(mode);
         const promptType = getCategoryPromptType(targetCategoryName);
         State.currentOptionType = mode;
         State.currentPromptType = promptType;
@@ -2408,7 +2408,7 @@
         }
 
         const desiredCount = Math.max(MINIMUM_QUIZ_OPTIONS, parseInt(targetCount, 10) || MINIMUM_QUIZ_OPTIONS);
-        const canAddOption = () => phoneCaptions ? chosen.length < 6 : root.FlashcardOptions.canAddMoreCards();
+        const canAddOption = () => phoneImageChoices ? chosen.length < 6 : root.FlashcardOptions.canAddMoreCards();
         const addCandidate = function (candidate, rules) {
             if (!candidate || typeof candidate !== 'object') return false;
             const candidateId = String(candidate.id || '');
@@ -2475,7 +2475,7 @@
                 seenOptionTexts.add(normalizedText);
             }
             prepareWordForOptionRendering(candidate, mode, promptType, activePromptRecordingType);
-            if (!phoneCaptions) queueWordPreload(candidate);
+            if (!phoneImageChoices) queueWordPreload(candidate);
             root.LLFlashcards.Cards.appendWordToContainer(candidate, mode, promptType);
             return true;
         };
@@ -2584,19 +2584,6 @@
             );
         }
 
-        if (mode === 'image_text_translation' && cardsApi.prepareCaptionChoices) {
-            chosen = cardsApi.prepareCaptionChoices(chosen);
-            if (phoneCaptions) chosen.slice(1).forEach(queueWordPreload);
-        }
-
-        if (root.LLFlashcards.Dom && typeof root.LLFlashcards.Dom.updateCategoryNameDisplay === 'function') {
-            root.LLFlashcards.Dom.updateCategoryNameDisplay(targetCategoryName, {
-                hasMixedCategoryOptions: State.isLearningMode && chosen.some(function (word) {
-                    return getTargetCategoryName(word) !== targetCategoryName;
-                })
-            });
-        }
-
         if (Util && typeof Util.isPromptCard === 'function' && Util.isPromptCard(targetWord)) {
             const $renderedCards = jQuery('#ll-tools-flashcard .flashcard-container');
             if ($renderedCards.length > 1) {
@@ -2606,6 +2593,19 @@
                     : cards.sort(function () { return Math.random() - 0.5; });
                 jQuery('#ll-tools-flashcard').append(shuffledCards);
             }
+        }
+
+        if (imageOptions && cardsApi.prepareImageChoices) {
+            chosen = cardsApi.prepareImageChoices(chosen, mode);
+            if (phoneImageChoices) chosen.slice(1).forEach(queueWordPreload);
+        }
+
+        if (root.LLFlashcards.Dom && typeof root.LLFlashcards.Dom.updateCategoryNameDisplay === 'function') {
+            root.LLFlashcards.Dom.updateCategoryNameDisplay(targetCategoryName, {
+                hasMixedCategoryOptions: State.isLearningMode && chosen.some(function (word) {
+                    return getTargetCategoryName(word) !== targetCategoryName;
+                })
+            });
         }
 
         jQuery('.flashcard-container').each(function (idx) {

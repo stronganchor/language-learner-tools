@@ -234,6 +234,7 @@
     let listeningPrefetchRoundSerial = 0;
     let listeningCategoryOrder = [];
     let listeningCategoryLoadGeneration = 0;
+    let categoryLoadController = null;
 
     function getStarredLookup() {
         const prefs = root.llToolsStudyPrefs || {};
@@ -659,7 +660,7 @@
             return [];
         }
 
-        if (isRapidListeningMode()) {
+        if (isRapidListeningMode() || getLastLaunchPlan().details?.curriculum_listening_stream) {
             listeningCategoryOrder = names.slice();
             return listeningCategoryOrder.slice();
         }
@@ -708,15 +709,18 @@
         // Preserve already-heard words at the front when rebuilding so new category
         // arrivals cannot push early words back into the future queue.
         const pendingHistoryCounts = {};
+        const historyId = getLastLaunchPlan().details?.curriculum_listening_stream
+            ? word => FlashcardLoader.curriculumProgressWordId(word)
+            : word => parseInt(word && word.id, 10);
         history.forEach(function (word) {
-            const wordId = parseInt(word && word.id, 10);
+            const wordId = historyId(word);
             if (!wordId) { return; }
             pendingHistoryCounts[wordId] = (pendingHistoryCounts[wordId] || 0) + 1;
         });
 
         const remaining = [];
         seq.forEach(function (word) {
-            const wordId = parseInt(word && word.id, 10);
+            const wordId = historyId(word);
             if (wordId && pendingHistoryCounts[wordId] > 0) {
                 pendingHistoryCounts[wordId] -= 1;
                 return;
@@ -734,6 +738,7 @@
             const starMode = getStarMode();
             const rapidMode = isRapidListeningMode();
             const plan = getLastLaunchPlan();
+            const levelStream = !!plan.details?.curriculum_listening_stream;
             const orderedSequence = rapidMode || (plan.mode === 'listening' && plan.details?.curriculum_exact);
             const orderedRankMap = orderedSequence ? getOrderedListeningWordRankMap() : {};
             const globalSeenWordIds = {};
@@ -752,18 +757,20 @@
                     const wordId = parseInt(w.id, 10);
                     if (!wordId) continue;
                     if (!isPromptEligibleWord(w)) continue;
-                    if (globalSeenWordIds[wordId] || categorySeenWordIds[wordId]) continue;
+                    const targetId = levelStream ? FlashcardLoader.curriculumProgressWordId(w) : wordId;
+                    if (!targetId || (levelStream && !getListeningPromptAudioUrl(w))) continue;
+                    if (globalSeenWordIds[targetId] || categorySeenWordIds[targetId]) continue;
                     if (starMode === 'only' && !starredLookup[wordId]) continue;
                     try { w.__categoryName = name; } catch (_) { /* no-op */ }
-                    categorySeenWordIds[wordId] = true;
-                    globalSeenWordIds[wordId] = true;
+                    categorySeenWordIds[targetId] = true;
+                    globalSeenWordIds[targetId] = true;
                     categoryWords.push(w);
                 }
 
                 if (!categoryWords.length) {
                     continue;
                 }
-                const weightedCategory = orderedSequence
+                const weightedCategory = levelStream ? categoryWords : orderedSequence
                     ? sortWordsByOrderedIds(categoryWords, orderedRankMap)
                     : buildWeightedSequence(categoryWords, starredLookup, starMode);
                 if (weightedCategory.length) {
@@ -771,6 +778,10 @@
                 }
             }
 
+            if (levelStream && plan.details.preserve_category_order) {
+                // While the full level is still cold, prefer the least recent of the available recordings.
+                seq.sort((left, right) => String(left.progress_last_seen_at || '').localeCompare(String(right.progress_last_seen_at || '')));
+            }
             if (orderedSequence && Object.keys(orderedRankMap).length > 0 && seq.length > 1) {
                 const fallbackIndexMap = {};
                 seq.forEach(function (word, idx) {
@@ -873,6 +884,7 @@
     }
 
     function isCategoryLoaded(name, loader) {
+        if (loader?.hasPartialListeningPage?.(name)) return false;
         const words = State.wordsByCategory && State.wordsByCategory[name];
         if (Array.isArray(words) && words.length > 0) return true;
         const loaded = loader && Array.isArray(loader.loadedCategories) ? loader.loadedCategories : [];
@@ -903,6 +915,7 @@
                 }, {
                     earlyCallback: true,
                     skipCategoryPreload: true,
+                    signal: categoryLoadController?.signal,
                     isRequestCurrent: function () {
                         return generation === listeningCategoryLoadGeneration
                             && !!State.isListeningMode
@@ -951,6 +964,8 @@
 
     function cancelPendingCategoryLoads() {
         listeningCategoryLoadGeneration += 1;
+        categoryLoadController?.abort();
+        categoryLoadController = null;
         Object.keys(pendingCategoryLoads).forEach(function (key) {
             delete pendingCategoryLoads[key];
         });
@@ -959,11 +974,7 @@
     function hasPendingCategoryLoads(loader) {
         if (pendingCategoryLoads && Object.keys(pendingCategoryLoads).length > 0) return true;
         const names = Array.isArray(State.categoryNames) ? State.categoryNames : [];
-        return names.some(function (name) {
-            const words = State.wordsByCategory && State.wordsByCategory[name];
-            if (Array.isArray(words) && words.length > 0) return false;
-            return !isCategoryLoaded(name, loader);
-        });
+        return names.some(name => !isCategoryLoaded(name, loader));
     }
 
     // Wait until at least one pending category finishes (or a timeout), instead of waiting for all.
@@ -1139,6 +1150,7 @@
 
     function initialize() {
         cancelPendingCategoryLoads();
+        categoryLoadController = typeof AbortController === 'function' ? new AbortController() : null;
         State.isLearningMode = false;
         State.isListeningMode = true;
         State.listeningPaused = false;
@@ -1278,7 +1290,8 @@
         // Fast-start listening may only have a subset of categories loaded at first.
         // Use the launch estimate as a temporary denominator so the bar doesn't jump
         // ahead and then move backwards when more categories finish loading.
-        if (categoryCount > 1 && pendingLoads) {
+        const awaitingTotal = pendingLoads && (categoryCount > 1 || !!getLastLaunchPlan().details?.curriculum_listening_stream);
+        if (awaitingTotal) {
             const estimatedTotal = getListeningLaunchEstimatedTotal();
             if (estimatedTotal > total) {
                 total = estimatedTotal;
@@ -1292,7 +1305,7 @@
             index: cur,
             historyLen: historyLen,
             wordsTotal: wordsTotal,
-            deferProgressUi: categoryCount > 1 && pendingLoads
+            deferProgressUi: awaitingTotal
         };
     }
 
@@ -1459,10 +1472,10 @@
             $fwd.on('click', function () {
                 try { utils.FlashcardAudio && utils.FlashcardAudio.pauseAllAudio(); } catch (_) {}
                 State.clearActiveTimeouts();
-                // If at the last word and loop is off, do nothing
+                // A streaming lesson can still have more words behind the current page.
                 const total = Array.isArray(State.wordsLinear) ? State.wordsLinear.length : 0;
                 const cur = Math.max(0, Math.min((State.listenIndex || 0) - 1, Math.max(0, total - 1)));
-                if (!State.listeningLoop && cur >= total - 1) {
+                if (!State.listeningLoop && cur >= total - 1 && !hasPendingCategoryLoads(utils.FlashcardLoader || FlashcardLoader)) {
                     goToResults('Listening complete via next');
                     updateControlsState();
                     return;
@@ -2499,6 +2512,7 @@
         appendBoundedSelectionChunk,
         queueCategoryPrefetch: function (loader) { return queueSelectedCategoryWindow(loader || FlashcardLoader); },
         cancelPendingCategoryLoads,
+        getCategoryLoadSignal: () => categoryLoadController?.signal,
         onStarChange,
         getTotalCount: function () { return (State.wordsLinear || []).length; },
         getProgressDisplayState: function () { return getProgressDisplayState(FlashcardLoader); }

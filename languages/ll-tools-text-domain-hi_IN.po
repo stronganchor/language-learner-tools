@@ -6028,6 +6028,10 @@ msgid "Review now"
 msgstr "अभी दोहराएँ"
 
 #: includes/lib/wordset-level-labels.php:15
+msgid "Lessons in this level"
+msgstr "इस स्तर के पाठ"
+
+#: includes/lib/wordset-level-labels.php:15
 msgid "See all lessons"
 msgstr "सभी पाठ देखें"
 

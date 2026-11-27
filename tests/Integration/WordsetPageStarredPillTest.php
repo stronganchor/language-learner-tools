@@ -9,8 +9,8 @@ final class WordsetPageStarredPillTest extends LL_Tools_TestCase
         $context = ['category_progress_lookup' => [27 => ['total' => 100, 'mastered' => 1, 'studied' => 3, 'new' => 96]]];
         $card = ll_tools_wordset_page_render_category_card($category, $context);
         $this->assertStringContainsString('<details class="ll-wordset-card__progress">', $card);
-        $this->assertStringContainsString('title="Learned 1, In progress 3, New 96"', $card);
-        foreach (['Learned 1', 'In progress 3', 'New 96'] as $value) {
+        $this->assertStringContainsString('title="1 Learned, 3 In progress, 96 New"', $card);
+        foreach (['1 Learned', '3 In progress', '96 New'] as $value) {
             $this->assertStringContainsString('<span>' . $value . '</span>', $card);
         }
         $deferred = ll_tools_wordset_page_render_category_card($category, ['summary_counts_deferred' => true]);

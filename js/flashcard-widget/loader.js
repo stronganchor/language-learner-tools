@@ -15,6 +15,8 @@
         const loadedCategories = [];
         const loadedResources = {};
         const inFlightRequests = {};
+        // A level's first Listen lesson can resume from this verified response cursor after audio starts.
+        const partialListeningPages = new Map();
         const inFlightMediaLoads = {};
         const categoryAjaxQueue = [];
         let activeCategoryAjaxRequests = 0;
@@ -374,6 +376,7 @@
         let quizAttemptMode = '';
 
         function beginQuizAttempt(mode, options) {
+            partialListeningPages.clear();
             quizAttemptMode = mode || 'practice';
             if (!(options && options.preserveSample) || !quizSampleSeed) {
                 const bytes = new Uint8Array(16);
@@ -440,6 +443,7 @@
         }
 
         function resetCacheForNewWordset() {
+            partialListeningPages.clear();
             loadedCategories.length = 0;
             Object.keys(loadedResources).forEach(function (k) { delete loadedResources[k]; });
             Object.keys(inFlightRequests).forEach(function (k) { delete inFlightRequests[k]; });
@@ -557,9 +561,16 @@
             return Math.max(0, configured);
         }
 
-        function wait(ms) {
+        function wait(ms, signal) {
             return new Promise(function (resolve) {
-                setTimeout(resolve, Math.max(0, parseInt(ms, 10) || 0));
+                if (signal?.aborted) { resolve(); return; }
+                const finish = () => {
+                    clearTimeout(timer);
+                    signal?.removeEventListener('abort', finish);
+                    resolve();
+                };
+                const timer = setTimeout(finish, Math.max(0, parseInt(ms, 10) || 0));
+                signal?.addEventListener('abort', finish, {once: true});
             });
         }
 
@@ -1371,7 +1382,7 @@
             const earlyCallback = opts.earlyCallback === true;
             const skipCategoryPreload = opts.skipCategoryPreload === true;
             const requestIsCurrent = function () {
-                return typeof opts.isRequestCurrent !== 'function' || opts.isRequestCurrent() !== false;
+                return !opts.signal?.aborted && (typeof opts.isRequestCurrent !== 'function' || opts.isRequestCurrent() !== false);
             };
             const wordsetKey = ensureWordsetCacheKey();
             const cacheKey = wordsetKey + '::' + categoryName;
@@ -1477,12 +1488,45 @@
             const categoryLoadStartedAt = Date.now();
             let callbackInvoked = false;
             const usesPagedPayload = candidateWordIds.length === 0;
-            let accumulatedPageRows = [];
+            const firstListeningPage = usesPagedPayload && opts.firstListeningPage === true && !questionLimit;
+            const resume = usesPagedPayload && partialListeningPages.get(cacheKey);
+            if (resume) payload.cursor = resume.cursor;
+            else if (firstListeningPage) payload.page_size = '12';
+            let accumulatedPageRows = resume ? resume.rows.slice() : [];
             let accumulatedSampleIds = [];
             let sampleTotal = null;
             let pageRestartCount = 0;
             let payloadWarmingDeadlineAt = 0;
             let lastPayloadWarmingFailure = null;
+
+            function acceptListeningStarter(rows, nextCursor) {
+                processFetchedWordData(rows, categoryName);
+                const listening = window.LLFlashcards?.Modes?.Listening;
+                if (nextCursor) {
+                    if (!window.wordsByCategory[categoryName].some(row =>
+                        curriculumProgressWordId(row) && listening?.getPromptAudioUrl(row))) return false;
+                    partialListeningPages.set(cacheKey, {cursor: nextCursor, rows});
+                } else {
+                    partialListeningPages.delete(cacheKey);
+                    loadedCategories.push(cacheKey);
+                }
+                invokeCallbackOnce();
+                return true;
+            }
+
+            if (firstListeningPage && !resume && requestIsCurrent()) {
+                const starter = window.llToolsFlashcardsData.levelListeningStarterPage;
+                delete window.llToolsFlashcardsData.levelListeningStarterPage;
+                if (starter?.category_id === payload.category_id && Array.isArray(starter.rows)
+                    && starter.rows.length > 0 && starter.rows.length <= 12 && typeof starter.next_cursor === 'string') {
+                    if (acceptListeningStarter(starter.rows, starter.next_cursor)) {
+                        return Promise.resolve({success: true, category: categoryName, partial: !!starter.next_cursor});
+                    }
+                    accumulatedPageRows = starter.rows.slice();
+                    payload.cursor = starter.next_cursor;
+                    payload.page_size = '200';
+                }
+            }
 
             function invokeCallbackOnce() {
                 if (callbackInvoked) {
@@ -1611,7 +1655,7 @@
                 }
 
                 return new Promise(function (resolve) {
-                    $.ajax({
+                    const xhr = $.ajax({
                         url: llToolsFlashcardsData.ajaxurl,
                         method: 'POST',
                         dataType: 'json',
@@ -1650,6 +1694,15 @@
                                     }
                                     const nextCursor = String(response.data.next_cursor || '').trim();
                                     if (nextCursor) {
+                                        if (firstListeningPage) {
+                                            if (acceptListeningStarter(accumulatedPageRows, nextCursor)) {
+                                                delete inFlightRequests[cacheKey];
+                                                recordAjaxCompletion(response);
+                                                resolve({success: true, category: categoryName, partial: true});
+                                                return;
+                                            }
+                                            payload.page_size = '200';
+                                        }
                                         payload.cursor = nextCursor;
                                         resolve(runAjaxAttempt(1));
                                         return;
@@ -1667,6 +1720,7 @@
                                     fetchedRows = Array.from(new Map(fetchedRows.map(function (row) { return [row.id, row]; })).values());
                                 }
                                 delete payload.cursor;
+                                partialListeningPages.delete(cacheKey);
                                 delete inFlightRequests[cacheKey];
                                 recordAjaxCompletion(response);
                                 processFetchedWordData(fetchedRows, categoryName, questionLimit
@@ -1746,7 +1800,7 @@
                                         retryDelayMs: retryDelayMs,
                                         httpStatus: httpStatus
                                     });
-                                    resolve(wait(retryDelayMs).then(function () {
+                                    resolve(wait(retryDelayMs, opts.signal).then(function () {
                                         return runAjaxAttempt(attemptNumber + 1);
                                     }));
                                     return;
@@ -1769,7 +1823,7 @@
                                     retryDelayMs: retryDelayMs,
                                     httpStatus: httpStatus
                                 });
-                                resolve(wait(retryDelayMs).then(function () {
+                                resolve(wait(retryDelayMs, opts.signal).then(function () {
                                     return runAjaxAttempt(attemptNumber + 1);
                                 }));
                                 return;
@@ -1806,6 +1860,11 @@
                             });
                         }
                     });
+                    if (opts.signal && xhr?.abort && xhr?.always) {
+                        const abort = () => xhr.abort();
+                        opts.signal.addEventListener('abort', abort, {once: true});
+                        xhr.always(() => opts.signal.removeEventListener('abort', abort));
+                    }
                 });
             }
 
@@ -2121,6 +2180,7 @@
             preloadNextCategories,
             isCategoryLoaded,
             isCategoryLoading,
+            hasPartialListeningPage: name => partialListeningPages.has(getWordsetKey() + '::' + name),
             loadResourcesForWord,
             processFetchedWordData,
             curriculumProgressWordId,

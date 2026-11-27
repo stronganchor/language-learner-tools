@@ -100,17 +100,17 @@ test('shared quiz dialog portals to body, traps focus, isolates the page, and re
   await expect(page.locator('#quiz-opener')).toBeFocused();
 });
 
-test('top-level mobile quiz keeps its established card, header, and audio sizing', async ({ page }) => {
+test('portaling mobile Practice preserves its standalone image and control sizes', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 780 });
   await page.goto('about:blank');
   await page.setContent(`
     <div
       id="ll-tools-flashcard-container"
       class="ll-compact-quiz-layout ll-image-options-scaled"
-      style="--ll-answer-option-fit-size: 72px; --ll-repeat-icon-size: 32px; --ll-quiz-header-gap: 8px"
+      style="--ll-answer-option-fit-size: 72px; --ll-repeat-icon-size: 25px; --ll-quiz-header-gap: 8px"
     >
       <div id="ll-tools-flashcard-popup">
-        <div id="ll-tools-flashcard-quiz-popup" role="dialog" aria-modal="true" aria-hidden="true" tabindex="-1">
+        <div id="ll-tools-flashcard-quiz-popup" class="ll-practice-layout" role="dialog" aria-modal="true" aria-hidden="true" tabindex="-1">
           <header id="ll-tools-flashcard-header">
             <button id="ll-tools-close-flashcard" type="button">Close</button>
             <button id="ll-tools-repeat-flashcard" type="button">
@@ -147,8 +147,8 @@ test('top-level mobile quiz keeps its established card, header, and audio sizing
   });
 
   await expect(page.locator('.ll-answer-option-image-caption-card')).toHaveCSS('width', '150px');
-  await expect(page.locator('#ll-tools-repeat-flashcard .ll-repeat-icon-wrap')).toHaveCSS('width', '42px');
-  await expect(page.locator('#ll-tools-flashcard-header')).toHaveCSS('gap', '15px');
+  await expect(page.locator('#ll-tools-repeat-flashcard .ll-repeat-icon-wrap')).toHaveCSS('width', '38px');
+  await expect(page.locator('#ll-tools-flashcard-header')).toHaveCSS('gap', '10px');
 });
 
 test('embedded quiz dialog stays in its container with compact layout variables in scope', async ({ page }) => {

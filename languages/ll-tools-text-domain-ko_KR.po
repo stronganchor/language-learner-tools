@@ -6006,6 +6006,10 @@ msgid "Review now"
 msgstr "지금 복습하기"
 
 #: includes/lib/wordset-level-labels.php:15
+msgid "Lessons in this level"
+msgstr "이 레벨의 수업"
+
+#: includes/lib/wordset-level-labels.php:15
 msgid "See all lessons"
 msgstr "모든 수업 보기"
 

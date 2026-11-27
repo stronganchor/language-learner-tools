@@ -19,6 +19,9 @@ const optionsSource = fs.readFileSync(
   path.resolve(__dirname, '../../../js/flashcard-widget/options.js'),
   'utf8'
 );
+const selectionSource = fs.readFileSync(
+  path.resolve(__dirname, '../../../js/flashcard-widget/selection.js'), 'utf8'
+);
 const baseCssSource = fs.readFileSync(
   path.resolve(__dirname, '../../../css/flashcard/base.css'),
   'utf8'
@@ -91,7 +94,7 @@ async function renderQuizFrame(page, options = {}) {
     <body class="ll-tools-flashcard-open">
       <div id="ll-tools-flashcard-container" class="ll-tools-flashcard-container">
         <div id="ll-tools-flashcard-popup" style="display:flex;">
-          <div id="ll-tools-flashcard-quiz-popup" style="display:flex;">
+          <div id="ll-tools-flashcard-quiz-popup" class="${options.practiceRound ? 'll-practice-layout' : ''}" style="display:flex;">
             ${options.topLevel ? '<button id="ll-tools-close-flashcard">×</button>' : ''}
             <div id="ll-tools-flashcard-header" style="display:flex;">
               <div id="ll-tools-learning-progress" style="display:block;">
@@ -163,24 +166,42 @@ async function renderQuizFrame(page, options = {}) {
   await addFrameScript(frame, optionsSource);
   await addFrameScript(frame, utilSource);
   await addFrameScript(frame, cardsSource);
+  if (options.fillPractice) await addFrameScript(frame, selectionSource);
 
-  await frame.evaluate((bootstrap) => {
+  await frame.evaluate(async (bootstrap) => {
     const words = Array.from({ length: bootstrap.count }, (_, index) => ({
       id: 101 + index,
       title: `Option ${index + 1}`,
       translation: bootstrap.captions[index] || (index === 0 ? 'First answer' : 'Second answer with a compact caption'),
-      image: index % 2 ? bootstrap.imageB : bootstrap.imageA
+      image: bootstrap.images[index]
     }));
+    if (bootstrap.fillPractice) {
+      const category = 'Nesneler';
+      window.llToolsFlashcardsData.categories = [{name:category,prompt_type:'audio',option_type:bootstrap.optionType}];
+      window.wordsByCategory[category] = words;
+      window.optionWordsByCategory[category] = words;
+      Object.assign(window.LLFlashcards.State, {currentCategoryName:category,currentCategory:words,categoryNames:[category]});
+      window.FlashcardOptions.categoryOptionsCount[category] = bootstrap.count;
+      window.receivedAnswers = [];
+      window.LLFlashcards.Main = {
+        onCorrectAnswer: word => window.receivedAnswers.push(['correct', word.id]),
+        onWrongAnswer: word => window.receivedAnswers.push(['wrong', word.id])
+      };
+      // Place each new distractor in front of the target for deterministic rotation coverage.
+      Math.random = () => 0;
+      await window.LLFlashcards.Selection.fillQuizOptions(words[0]);
+      return;
+    }
     words.forEach((word) => {
       window.LLFlashcards.Cards.appendWordToContainer(word, bootstrap.optionType, 'audio', true);
     });
-    if (bootstrap.useCaptions) {
+    if (bootstrap.useCaptions || (bootstrap.practiceRound && bootstrap.optionType === 'image')) {
       // The target may be last in the shuffled DOM, even though it was selected first.
       const grid = document.getElementById('ll-tools-flashcard');
       grid.appendChild(grid.firstElementChild);
       // In live audio rounds the prompt audio can be a hidden child before the choices.
       grid.prepend(document.createElement('audio'));
-      window.LLFlashcards.Cards.prepareCaptionChoices(words);
+      window.LLFlashcards.Cards.prepareImageChoices(words, bootstrap.optionType);
     }
     document.querySelectorAll('#ll-tools-flashcard .flashcard-container').forEach((card) => {
       card.style.display = 'flex';
@@ -190,10 +211,11 @@ async function renderQuizFrame(page, options = {}) {
   }, {
     optionType,
     useCaptions,
+    practiceRound: !!options.practiceRound,
+    fillPractice: !!options.fillPractice,
     captions,
     count,
-    imageA: fixtureImage(imageA, 'A'),
-    imageB: fixtureImage(imageB, 'B')
+    images: Array.from({length:count}, (_, index) => fixtureImage(index % 2 ? imageB : imageA, String(index + 1)))
   });
 
   await frame.waitForTimeout(80);
@@ -474,7 +496,7 @@ test.describe('full-screen phone Practice', () => {
   const double = 'Arkadaşından yardım istiyor';
   const mount = (page, captions, height = 685) => renderQuizFrame(page, {
     width: 360, height, imageSize: 'small', count: captions.length,
-    useCaptions: true, isEmbed: false, portaled: true, topLevel: true, captions
+    useCaptions: true, isEmbed: false, portaled: true, topLevel: true, practiceRound: true, captions
   });
   function checkGrid(result, count) {
     expect(result.cards).toHaveLength(count);
@@ -487,15 +509,52 @@ test.describe('full-screen phone Practice', () => {
     }
   }
 
-  test('a compact header leaves room for three normal-sized rows and one double-line caption', async ({ page }) => {
-    const initial = await mount(page, [double, ...short.slice(1)]);
+  for (const optionType of ['image', 'image_text_translation']) {
+    test(`rotating a six-choice ${optionType} round keeps readable pictures and the working answer`, async ({page}) => {
+      const portrait = await renderQuizFrame(page, {
+        width: 390, height: 844, imageSize: 'small', count: 6, practiceRound: true, fillPractice: true,
+        optionType, topLevel: true, isEmbed: false, portaled: true, captions: [double, ...short.slice(1)]
+      });
+      expect(portrait.cards).toHaveLength(6);
+      const imageSize = portrait.cards[0].imageRect.width;
+      expect(imageSize).toBe(150);
+      const cards = page.locator('#ll-tools-flashcard .flashcard-container');
+      const correct = page.locator('#ll-tools-flashcard [data-word-id="101"]');
+      await expect(cards.last()).toHaveAttribute('data-word-id','101');
+      await page.setViewportSize({width:844, height:390});
+      await expect.poll(() => cards.count()).toBeLessThan(6);
+      expect(await cards.count()).toBeGreaterThanOrEqual(2);
+      for (const card of await cards.all()) {
+        const image = await card.locator('img').boundingBox();
+        const choice = await card.boundingBox();
+        expect(image.width).toBeCloseTo(imageSize,0);
+        expect(image.height).toBeCloseTo(imageSize,0);
+        expect(choice.y + choice.height).toBeLessThanOrEqual(390);
+        expect(choice.x).toBeGreaterThanOrEqual(0);
+        expect(choice.x + choice.width).toBeLessThanOrEqual(844);
+      }
+      const header = await page.locator('#ll-tools-flashcard-header').boundingBox();
+      expect(header.height).toBeLessThan(110);
+      await expect(correct).toBeVisible();
+      const retained = await cards.evaluateAll(items => items.map(item => item.dataset.wordId));
+      await page.setViewportSize({width:390,height:844});
+      await expect.poll(() => cards.first().evaluate(node => Math.round(node.getBoundingClientRect().width))).toBe(imageSize);
+      expect(await cards.evaluateAll(items => items.map(item => item.dataset.wordId))).toEqual(retained);
+      await correct.tap();
+      expect(await page.evaluate(() => window.receivedAnswers)).toEqual([['correct',101]]);
+    });
+  }
+
+  test('Practice restores comfortable portrait controls and trims the active round when the visible height decreases', async ({ page }) => {
+    const initial = await mount(page, [double, ...short.slice(1)], 844);
     checkGrid(initial, 6);
     expect(initial.cards.filter(card => card.captionRows > 1.5)).toHaveLength(1);
-    expect(initial.cards[0].rect.top).toBeLessThanOrEqual(110);
-    expect(initial.repeat.height).toBeGreaterThanOrEqual(44);
+    expect(initial.cards[0].rect.top).toBeGreaterThan(120);
+    expect(initial.cards[0].rect.top).toBeLessThan(160);
+    expect(initial.repeat.height).toBeGreaterThanOrEqual(48);
     const close = await page.locator('#ll-tools-close-flashcard').boundingBox();
-    expect(close.width).toBe(38);
-    expect(close.height).toBe(38);
+    expect(close.width).toBeGreaterThanOrEqual(42);
+    expect(close.height).toBeGreaterThanOrEqual(42);
     const closeButton = page.locator('#ll-tools-close-flashcard');
     expect(await closeButton.evaluate(button => {
       const rect = button.getBoundingClientRect();
@@ -503,11 +562,12 @@ test.describe('full-screen phone Practice', () => {
       return [rect.top - 2.5, rect.bottom + 2.5].every(y => document.elementFromPoint(x, y) === button);
     })).toBe(true);
     const title = page.locator('#ll-tools-category-display');
-    await expect(title).toHaveCSS('font-size', '14px');
+    await expect(title).toHaveCSS('font-size', '16px');
     const label = await title.boundingBox();
     const bar = await page.locator('#ll-tools-learning-progress .learning-progress-bar').boundingBox();
-    expect(label.y - (bar.y + bar.height)).toBeCloseTo(6, 1);
-    expect(initial.repeat.top - (label.y + label.height)).toBeCloseTo(6, 1);
+    const gapAbove = label.y - (bar.y + bar.height);
+    expect(gapAbove).toBeGreaterThanOrEqual(8);
+    expect(initial.repeat.top - (label.y + label.height)).toBeCloseTo(gapAbove, 1);
     expect(initial.progress.right).toBeLessThan(close.x);
 
     const cards = page.locator('#ll-tools-flashcard .ll-answer-option-image-caption-card');
@@ -529,21 +589,21 @@ test.describe('full-screen phone Practice', () => {
     });
     await expect(cards).toHaveCount(4);
 
-    // If even two rows exceed the available height, every answer stays reachable.
+    // If the visible height drops again, the correct answer and at least one distractor remain reachable.
     await page.evaluate(() => {
       Object.defineProperty(visualViewport, 'height', { configurable: true, value: 300 });
       visualViewport.dispatchEvent(new Event('resize'));
     });
     const grid = page.locator('#ll-tools-flashcard');
-    await expect(grid).toHaveCSS('overflow-y', 'auto');
+    await expect.poll(() => cards.count()).toBe(2);
     await grid.evaluate(node => { node.scrollTop = node.scrollHeight; });
     const last = await cards.last().boundingBox();
     expect(last.width).toBe(150);
-    expect(last.y + last.height).toBeLessThanOrEqual(285);
+    expect(last.y + last.height).toBeLessThanOrEqual(300 - initial.contentPaddingBottom + 1);
   });
 
   test('the last picture choice is centered when the final row has one card', async ({ page }) => {
-    const result = await mount(page, short.slice(0, 5));
+    const result = await mount(page, short.slice(0, 5), 844);
     expect(result.cards).toHaveLength(5);
     const cards = page.locator('#ll-tools-flashcard .ll-answer-option-image-caption-card');
     const checkCentered = async () => {
@@ -603,7 +663,7 @@ test.describe('full-screen phone Practice', () => {
       for (const optionType of ['image_text_translation', 'image', 'text_translation', 'audio', 'text_audio']) {
         await renderQuizFrame(page, {
           width: 360, height: 685, imageSize: 'small', count: 4,
-          isEmbed: false, portaled, topLevel: true, optionType, captions: short
+          isEmbed: false, portaled, topLevel: true, practiceRound: true, optionType, captions: short
         });
         await addFrameScript(page, domSource);
         const geometry = () => page.evaluate(() => {
@@ -615,8 +675,8 @@ test.describe('full-screen phone Practice', () => {
           return { boxes, bar, padding: content.padding, gap };
         });
         const ready = await geometry();
-        expect(ready.padding).toBe('9px 15px 15px');
-        expect(ready.gap).toBe('10px 14px');
+        expect(parseFloat(ready.padding)).toBeGreaterThanOrEqual(9);
+        expect(parseFloat(ready.gap)).toBeGreaterThanOrEqual(10);
         if (!expected) expected = ready;
         expect(ready, optionType).toEqual(expected);
         await page.evaluate(() => {
@@ -630,14 +690,25 @@ test.describe('full-screen phone Practice', () => {
     });
   }
 
-  test('two double-line captions or one longer caption limit a tall phone to two rows', async ({ page }) => {
+  test('two- and three-line captions reduce the number of choices only when the rows need more height', async ({ page }) => {
+    const shortRound = await mount(page, short, 846);
+    const tightHeight = Math.ceil(Math.max(...shortRound.cards.map(card => card.rect.bottom)) + shortRound.contentPaddingBottom);
+    checkGrid(await mount(page, short, tightHeight), 6);
     for (const captions of [
       [double, double, ...short.slice(2)],
       [...short.slice(0, 4), double, double],
       [...short.slice(0, 5), 'Arkadaşından eve dönerken ona yardım etmesini istiyor']
     ]) {
-      const result = await mount(page, captions, 846);
-      checkGrid(result, 4);
+      const roomy = await mount(page, captions, 846);
+      checkGrid(roomy, 6);
+      expect(roomy.cards.some(card => card.captionRows > 1.5)).toBe(true);
+      const result = await mount(page, captions, tightHeight);
+      expect(result.cards.length).toBeLessThan(6);
+      expect(result.cards.length).toBeGreaterThanOrEqual(2);
+      for (const card of result.cards) {
+        expect(card.imageRect.width).toBe(150);
+        expect(card.rect.bottom).toBeLessThanOrEqual(tightHeight);
+      }
       await expect(page.locator('#ll-tools-flashcard [data-word-id="101"]')).toBeVisible();
     }
   });

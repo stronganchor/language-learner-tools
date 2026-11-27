@@ -425,21 +425,22 @@
         };
     }
 
-    const captionChoiceRanks = new WeakMap();
+    const imageChoiceRanks = new WeakMap();
 
-    function usesPhoneCaptionChoices(mode) {
-        return mode === 'image_text_translation' && root.innerWidth <= 520
+    function usesPhoneImageChoices(mode) {
+        const phone = root.innerWidth <= 520 || (root.innerHeight <= 520 && root.innerWidth <= 1024);
+        return phone && (mode === 'image' || mode === 'image_text_translation')
             && !!document.getElementById('ll-tools-flashcard-quiz-popup') && !isEmbeddedQuizRuntime();
     }
 
-    function prepareCaptionChoices(words) {
+    function prepareImageChoices(words, mode) {
         // Selection order starts with the answer, even when the DOM is shuffled.
         const ranks = new Map(words.map((word, index) => [String(word.id), index]));
-        const cards = Array.from(document.querySelectorAll('#ll-tools-flashcard .ll-answer-option-image-caption-card'));
-        cards.forEach(card => captionChoiceRanks.set(card, ranks.get(card.dataset.wordId)));
-        if (!usesPhoneCaptionChoices('image_text_translation')) return words;
+        const cards = Array.from(document.querySelectorAll('#ll-tools-flashcard .ll-answer-option-image-card'));
+        cards.forEach(card => imageChoiceRanks.set(card, ranks.get(card.dataset.wordId)));
+        if (!usesPhoneImageChoices(mode)) return words;
 
-        // The preparing grid is invisible. Lay out the actual captions before reveal.
+        // Measure the hidden grid at its final picture size before revealing the choices.
         const displays = cards.map(card => card.style.display);
         try {
             cards.forEach(card => { card.style.display = 'flex'; });
@@ -449,14 +450,6 @@
         }
         const retained = new Set(cards.filter(card => card.isConnected).map(card => card.dataset.wordId));
         return words.filter(word => retained.has(String(word.id)));
-    }
-
-    function captionExtraLines(card) {
-        const label = card.querySelector('.ll-answer-option-image-caption');
-        if (!label || !label.offsetHeight) return 0;
-        const style = root.getComputedStyle(label);
-        const textHeight = label.getBoundingClientRect().height - parseCssPixels(style.paddingTop) - parseCssPixels(style.paddingBottom);
-        return Math.max(0, Math.round(textHeight / parseCssPixels(style.lineHeight, 16)) - 1);
     }
 
     function enableImageGridScroll(grid, bounds) {
@@ -477,9 +470,8 @@
         grid.style.removeProperty('--ll-answer-option-fit-size');
         grid.classList.remove('ll-image-options-scroll');
         grid.style.removeProperty('--ll-image-grid-scroll-height');
-        const phoneChoices = cards.length > 0 && captionChoiceRanks.has(cards[0])
-            && usesPhoneCaptionChoices('image_text_translation');
-        grid.classList.toggle('ll-phone-caption-choices', phoneChoices);
+        const phoneChoices = cards.length > 0 && imageChoiceRanks.has(cards[0]) && usesPhoneImageChoices('image');
+        grid.classList.toggle('ll-phone-image-choices', phoneChoices);
         if (!cards.length) return;
 
         if (cards.some(card => card.classList.contains('introducing'))) {
@@ -505,16 +497,19 @@
         }
 
         if (phoneChoices) {
-            // Only width limits the picture size. Height decides if we admit row three.
+            // Keep the picture size across rotation. Remove the lowest-priority distractors
+            // until the actual rows, including wrapped captions and the prompt, fit.
             const gap = parseCssPixels(root.getComputedStyle(grid).columnGap);
-            const size = Math.min(baseSize, Math.floor((grid.clientWidth - gap) / 2));
+            const content = document.getElementById('ll-tools-flashcard-content');
+            const padding = content ? root.getComputedStyle(content) : {};
+            const portraitSpace = Math.min(root.innerWidth, root.innerHeight)
+                - parseCssPixels(padding.paddingLeft) - parseCssPixels(padding.paddingRight);
+            const size = Math.min(baseSize, Math.floor((Math.min(grid.clientWidth, portraitSpace) - gap) / 2));
             if (size <= 0) return;
             grid.style.setProperty('--ll-answer-option-fit-size', size + 'px');
-            const ranked = cards.slice().sort((a, b) => captionChoiceRanks.get(a) - captionChoiceRanks.get(b));
-            ranked.splice(6).forEach(card => card.remove());
-            const extraLines = ranked.reduce((total, card) => total + captionExtraLines(card), 0);
-            if (ranked.length > 4 && (extraLines > 1 || !cardsFit(ranked))) {
-                ranked.splice(4).forEach(card => card.remove());
+            const ranked = cards.slice().sort((a, b) => imageChoiceRanks.get(a) - imageChoiceRanks.get(b));
+            while (ranked.length > 2 && !cardsFit(ranked)) {
+                ranked.pop().remove();
             }
             if (ranked.some(card => card.getBoundingClientRect().bottom > bounds.bottom)) {
                 enableImageGridScroll(grid, bounds);
@@ -925,8 +920,8 @@
     root.LLFlashcards = root.LLFlashcards || {};
     root.LLFlashcards.Cards = {
         appendWordToContainer,
-        usesPhoneCaptionChoices,
-        prepareCaptionChoices,
+        usesPhoneImageChoices,
+        prepareImageChoices,
         addClickEventToCard,
         playOptionAudio,
         playPromptAudio,

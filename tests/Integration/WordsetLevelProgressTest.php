@@ -223,6 +223,38 @@ final class WordsetLevelProgressTest extends LL_Tools_TestCase
         };
         $base = ['operation' => 'quiz', 'level' => 1, 'wordset_id' => $wordset, 'token' => $token_for($learner)];
         $ranked = array_reverse(array_slice($words, 0, 56));
+        $fast = $base + ['launch_mode' => 'listening', 'fast_start' => 1];
+        $cold = ll_tools_wordset_level_request($learner, $fast);
+        $this->assertTrue($cold['stream_categories']);
+        $this->assertSame([$categories[1], $categories[0]], $cold['category_ids'], 'The least recently studied lesson starts the stream.');
+        $this->assertSame([], $cold['session_word_ids']);
+        $this->assertArrayNotHasKey('starter_page', $cold, 'An absent payload generation never delays the cold handoff.');
+        $term = get_term($categories[1], 'word-category');
+        $scope_request = ll_tools_flashcards_resolve_payload_page_scope(['category_id' => $term->term_id,
+            'wordset' => get_term($wordset, 'wordset')->slug, 'wordset_fallback' => '0',
+            'prompt_type' => 'audio', 'option_type' => 'text_title']);
+        $this->assertIsArray($scope_request);
+        for ($batch = 0; $batch < 20; ++$batch) {
+            $ready = ll_tools_flashcard_payload_ensure_ready($scope_request['scope']);
+            if ($ready === true) { break; }
+            $this->assertFalse($ready);
+        }
+        $this->assertTrue($ready);
+        $with_page = ll_tools_wordset_level_request($learner, $fast);
+        $this->assertSame($categories[1], $with_page['starter_page']['category_id']);
+        $this->assertCount(12, $with_page['starter_page']['rows']);
+        $after = ll_tools_flashcard_payload_read_page($scope_request['scope'], $with_page['starter_page']['next_cursor']);
+        $this->assertIsArray($after);
+        $this->assertNotEmpty($after['rows']);
+        $this->assertEmpty(array_intersect(array_column($with_page['starter_page']['rows'], 'id'), array_column($after['rows'], 'id')));
+        $overview = ll_tools_wordset_level_request($learner, array_merge($base, ['operation' => 'summary']));
+        $this->assertIsArray($overview);
+        $warm = ll_tools_wordset_level_request($learner, $fast);
+        $this->assertSame($ranked, $warm['session_word_ids']);
+        $this->assertSame([$ranked[0]], $warm['bounded']['chunks'][0]['word_ids']);
+        $this->assertSame([$ranked[0]], array_column($warm['starter_rows'], 'id'));
+        $this->assertNotEmpty($warm['starter_rows'][0]['audio']);
+        $this->assertSame($ranked, array_merge(...array_column($warm['bounded']['chunks'], 'word_ids')));
         foreach (['learning' => 10, 'practice' => 20, 'self-check' => 50, 'listening' => 56] as $mode => $limit) {
             $result = ll_tools_wordset_level_request($learner, $base + ['launch_mode' => $mode]);
             $this->assertIsArray($result, is_wp_error($result) ? $result->get_error_message() : $mode);

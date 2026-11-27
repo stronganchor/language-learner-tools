@@ -12,6 +12,7 @@ function ll_tools_wordset_level_labels(): array {
         /* translators: %d: curriculum level number */
         'continueLevel' => __('Continue Level %d', 'll-tools-text-domain'),
         'browse' => __('Browse lessons', 'll-tools-text-domain'),
+        'levelLessons' => __('Lessons in this level', 'll-tools-text-domain'),
         'seeAll' => __('See all lessons', 'll-tools-text-domain'),
         'back' => __('Back', 'll-tools-text-domain'),
         'more' => __('Show more lessons', 'll-tools-text-domain'),

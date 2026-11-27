@@ -12,6 +12,19 @@ if (!defined('WPINC')) { die; }
  *  ---------------------------
  */
 
+/** Apply the same personal progress and public media fields to AJAX and inline quiz rows. */
+function ll_tools_flashcards_prepare_client_rows(array $rows, array $wordset_ids, WP_Term $term, array $config): array {
+    if (is_user_logged_in() && function_exists('ll_tools_attach_user_practice_progress_to_words')) {
+        $rows = ll_tools_attach_user_practice_progress_to_words($rows, get_current_user_id(), [
+            'wordset_id' => count($wordset_ids) === 1 ? (int) $wordset_ids[0] : 0,
+            'category_id' => (int) $term->term_id,
+            'category_name' => (string) $term->name,
+            'quiz_config' => $config,
+        ]);
+    }
+    return ll_tools_flashcards_redact_public_speaker_ids($rows);
+}
+
 /** Playable recordings for the target post aliased as w in a prepared query. */
 function ll_tools_flashcards_playable_target_sql(): string {
     global $wpdb;
@@ -2787,21 +2800,7 @@ function ll_get_flashcard_payload_page_ajax(): void {
         $rows = isset($page['rows']) && is_array($page['rows'])
             ? $page['rows']
             : [];
-        if (is_user_logged_in() && function_exists('ll_tools_attach_user_practice_progress_to_words')) {
-            $rows = ll_tools_attach_user_practice_progress_to_words(
-                $rows,
-                get_current_user_id(),
-                [
-                    'wordset_id' => count($resolved['wordset_ids']) === 1
-                        ? (int) $resolved['wordset_ids'][0]
-                        : 0,
-                    'category_id' => (int) $resolved['term']->term_id,
-                    'category_name' => (string) $resolved['term']->name,
-                    'quiz_config' => (array) $resolved['config'],
-                ]
-            );
-        }
-        $page['rows'] = ll_tools_flashcards_redact_public_speaker_ids($rows);
+        $page['rows'] = ll_tools_flashcards_prepare_client_rows($rows, $resolved['wordset_ids'], $resolved['term'], $resolved['config']);
     } finally {
         ll_tools_flashcards_public_ajax_release_client_inflight($client_lease);
     }
@@ -3007,7 +3006,6 @@ function ll_get_words_by_category_ajax() {
         $category_ref = $term instanceof WP_Term
             ? $term
             : ($category_slug !== '' ? $category_slug : $category);
-        $category_label = ($term instanceof WP_Term) ? (string) $term->name : $category;
         if (empty($effective_candidate_word_ids) && function_exists('ll_tools_flashcard_payload_read_page')) {
             $canonical_config = ll_tools_flashcard_payload_normalize_config((array) $base_config);
             $scope = ll_tools_flashcard_payload_build_scope(
@@ -3114,17 +3112,7 @@ function ll_get_words_by_category_ajax() {
             );
         }
 
-        if (is_user_logged_in() && function_exists('ll_tools_attach_user_practice_progress_to_words')) {
-            $words = ll_tools_attach_user_practice_progress_to_words((array) $words, get_current_user_id(), [
-                'wordset_id' => (count($wordset_ids) === 1) ? (int) $wordset_ids[0] : 0,
-                'category_id' => ($term instanceof WP_Term) ? (int) $term->term_id : 0,
-                'category_name' => $category_label,
-                'quiz_config' => $base_config,
-            ]);
-        }
-
-        // Frontend flashcard payloads should not expose internal speaker user IDs.
-        $words = ll_tools_flashcards_redact_public_speaker_ids((array) $words);
+        $words = ll_tools_flashcards_prepare_client_rows((array) $words, $wordset_ids, $term, $base_config);
 
         if (
             !$include_option_pool

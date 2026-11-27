@@ -6058,6 +6058,10 @@ msgid "Review now"
 msgstr "Repasar ahora"
 
 #: includes/lib/wordset-level-labels.php:15
+msgid "Lessons in this level"
+msgstr "Lecciones de este nivel"
+
+#: includes/lib/wordset-level-labels.php:15
 msgid "See all lessons"
 msgstr "Ver todas las lecciones"
 

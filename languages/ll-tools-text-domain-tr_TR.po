@@ -28456,6 +28456,10 @@ msgid "Review now"
 msgstr "Şimdi tekrar et"
 
 #: includes/lib/wordset-level-labels.php:15
+msgid "Lessons in this level"
+msgstr "Bu seviyedeki dersler"
+
+#: includes/lib/wordset-level-labels.php:15
 msgid "See all lessons"
 msgstr "Tüm dersleri gör"
 

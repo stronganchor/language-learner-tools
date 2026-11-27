@@ -7233,9 +7233,9 @@ function ll_tools_wordset_page_render_category_card(array $cat, array $context =
     $card_new_pct = max(0, 100 - $card_mastered_pct - $card_studied_pct);
     $progress_widths = ['mastered' => $card_mastered_pct, 'studied' => $card_studied_pct, 'new' => $card_new_pct];
     $progress_labels = [
-        'mastered' => __('Learned', 'll-tools-text-domain') . ' ' . number_format_i18n((int) ($card_progress['mastered'] ?? 0)),
-        'studied' => __('In progress', 'll-tools-text-domain') . ' ' . number_format_i18n((int) ($card_progress['studied'] ?? 0)),
-        'new' => __('New', 'll-tools-text-domain') . ' ' . number_format_i18n((int) ($card_progress['new'] ?? $card_word_total)),
+        'mastered' => number_format_i18n((int) ($card_progress['mastered'] ?? 0)) . ' ' . __('Learned', 'll-tools-text-domain'),
+        'studied' => number_format_i18n((int) ($card_progress['studied'] ?? 0)) . ' ' . __('In progress', 'll-tools-text-domain'),
+        'new' => number_format_i18n((int) ($card_progress['new'] ?? $card_word_total)) . ' ' . __('New', 'll-tools-text-domain'),
     ];
     $progress_description = implode(', ', $progress_labels);
     $card_starred_count = max(0, (int) ($category_starred_lookup[$cat_id] ?? 0));

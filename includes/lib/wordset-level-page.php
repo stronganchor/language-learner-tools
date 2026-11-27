@@ -168,13 +168,16 @@ function ll_tools_wordset_level_save_interval(int $user_id, int $wordset_id, int
 }
 
 /** Split an already ranked, exactly owned practice plan without reordering or hydrating it. */
-function ll_tools_wordset_level_bounded_plan(array $activity, int $chunk_size = 12): array {
+function ll_tools_wordset_level_bounded_plan(array $activity, int $chunk_size = 12, bool $fast_start = false): array {
     $chunks = [];
     $chunk = ['category_ids' => [], 'word_ids' => []];
+    $category_limit = $fast_start ? 2 : 8;
     foreach ($activity['session_word_ids'] as $word_id) {
         $category_id = $activity['word_category_ids'][$word_id];
         $new_category = !in_array($category_id, $chunk['category_ids'], true);
-        if (count($chunk['word_ids']) >= $chunk_size || ($new_category && count($chunk['category_ids']) >= 8)) {
+        // Only one lesson's rows are needed before the first round can start.
+        $starter_full = $fast_start && !$chunks && $chunk['word_ids'] && ($new_category || count($chunk['word_ids']) >= 4);
+        if ($starter_full || count($chunk['word_ids']) >= $chunk_size || ($new_category && count($chunk['category_ids']) >= $category_limit)) {
             $chunks[] = $chunk;
             $chunk = ['category_ids' => [], 'word_ids' => []];
             $new_category = true;
@@ -284,7 +287,7 @@ function ll_tools_wordset_level_request_in_scope(int $user_id, int $wordset_id, 
         if (!in_array($mode, ll_tools_get_study_launch_mode_order(true), true)) {
             return new WP_Error('ll_level_action_invalid', __('Unknown level action.', 'll-tools-text-domain'), ['status' => 400]);
         }
-        return ll_tools_wordset_level_quiz($wordset_id, $user_id, $scope[$level], $mode)
+        return ll_tools_wordset_level_quiz($wordset_id, $user_id, $scope[$level], $mode, !empty($request['fast_start']))
             ?? new WP_Error('ll_level_no_activity', __('No quiz words are available for this selection.', 'll-tools-text-domain'), ['status' => 409]);
     }
     if ($operation === 'interval') {
@@ -329,7 +332,7 @@ function ll_tools_wordset_level_request_in_scope(int $user_id, int $wordset_id, 
         return new WP_Error('ll_level_action_invalid', __('Unknown level action.', 'll-tools-text-domain'), ['status' => 400]);
     }
     if (!is_wp_error($activity ?? null) && !empty($activity['session_word_ids'])) {
-        $activity['bounded'] = ll_tools_wordset_level_bounded_plan($activity);
+        $activity['bounded'] = ll_tools_wordset_level_bounded_plan($activity, 12, !empty($request['fast_start']));
     }
     return $activity ?? new WP_Error('ll_level_no_activity', __('There is nothing to practice in this selection right now.', 'll-tools-text-domain'), ['status' => 409]);
 }

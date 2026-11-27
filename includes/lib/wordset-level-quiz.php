@@ -47,13 +47,53 @@ function ll_tools_wordset_level_learn_selection(array $ordered, array $owners, a
     return [$best, $best_key];
 }
 
-/** Plan only the selected level. Its scoped ID projections never hydrate quiz media. */
-function ll_tools_wordset_level_quiz(int $wordset_id, int $user_id, array $categories, string $mode) {
+/** Reuse the player payload for one lesson. An unavailable starter falls back to the normal loader. */
+function ll_tools_wordset_level_listening_starter(int $wordset_id, int $user_id, int $cid, array $ids = []): array {
+    $term = get_term($cid, 'word-category');
+    if (!$term instanceof WP_Term || !ll_tools_user_can_view_category($term, $user_id, $complete) || !$complete) { return []; }
+    $minimum = (int) apply_filters('ll_tools_quiz_min_words', LL_TOOLS_MIN_WORDS_PER_QUIZ);
+    $config = ll_tools_resolve_effective_category_quiz_config($term, $minimum, [$wordset_id], $complete);
+    if (!$complete) { return []; }
+    if ($ids) {
+        $config['__candidate_word_ids'] = $ids;
+        $config['__skip_image_similarity_pairs'] = true;
+        $rows = ll_get_words_by_category($term, $config['option_type'], [$wordset_id], $config, $complete);
+        return $complete && $rows ? ['starter_rows' => ll_tools_flashcards_prepare_client_rows($rows, [$wordset_id], $term, $config)] : [];
+    }
+    $scope = ll_tools_flashcard_payload_build_scope($term, [$wordset_id], $config);
+    if (is_wp_error($scope)) { return []; }
+    $state = ll_tools_get_flashcard_payload_state(ll_tools_flashcard_payload_scope_hash($scope));
+    // Only borrow an already published generation. The native page loader owns warmup and retries.
+    if (empty($state['published_generation'])
+        || !ll_tools_flashcard_payload_state_is_ready($scope, ll_tools_flashcard_payload_dependency_signature($scope), $state, false)) { return []; }
+    $page = ll_tools_flashcard_payload_read_page($scope, '', 12);
+    if (is_wp_error($page) || empty($page['rows'])) { return []; }
+    return ['starter_page' => [
+        'category_id' => $cid,
+        'rows' => ll_tools_flashcards_prepare_client_rows($page['rows'], [$wordset_id], $term, $config),
+        'next_cursor' => (string) ($page['next_cursor'] ?? ''),
+    ]];
+}
+
+/** Plan the selected level and optionally include its first playable rows. */
+function ll_tools_wordset_level_quiz(int $wordset_id, int $user_id, array $categories, string $mode, bool $fast_start = false) {
     $categories = array_filter($categories, static function (array $category) use ($mode): bool {
-        return ll_tools_wordset_level_category_supports_quiz($category, $mode);
+        return ($category['is_public'] ?? true) && ll_tools_wordset_level_category_supports_quiz($category, $mode);
     });
     if (!$categories) { return null; }
-    $data = ll_tools_wordset_level_member_progress($wordset_id, $user_id, [$categories], false, $mode);
+    $fast_listen = $user_id > 0 && $fast_start && $mode === 'listening';
+    $data = ll_tools_wordset_level_member_progress($wordset_id, $user_id, [$categories], false, $mode, $fast_listen);
+    if ($fast_listen && is_wp_error($data) && $data->get_error_code() === 'll_level_progress_preparing') {
+        // An unopened level can start its ordinary incremental player while the overview warms.
+        $ids = array_column($categories, 'id');
+        $history = ll_tools_wordset_level_history($user_id, $wordset_id, $ids);
+        if (is_wp_error($history)) { return $history; }
+        usort($ids, static function ($left, $right) use ($history) {
+            return strcmp($history[$left] ?? '', $history[$right] ?? '') ?: ($left <=> $right);
+        });
+        return ll_tools_wordset_level_activity('listening', $ids) + ['stream_categories' => true]
+            + ll_tools_wordset_level_listening_starter($wordset_id, $user_id, $ids[0]);
+    }
     if (is_wp_error($data)) { return $data; }
     $by_category = array_map('array_keys', $data['members']);
     $meta = [];
@@ -106,7 +146,8 @@ function ll_tools_wordset_level_quiz(int $wordset_id, int $user_id, array $categ
 
     $activity = ll_tools_wordset_level_activity($mode, array_values($selected), array_keys($selected));
     $activity['word_category_ids'] = $selected;
-    $plan = ll_tools_wordset_level_bounded_plan($activity, $mode === 'gender' ? $limit : 15);
+    $plan = ll_tools_wordset_level_bounded_plan($activity, $mode === 'gender' ? $limit : 15,
+        $fast_start && in_array($mode, ['practice', 'self-check', 'listening'], true));
     if ($mode === 'learning') {
         $learning = ['target_word_ids' => $activity['session_word_ids'], 'compatibility_key' => $compatibility];
         $plan['chunks'][0] += $learning;
@@ -119,5 +160,9 @@ function ll_tools_wordset_level_quiz(int $wordset_id, int $user_id, array $categ
         unset($chunk);
     }
     $activity['bounded'] = $plan;
+    if ($fast_listen) {
+        $first = $plan['chunks'][0];
+        $activity += ll_tools_wordset_level_listening_starter($wordset_id, $user_id, $first['category_ids'][0], $first['word_ids']);
+    }
     return $activity;
 }

@@ -4,7 +4,7 @@
     "source_policy": "Public visitor and learner-facing UI strings. Excludes wp-admin, REST/CLI/admin tooling, front-end manager-only settings, recorder queue management, and teacher-class management. Includes language switching, auth, public lesson/card/game/dictionary surfaces, learner progress, hidden-category controls, and learner study preferences.",
     "source_config": "languages/tier2-public-ui-sources.php",
     "source_pot": "languages/ll-tools-text-domain.pot",
-    "entry_count": 907,
+    "entry_count": 908,
     "entries": [
         {
             "key": "adee136dff8d8dc5540c5fcb347c2f4f5f0b9304",
@@ -978,7 +978,7 @@
                 "includes/shortcodes/audio-credit-grid-shortcode.php:408",
                 "includes/shortcodes/content-lesson-index-shortcode.php:722",
                 "includes/shortcodes/dictionary-shortcode.php:2967",
-                "includes/shortcodes/flashcard-widget.php:776",
+                "includes/shortcodes/flashcard-widget.php:789",
                 "includes/shortcodes/image-copyright-grid-shortcode.php:591",
                 "includes/taxonomies/word-category-taxonomy.php:3659"
             ],
@@ -994,7 +994,7 @@
                 "includes/shortcodes/audio-credit-grid-shortcode.php:408",
                 "includes/shortcodes/content-lesson-index-shortcode.php:722",
                 "includes/shortcodes/dictionary-shortcode.php:2967",
-                "includes/shortcodes/flashcard-widget.php:776",
+                "includes/shortcodes/flashcard-widget.php:789",
                 "includes/shortcodes/image-copyright-grid-shortcode.php:591"
             ]
         },
@@ -2307,15 +2307,27 @@
             ]
         },
         {
-            "key": "5e2584e3fe51c7f3d5e83195b46627a528f35be5",
+            "key": "c96f2e89b6529fe961fa9620b42fb2dc3be06d52",
             "context": "",
-            "msgid": "See all lessons",
+            "msgid": "Lessons in this level",
             "msgid_plural": null,
             "references": [
                 "includes/lib/wordset-level-labels.php:15"
             ],
             "public_references": [
                 "includes/lib/wordset-level-labels.php:15"
+            ]
+        },
+        {
+            "key": "5e2584e3fe51c7f3d5e83195b46627a528f35be5",
+            "context": "",
+            "msgid": "See all lessons",
+            "msgid_plural": null,
+            "references": [
+                "includes/lib/wordset-level-labels.php:16"
+            ],
+            "public_references": [
+                "includes/lib/wordset-level-labels.php:16"
             ]
         },
         {
@@ -2324,12 +2336,12 @@
             "msgid": "Back",
             "msgid_plural": null,
             "references": [
-                "includes/lib/wordset-level-labels.php:16",
-                "includes/shortcodes/flashcard-widget.php:731"
+                "includes/lib/wordset-level-labels.php:17",
+                "includes/shortcodes/flashcard-widget.php:744"
             ],
             "public_references": [
-                "includes/lib/wordset-level-labels.php:16",
-                "includes/shortcodes/flashcard-widget.php:731"
+                "includes/lib/wordset-level-labels.php:17",
+                "includes/shortcodes/flashcard-widget.php:744"
             ]
         },
         {
@@ -2338,10 +2350,10 @@
             "msgid": "Show more lessons",
             "msgid_plural": null,
             "references": [
-                "includes/lib/wordset-level-labels.php:17"
+                "includes/lib/wordset-level-labels.php:18"
             ],
             "public_references": [
-                "includes/lib/wordset-level-labels.php:17"
+                "includes/lib/wordset-level-labels.php:18"
             ]
         },
         {
@@ -2351,26 +2363,26 @@
             "msgid_plural": null,
             "references": [
                 "includes/flashcard-shell.php:52",
-                "includes/lib/wordset-level-labels.php:18",
+                "includes/lib/wordset-level-labels.php:19",
                 "includes/pages/wordset-pages.php:26158",
                 "includes/pages/wordset-pages.php:27694",
                 "includes/pages/wordset-pages.php:6789",
-                "includes/shortcodes/flashcard-widget.php:760",
-                "includes/shortcodes/flashcard-widget.php:825",
-                "includes/shortcodes/flashcard-widget.php:830",
-                "includes/shortcodes/flashcard-widget.php:863",
+                "includes/shortcodes/flashcard-widget.php:773",
+                "includes/shortcodes/flashcard-widget.php:838",
+                "includes/shortcodes/flashcard-widget.php:843",
+                "includes/shortcodes/flashcard-widget.php:876",
                 "templates/offline-app-shell-template.php:817",
                 "templates/vocab-lesson-template.php:198"
             ],
             "public_references": [
-                "includes/lib/wordset-level-labels.php:18",
+                "includes/lib/wordset-level-labels.php:19",
                 "includes/pages/wordset-pages.php:26158",
                 "includes/pages/wordset-pages.php:27694",
                 "includes/pages/wordset-pages.php:6789",
-                "includes/shortcodes/flashcard-widget.php:760",
-                "includes/shortcodes/flashcard-widget.php:825",
-                "includes/shortcodes/flashcard-widget.php:830",
-                "includes/shortcodes/flashcard-widget.php:863",
+                "includes/shortcodes/flashcard-widget.php:773",
+                "includes/shortcodes/flashcard-widget.php:838",
+                "includes/shortcodes/flashcard-widget.php:843",
+                "includes/shortcodes/flashcard-widget.php:876",
                 "templates/offline-app-shell-template.php:817",
                 "templates/vocab-lesson-template.php:198"
             ]
@@ -2383,29 +2395,29 @@
             "references": [
                 "includes/admin/lti-integration.php:192",
                 "includes/flashcard-shell.php:51",
-                "includes/lib/wordset-level-labels.php:19",
+                "includes/lib/wordset-level-labels.php:20",
                 "includes/pages/wordset-pages.php:26157",
                 "includes/pages/wordset-pages.php:27693",
                 "includes/pages/wordset-pages.php:6788",
-                "includes/shortcodes/flashcard-widget.php:759",
-                "includes/shortcodes/flashcard-widget.php:764",
-                "includes/shortcodes/flashcard-widget.php:824",
-                "includes/shortcodes/flashcard-widget.php:829",
-                "includes/shortcodes/flashcard-widget.php:858",
+                "includes/shortcodes/flashcard-widget.php:772",
+                "includes/shortcodes/flashcard-widget.php:777",
+                "includes/shortcodes/flashcard-widget.php:837",
+                "includes/shortcodes/flashcard-widget.php:842",
+                "includes/shortcodes/flashcard-widget.php:871",
                 "templates/content-lesson-template.php:263",
                 "templates/offline-app-shell-template.php:820",
                 "templates/vocab-lesson-template.php:197"
             ],
             "public_references": [
-                "includes/lib/wordset-level-labels.php:19",
+                "includes/lib/wordset-level-labels.php:20",
                 "includes/pages/wordset-pages.php:26157",
                 "includes/pages/wordset-pages.php:27693",
                 "includes/pages/wordset-pages.php:6788",
-                "includes/shortcodes/flashcard-widget.php:759",
-                "includes/shortcodes/flashcard-widget.php:764",
-                "includes/shortcodes/flashcard-widget.php:824",
-                "includes/shortcodes/flashcard-widget.php:829",
-                "includes/shortcodes/flashcard-widget.php:858",
+                "includes/shortcodes/flashcard-widget.php:772",
+                "includes/shortcodes/flashcard-widget.php:777",
+                "includes/shortcodes/flashcard-widget.php:837",
+                "includes/shortcodes/flashcard-widget.php:842",
+                "includes/shortcodes/flashcard-widget.php:871",
                 "templates/content-lesson-template.php:263",
                 "templates/offline-app-shell-template.php:820",
                 "templates/vocab-lesson-template.php:197"
@@ -2417,10 +2429,10 @@
             "msgid": "Review now",
             "msgid_plural": null,
             "references": [
-                "includes/lib/wordset-level-labels.php:20"
+                "includes/lib/wordset-level-labels.php:21"
             ],
             "public_references": [
-                "includes/lib/wordset-level-labels.php:20"
+                "includes/lib/wordset-level-labels.php:21"
             ]
         },
         {
@@ -2429,10 +2441,10 @@
             "msgid": "Words this round",
             "msgid_plural": null,
             "references": [
-                "includes/lib/wordset-level-labels.php:21"
+                "includes/lib/wordset-level-labels.php:22"
             ],
             "public_references": [
-                "includes/lib/wordset-level-labels.php:21"
+                "includes/lib/wordset-level-labels.php:22"
             ]
         },
         {
@@ -2441,10 +2453,10 @@
             "msgid": "Least recently studied",
             "msgid_plural": null,
             "references": [
-                "includes/lib/wordset-level-labels.php:22"
+                "includes/lib/wordset-level-labels.php:23"
             ],
             "public_references": [
-                "includes/lib/wordset-level-labels.php:22"
+                "includes/lib/wordset-level-labels.php:23"
             ]
         },
         {
@@ -2453,10 +2465,10 @@
             "msgid": "Level mastered",
             "msgid_plural": null,
             "references": [
-                "includes/lib/wordset-level-labels.php:23"
+                "includes/lib/wordset-level-labels.php:24"
             ],
             "public_references": [
-                "includes/lib/wordset-level-labels.php:23"
+                "includes/lib/wordset-level-labels.php:24"
             ]
         },
         {
@@ -2465,10 +2477,10 @@
             "msgid": "Due for review (%d)",
             "msgid_plural": null,
             "references": [
-                "includes/lib/wordset-level-labels.php:25"
+                "includes/lib/wordset-level-labels.php:26"
             ],
             "public_references": [
-                "includes/lib/wordset-level-labels.php:25"
+                "includes/lib/wordset-level-labels.php:26"
             ]
         },
         {
@@ -2477,10 +2489,10 @@
             "msgid": "Level details",
             "msgid_plural": null,
             "references": [
-                "includes/lib/wordset-level-labels.php:26"
+                "includes/lib/wordset-level-labels.php:27"
             ],
             "public_references": [
-                "includes/lib/wordset-level-labels.php:26"
+                "includes/lib/wordset-level-labels.php:27"
             ]
         },
         {
@@ -2489,10 +2501,10 @@
             "msgid": "%1$d / %2$d learned",
             "msgid_plural": null,
             "references": [
-                "includes/lib/wordset-level-labels.php:28"
+                "includes/lib/wordset-level-labels.php:29"
             ],
             "public_references": [
-                "includes/lib/wordset-level-labels.php:28"
+                "includes/lib/wordset-level-labels.php:29"
             ]
         },
         {
@@ -2501,12 +2513,12 @@
             "msgid": "Due for review",
             "msgid_plural": null,
             "references": [
-                "includes/lib/wordset-level-labels.php:29",
+                "includes/lib/wordset-level-labels.php:30",
                 "includes/pages/wordset-pages.php:26523",
                 "includes/pages/wordset-pages.php:27623"
             ],
             "public_references": [
-                "includes/lib/wordset-level-labels.php:29",
+                "includes/lib/wordset-level-labels.php:30",
                 "includes/pages/wordset-pages.php:26523",
                 "includes/pages/wordset-pages.php:27623"
             ]
@@ -2517,10 +2529,10 @@
             "msgid": "These words are due because your review interval has passed.",
             "msgid_plural": null,
             "references": [
-                "includes/lib/wordset-level-labels.php:30"
+                "includes/lib/wordset-level-labels.php:31"
             ],
             "public_references": [
-                "includes/lib/wordset-level-labels.php:30"
+                "includes/lib/wordset-level-labels.php:31"
             ]
         },
         {
@@ -2529,7 +2541,7 @@
             "msgid": "Learned",
             "msgid_plural": null,
             "references": [
-                "includes/lib/wordset-level-labels.php:31",
+                "includes/lib/wordset-level-labels.php:32",
                 "includes/pages/wordset-pages.php:13693",
                 "includes/pages/wordset-pages.php:26493",
                 "includes/pages/wordset-pages.php:27618",
@@ -2537,7 +2549,7 @@
                 "includes/pages/wordset-pages.php:7236"
             ],
             "public_references": [
-                "includes/lib/wordset-level-labels.php:31",
+                "includes/lib/wordset-level-labels.php:32",
                 "includes/pages/wordset-pages.php:13693",
                 "includes/pages/wordset-pages.php:26493",
                 "includes/pages/wordset-pages.php:27618",
@@ -2550,7 +2562,7 @@
             "msgid": "In progress",
             "msgid_plural": null,
             "references": [
-                "includes/lib/wordset-level-labels.php:32",
+                "includes/lib/wordset-level-labels.php:33",
                 "includes/pages/wordset-pages.php:13698",
                 "includes/pages/wordset-pages.php:26499",
                 "includes/pages/wordset-pages.php:27619",
@@ -2558,7 +2570,7 @@
                 "includes/pages/wordset-pages.php:7237"
             ],
             "public_references": [
-                "includes/lib/wordset-level-labels.php:32",
+                "includes/lib/wordset-level-labels.php:33",
                 "includes/pages/wordset-pages.php:13698",
                 "includes/pages/wordset-pages.php:26499",
                 "includes/pages/wordset-pages.php:27619",
@@ -2573,7 +2585,7 @@
             "references": [
                 "includes/admin/export-import.php:4908",
                 "includes/admin/user-progress-report.php:1092",
-                "includes/lib/wordset-level-labels.php:33",
+                "includes/lib/wordset-level-labels.php:34",
                 "includes/pages/wordset-pages.php:13703",
                 "includes/pages/wordset-pages.php:26505",
                 "includes/pages/wordset-pages.php:27620",
@@ -2583,7 +2595,7 @@
                 "includes/pages/wordset-pages.php:7238"
             ],
             "public_references": [
-                "includes/lib/wordset-level-labels.php:33",
+                "includes/lib/wordset-level-labels.php:34",
                 "includes/pages/wordset-pages.php:13703",
                 "includes/pages/wordset-pages.php:26505",
                 "includes/pages/wordset-pages.php:27620",
@@ -2601,7 +2613,7 @@
                 "includes/admin/teacher-classes-page.php:1036",
                 "includes/admin/user-progress-report.php:1094",
                 "includes/admin/user-progress-report.php:919",
-                "includes/lib/wordset-level-labels.php:34",
+                "includes/lib/wordset-level-labels.php:35",
                 "includes/pages/wordset-pages.php:13161",
                 "includes/pages/wordset-pages.php:13298",
                 "includes/pages/wordset-pages.php:13708",
@@ -2609,7 +2621,7 @@
                 "includes/pages/wordset-pages.php:27622"
             ],
             "public_references": [
-                "includes/lib/wordset-level-labels.php:34",
+                "includes/lib/wordset-level-labels.php:35",
                 "includes/pages/wordset-pages.php:13708",
                 "includes/pages/wordset-pages.php:26517",
                 "includes/pages/wordset-pages.php:27622"
@@ -2621,14 +2633,14 @@
             "msgid": "Starred",
             "msgid_plural": null,
             "references": [
-                "includes/lib/wordset-level-labels.php:35",
+                "includes/lib/wordset-level-labels.php:36",
                 "includes/pages/wordset-pages.php:26511",
                 "includes/pages/wordset-pages.php:27621",
                 "includes/pages/wordset-pages.php:27644",
                 "includes/pages/wordset-pages.php:28035"
             ],
             "public_references": [
-                "includes/lib/wordset-level-labels.php:35",
+                "includes/lib/wordset-level-labels.php:36",
                 "includes/pages/wordset-pages.php:26511",
                 "includes/pages/wordset-pages.php:27621",
                 "includes/pages/wordset-pages.php:27644",
@@ -2641,10 +2653,10 @@
             "msgid": "Your quiz answers show that these words need more practice.",
             "msgid_plural": null,
             "references": [
-                "includes/lib/wordset-level-labels.php:36"
+                "includes/lib/wordset-level-labels.php:37"
             ],
             "public_references": [
-                "includes/lib/wordset-level-labels.php:36"
+                "includes/lib/wordset-level-labels.php:37"
             ]
         },
         {
@@ -2653,10 +2665,10 @@
             "msgid": "These are the words you starred in this level.",
             "msgid_plural": null,
             "references": [
-                "includes/lib/wordset-level-labels.php:37"
+                "includes/lib/wordset-level-labels.php:38"
             ],
             "public_references": [
-                "includes/lib/wordset-level-labels.php:37"
+                "includes/lib/wordset-level-labels.php:38"
             ]
         },
         {
@@ -2672,7 +2684,7 @@
                 "includes/admin/bulk-translation-admin.php:147",
                 "includes/admin/image-aspect-normalizer-admin.php:111",
                 "includes/admin/user-progress-report.php:1119",
-                "includes/lib/wordset-level-labels.php:38",
+                "includes/lib/wordset-level-labels.php:39",
                 "includes/pages/wordset-editor.php:4658",
                 "includes/pages/wordset-pages.php:27630",
                 "includes/pages/wordset-pages.php:27890",
@@ -2681,7 +2693,7 @@
                 "includes/wordset-isolation.php:5501"
             ],
             "public_references": [
-                "includes/lib/wordset-level-labels.php:38",
+                "includes/lib/wordset-level-labels.php:39",
                 "includes/pages/wordset-pages.php:27630",
                 "includes/pages/wordset-pages.php:27890"
             ]
@@ -2692,13 +2704,13 @@
             "msgid": "Lessons",
             "msgid_plural": null,
             "references": [
-                "includes/lib/wordset-level-labels.php:39",
+                "includes/lib/wordset-level-labels.php:40",
                 "includes/pages/wordset-pages.php:118",
                 "includes/shortcodes/content-lesson-index-shortcode.php:587",
                 "includes/wordset-isolation.php:5505"
             ],
             "public_references": [
-                "includes/lib/wordset-level-labels.php:39",
+                "includes/lib/wordset-level-labels.php:40",
                 "includes/pages/wordset-pages.php:118",
                 "includes/shortcodes/content-lesson-index-shortcode.php:587"
             ]
@@ -2709,10 +2721,10 @@
             "msgid": "Last studied",
             "msgid_plural": null,
             "references": [
-                "includes/lib/wordset-level-labels.php:40"
+                "includes/lib/wordset-level-labels.php:41"
             ],
             "public_references": [
-                "includes/lib/wordset-level-labels.php:40"
+                "includes/lib/wordset-level-labels.php:41"
             ]
         },
         {
@@ -2721,10 +2733,10 @@
             "msgid": "No activity yet",
             "msgid_plural": null,
             "references": [
-                "includes/lib/wordset-level-labels.php:41"
+                "includes/lib/wordset-level-labels.php:42"
             ],
             "public_references": [
-                "includes/lib/wordset-level-labels.php:41"
+                "includes/lib/wordset-level-labels.php:42"
             ]
         },
         {
@@ -2733,10 +2745,10 @@
             "msgid": "How often do you want to review words in this level?",
             "msgid_plural": null,
             "references": [
-                "includes/lib/wordset-level-labels.php:42"
+                "includes/lib/wordset-level-labels.php:43"
             ],
             "public_references": [
-                "includes/lib/wordset-level-labels.php:42"
+                "includes/lib/wordset-level-labels.php:43"
             ]
         },
         {
@@ -2745,10 +2757,10 @@
             "msgid": "days",
             "msgid_plural": null,
             "references": [
-                "includes/lib/wordset-level-labels.php:43"
+                "includes/lib/wordset-level-labels.php:44"
             ],
             "public_references": [
-                "includes/lib/wordset-level-labels.php:43"
+                "includes/lib/wordset-level-labels.php:44"
             ]
         },
         {
@@ -2757,10 +2769,10 @@
             "msgid": "The interval starts again each time you study a word.",
             "msgid_plural": null,
             "references": [
-                "includes/lib/wordset-level-labels.php:44"
+                "includes/lib/wordset-level-labels.php:45"
             ],
             "public_references": [
-                "includes/lib/wordset-level-labels.php:44"
+                "includes/lib/wordset-level-labels.php:45"
             ]
         },
         {
@@ -2769,13 +2781,13 @@
             "msgid": "Saving\u2026",
             "msgid_plural": null,
             "references": [
-                "includes/lib/wordset-level-labels.php:45",
+                "includes/lib/wordset-level-labels.php:46",
                 "includes/lms/assignment-experience.php:416",
                 "includes/pages/wordset-transcription-review.php:283",
                 "includes/shortcodes/editor-hub-shortcode.php:1067"
             ],
             "public_references": [
-                "includes/lib/wordset-level-labels.php:45",
+                "includes/lib/wordset-level-labels.php:46",
                 "includes/lms/assignment-experience.php:416"
             ]
         },
@@ -2785,13 +2797,13 @@
             "msgid": "Saved",
             "msgid_plural": null,
             "references": [
-                "includes/lib/wordset-level-labels.php:46",
+                "includes/lib/wordset-level-labels.php:47",
                 "includes/pages/wordset-pages.php:27591",
                 "includes/pages/wordset-transcription-review.php:284",
                 "includes/shortcodes/audio-recording-shortcode.php:1677"
             ],
             "public_references": [
-                "includes/lib/wordset-level-labels.php:46",
+                "includes/lib/wordset-level-labels.php:47",
                 "includes/pages/wordset-pages.php:27591"
             ]
         },
@@ -2801,10 +2813,10 @@
             "msgid": "Loading progress\u2026",
             "msgid_plural": null,
             "references": [
-                "includes/lib/wordset-level-labels.php:47"
+                "includes/lib/wordset-level-labels.php:48"
             ],
             "public_references": [
-                "includes/lib/wordset-level-labels.php:47"
+                "includes/lib/wordset-level-labels.php:48"
             ]
         },
         {
@@ -2813,10 +2825,10 @@
             "msgid": "Could not load progress.",
             "msgid_plural": null,
             "references": [
-                "includes/lib/wordset-level-labels.php:48"
+                "includes/lib/wordset-level-labels.php:49"
             ],
             "public_references": [
-                "includes/lib/wordset-level-labels.php:48"
+                "includes/lib/wordset-level-labels.php:49"
             ]
         },
         {
@@ -2825,18 +2837,18 @@
             "msgid": "Reload this page to update your levels.",
             "msgid_plural": null,
             "references": [
-                "includes/lib/wordset-level-labels.php:49",
-                "includes/lib/wordset-level-page.php:244",
+                "includes/lib/wordset-level-labels.php:50",
                 "includes/lib/wordset-level-page.php:247",
-                "includes/lib/wordset-level-page.php:252",
-                "includes/lib/wordset-level-page.php:271"
+                "includes/lib/wordset-level-page.php:250",
+                "includes/lib/wordset-level-page.php:255",
+                "includes/lib/wordset-level-page.php:274"
             ],
             "public_references": [
-                "includes/lib/wordset-level-labels.php:49",
-                "includes/lib/wordset-level-page.php:244",
+                "includes/lib/wordset-level-labels.php:50",
                 "includes/lib/wordset-level-page.php:247",
-                "includes/lib/wordset-level-page.php:252",
-                "includes/lib/wordset-level-page.php:271"
+                "includes/lib/wordset-level-page.php:250",
+                "includes/lib/wordset-level-page.php:255",
+                "includes/lib/wordset-level-page.php:274"
             ]
         },
         {
@@ -2845,12 +2857,12 @@
             "msgid": "Reload",
             "msgid_plural": null,
             "references": [
-                "includes/lib/wordset-level-labels.php:50",
+                "includes/lib/wordset-level-labels.php:51",
                 "includes/pages/wordset-transcription-review.php:291",
                 "templates/vocab-lesson-template.php:1404"
             ],
             "public_references": [
-                "includes/lib/wordset-level-labels.php:50"
+                "includes/lib/wordset-level-labels.php:51"
             ]
         },
         {
@@ -2859,10 +2871,10 @@
             "msgid": "Could not start this activity.",
             "msgid_plural": null,
             "references": [
-                "includes/lib/wordset-level-labels.php:51"
+                "includes/lib/wordset-level-labels.php:52"
             ],
             "public_references": [
-                "includes/lib/wordset-level-labels.php:51"
+                "includes/lib/wordset-level-labels.php:52"
             ]
         },
         {
@@ -2871,10 +2883,10 @@
             "msgid": "Could not save this interval.",
             "msgid_plural": null,
             "references": [
-                "includes/lib/wordset-level-labels.php:52"
+                "includes/lib/wordset-level-labels.php:53"
             ],
             "public_references": [
-                "includes/lib/wordset-level-labels.php:52"
+                "includes/lib/wordset-level-labels.php:53"
             ]
         },
         {
@@ -2893,7 +2905,7 @@
                 "includes/content-lesson-cloze.php:289",
                 "includes/lib/recording-history.php:279",
                 "includes/lib/word-copy.php:465",
-                "includes/lib/wordset-level-labels.php:53",
+                "includes/lib/wordset-level-labels.php:54",
                 "includes/lms/assignment-experience.php:416",
                 "includes/pages/content-lesson-pages.php:1308",
                 "includes/pages/quiz-pages.php:1120",
@@ -2911,7 +2923,7 @@
                 "includes/shortcodes/audio-recording-shortcode.php:1660",
                 "includes/shortcodes/audio-recording-shortcode.php:1899",
                 "includes/shortcodes/dictionary-shortcode.php:345",
-                "includes/shortcodes/flashcard-widget.php:809",
+                "includes/shortcodes/flashcard-widget.php:822",
                 "includes/shortcodes/quiz-pages-shortcodes.php:2403",
                 "includes/taxonomies/word-category-taxonomy.php:3667",
                 "templates/audio-image-matcher-template.php:57",
@@ -2919,7 +2931,7 @@
                 "templates/vocab-lesson-template.php:447"
             ],
             "public_references": [
-                "includes/lib/wordset-level-labels.php:53",
+                "includes/lib/wordset-level-labels.php:54",
                 "includes/lms/assignment-experience.php:416",
                 "includes/pages/quiz-pages.php:1120",
                 "includes/pages/quiz-pages.php:2075",
@@ -2930,7 +2942,7 @@
                 "includes/pages/wordset-pages.php:28774",
                 "includes/pages/wordset-pages.php:29858",
                 "includes/shortcodes/dictionary-shortcode.php:345",
-                "includes/shortcodes/flashcard-widget.php:809",
+                "includes/shortcodes/flashcard-widget.php:822",
                 "includes/shortcodes/quiz-pages-shortcodes.php:2403",
                 "templates/quiz-page-template.php:25",
                 "templates/vocab-lesson-template.php:447"
@@ -2942,10 +2954,10 @@
             "msgid": "Words left today",
             "msgid_plural": null,
             "references": [
-                "includes/lib/wordset-level-labels.php:54"
+                "includes/lib/wordset-level-labels.php:55"
             ],
             "public_references": [
-                "includes/lib/wordset-level-labels.php:54"
+                "includes/lib/wordset-level-labels.php:55"
             ]
         },
         {
@@ -2954,10 +2966,10 @@
             "msgid": "New and in progress",
             "msgid_plural": null,
             "references": [
-                "includes/lib/wordset-level-labels.php:64"
+                "includes/lib/wordset-level-labels.php:65"
             ],
             "public_references": [
-                "includes/lib/wordset-level-labels.php:64"
+                "includes/lib/wordset-level-labels.php:65"
             ]
         },
         {
@@ -2966,10 +2978,10 @@
             "msgid": "%d new word",
             "msgid_plural": "%d new words",
             "references": [
-                "includes/lib/wordset-level-labels.php:68"
+                "includes/lib/wordset-level-labels.php:69"
             ],
             "public_references": [
-                "includes/lib/wordset-level-labels.php:68"
+                "includes/lib/wordset-level-labels.php:69"
             ]
         },
         {
@@ -2978,10 +2990,10 @@
             "msgid": "%d word in progress",
             "msgid_plural": "%d words in progress",
             "references": [
-                "includes/lib/wordset-level-labels.php:72"
+                "includes/lib/wordset-level-labels.php:73"
             ],
             "public_references": [
-                "includes/lib/wordset-level-labels.php:72"
+                "includes/lib/wordset-level-labels.php:73"
             ]
         },
         {
@@ -2990,10 +3002,10 @@
             "msgid": "%d learned word",
             "msgid_plural": "%d learned words",
             "references": [
-                "includes/lib/wordset-level-labels.php:76"
+                "includes/lib/wordset-level-labels.php:77"
             ],
             "public_references": [
-                "includes/lib/wordset-level-labels.php:76"
+                "includes/lib/wordset-level-labels.php:77"
             ]
         },
         {
@@ -3003,12 +3015,12 @@
             "msgid_plural": null,
             "references": [
                 "includes/lib/wordset-level-labels.php:9",
-                "includes/lib/wordset-level-page.php:367",
+                "includes/lib/wordset-level-page.php:370",
                 "includes/shortcodes/content-lesson-index-shortcode.php:584"
             ],
             "public_references": [
                 "includes/lib/wordset-level-labels.php:9",
-                "includes/lib/wordset-level-page.php:367",
+                "includes/lib/wordset-level-page.php:370",
                 "includes/shortcodes/content-lesson-index-shortcode.php:584"
             ]
         },
@@ -3054,10 +3066,10 @@
             "msgid": "Please sign in to view your progress.",
             "msgid_plural": null,
             "references": [
-                "includes/lib/wordset-level-page.php:238"
+                "includes/lib/wordset-level-page.php:241"
             ],
             "public_references": [
-                "includes/lib/wordset-level-page.php:238"
+                "includes/lib/wordset-level-page.php:241"
             ]
         },
         {
@@ -3066,10 +3078,10 @@
             "msgid": "This level is unavailable.",
             "msgid_plural": null,
             "references": [
-                "includes/lib/wordset-level-page.php:281"
+                "includes/lib/wordset-level-page.php:284"
             ],
             "public_references": [
-                "includes/lib/wordset-level-page.php:281"
+                "includes/lib/wordset-level-page.php:284"
             ]
         },
         {
@@ -3078,12 +3090,12 @@
             "msgid": "Unknown level action.",
             "msgid_plural": null,
             "references": [
-                "includes/lib/wordset-level-page.php:285",
-                "includes/lib/wordset-level-page.php:329"
+                "includes/lib/wordset-level-page.php:288",
+                "includes/lib/wordset-level-page.php:332"
             ],
             "public_references": [
-                "includes/lib/wordset-level-page.php:285",
-                "includes/lib/wordset-level-page.php:329"
+                "includes/lib/wordset-level-page.php:288",
+                "includes/lib/wordset-level-page.php:332"
             ]
         },
         {
@@ -3092,7 +3104,7 @@
             "msgid": "No quiz words are available for this selection.",
             "msgid_plural": null,
             "references": [
-                "includes/lib/wordset-level-page.php:288",
+                "includes/lib/wordset-level-page.php:291",
                 "includes/pages/wordset-pages.php:27594",
                 "includes/user-progress.php:12486",
                 "includes/user-progress.php:12912",
@@ -3103,7 +3115,7 @@
                 "includes/user-progress.php:13700"
             ],
             "public_references": [
-                "includes/lib/wordset-level-page.php:288",
+                "includes/lib/wordset-level-page.php:291",
                 "includes/pages/wordset-pages.php:27594"
             ]
         },
@@ -3113,10 +3125,10 @@
             "msgid": "There is nothing to practice in this selection right now.",
             "msgid_plural": null,
             "references": [
-                "includes/lib/wordset-level-page.php:334"
+                "includes/lib/wordset-level-page.php:337"
             ],
             "public_references": [
-                "includes/lib/wordset-level-page.php:334"
+                "includes/lib/wordset-level-page.php:337"
             ]
         },
         {
@@ -3301,8 +3313,8 @@
                 "includes/pages/vocab-lesson-pages.php:2014",
                 "includes/pages/vocab-lesson-pages.php:2035",
                 "includes/pages/wordset-pages.php:27640",
-                "includes/shortcodes/flashcard-widget.php:749",
-                "includes/shortcodes/flashcard-widget.php:754",
+                "includes/shortcodes/flashcard-widget.php:762",
+                "includes/shortcodes/flashcard-widget.php:767",
                 "includes/shortcodes/ranked-word-list-shortcode.php:377",
                 "includes/shortcodes/ranked-word-list-shortcode.php:383",
                 "includes/shortcodes/word-audio-shortcode.php:211",
@@ -3313,8 +3325,8 @@
                 "includes/pages/vocab-lesson-pages.php:2014",
                 "includes/pages/vocab-lesson-pages.php:2035",
                 "includes/pages/wordset-pages.php:27640",
-                "includes/shortcodes/flashcard-widget.php:749",
-                "includes/shortcodes/flashcard-widget.php:754",
+                "includes/shortcodes/flashcard-widget.php:762",
+                "includes/shortcodes/flashcard-widget.php:767",
                 "includes/shortcodes/ranked-word-list-shortcode.php:377",
                 "includes/shortcodes/ranked-word-list-shortcode.php:383",
                 "includes/shortcodes/word-audio-shortcode.php:211"
@@ -4643,9 +4655,9 @@
                 "includes/pages/quiz-pages.php:1131",
                 "includes/pages/vocab-lesson-pages.php:2976",
                 "includes/pages/vocab-lesson-pages.php:3181",
-                "includes/shortcodes/flashcard-widget.php:2603",
-                "includes/shortcodes/flashcard-widget.php:2662",
-                "includes/shortcodes/flashcard-widget.php:2838",
+                "includes/shortcodes/flashcard-widget.php:2616",
+                "includes/shortcodes/flashcard-widget.php:2675",
+                "includes/shortcodes/flashcard-widget.php:2837",
                 "includes/shortcodes/word-grid-shortcode.php:10495",
                 "includes/wordset-isolation.php:1653"
             ],
@@ -4653,9 +4665,9 @@
                 "includes/pages/quiz-pages.php:1131",
                 "includes/pages/vocab-lesson-pages.php:2976",
                 "includes/pages/vocab-lesson-pages.php:3181",
-                "includes/shortcodes/flashcard-widget.php:2603",
-                "includes/shortcodes/flashcard-widget.php:2662",
-                "includes/shortcodes/flashcard-widget.php:2838"
+                "includes/shortcodes/flashcard-widget.php:2616",
+                "includes/shortcodes/flashcard-widget.php:2675",
+                "includes/shortcodes/flashcard-widget.php:2837"
             ]
         },
         {
@@ -4699,11 +4711,11 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/quiz-pages.php:2070",
-                "includes/shortcodes/flashcard-widget.php:803"
+                "includes/shortcodes/flashcard-widget.php:816"
             ],
             "public_references": [
                 "includes/pages/quiz-pages.php:2070",
-                "includes/shortcodes/flashcard-widget.php:803"
+                "includes/shortcodes/flashcard-widget.php:816"
             ]
         },
         {
@@ -7210,7 +7222,7 @@
                 "includes/post-types/word-audio-post-type.php:115",
                 "includes/post-types/word-image-post-type.php:1220",
                 "includes/post-types/words-post-type.php:2004",
-                "includes/shortcodes/flashcard-widget.php:739",
+                "includes/shortcodes/flashcard-widget.php:752",
                 "includes/shortcodes/word-grid-shortcode.php:5909"
             ],
             "public_references": [
@@ -7219,7 +7231,7 @@
                 "includes/pages/wordset-pages.php:27563",
                 "includes/pages/wordset-pages.php:27629",
                 "includes/pages/wordset-pages.php:27889",
-                "includes/shortcodes/flashcard-widget.php:739",
+                "includes/shortcodes/flashcard-widget.php:752",
                 "includes/shortcodes/word-grid-shortcode.php:5909"
             ]
         },
@@ -7360,9 +7372,9 @@
                 "includes/pages/wordset-pages.php:26159",
                 "includes/pages/wordset-pages.php:27695",
                 "includes/pages/wordset-pages.php:6790",
-                "includes/shortcodes/flashcard-widget.php:762",
-                "includes/shortcodes/flashcard-widget.php:826",
-                "includes/shortcodes/flashcard-widget.php:873",
+                "includes/shortcodes/flashcard-widget.php:775",
+                "includes/shortcodes/flashcard-widget.php:839",
+                "includes/shortcodes/flashcard-widget.php:886",
                 "includes/shortcodes/quiz-pages-shortcodes.php:2873",
                 "templates/offline-app-shell-template.php:823",
                 "templates/offline-app-shell-template.php:854",
@@ -7372,9 +7384,9 @@
                 "includes/pages/wordset-pages.php:26159",
                 "includes/pages/wordset-pages.php:27695",
                 "includes/pages/wordset-pages.php:6790",
-                "includes/shortcodes/flashcard-widget.php:762",
-                "includes/shortcodes/flashcard-widget.php:826",
-                "includes/shortcodes/flashcard-widget.php:873",
+                "includes/shortcodes/flashcard-widget.php:775",
+                "includes/shortcodes/flashcard-widget.php:839",
+                "includes/shortcodes/flashcard-widget.php:886",
                 "includes/shortcodes/quiz-pages-shortcodes.php:2873",
                 "templates/offline-app-shell-template.php:823",
                 "templates/offline-app-shell-template.php:854",
@@ -7391,11 +7403,11 @@
                 "includes/pages/wordset-pages.php:26160",
                 "includes/pages/wordset-pages.php:27697",
                 "includes/pages/wordset-pages.php:6791",
-                "includes/shortcodes/flashcard-widget.php:740",
-                "includes/shortcodes/flashcard-widget.php:761",
-                "includes/shortcodes/flashcard-widget.php:766",
-                "includes/shortcodes/flashcard-widget.php:828",
-                "includes/shortcodes/flashcard-widget.php:868",
+                "includes/shortcodes/flashcard-widget.php:753",
+                "includes/shortcodes/flashcard-widget.php:774",
+                "includes/shortcodes/flashcard-widget.php:779",
+                "includes/shortcodes/flashcard-widget.php:841",
+                "includes/shortcodes/flashcard-widget.php:881",
                 "templates/offline-app-shell-template.php:829",
                 "templates/vocab-lesson-template.php:199"
             ],
@@ -7403,11 +7415,11 @@
                 "includes/pages/wordset-pages.php:26160",
                 "includes/pages/wordset-pages.php:27697",
                 "includes/pages/wordset-pages.php:6791",
-                "includes/shortcodes/flashcard-widget.php:740",
-                "includes/shortcodes/flashcard-widget.php:761",
-                "includes/shortcodes/flashcard-widget.php:766",
-                "includes/shortcodes/flashcard-widget.php:828",
-                "includes/shortcodes/flashcard-widget.php:868",
+                "includes/shortcodes/flashcard-widget.php:753",
+                "includes/shortcodes/flashcard-widget.php:774",
+                "includes/shortcodes/flashcard-widget.php:779",
+                "includes/shortcodes/flashcard-widget.php:841",
+                "includes/shortcodes/flashcard-widget.php:881",
                 "templates/offline-app-shell-template.php:829",
                 "templates/vocab-lesson-template.php:199"
             ]
@@ -7428,10 +7440,10 @@
                 "includes/pages/wordset-pages.php:6792",
                 "includes/shortcodes/editor-hub-shortcode.php:1059",
                 "includes/shortcodes/editor-hub-shortcode.php:515",
-                "includes/shortcodes/flashcard-widget.php:763",
-                "includes/shortcodes/flashcard-widget.php:768",
-                "includes/shortcodes/flashcard-widget.php:827",
-                "includes/shortcodes/flashcard-widget.php:878",
+                "includes/shortcodes/flashcard-widget.php:776",
+                "includes/shortcodes/flashcard-widget.php:781",
+                "includes/shortcodes/flashcard-widget.php:840",
+                "includes/shortcodes/flashcard-widget.php:891",
                 "includes/shortcodes/word-grid-shortcode.php:6645",
                 "templates/offline-app-shell-template.php:826",
                 "templates/vocab-lesson-template.php:200",
@@ -7445,10 +7457,10 @@
                 "includes/pages/wordset-pages.php:27696",
                 "includes/pages/wordset-pages.php:27879",
                 "includes/pages/wordset-pages.php:6792",
-                "includes/shortcodes/flashcard-widget.php:763",
-                "includes/shortcodes/flashcard-widget.php:768",
-                "includes/shortcodes/flashcard-widget.php:827",
-                "includes/shortcodes/flashcard-widget.php:878",
+                "includes/shortcodes/flashcard-widget.php:776",
+                "includes/shortcodes/flashcard-widget.php:781",
+                "includes/shortcodes/flashcard-widget.php:840",
+                "includes/shortcodes/flashcard-widget.php:891",
                 "templates/offline-app-shell-template.php:826",
                 "templates/vocab-lesson-template.php:200"
             ]
@@ -7522,14 +7534,14 @@
                 "includes/pages/wordset-pages.php:27544",
                 "includes/pages/wordset-pages.php:27545",
                 "includes/pages/wordset-pages.php:28604",
-                "includes/shortcodes/flashcard-widget.php:833",
+                "includes/shortcodes/flashcard-widget.php:846",
                 "templates/offline-app-shell-template.php:733"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:27544",
                 "includes/pages/wordset-pages.php:27545",
                 "includes/pages/wordset-pages.php:28604",
-                "includes/shortcodes/flashcard-widget.php:833",
+                "includes/shortcodes/flashcard-widget.php:846",
                 "templates/offline-app-shell-template.php:733"
             ]
         },
@@ -7540,11 +7552,11 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/wordset-pages.php:27546",
-                "includes/shortcodes/flashcard-widget.php:835"
+                "includes/shortcodes/flashcard-widget.php:848"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:27546",
-                "includes/shortcodes/flashcard-widget.php:835"
+                "includes/shortcodes/flashcard-widget.php:848"
             ]
         },
         {
@@ -7554,11 +7566,11 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/wordset-pages.php:27547",
-                "includes/shortcodes/flashcard-widget.php:836"
+                "includes/shortcodes/flashcard-widget.php:849"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:27547",
-                "includes/shortcodes/flashcard-widget.php:836"
+                "includes/shortcodes/flashcard-widget.php:849"
             ]
         },
         {
@@ -7569,11 +7581,11 @@
             "references": [
                 "includes/flashcard-shell.php:164",
                 "includes/pages/wordset-pages.php:27561",
-                "includes/shortcodes/flashcard-widget.php:784"
+                "includes/shortcodes/flashcard-widget.php:797"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:27561",
-                "includes/shortcodes/flashcard-widget.php:784"
+                "includes/shortcodes/flashcard-widget.php:797"
             ]
         },
         {
@@ -7608,13 +7620,13 @@
                 "includes/lib/wordset-language-settings.php:133",
                 "includes/pages/wordset-pages.php:27564",
                 "includes/pages/wordset-pages.php:28598",
-                "includes/shortcodes/flashcard-widget.php:832",
+                "includes/shortcodes/flashcard-widget.php:845",
                 "templates/offline-app-shell-template.php:727"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:27564",
                 "includes/pages/wordset-pages.php:28598",
-                "includes/shortcodes/flashcard-widget.php:832",
+                "includes/shortcodes/flashcard-widget.php:845",
                 "templates/offline-app-shell-template.php:727"
             ]
         },
@@ -7626,13 +7638,13 @@
             "references": [
                 "includes/pages/wordset-pages.php:27565",
                 "includes/pages/wordset-pages.php:28788",
-                "includes/shortcodes/flashcard-widget.php:818",
+                "includes/shortcodes/flashcard-widget.php:831",
                 "templates/offline-app-shell-template.php:814"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:27565",
                 "includes/pages/wordset-pages.php:28788",
-                "includes/shortcodes/flashcard-widget.php:818",
+                "includes/shortcodes/flashcard-widget.php:831",
                 "templates/offline-app-shell-template.php:814"
             ]
         },
@@ -7673,16 +7685,16 @@
             "references": [
                 "includes/pages/wordset-pages.php:27568",
                 "includes/pages/wordset-pages.php:27606",
-                "includes/shortcodes/flashcard-widget.php:780",
-                "includes/shortcodes/flashcard-widget.php:823",
-                "includes/shortcodes/flashcard-widget.php:837"
+                "includes/shortcodes/flashcard-widget.php:793",
+                "includes/shortcodes/flashcard-widget.php:836",
+                "includes/shortcodes/flashcard-widget.php:850"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:27568",
                 "includes/pages/wordset-pages.php:27606",
-                "includes/shortcodes/flashcard-widget.php:780",
-                "includes/shortcodes/flashcard-widget.php:823",
-                "includes/shortcodes/flashcard-widget.php:837"
+                "includes/shortcodes/flashcard-widget.php:793",
+                "includes/shortcodes/flashcard-widget.php:836",
+                "includes/shortcodes/flashcard-widget.php:850"
             ]
         },
         {
@@ -7730,14 +7742,14 @@
                 "includes/pages/wordset-pages.php:27574",
                 "includes/pages/wordset-pages.php:27662",
                 "includes/pages/wordset-pages.php:28752",
-                "includes/shortcodes/flashcard-widget.php:821",
+                "includes/shortcodes/flashcard-widget.php:834",
                 "templates/offline-app-shell-template.php:809"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:27574",
                 "includes/pages/wordset-pages.php:27662",
                 "includes/pages/wordset-pages.php:28752",
-                "includes/shortcodes/flashcard-widget.php:821",
+                "includes/shortcodes/flashcard-widget.php:834",
                 "templates/offline-app-shell-template.php:809"
             ]
         },
@@ -7750,12 +7762,12 @@
                 "includes/flashcard-shell.php:70",
                 "includes/pages/wordset-pages.php:27575",
                 "includes/pages/wordset-pages.php:27663",
-                "includes/shortcodes/flashcard-widget.php:822"
+                "includes/shortcodes/flashcard-widget.php:835"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:27575",
                 "includes/pages/wordset-pages.php:27663",
-                "includes/shortcodes/flashcard-widget.php:822"
+                "includes/shortcodes/flashcard-widget.php:835"
             ]
         },
         {
@@ -7839,12 +7851,12 @@
             "references": [
                 "includes/pages/wordset-pages.php:27582",
                 "includes/pages/wordset-pages.php:7460",
-                "includes/shortcodes/flashcard-widget.php:841"
+                "includes/shortcodes/flashcard-widget.php:854"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:27582",
                 "includes/pages/wordset-pages.php:7460",
-                "includes/shortcodes/flashcard-widget.php:841"
+                "includes/shortcodes/flashcard-widget.php:854"
             ]
         },
         {
@@ -7999,7 +8011,7 @@
                 "includes/admin/ipa-keyboard-admin.php:397",
                 "includes/offline-app-sync.php:1420",
                 "includes/pages/wordset-pages.php:27601",
-                "includes/shortcodes/flashcard-widget.php:808",
+                "includes/shortcodes/flashcard-widget.php:821",
                 "includes/shortcodes/quiz-pages-shortcodes.php:1871",
                 "includes/user-progress.php:11631",
                 "includes/user-progress.php:11787",
@@ -8016,7 +8028,7 @@
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:27601",
-                "includes/shortcodes/flashcard-widget.php:808",
+                "includes/shortcodes/flashcard-widget.php:821",
                 "includes/shortcodes/quiz-pages-shortcodes.php:1871"
             ]
         },
@@ -8297,13 +8309,13 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/wordset-pages.php:27641",
-                "includes/shortcodes/flashcard-widget.php:758",
+                "includes/shortcodes/flashcard-widget.php:771",
                 "includes/shortcodes/word-grid-shortcode.php:4100",
                 "includes/shortcodes/word-grid-shortcode.php:6389"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:27641",
-                "includes/shortcodes/flashcard-widget.php:758",
+                "includes/shortcodes/flashcard-widget.php:771",
                 "includes/shortcodes/word-grid-shortcode.php:4100",
                 "includes/shortcodes/word-grid-shortcode.php:6389"
             ]
@@ -8719,13 +8731,13 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/wordset-pages.php:27682",
-                "includes/shortcodes/flashcard-widget.php:781",
-                "includes/shortcodes/flashcard-widget.php:787"
+                "includes/shortcodes/flashcard-widget.php:794",
+                "includes/shortcodes/flashcard-widget.php:800"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:27682",
-                "includes/shortcodes/flashcard-widget.php:781",
-                "includes/shortcodes/flashcard-widget.php:787"
+                "includes/shortcodes/flashcard-widget.php:794",
+                "includes/shortcodes/flashcard-widget.php:800"
             ]
         },
         {
@@ -8735,15 +8747,15 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/wordset-pages.php:27683",
-                "includes/shortcodes/flashcard-widget.php:782",
-                "includes/shortcodes/flashcard-widget.php:785",
-                "includes/shortcodes/flashcard-widget.php:788"
+                "includes/shortcodes/flashcard-widget.php:795",
+                "includes/shortcodes/flashcard-widget.php:798",
+                "includes/shortcodes/flashcard-widget.php:801"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:27683",
-                "includes/shortcodes/flashcard-widget.php:782",
-                "includes/shortcodes/flashcard-widget.php:785",
-                "includes/shortcodes/flashcard-widget.php:788"
+                "includes/shortcodes/flashcard-widget.php:795",
+                "includes/shortcodes/flashcard-widget.php:798",
+                "includes/shortcodes/flashcard-widget.php:801"
             ]
         },
         {
@@ -8753,13 +8765,13 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/wordset-pages.php:27684",
-                "includes/shortcodes/flashcard-widget.php:783",
-                "includes/shortcodes/flashcard-widget.php:786"
+                "includes/shortcodes/flashcard-widget.php:796",
+                "includes/shortcodes/flashcard-widget.php:799"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:27684",
-                "includes/shortcodes/flashcard-widget.php:783",
-                "includes/shortcodes/flashcard-widget.php:786"
+                "includes/shortcodes/flashcard-widget.php:796",
+                "includes/shortcodes/flashcard-widget.php:799"
             ]
         },
         {
@@ -8782,11 +8794,11 @@
             "references": [
                 "includes/pages/wordset-pages.php:27686",
                 "includes/privacy.php:906",
-                "includes/shortcodes/flashcard-widget.php:778"
+                "includes/shortcodes/flashcard-widget.php:791"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:27686",
-                "includes/shortcodes/flashcard-widget.php:778"
+                "includes/shortcodes/flashcard-widget.php:791"
             ]
         },
         {
@@ -8879,12 +8891,12 @@
                 "includes/pages/wordset-pages.php:24329",
                 "includes/pages/wordset-pages.php:27700",
                 "includes/post-types/content-lesson-post-type.php:1822",
-                "includes/shortcodes/flashcard-widget.php:810",
+                "includes/shortcodes/flashcard-widget.php:823",
                 "templates/audio-image-matcher-template.php:72"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:27700",
-                "includes/shortcodes/flashcard-widget.php:810"
+                "includes/shortcodes/flashcard-widget.php:823"
             ]
         },
         {
@@ -9216,13 +9228,13 @@
                 "includes/admin/ipa-keyboard-admin.php:587",
                 "includes/pages/wordset-pages.php:28262",
                 "includes/pages/wordset-pages.php:28816",
-                "includes/shortcodes/flashcard-widget.php:820",
+                "includes/shortcodes/flashcard-widget.php:833",
                 "templates/offline-app-shell-template.php:832"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:28262",
                 "includes/pages/wordset-pages.php:28816",
-                "includes/shortcodes/flashcard-widget.php:820",
+                "includes/shortcodes/flashcard-widget.php:833",
                 "templates/offline-app-shell-template.php:832"
             ]
         },
@@ -9452,11 +9464,11 @@
             "references": [
                 "includes/pages/wordset-pages.php:17600",
                 "includes/pages/wordset-pages.php:28768",
-                "includes/shortcodes/flashcard-widget.php:838"
+                "includes/shortcodes/flashcard-widget.php:851"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:28768",
-                "includes/shortcodes/flashcard-widget.php:838"
+                "includes/shortcodes/flashcard-widget.php:851"
             ]
         },
         {
@@ -10674,10 +10686,10 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/wordset-pages.php:24985",
-                "includes/shortcodes/flashcard-widget.php:1651"
+                "includes/shortcodes/flashcard-widget.php:1664"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:1651"
+                "includes/shortcodes/flashcard-widget.php:1664"
             ]
         },
         {
@@ -10686,12 +10698,12 @@
             "msgid": "Too many flashcard category requests. Please try again shortly.",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/flashcard-widget.php:1883",
-                "includes/shortcodes/flashcard-widget.php:2081"
+                "includes/shortcodes/flashcard-widget.php:1896",
+                "includes/shortcodes/flashcard-widget.php:2094"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:1883",
-                "includes/shortcodes/flashcard-widget.php:2081"
+                "includes/shortcodes/flashcard-widget.php:1896",
+                "includes/shortcodes/flashcard-widget.php:2094"
             ]
         },
         {
@@ -10701,10 +10713,10 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/vocab-lesson-pages.php:9030",
-                "includes/shortcodes/flashcard-widget.php:2068"
+                "includes/shortcodes/flashcard-widget.php:2081"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:2068"
+                "includes/shortcodes/flashcard-widget.php:2081"
             ]
         },
         {
@@ -10713,10 +10725,10 @@
             "msgid": "Preparing flashcard data. Please wait a moment.",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/flashcard-widget.php:2485"
+                "includes/shortcodes/flashcard-widget.php:2498"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:2485"
+                "includes/shortcodes/flashcard-widget.php:2498"
             ]
         },
         {
@@ -10725,10 +10737,10 @@
             "msgid": "Flashcard data changed. Please restart the quiz.",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/flashcard-widget.php:2496"
+                "includes/shortcodes/flashcard-widget.php:2509"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:2496"
+                "includes/shortcodes/flashcard-widget.php:2509"
             ]
         },
         {
@@ -10737,10 +10749,10 @@
             "msgid": "Invalid flashcard page cursor.",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/flashcard-widget.php:2502"
+                "includes/shortcodes/flashcard-widget.php:2515"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:2502"
+                "includes/shortcodes/flashcard-widget.php:2515"
             ]
         },
         {
@@ -10749,15 +10761,15 @@
             "msgid": "Flashcard data is temporarily unavailable.",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/flashcard-widget.php:2511",
-                "includes/shortcodes/flashcard-widget.php:2528",
-                "includes/shortcodes/flashcard-widget.php:2631",
+                "includes/shortcodes/flashcard-widget.php:2524",
+                "includes/shortcodes/flashcard-widget.php:2541",
+                "includes/shortcodes/flashcard-widget.php:2644",
                 "includes/user-progress.php:885"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:2511",
-                "includes/shortcodes/flashcard-widget.php:2528",
-                "includes/shortcodes/flashcard-widget.php:2631"
+                "includes/shortcodes/flashcard-widget.php:2524",
+                "includes/shortcodes/flashcard-widget.php:2541",
+                "includes/shortcodes/flashcard-widget.php:2644"
             ]
         },
         {
@@ -10767,10 +10779,10 @@
             "msgid_plural": null,
             "references": [
                 "includes/lib/flashcard-payload-materializer.php:357",
-                "includes/shortcodes/flashcard-widget.php:2575"
+                "includes/shortcodes/flashcard-widget.php:2588"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:2575"
+                "includes/shortcodes/flashcard-widget.php:2588"
             ]
         },
         {
@@ -10779,10 +10791,10 @@
             "msgid": "Invalid wordset.",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/flashcard-widget.php:2641"
+                "includes/shortcodes/flashcard-widget.php:2654"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:2641"
+                "includes/shortcodes/flashcard-widget.php:2654"
             ]
         },
         {
@@ -10793,10 +10805,10 @@
             "references": [
                 "includes/lib/flashcard-payload-materializer.php:865",
                 "includes/lib/flashcard-payload-materializer.php:896",
-                "includes/shortcodes/flashcard-widget.php:2672"
+                "includes/shortcodes/flashcard-widget.php:2685"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:2672"
+                "includes/shortcodes/flashcard-widget.php:2685"
             ]
         },
         {
@@ -10835,7 +10847,7 @@
                 "includes/shortcodes/dictionary-shortcode.php:208",
                 "includes/shortcodes/dictionary-shortcode.php:217",
                 "includes/shortcodes/dictionary-shortcode.php:3834",
-                "includes/shortcodes/flashcard-widget.php:2774",
+                "includes/shortcodes/flashcard-widget.php:2787",
                 "includes/shortcodes/quiz-pages-shortcodes.php:1862",
                 "includes/shortcodes/quiz-pages-shortcodes.php:1890",
                 "includes/taxonomies/word-category-taxonomy.php:11803",
@@ -10857,7 +10869,7 @@
                 "includes/user-progress.php:1815"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:2774",
+                "includes/shortcodes/flashcard-widget.php:2787",
                 "includes/shortcodes/quiz-pages-shortcodes.php:1862",
                 "includes/shortcodes/quiz-pages-shortcodes.php:1890"
             ]
@@ -10868,10 +10880,10 @@
             "msgid": "This flashcard category must be loaded in pages. Please refresh the page.",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/flashcard-widget.php:3043"
+                "includes/shortcodes/flashcard-widget.php:3041"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:3043"
+                "includes/shortcodes/flashcard-widget.php:3041"
             ]
         },
         {
@@ -10880,10 +10892,10 @@
             "msgid": "Learning Complete!",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/flashcard-widget.php:725"
+                "includes/shortcodes/flashcard-widget.php:738"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:725"
+                "includes/shortcodes/flashcard-widget.php:738"
             ]
         },
         {
@@ -10892,10 +10904,10 @@
             "msgid": "\u2713",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/flashcard-widget.php:726"
+                "includes/shortcodes/flashcard-widget.php:739"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:726"
+                "includes/shortcodes/flashcard-widget.php:739"
             ]
         },
         {
@@ -10904,10 +10916,10 @@
             "msgid": "Great work. Continue?",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/flashcard-widget.php:727"
+                "includes/shortcodes/flashcard-widget.php:740"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:727"
+                "includes/shortcodes/flashcard-widget.php:740"
             ]
         },
         {
@@ -10916,10 +10928,10 @@
             "msgid": "Continue Learning",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/flashcard-widget.php:728"
+                "includes/shortcodes/flashcard-widget.php:741"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:728"
+                "includes/shortcodes/flashcard-widget.php:741"
             ]
         },
         {
@@ -10928,10 +10940,10 @@
             "msgid": "Listening Complete",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/flashcard-widget.php:729"
+                "includes/shortcodes/flashcard-widget.php:742"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:729"
+                "includes/shortcodes/flashcard-widget.php:742"
             ]
         },
         {
@@ -10940,10 +10952,10 @@
             "msgid": "Pause / Play",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/flashcard-widget.php:730"
+                "includes/shortcodes/flashcard-widget.php:743"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:730"
+                "includes/shortcodes/flashcard-widget.php:743"
             ]
         },
         {
@@ -10952,10 +10964,10 @@
             "msgid": "Forward",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/flashcard-widget.php:732"
+                "includes/shortcodes/flashcard-widget.php:745"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:732"
+                "includes/shortcodes/flashcard-widget.php:745"
             ]
         },
         {
@@ -10964,10 +10976,10 @@
             "msgid": "Rapid listening",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/flashcard-widget.php:733"
+                "includes/shortcodes/flashcard-widget.php:746"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:733"
+                "includes/shortcodes/flashcard-widget.php:746"
             ]
         },
         {
@@ -10976,10 +10988,10 @@
             "msgid": "Loop",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/flashcard-widget.php:734"
+                "includes/shortcodes/flashcard-widget.php:747"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:734"
+                "includes/shortcodes/flashcard-widget.php:747"
             ]
         },
         {
@@ -10988,10 +11000,10 @@
             "msgid": "Perfect!",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/flashcard-widget.php:735"
+                "includes/shortcodes/flashcard-widget.php:748"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:735"
+                "includes/shortcodes/flashcard-widget.php:748"
             ]
         },
         {
@@ -11000,10 +11012,10 @@
             "msgid": "Good job!",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/flashcard-widget.php:736"
+                "includes/shortcodes/flashcard-widget.php:749"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:736"
+                "includes/shortcodes/flashcard-widget.php:749"
             ]
         },
         {
@@ -11012,10 +11024,10 @@
             "msgid": "Keep practicing!",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/flashcard-widget.php:737"
+                "includes/shortcodes/flashcard-widget.php:750"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:737"
+                "includes/shortcodes/flashcard-widget.php:750"
             ]
         },
         {
@@ -11024,10 +11036,10 @@
             "msgid": "You're on the right track...",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/flashcard-widget.php:738"
+                "includes/shortcodes/flashcard-widget.php:751"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:738"
+                "includes/shortcodes/flashcard-widget.php:751"
             ]
         },
         {
@@ -11036,10 +11048,10 @@
             "msgid": "Show answer",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/flashcard-widget.php:741"
+                "includes/shortcodes/flashcard-widget.php:754"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:741"
+                "includes/shortcodes/flashcard-widget.php:754"
             ]
         },
         {
@@ -11048,10 +11060,10 @@
             "msgid": "Hide answer",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/flashcard-widget.php:742"
+                "includes/shortcodes/flashcard-widget.php:755"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:742"
+                "includes/shortcodes/flashcard-widget.php:755"
             ]
         },
         {
@@ -11060,10 +11072,10 @@
             "msgid": "I know it",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/flashcard-widget.php:743"
+                "includes/shortcodes/flashcard-widget.php:756"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:743"
+                "includes/shortcodes/flashcard-widget.php:756"
             ]
         },
         {
@@ -11072,10 +11084,10 @@
             "msgid": "I don't know it",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/flashcard-widget.php:744"
+                "includes/shortcodes/flashcard-widget.php:757"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:744"
+                "includes/shortcodes/flashcard-widget.php:757"
             ]
         },
         {
@@ -11084,10 +11096,10 @@
             "msgid": "I think I know it",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/flashcard-widget.php:745"
+                "includes/shortcodes/flashcard-widget.php:758"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:745"
+                "includes/shortcodes/flashcard-widget.php:758"
             ]
         },
         {
@@ -11096,10 +11108,10 @@
             "msgid": "I got it wrong",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/flashcard-widget.php:746"
+                "includes/shortcodes/flashcard-widget.php:759"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:746"
+                "includes/shortcodes/flashcard-widget.php:759"
             ]
         },
         {
@@ -11108,10 +11120,10 @@
             "msgid": "I got close",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/flashcard-widget.php:747"
+                "includes/shortcodes/flashcard-widget.php:760"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:747"
+                "includes/shortcodes/flashcard-widget.php:760"
             ]
         },
         {
@@ -11120,10 +11132,10 @@
             "msgid": "I got it right",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/flashcard-widget.php:748"
+                "includes/shortcodes/flashcard-widget.php:761"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:748"
+                "includes/shortcodes/flashcard-widget.php:761"
             ]
         },
         {
@@ -11132,10 +11144,10 @@
             "msgid": "%d answers",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/flashcard-widget.php:750"
+                "includes/shortcodes/flashcard-widget.php:763"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:750"
+                "includes/shortcodes/flashcard-widget.php:763"
             ]
         },
         {
@@ -11144,14 +11156,14 @@
             "msgid": "No content available.",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/flashcard-widget.php:751",
-                "includes/shortcodes/flashcard-widget.php:813",
+                "includes/shortcodes/flashcard-widget.php:764",
+                "includes/shortcodes/flashcard-widget.php:826",
                 "templates/content-lesson-template.php:205",
                 "templates/content-lesson-template.php:253"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:751",
-                "includes/shortcodes/flashcard-widget.php:813",
+                "includes/shortcodes/flashcard-widget.php:764",
+                "includes/shortcodes/flashcard-widget.php:826",
                 "templates/content-lesson-template.php:205",
                 "templates/content-lesson-template.php:253"
             ]
@@ -11162,10 +11174,10 @@
             "msgid": "Turn on sound to continue the quiz.",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/flashcard-widget.php:752"
+                "includes/shortcodes/flashcard-widget.php:765"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:752"
+                "includes/shortcodes/flashcard-widget.php:765"
             ]
         },
         {
@@ -11174,10 +11186,10 @@
             "msgid": "Resume audio",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/flashcard-widget.php:753"
+                "includes/shortcodes/flashcard-widget.php:766"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:753"
+                "includes/shortcodes/flashcard-widget.php:766"
             ]
         },
         {
@@ -11186,10 +11198,10 @@
             "msgid": "Play word audio",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/flashcard-widget.php:755"
+                "includes/shortcodes/flashcard-widget.php:768"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:755"
+                "includes/shortcodes/flashcard-widget.php:768"
             ]
         },
         {
@@ -11198,10 +11210,10 @@
             "msgid": "Play option audio",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/flashcard-widget.php:756"
+                "includes/shortcodes/flashcard-widget.php:769"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:756"
+                "includes/shortcodes/flashcard-widget.php:769"
             ]
         },
         {
@@ -11210,11 +11222,11 @@
             "msgid": "Pause audio",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/flashcard-widget.php:757",
+                "includes/shortcodes/flashcard-widget.php:770",
                 "includes/shortcodes/word-audio-shortcode.php:212"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:757",
+                "includes/shortcodes/flashcard-widget.php:770",
                 "includes/shortcodes/word-audio-shortcode.php:212"
             ]
         },
@@ -11224,10 +11236,10 @@
             "msgid": "Learning",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/flashcard-widget.php:765"
+                "includes/shortcodes/flashcard-widget.php:778"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:765"
+                "includes/shortcodes/flashcard-widget.php:778"
             ]
         },
         {
@@ -11236,10 +11248,10 @@
             "msgid": "Listening",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/flashcard-widget.php:767"
+                "includes/shortcodes/flashcard-widget.php:780"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:767"
+                "includes/shortcodes/flashcard-widget.php:780"
             ]
         },
         {
@@ -11252,7 +11264,7 @@
                 "includes/admin/ipa-keyboard-admin.php:1320",
                 "includes/admin/word-option-rules-admin.php:2318",
                 "includes/pages/wordset-editor.php:4199",
-                "includes/shortcodes/flashcard-widget.php:769",
+                "includes/shortcodes/flashcard-widget.php:782",
                 "includes/shortcodes/word-grid-shortcode.php:5381",
                 "includes/shortcodes/word-grid-shortcode.php:5899",
                 "includes/shortcodes/word-grid-shortcode.php:8311",
@@ -11260,7 +11272,7 @@
                 "templates/vocab-lesson-template.php:1824"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:769",
+                "includes/shortcodes/flashcard-widget.php:782",
                 "includes/shortcodes/word-grid-shortcode.php:5381",
                 "includes/shortcodes/word-grid-shortcode.php:5899",
                 "templates/vocab-lesson-template.php:1824"
@@ -11276,14 +11288,14 @@
                 "includes/admin/uploads/audio-upload-form.php:428",
                 "includes/shortcodes/audio-recording-shortcode.php:31",
                 "includes/shortcodes/editor-hub-shortcode.php:302",
-                "includes/shortcodes/flashcard-widget.php:770",
+                "includes/shortcodes/flashcard-widget.php:783",
                 "includes/shortcodes/word-grid-shortcode.php:5376",
                 "includes/shortcodes/word-grid-shortcode.php:5861",
                 "includes/shortcodes/word-grid-shortcode.php:7896",
                 "includes/taxonomies/recording-type-taxonomy.php:41"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:770",
+                "includes/shortcodes/flashcard-widget.php:783",
                 "includes/shortcodes/word-grid-shortcode.php:5376",
                 "includes/shortcodes/word-grid-shortcode.php:5861",
                 "includes/shortcodes/word-grid-shortcode.php:7896"
@@ -11298,14 +11310,14 @@
                 "includes/admin/export-import.php:593",
                 "includes/shortcodes/audio-recording-shortcode.php:33",
                 "includes/shortcodes/editor-hub-shortcode.php:303",
-                "includes/shortcodes/flashcard-widget.php:771",
+                "includes/shortcodes/flashcard-widget.php:784",
                 "includes/shortcodes/word-grid-shortcode.php:5377",
                 "includes/shortcodes/word-grid-shortcode.php:5862",
                 "includes/shortcodes/word-grid-shortcode.php:7897",
                 "includes/taxonomies/recording-type-taxonomy.php:43"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:771",
+                "includes/shortcodes/flashcard-widget.php:784",
                 "includes/shortcodes/word-grid-shortcode.php:5377",
                 "includes/shortcodes/word-grid-shortcode.php:5862",
                 "includes/shortcodes/word-grid-shortcode.php:7897"
@@ -11320,14 +11332,14 @@
                 "includes/pages/wordset-editor.php:5002",
                 "includes/pages/wordset-transcription-review.php:307",
                 "includes/shortcodes/editor-hub-shortcode.php:1063",
-                "includes/shortcodes/flashcard-widget.php:772",
+                "includes/shortcodes/flashcard-widget.php:785",
                 "includes/shortcodes/word-grid-shortcode.php:4125",
                 "includes/shortcodes/word-grid-shortcode.php:5924",
                 "includes/shortcodes/word-grid-shortcode.php:6988",
                 "includes/shortcodes/word-grid-shortcode.php:7053"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:772"
+                "includes/shortcodes/flashcard-widget.php:785"
             ]
         },
         {
@@ -11336,10 +11348,10 @@
             "msgid": "I don't know",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/flashcard-widget.php:773"
+                "includes/shortcodes/flashcard-widget.php:786"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:773"
+                "includes/shortcodes/flashcard-widget.php:786"
             ]
         },
         {
@@ -11348,10 +11360,10 @@
             "msgid": "Gender Round Complete",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/flashcard-widget.php:774"
+                "includes/shortcodes/flashcard-widget.php:787"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:774"
+                "includes/shortcodes/flashcard-widget.php:787"
             ]
         },
         {
@@ -11360,10 +11372,10 @@
             "msgid": "Keep training noun gender with the next activity.",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/flashcard-widget.php:775"
+                "includes/shortcodes/flashcard-widget.php:788"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:775"
+                "includes/shortcodes/flashcard-widget.php:788"
             ]
         },
         {
@@ -11373,10 +11385,10 @@
             "msgid_plural": null,
             "references": [
                 "includes/flashcard-shell.php:158",
-                "includes/shortcodes/flashcard-widget.php:777"
+                "includes/shortcodes/flashcard-widget.php:790"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:777"
+                "includes/shortcodes/flashcard-widget.php:790"
             ]
         },
         {
@@ -11385,10 +11397,10 @@
             "msgid": "Current set",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/flashcard-widget.php:779"
+                "includes/shortcodes/flashcard-widget.php:792"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:779"
+                "includes/shortcodes/flashcard-widget.php:792"
             ]
         },
         {
@@ -11397,10 +11409,10 @@
             "msgid": "Level 1 Complete",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/flashcard-widget.php:789"
+                "includes/shortcodes/flashcard-widget.php:802"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:789"
+                "includes/shortcodes/flashcard-widget.php:802"
             ]
         },
         {
@@ -11409,10 +11421,10 @@
             "msgid": "Advance to the next gender level with the same words.",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/flashcard-widget.php:790"
+                "includes/shortcodes/flashcard-widget.php:803"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:790"
+                "includes/shortcodes/flashcard-widget.php:803"
             ]
         },
         {
@@ -11421,10 +11433,10 @@
             "msgid": "Level 1: Keep Building",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/flashcard-widget.php:791"
+                "includes/shortcodes/flashcard-widget.php:804"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:791"
+                "includes/shortcodes/flashcard-widget.php:804"
             ]
         },
         {
@@ -11433,12 +11445,12 @@
             "msgid": "Repeat this level to reinforce word-gender memory.",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/flashcard-widget.php:792",
-                "includes/shortcodes/flashcard-widget.php:796"
+                "includes/shortcodes/flashcard-widget.php:805",
+                "includes/shortcodes/flashcard-widget.php:809"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:792",
-                "includes/shortcodes/flashcard-widget.php:796"
+                "includes/shortcodes/flashcard-widget.php:805",
+                "includes/shortcodes/flashcard-widget.php:809"
             ]
         },
         {
@@ -11447,10 +11459,10 @@
             "msgid": "Level 2 Complete",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/flashcard-widget.php:793"
+                "includes/shortcodes/flashcard-widget.php:806"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:793"
+                "includes/shortcodes/flashcard-widget.php:806"
             ]
         },
         {
@@ -11459,10 +11471,10 @@
             "msgid": "You are ready for pure isolation practice.",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/flashcard-widget.php:794"
+                "includes/shortcodes/flashcard-widget.php:807"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:794"
+                "includes/shortcodes/flashcard-widget.php:807"
             ]
         },
         {
@@ -11471,10 +11483,10 @@
             "msgid": "Level 2: Keep Practicing",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/flashcard-widget.php:795"
+                "includes/shortcodes/flashcard-widget.php:808"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:795"
+                "includes/shortcodes/flashcard-widget.php:808"
             ]
         },
         {
@@ -11483,10 +11495,10 @@
             "msgid": "Level 2: Reset Needed",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/flashcard-widget.php:797"
+                "includes/shortcodes/flashcard-widget.php:810"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:797"
+                "includes/shortcodes/flashcard-widget.php:810"
             ]
         },
         {
@@ -11495,10 +11507,10 @@
             "msgid": "A quick review cycle in Level 1 should help.",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/flashcard-widget.php:798"
+                "includes/shortcodes/flashcard-widget.php:811"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:798"
+                "includes/shortcodes/flashcard-widget.php:811"
             ]
         },
         {
@@ -11507,10 +11519,10 @@
             "msgid": "Level 3 Stable",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/flashcard-widget.php:799"
+                "includes/shortcodes/flashcard-widget.php:812"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:799"
+                "includes/shortcodes/flashcard-widget.php:812"
             ]
         },
         {
@@ -11519,10 +11531,10 @@
             "msgid": "Keep practicing isolation-only to maintain speed.",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/flashcard-widget.php:800"
+                "includes/shortcodes/flashcard-widget.php:813"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:800"
+                "includes/shortcodes/flashcard-widget.php:813"
             ]
         },
         {
@@ -11531,10 +11543,10 @@
             "msgid": "Level 3: Rebuild Confidence",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/flashcard-widget.php:801"
+                "includes/shortcodes/flashcard-widget.php:814"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:801"
+                "includes/shortcodes/flashcard-widget.php:814"
             ]
         },
         {
@@ -11543,10 +11555,10 @@
             "msgid": "Some words need context support again.",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/flashcard-widget.php:802"
+                "includes/shortcodes/flashcard-widget.php:815"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:802"
+                "includes/shortcodes/flashcard-widget.php:815"
             ]
         },
         {
@@ -11555,19 +11567,19 @@
             "msgid": "Something went wrong",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/flashcard-widget.php:806",
-                "includes/shortcodes/flashcard-widget.php:807",
-                "includes/shortcodes/flashcard-widget.php:812",
-                "includes/shortcodes/flashcard-widget.php:814",
+                "includes/shortcodes/flashcard-widget.php:819",
+                "includes/shortcodes/flashcard-widget.php:820",
+                "includes/shortcodes/flashcard-widget.php:825",
+                "includes/shortcodes/flashcard-widget.php:827",
                 "includes/shortcodes/wordset-buttons-shortcode.php:2641",
                 "includes/shortcodes/wordset-buttons-shortcode.php:2678",
                 "includes/shortcodes/wordset-buttons-shortcode.php:2692"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:806",
-                "includes/shortcodes/flashcard-widget.php:807",
-                "includes/shortcodes/flashcard-widget.php:812",
-                "includes/shortcodes/flashcard-widget.php:814",
+                "includes/shortcodes/flashcard-widget.php:819",
+                "includes/shortcodes/flashcard-widget.php:820",
+                "includes/shortcodes/flashcard-widget.php:825",
+                "includes/shortcodes/flashcard-widget.php:827",
                 "includes/shortcodes/wordset-buttons-shortcode.php:2641",
                 "includes/shortcodes/wordset-buttons-shortcode.php:2678",
                 "includes/shortcodes/wordset-buttons-shortcode.php:2692"
@@ -11582,12 +11594,12 @@
                 "includes/admin/image-aspect-normalizer-admin.php:138",
                 "includes/admin/image-aspect-normalizer-admin.php:85",
                 "includes/admin/offline-app-export.php:920",
-                "includes/shortcodes/flashcard-widget.php:811",
+                "includes/shortcodes/flashcard-widget.php:824",
                 "includes/shortcodes/wordset-buttons-shortcode.php:2270",
                 "includes/shortcodes/wordset-buttons-shortcode.php:2290"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:811",
+                "includes/shortcodes/flashcard-widget.php:824",
                 "includes/shortcodes/wordset-buttons-shortcode.php:2270",
                 "includes/shortcodes/wordset-buttons-shortcode.php:2290"
             ]
@@ -11598,10 +11610,10 @@
             "msgid": "Quiz round requires at least two options.",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/flashcard-widget.php:815"
+                "includes/shortcodes/flashcard-widget.php:828"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:815"
+                "includes/shortcodes/flashcard-widget.php:828"
             ]
         },
         {
@@ -11610,10 +11622,10 @@
             "msgid": "Round setup: %1$d of %2$d required options are available.",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/flashcard-widget.php:816"
+                "includes/shortcodes/flashcard-widget.php:829"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:816"
+                "includes/shortcodes/flashcard-widget.php:829"
             ]
         },
         {
@@ -11622,10 +11634,10 @@
             "msgid": "Error details",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/flashcard-widget.php:817"
+                "includes/shortcodes/flashcard-widget.php:830"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:817"
+                "includes/shortcodes/flashcard-widget.php:830"
             ]
         },
         {
@@ -11634,11 +11646,11 @@
             "msgid": "No categories are available in this offline app.",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/flashcard-widget.php:819",
+                "includes/shortcodes/flashcard-widget.php:832",
                 "templates/offline-app-shell-template.php:836"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:819",
+                "includes/shortcodes/flashcard-widget.php:832",
                 "templates/offline-app-shell-template.php:836"
             ]
         },
@@ -11648,10 +11660,10 @@
             "msgid": "Select category: %s",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/flashcard-widget.php:831"
+                "includes/shortcodes/flashcard-widget.php:844"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:831"
+                "includes/shortcodes/flashcard-widget.php:844"
             ]
         },
         {
@@ -11660,10 +11672,10 @@
             "msgid": "Start with a category below, or connect sync to get the next study step.",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/flashcard-widget.php:834"
+                "includes/shortcodes/flashcard-widget.php:847"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:834"
+                "includes/shortcodes/flashcard-widget.php:847"
             ]
         },
         {
@@ -11672,10 +11684,10 @@
             "msgid": "Learning mode is not available for this selection.",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/flashcard-widget.php:839"
+                "includes/shortcodes/flashcard-widget.php:852"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:839"
+                "includes/shortcodes/flashcard-widget.php:852"
             ]
         },
         {
@@ -11684,10 +11696,10 @@
             "msgid": "Gender mode is not available for this selection.",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/flashcard-widget.php:840"
+                "includes/shortcodes/flashcard-widget.php:853"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:840"
+                "includes/shortcodes/flashcard-widget.php:853"
             ]
         },
         {

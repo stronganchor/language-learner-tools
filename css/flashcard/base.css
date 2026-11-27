@@ -1115,17 +1115,17 @@ body.ll-qpg-popup-active #ll-tools-flashcard-content {
     padding-bottom: max(15px, var(--ll-quiz-content-padding, 15px), env(safe-area-inset-bottom, 0px));
 }
 
-/* Phone picture-and-caption choices keep two normal-width columns. */
-#ll-tools-flashcard.ll-phone-caption-choices {
-    display: grid;
-    grid-template-columns: repeat(2, max-content);
-    align-content: start;
-}
-
-/* Prompt audio can share the grid without occupying an answer cell. */
-#ll-tools-flashcard.ll-phone-caption-choices > :nth-child(odd of .ll-answer-option-image-caption-card):nth-last-child(1 of .ll-answer-option-image-caption-card) {
-    grid-column: 1 / -1;
-    justify-self: center;
+/* Portrait uses two picture columns. Landscape uses the regular centered flex rows. */
+@media (orientation: portrait) {
+    #ll-tools-flashcard.ll-phone-image-choices {
+        display: grid;
+        grid-template-columns: repeat(2, max-content);
+        align-content: start;
+    }
+    #ll-tools-flashcard.ll-phone-image-choices > :nth-child(odd of .ll-answer-option-image-card):nth-last-child(1 of .ll-answer-option-image-card) {
+        grid-column: 1 / -1;
+        justify-self: center;
+    }
 }
 
 /* The phone shell has its final spacing before a round or its choices exist. */
@@ -1197,6 +1197,68 @@ body.ll-qpg-popup-active #ll-tools-flashcard-content {
 
     #ll-tools-flashcard-quiz-popup::before {
         display: none;
+    }
+}
+
+/* The full-screen Practice header keeps the same rhythm across answer types and loading. */
+@media (max-width: 520px), (max-height: 520px) and (max-width: 1024px) {
+    #ll-tools-flashcard-quiz-popup.ll-practice-layout {
+        --ll-quiz-header-padding: max(14px, env(safe-area-inset-top, 0px)) 16px 7px;
+        --ll-quiz-header-gap: 10px;
+        --ll-category-stack-gap: var(--ll-quiz-header-gap);
+        --ll-repeat-button-padding-y: 6px;
+        --ll-repeat-button-padding-x: 9px;
+        --ll-repeat-icon-size: 38px;
+        --ll-repeat-play-icon-size: 18px;
+        --ll-option-grid-gap: 10px 14px;
+    }
+    #ll-tools-flashcard-quiz-popup.ll-practice-layout #ll-tools-learning-progress {
+        box-sizing: border-box;
+        width: calc(100% - 54px);
+        max-width: 600px;
+        margin: 0 54px 0 0;
+        padding: 7px 4px 0;
+    }
+    #ll-tools-flashcard-quiz-popup.ll-practice-layout .learning-progress-bar { height: 10px; }
+    #ll-tools-flashcard-quiz-popup.ll-practice-layout #ll-tools-category-display {
+        max-width: calc(100% - 96px);
+        margin-block: 0;
+        font-size: 16px;
+        line-height: 20px;
+    }
+    #ll-tools-flashcard-quiz-popup.ll-practice-layout #ll-tools-close-flashcard {
+        width: 42px;
+        height: 42px;
+        top: calc(env(safe-area-inset-top, 0px) + 8px);
+        right: calc(env(safe-area-inset-right, 0px) + 10px);
+    }
+    #ll-tools-flashcard-quiz-popup.ll-practice-layout #ll-tools-flashcard-content {
+        padding: 12px max(15px, env(safe-area-inset-right, 0px))
+            max(15px, env(safe-area-inset-bottom, 0px)) max(15px, env(safe-area-inset-left, 0px));
+    }
+}
+
+@media (orientation: landscape) and (max-height: 520px) and (max-width: 1024px) {
+    #ll-tools-flashcard-quiz-popup.ll-practice-layout {
+        --ll-quiz-header-padding: max(6px, env(safe-area-inset-top, 0px))
+            max(16px, env(safe-area-inset-right, 0px)) 2px max(16px, env(safe-area-inset-left, 0px));
+        --ll-quiz-header-gap: 5px;
+        --ll-repeat-button-padding-y: 4px;
+        --ll-repeat-icon-size: 34px;
+    }
+    #ll-tools-flashcard-quiz-popup.ll-practice-layout .ll-tools-category-stack {
+        flex-direction: row;
+        gap: 12px;
+        max-width: calc(100% - 96px);
+    }
+    #ll-tools-flashcard-quiz-popup.ll-practice-layout #ll-tools-category-display {
+        width: auto;
+        min-width: 0;
+        margin: 0;
+    }
+    #ll-tools-flashcard-quiz-popup.ll-practice-layout #ll-tools-repeat-flashcard {
+        flex-shrink: 0;
+        min-height: 44px;
     }
 }
 

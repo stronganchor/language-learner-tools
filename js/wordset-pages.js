@@ -1714,6 +1714,14 @@
         });
 
         mainCategoryMetricsReady = !!isLoggedIn;
+        $root.find('[data-ll-level-preview-category]').each(function () {
+            const cat = getCategoryById(Number(this.dataset.llLevelPreviewCategory));
+            if (!cat) return;
+            const values = buildWordsetCardProgressPercentsFromAnalyticsRow(Object.assign({word_count:cat.count}, cat));
+            const $card = $(this);
+            setWordsetCardProgressPercents($card, values, {animate:false});
+            setWordsetCardProgressResolvedState($card, true);
+        });
         syncMainCategorySortUi();
 
         return changed || !wasReady;
@@ -2435,12 +2443,13 @@
         return !!(key && Array.isArray(candidateScopedWordsByCategory[key]));
     }
 
-    function setCandidateScopedWords(categoryId, candidateWordIds, rows) {
+    function setCandidateScopedWords(categoryId, candidateWordIds, rows, includesOptionPool = true) {
         const key = candidateScopedWordsKey(categoryId, candidateWordIds);
         if (!key) {
             return;
         }
         candidateScopedWordsByCategory[key] = Array.isArray(rows) ? rows.slice() : [];
+        candidateScopedWordsByCategory[key].includesOptionPool = includesOptionPool;
     }
 
     function chunkIntList(values, chunkSize) {
@@ -9820,7 +9829,7 @@
         const names = {mastered: i18n.analyticsMastered, studied: i18n.analyticsStudied, new: i18n.analyticsNew};
         return Object.keys(names).map(function (status) {
             const name = names[status] || '';
-            return counts ? name + ' ' + counts[status].toLocaleString(document.documentElement.lang || undefined) : name;
+            return counts ? counts[status].toLocaleString(document.documentElement.lang || undefined) + ' ' + name : name;
         });
     }
 
@@ -14966,7 +14975,8 @@
 
         const missing = ids.filter(function (id) {
             if (candidateWordIds.length) {
-                return !Array.isArray(candidateScopedWordsByCategory[candidateScopedWordsKey(id, candidateWordIds)]);
+                const cached = candidateScopedWordsByCategory[candidateScopedWordsKey(id, candidateWordIds)];
+                return !Array.isArray(cached) || (opts.includeOptionPool !== false && cached.includesOptionPool === false);
             }
             return !Array.isArray(wordsByCategory[id]);
         });
@@ -15127,11 +15137,13 @@
                     return rejected.promise();
                 });
             };
-            let publicRequestCount = 0;
-            let publicRequestChain = $.Deferred().resolve().promise();
-            missing.forEach(function (categoryId) {
-                publicRequestCount += 1;
-                publicRequestChain = publicRequestChain.then(function () {
+            // Anonymous category reads share a server lease. Signed-in level quizzes can
+            // hydrate two independent lessons together when the mode needs both up front.
+            const concurrency = isLoggedIn && opts.parallelLevelReads ? Math.min(2, missing.length) : 1;
+            const chains = Array.from({length: concurrency}, () => $.Deferred().resolve().promise());
+            missing.forEach(function (categoryId, index) {
+                const lane = index % concurrency;
+                chains[lane] = chains[lane].then(function () {
                     const cat = getCategoryById(categoryId);
                     if (!cat || !cat.name) {
                         if (!Array.isArray(wordsByCategory[categoryId])) {
@@ -15159,14 +15171,16 @@
                     };
                     if (candidateWordIds.length) {
                         publicPayload.candidate_word_ids = candidateWordIds.join(',');
-                        publicPayload.include_option_pool = '1';
-                        publicPayload.option_pool_limit = '12';
+                        if (opts.includeOptionPool !== false) {
+                            publicPayload.include_option_pool = '1';
+                            publicPayload.option_pool_limit = '12';
+                        }
                     }
 
                     return requestPublicCategory(publicPayload, 0, [], 0, 0).then(function (res) {
                         if (res && res.success && Array.isArray(res.data)) {
                             if (candidateWordIds.length) {
-                                setCandidateScopedWords(categoryId, candidateWordIds, res.data);
+                                setCandidateScopedWords(categoryId, candidateWordIds, res.data, opts.includeOptionPool !== false);
                             } else {
                                 wordsByCategory[categoryId] = res.data.slice();
                             }
@@ -15211,13 +15225,16 @@
                 });
             });
 
-            if (!publicRequestCount) {
-                return $.Deferred().resolve(wordsByCategory).promise();
-            }
-
-            return publicRequestChain.then(function () {
-                return wordsByCategory;
-            }, function (xhr) {
+            // A retry can reuse either completed lane. Wait for both before returning an error.
+            let failedRequest;
+            let failed = false;
+            const settled = chains.map(chain => chain.then(null, xhr => {
+                failed = true;
+                failedRequest = xhr;
+            }));
+            return $.when.apply($, settled).then(function () {
+                if (!failed) return wordsByCategory;
+                const xhr = failedRequest;
                 if (!isRequestCurrent() || (xhr && xhr.llToolsLaunchCanceled)) {
                     return rejectStaleRequest();
                 }
@@ -16384,6 +16401,10 @@
 
     function clearBoundedSessionContinuation(sessionLike) {
         const session = (sessionLike && typeof sessionLike === 'object') ? sessionLike : null;
+        if (session?.levelPrefetchRequests) {
+            session.levelPrefetchRequests.forEach(request => request.abort());
+            session.levelPrefetchRequests.clear();
+        }
         const flashData = (window.llToolsFlashcardsData && typeof window.llToolsFlashcardsData === 'object')
             ? window.llToolsFlashcardsData
             : {};
@@ -16408,6 +16429,28 @@
             || normalizedMode === 'gender';
     }
 
+    // Fetch only the next batch while this one plays. The player still owns
+    // advancement, results and cancellation at the normal round boundary.
+    function prefetchNextLevelBatch(session) {
+        if (!boundedModeAutomaticallyContinues(session.mode) || chunkSession !== session) return;
+        const next = getChunkSessionEntry(session, session.index + 1);
+        if (!next?.details?.curriculum_exact) return;
+        const requests = new Set();
+        session.levelPrefetchRequests = requests;
+        session.levelPrefetch = Promise.resolve(ensureWordsForCategories(next.category_ids, {
+            sessionWordIds: next.session_word_ids,
+            includeOptionPool: session.mode === 'practice',
+            rejectOnFailure: true,
+            requestTimeoutMs: session.request_timeout_ms,
+            parallelLevelReads: true,
+            onRequest: request => {
+                requests.add(request);
+                request.always(() => requests.delete(request));
+            },
+            isRequestCurrent: () => chunkSession === session
+        })).catch(function () { /* The foreground continuation can retry. */ });
+    }
+
     function createBoundedSessionContinuation(session) {
         return function () {
             if (chunkSession !== session || !session || !session.supports_continuation) {
@@ -16426,7 +16469,7 @@
 
             const continuationLaunchToken = beginFlashcardLaunch();
             session.pending_index = nextIndex;
-            session.pending_promise = Promise.resolve().then(function () {
+            session.pending_promise = Promise.resolve(session.levelPrefetch).then(function () {
                 if (
                     !flashcardLaunchIsCurrent(continuationLaunchToken)
                     || chunkSession !== session
@@ -16470,6 +16513,8 @@
                             delete session.pending_promise;
                             if (session.index >= session.chunks.length - 1) {
                                 clearBoundedSessionContinuation(session);
+                            } else {
+                                prefetchNextLevelBatch(session);
                             }
                             resolve({
                                 success: true,
@@ -16543,6 +16588,7 @@
             },
             onLaunchRequest: typeof opts.onLaunchRequest === 'function' ? opts.onLaunchRequest : null,
             onLaunchCommitted: function () {
+                prefetchNextLevelBatch(activeSession);
                 if (typeof opts.onLaunchCommitted === 'function') {
                     opts.onLaunchCommitted();
                 }
@@ -17642,9 +17688,10 @@
             && !selectionHasGenderSupport(ids)
         ) ? 'practice' : normalizedMode;
         const exactLevelSelection = boundedSelectionPlan && launchDetails.curriculum_exact === true;
-        const launchChunkMinimum = boundedSelectionPlan && (
+        const singleTargetAllowed = (finalMode === 'listening' && launchDetails.curriculum_listening_stream) || (boundedSelectionPlan && (
             finalMode === 'gender' || finalMode === 'self-check' || exactLevelSelection
-        ) ? 1 : getSelectionMinimumWordCount();
+        ));
+        const launchChunkMinimum = singleTargetAllowed ? 1 : getSelectionMinimumWordCount();
         const sessionIds = uniqueIntList(sessionWordIds || []);
         const providedLaunchUi = (opts.launchUi && typeof opts.launchUi === 'object') ? opts.launchUi : null;
         const hasProvidedLaunchUi = !!(providedLaunchUi &&
@@ -17852,6 +17899,7 @@
             flashData.categoriesPreselected = true;
             flashData.firstCategoryName = String(firstCategory.name || '');
             flashData.firstCategoryData = firstRows;
+            flashData.levelListeningStarterPage = opts.levelListeningStarterPage || null;
             flashData.wordset = wordsetSlug || String(wordsetId || '');
             flashData.wordsetIds = wordsetId > 0 ? [wordsetId] : [];
             flashData.wordsetFallback = false;
@@ -18026,15 +18074,13 @@
 
         const shouldFastStartListeningWithoutSession = finalMode === 'listening' && sessionIds.length === 0;
         if (shouldFastStartListeningWithoutSession) {
-            let selectedCats = categories.filter(function (cat) {
-                return ids.indexOf(cat.id) !== -1 && categoryIdIsLaunchable(cat.id);
-            });
+            let selectedCats = ids.map(getCategoryById).filter(cat => cat && categoryIdIsLaunchable(cat.id));
             if (!selectedCats.length) {
                 abortLaunch(i18n.noCategoriesSelected || '');
                 return;
             }
 
-            selectedCats = shuffleList(selectedCats);
+            if (!preserveCategoryOrder) selectedCats = shuffleList(selectedCats);
             // Do not trigger the dashboard's bulk word fetch here.
             // The flashcard widget will load categories incrementally; a parallel bulk
             // fetch can monopolize the server and delay first audio on large selections.
@@ -18060,6 +18106,8 @@
             rejectOnFailure: rejectOnLoadFailure
         };
         launchEnsureOptions.requestTimeoutMs = opts.requestTimeoutMs;
+        launchEnsureOptions.includeOptionPool = !(exactLevelSelection && ['listening', 'self-check', 'gender'].includes(finalMode));
+        launchEnsureOptions.parallelLevelReads = exactLevelSelection;
         launchEnsureOptions.onRequest = noteLaunchRequest;
         launchEnsureOptions.isRequestCurrent = launchIsCurrent;
 
@@ -18850,11 +18898,27 @@
             finishFlashcardLaunch(token);
             error();
         }
+        function streamListening(ids, starterPage) {
+            launchFlashcards('listening', ids, [], {
+                source: 'wordset_level_start', skipCompatibilityFilter: true, preserveCategoryOrder: isLoggedIn,
+                levelListeningStarterPage: starterPage,
+                details: {curriculum_level: level, curriculum_listening_stream: true,
+                    preserve_category_order: isLoggedIn, preserve_mixed_presentation: true},
+                launchToken: token, launchUi: ui, launchUiCleanup: cleanup, onLaunchFailure: error
+            });
+        }
+        if (operation === 'quiz' && mode === 'listening' && !isLoggedIn) {
+            const ids = categories.filter(cat => cat.listening_supported && categoryIdIsLaunchable(cat.id)
+                && curriculum.containsCategory(level, cat.id)).map(cat => cat.id);
+            if (ids.length) streamListening(ids);
+            else fail();
+            return;
+        }
         const preparationDeadline = Date.now() + 180000;
         function requestPlan() {
             if (!flashcardLaunchIsCurrent(token)) return;
             if (Date.now() >= preparationDeadline) { fail(); return; }
-            const xhr = request(operation, {level: level, launch_mode: action});
+            const xhr = request(operation, {level: level, launch_mode: action, fast_start: 1});
             trackFlashcardLaunchRequest(token, xhr);
             xhr.done(startPlan).fail(function (response) {
                 if (!flashcardLaunchIsCurrent(token)) return;
@@ -18879,6 +18943,11 @@
             const ids = uniqueIntList(plan && plan.category_ids || []);
             const wordIds = uniqueIntList(plan && plan.session_word_ids || []);
             const inScope = ids.every(id => categoryIdIsLaunchable(id) && (!level || curriculum.containsCategory(level,id)));
+            if (operation === 'quiz' && mode === 'listening' && plan?.mode === mode && plan.stream_categories === true
+                && ids.length && inScope && !wordIds.length && ids.every(id => getCategoryById(id)?.listening_supported)) {
+                streamListening(ids, plan.starter_page);
+                return;
+            }
             if (!plan || !ids.length || !inScope || plan.mode !== mode || (!wordIds.length && (mode !== 'learning' || operation === 'quiz'))) {
                 fail();
                 return;
@@ -18898,6 +18967,11 @@
             if (bounded?.planned_count !== targets.size || !Array.isArray(bounded.chunks) || !bounded.chunks.every(ownsTargets)) {
                 fail();
                 return;
+            }
+            const first = bounded.chunks[0];
+            if (mode === 'listening' && first?.category_ids.length === 1 && first.word_ids.length <= 4
+                && Array.isArray(plan.starter_rows) && plan.starter_rows.length) {
+                setCandidateScopedWords(first.category_ids[0], first.word_ids, plan.starter_rows, false);
             }
             const launch = mode === 'learning' ? launchBoundedLearningSelectionPlan : launchBoundedSelectionPlan;
             launch(bounded, {
@@ -18959,13 +19033,98 @@
         return $bar[0];
     }
 
+    const levelLessonRequests = new Map();
+
+    function showLevelLessonPreviews(group, container) {
+        if (container.dataset.loaded) return;
+        container.dataset.loaded = 'true';
+        container.replaceChildren();
+        const entries = [];
+        for (const category of categories) {
+            if (!group.categoryIds.has(category.id) || !categoryIsPublic(category) || isCategoryHidden(category.id)) continue;
+            entries.push({id:category.id, category});
+            if (entries.length === 2) break;
+        }
+        for (const id of group.contentIds) {
+            if (entries.length === 2) break;
+            entries.push({id});
+        }
+        function mount(entry, original) {
+            if (!original) return;
+            const mountedPreview = entry.card?.querySelector('.ll-wordset-card__preview');
+            if (mountedPreview) {
+                // Keep lesson links, keyboard focus and open progress legends while photos arrive.
+                const fresh = original.querySelector('.ll-wordset-card__preview');
+                const items = fresh ? fresh.childNodes : original.querySelectorAll('.ll-wordset-preview-item--image,.ll-wordset-preview-item--text');
+                mountedPreview.replaceChildren(...Array.from(items, node => node.cloneNode(true)));
+                return;
+            }
+            const card = original.cloneNode(true);
+            card.querySelectorAll('img[data-ll-img-load-bound]').forEach(img => img.removeAttribute('data-ll-img-load-bound'));
+            // Keep the main grid the sole owner of selection and management for this lesson.
+            card.className = 'll-wordset-card' + (entry.category ? '' : ' ll-wordset-card--content');
+            card.removeAttribute('data-cat-id');
+            card.removeAttribute('data-lesson-id');
+            card.removeAttribute('style');
+            card.hidden = false;
+            card.querySelectorAll('.ll-wordset-card__select,.ll-wordset-card__hide,.ll-wordset-card__hide-spacer,[data-ll-level-badge]').forEach(node => node.remove());
+            if (entry.category) {
+                card.dataset.llLevelPreviewCategory = String(entry.id);
+                const progress = card.querySelector('.ll-wordset-card__progress');
+                if (progress) {
+                    const cat = getCategoryById(entry.id);
+                    const values = buildWordsetCardProgressPercentsFromAnalyticsRow(Object.assign({word_count:cat.count}, cat));
+                    progress.outerHTML = buildWordsetCardProgressMarkup(values, isLoggedIn && !mainCategoryMetricsReady);
+                    syncWordsetCardProgressSegmentVisualState($(card));
+                }
+            }
+            if (entry.card) entry.card.replaceWith(card);
+            else {
+                const next = entries.slice(entries.indexOf(entry) + 1).find(item => item.card);
+                container.insertBefore(card, next ? next.card : null);
+            }
+            entry.card = card;
+        }
+        const missingCategories = [], missingLessons = [];
+        for (const entry of entries) {
+            const actual = entry.category ? getWordsetCardByCategoryId(entry.id)[0] : getContentLessonCardById(entry.id)[0];
+            if (entry.category) {
+                mount(entry, actual || $(buildWordsetCategoryCardMarkup(entry.category))[0]);
+                if (entry.card.querySelector('.ll-wordset-preview-item--lazy-skeleton') || (!actual && categoryNeedsSearchCardHydration(entry.category))) missingCategories.push(entry.id);
+            } else {
+                mount(entry, actual);
+                if (!actual) missingLessons.push(entry.id);
+            }
+        }
+        if ((!missingCategories.length && !missingLessons.length) || !lazyCardsEnabled || !ajaxUrl || !lazyCardsNonce || !lazyCardsToken) return;
+        const key = missingCategories.join(',') + '/' + missingLessons.join(',');
+        if (!levelLessonRequests.has(key)) {
+            const request = requestWordsetCardsById(missingCategories, missingLessons, 2);
+            levelLessonRequests.set(key, request);
+            request.fail(() => levelLessonRequests.delete(key));
+        }
+        levelLessonRequests.get(key).done(response => {
+            if (!response?.success || !response.data?.html) {
+                levelLessonRequests.delete(key);
+                delete container.dataset.loaded;
+                return;
+            }
+            const template = document.createElement('template');
+            template.innerHTML = response.data.html;
+            for (const entry of entries) {
+                const attr = entry.category ? 'data-cat-id' : 'data-lesson-id';
+                mount(entry, template.content.querySelector('article[' + attr + '="' + entry.id + '"]'));
+            }
+        }).fail(() => { delete container.dataset.loaded; });
+    }
+
     function bindMainInteractions() {
         if (cfg.curriculumLevels && window.LLWordsetLevels) {
             curriculum = window.LLWordsetLevels.create({
                 root: $root[0], config: cfg.curriculumLevels, signedIn: isLoggedIn, wordsetId: wordsetId,
                 ajaxUrl: ajaxUrl, category: getCategoryById, launch: launchCurriculumActivity,
                 modeIcon: getModeIconMarkup, progressIcon: buildProgressIconMarkup,
-                progressBar: buildLevelProgressBar, quizButtons: buildLevelQuizButtons,
+                progressBar: buildLevelProgressBar, quizButtons: buildLevelQuizButtons, showLessons: showLevelLessonPreviews,
                 launchQuiz: function (level, mode, request, error) {
                     launchCurriculumPlan(level, 'quiz', mode, mode, request, error);
                 },

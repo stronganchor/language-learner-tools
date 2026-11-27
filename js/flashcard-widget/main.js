@@ -276,6 +276,11 @@
         }
     }
 
+    function setPracticeLayout(mode) {
+        const $dialog = $('#ll-tools-flashcard-quiz-popup');
+        $dialog.toggleClass('ll-practice-layout', mode === 'practice' && shouldPortalQuizDialog($dialog[0]));
+    }
+
     function activateInlineQuizDialog(dialog, options) {
         const opts = (options && typeof options === 'object') ? options : {};
         if (typeof dialog === 'string' && root.document) {
@@ -3498,6 +3503,7 @@
             }
             newMode = 'self-check';
         }
+        setPracticeLayout(newMode);
         try {
             const tracker = getProgressTracker();
             if (tracker && typeof tracker.flush === 'function') {
@@ -3852,7 +3858,8 @@
                 !State.isListeningMode &&
                 !State.isGenderMode &&
                 !State.isSelfCheckMode;
-            const initialCategoryLimit = isSessionFilteredPracticeBootstrap ? 5 : 3;
+            const streamingLevel = State.isListeningMode && root.llToolsFlashcardsData?.lastLaunchPlan?.details?.curriculum_listening_stream;
+            const initialCategoryLimit = streamingLevel ? 1 : (isSessionFilteredPracticeBootstrap ? 5 : 3);
 
             let initialCategories = State.categoryNames.slice(0, initialCategoryLimit).filter(Boolean);
             if (!initialCategories.length) {
@@ -3952,7 +3959,11 @@
                 return;
             }
 
-            root.FlashcardLoader.loadResourcesForCategory(initialCategories[0], bootstrapFirstRound, categoryLoadOptions);
+            if (State.isListeningMode && root.FlashcardLoader.hasPartialListeningPage?.(initialCategories[0])) {
+                bootstrapFirstRound();
+            } else {
+                root.FlashcardLoader.loadResourcesForCategory(initialCategories[0], bootstrapFirstRound, categoryLoadOptions);
+            }
 
             for (let i = 1; i < initialCategories.length; i++) {
                 root.FlashcardLoader.loadResourcesForCategory(
@@ -5472,6 +5483,14 @@
         }
 
         return preparation.then(function () {
+            if (State.isListeningMode && data.lastLaunchPlan?.details?.curriculum_listening_stream) {
+                const session = __LLSession;
+                return loader.loadResourcesForCategory(firstCategoryName, null, {
+                    firstListeningPage: true, skipCategoryPreload: true,
+                    signal: root.LLFlashcards?.Modes?.Listening?.getCategoryLoadSignal?.(),
+                    isRequestCurrent: () => session === __LLSession && State.widgetActive
+                });
+            }
             return loader.loadResourcesForCategory(firstCategoryName);
         }).then(function (result) {
             const succeeded = !!(
@@ -5581,6 +5600,7 @@
                     closeFlashcard();
                     return;
                 }
+                setPracticeLayout(requestedMode);
                 if (requestedMode === 'gender') {
                     const flashData = root.llToolsFlashcardsData || {};
                     const launchSource = String(flashData.genderLaunchSource || 'direct');
