@@ -4322,6 +4322,10 @@
             return ctx.launchPromise;
         }
 
+        let launchAudioContext = ensureSpeakingSupported()
+            && (normalizedSlug === SPEAKING_PRACTICE_GAME_SLUG || normalizedSlug === SPEAKING_STACK_GAME_SLUG)
+            ? createSpeakingAudioContext()
+            : null;
         const launchPromise = fetchLaunchEntry(ctx, normalizedSlug).catch(function () {
             return entryHasLaunchPayload(fallbackEntry) ? fallbackEntry : null;
         }).then(function (entry) {
@@ -4335,10 +4339,15 @@
             }
 
             startRun(ctx, entry);
+            if (launchAudioContext && ctx.run && normalizeGameSlug(ctx.run.slug) === normalizedSlug) {
+                speakingState(ctx).audioContext = launchAudioContext;
+                launchAudioContext = null;
+            }
             return entry;
         });
         let trackedLaunchPromise = null;
         trackedLaunchPromise = launchPromise.finally(function () {
+            closeSpeakingAudioContext(launchAudioContext);
             if (ctx.launchPromise === trackedLaunchPromise) {
                 ctx.launchPromise = null;
             }
@@ -6663,6 +6672,7 @@
         updatePauseUi(ctx);
 
         if (isSpeakingStackRun(ctx, run)) {
+            speakingState(ctx).audioContext = createSpeakingAudioContext();
             setSpeakingStatus(ctx, String(gameText(ctx, 'gamesSpeakingStackReady')));
             queueSpeakingStackCaptureRestart(ctx, 40);
             return;
@@ -8978,30 +8988,40 @@
         state.analyser = null;
     }
 
-    function stopSpeakingAudioContext(ctx) {
-        const state = speakingState(ctx);
-        if (!state || !state.audioContext) {
-            return;
-        }
+    function resumeSpeakingAudioContext(context) {
         try {
-            state.audioContext.close();
+            if (context && (context.state === 'suspended' || context.state === 'interrupted')) {
+                context.resume().catch(function () {});
+            }
         } catch (_) { /* no-op */ }
-        state.audioContext = null;
     }
 
-    function stopSpeakingStream(ctx) {
-        const state = speakingState(ctx);
-        if (!state || !state.mediaStream) {
-            return;
-        }
+    function createSpeakingAudioContext() {
         try {
-            state.mediaStream.getTracks().forEach(function (track) {
+            const context = new (root.AudioContext || root.webkitAudioContext)();
+            resumeSpeakingAudioContext(context);
+            return context;
+        } catch (_) {
+            return null;
+        }
+    }
+
+    function closeSpeakingAudioContext(context) {
+        try {
+            if (context && context.state !== 'closed') {
+                context.close().catch(function () {});
+            }
+        } catch (_) { /* no-op */ }
+    }
+
+    function stopSpeakingStream(stream) {
+        try {
+            stream.getTracks().forEach(function (track) {
                 if (track && typeof track.stop === 'function') {
                     track.stop();
                 }
             });
         } catch (_) { /* no-op */ }
-        state.mediaStream = null;
     }
 
     function clearSpeakingAutoStart(ctx) {
@@ -9017,22 +9037,26 @@
         clearSpeakingTimeout(state, 'restartTimer');
         clearSpeakingTimeout(state, 'maxStopTimer');
         stopSpeakingMeterMonitoring(ctx);
-        if (state.mediaRecorder && state.mediaRecorder.state !== 'inactive') {
+        const recorder = state.mediaRecorder;
+        state.mediaRecorder = null;
+        state.captureRequest = null;
+        if (recorder && recorder.state !== 'inactive') {
             try {
-                state.mediaRecorder.stop();
+                recorder.stop();
             } catch (_) { /* no-op */ }
         }
-        state.mediaRecorder = null;
         state.audioChunks = [];
-        state.currentBlob = null;
         clearSpeakingAttemptAudioSource(ctx);
-        state.stopPromise = null;
         state.transcribing = false;
         state.speechDetected = false;
         state.speechStartedAt = 0;
         state.silenceStartedAt = 0;
-        stopSpeakingStream(ctx);
-        stopSpeakingAudioContext(ctx);
+        if (state.mediaStream) {
+            stopSpeakingStream(state.mediaStream);
+            state.mediaStream = null;
+        }
+        closeSpeakingAudioContext(state.audioContext);
+        state.audioContext = null;
         resetSpeakingMeter(ctx);
         setSpeakingStackHeard(ctx, '');
     }
@@ -9051,13 +9075,10 @@
         if (!state) {
             return Promise.reject(new Error('missing_state'));
         }
-        if (state.mediaStream) {
+        if (state.mediaStream && state.mediaStream.active !== false) {
             return Promise.resolve(state.mediaStream);
         }
-        return root.navigator.mediaDevices.getUserMedia({ audio: true }).then(function (stream) {
-            state.mediaStream = stream;
-            return stream;
-        });
+        return root.navigator.mediaDevices.getUserMedia({ audio: true });
     }
 
     function chooseRecordingMimeType() {
@@ -9078,46 +9099,59 @@
         return '';
     }
 
-    function stopSpeakingCapture(ctx) {
+    function finishSpeakingCapture(ctx, run, recorder, error) {
         const state = speakingState(ctx);
-        if (!state) {
-            return Promise.resolve(null);
+        if (!state || state.mediaRecorder !== recorder || ctx.run !== run || run.ended || run.paused) {
+            return;
         }
+        state.mediaRecorder = null;
         clearSpeakingTimeout(state, 'maxStopTimer');
         clearSpeakingAutoStart(ctx);
+        stopSpeakingMeterMonitoring(ctx);
 
-        if (!state.mediaRecorder) {
-            return Promise.resolve(state.currentBlob);
-        }
-        if (state.mediaRecorder.state === 'inactive') {
-            return Promise.resolve(state.currentBlob);
-        }
-        if (state.stopPromise) {
-            return state.stopPromise;
+        const blob = !error && state.audioChunks.length
+            ? new Blob(state.audioChunks, { type: recorder.mimeType || 'audio/webm' })
+            : null;
+        state.audioChunks = [];
+        if (blob && blob.size) {
+            processSpeakingAttempt(ctx, blob);
+            return;
         }
 
-        state.stopPromise = new Promise(function (resolve) {
-            const recorder = state.mediaRecorder;
-            const finalize = function () {
-                stopSpeakingMeterMonitoring(ctx);
-                const blob = state.audioChunks.length
-                    ? new Blob(state.audioChunks.slice(), { type: recorder.mimeType || 'audio/webm' })
-                    : null;
-                state.currentBlob = blob;
-                state.stopPromise = null;
-                state.mediaRecorder = null;
-                resolve(blob);
-            };
-
-            recorder.addEventListener('stop', finalize, { once: true });
+        if (recorder.state !== 'inactive') {
             try {
                 recorder.stop();
-            } catch (_) {
-                finalize();
-            }
-        });
+            } catch (_) { /* no-op */ }
+        }
+        if (isSpeakingStackRun(ctx, run)) {
+            setSpeakingStatus(ctx, String(gameText(ctx, error ? 'gamesSpeakingStackMicError' : 'gamesSpeakingStackTooQuiet')));
+            queueSpeakingStackCaptureRestart(ctx, getSpeakingStackFeedbackHoldMs(ctx));
+            return;
+        }
+        setSpeakingStatus(ctx, String(gameText(ctx, error ? 'gamesSpeakingMicError' : 'gamesSpeakingTooQuiet')));
+        setSpeakingRecordButton(ctx, String(gameText(ctx, 'gamesSpeakingRetry')), false, 'retry');
+    }
 
-        return state.stopPromise;
+    function stopSpeakingCapture(ctx, run, recorder) {
+        const state = speakingState(ctx);
+        if (!state || state.mediaRecorder !== recorder) {
+            return;
+        }
+        stopSpeakingMeterMonitoring(ctx);
+        clearSpeakingTimeout(state, 'maxStopTimer');
+        if (recorder.state !== 'inactive') {
+            try {
+                recorder.stop();
+            } catch (error) {
+                finishSpeakingCapture(ctx, run, recorder, error);
+                return;
+            }
+        }
+        if (state.mediaRecorder === recorder) {
+            state.maxStopTimer = root.setTimeout(function () {
+                finishSpeakingCapture(ctx, run, recorder, true);
+            }, 1000);
+        }
     }
 
     function startSpeakingMeterMonitoring(ctx) {
@@ -9128,7 +9162,8 @@
 
         stopSpeakingMeterMonitoring(ctx);
         try {
-            state.audioContext = state.audioContext || new (root.AudioContext || root.webkitAudioContext)();
+            state.audioContext = state.audioContext || createSpeakingAudioContext();
+            resumeSpeakingAudioContext(state.audioContext);
             state.analyser = state.audioContext.createAnalyser();
             state.analyser.fftSize = 2048;
             state.micSource = state.audioContext.createMediaStreamSource(state.mediaStream);
@@ -9177,11 +9212,9 @@
                     (now - state.silenceStartedAt) >= Math.max(400, toInt(gameConfig.silenceWindowMs) || 1050)
                     && (now - state.speechStartedAt) >= Math.max(100, toInt(gameConfig.minSpeechMs) || 160)
                 ) {
-                    stopSpeakingCapture(ctx).then(function (blob) {
-                        if (blob) {
-                            processSpeakingAttempt(ctx, blob);
-                        }
-                    });
+                    if (state.mediaRecorder) {
+                        stopSpeakingCapture(ctx, run, state.mediaRecorder);
+                    }
                 }
             }
         }, 70);
@@ -9199,6 +9232,9 @@
         if (state.mediaRecorder && state.mediaRecorder.state !== 'inactive') {
             return Promise.resolve();
         }
+        if (state.captureRequest) {
+            return state.captureRequest;
+        }
 
         if (isSpeakingPracticeRun(ctx, run)) {
             resetSpeakingResultUi(ctx);
@@ -9209,34 +9245,55 @@
             });
         }
 
-        return ensureSpeakingStream(ctx).then(function (stream) {
+        const captureRequest = ensureSpeakingStream(ctx).then(function (stream) {
+            if (state.captureRequest !== captureRequest || ctx.run !== run || run.ended || run.paused) {
+                if (state.mediaStream !== stream) {
+                    stopSpeakingStream(stream);
+                }
+                return;
+            }
+            state.mediaStream = stream;
             state.audioChunks = [];
-            state.currentBlob = null;
-            state.stopPromise = null;
             state.speechDetected = false;
             state.speechStartedAt = 0;
             state.silenceStartedAt = 0;
 
             const mimeType = chooseRecordingMimeType();
-            state.mediaRecorder = mimeType
+            const recorder = mimeType
                 ? new root.MediaRecorder(stream, { mimeType: mimeType })
                 : new root.MediaRecorder(stream);
-            state.mediaRecorder.addEventListener('dataavailable', function (event) {
-                if (event && event.data && event.data.size > 0) {
+            recorder.addEventListener('dataavailable', function (event) {
+                if (state.mediaRecorder === recorder && event && event.data && event.data.size > 0) {
                     state.audioChunks.push(event.data);
                 }
             });
-            state.mediaRecorder.start();
+            recorder.addEventListener('stop', function () {
+                finishSpeakingCapture(ctx, run, recorder);
+            }, { once: true });
+            recorder.addEventListener('error', function (event) {
+                finishSpeakingCapture(ctx, run, recorder, event);
+            }, { once: true });
+            state.mediaRecorder = recorder;
+            recorder.start();
+            if (state.mediaRecorder !== recorder) {
+                return;
+            }
             startSpeakingMeterMonitoring(ctx);
             clearSpeakingTimeout(state, 'maxStopTimer');
             state.maxStopTimer = root.setTimeout(function () {
-                stopSpeakingCapture(ctx).then(function (blob) {
-                    if (blob) {
-                        processSpeakingAttempt(ctx, blob);
-                    }
-                });
+                stopSpeakingCapture(ctx, run, recorder);
             }, Math.max(1500, toInt((getGameConfig(ctx, run) || {}).maxRecordingMs) || 8000));
+        }).catch(function (error) {
+            if (state.captureRequest === captureRequest && ctx.run === run && !run.ended && !run.paused) {
+                throw error;
+            }
+        }).finally(function () {
+            if (state.captureRequest === captureRequest) {
+                state.captureRequest = null;
+            }
         });
+        state.captureRequest = captureRequest;
+        return captureRequest;
     }
 
     function buildFetchJsonError(message, response, payload) {
@@ -10781,6 +10838,11 @@
         return null;
     }
 
+    function getSpeakingStackFeedbackHoldMs(ctx) {
+        const config = getGameConfig(ctx, SPEAKING_STACK_GAME_SLUG);
+        return Math.max(120, toInt(config && config.feedbackHoldMs));
+    }
+
     function queueSpeakingStackCaptureRestart(ctx, delayMs, error) {
         const run = ctx && ctx.run;
         const state = speakingState(ctx);
@@ -10798,6 +10860,9 @@
                 return;
             }
             startSpeakingCapture(ctx).catch(function (captureError) {
+                if (ctx.run !== run || run.ended || run.paused) {
+                    return;
+                }
                 setSpeakingStatus(ctx, resolveSpeakingMicErrorMessage(
                     ctx,
                     captureError || error,
@@ -10886,16 +10951,36 @@
                 processingStartedAt - Math.max(0, Number(state.speechStartedAt) || processingStartedAt)
             );
         }
-        state.transcribing = true;
         setSpeakingStackHeard(ctx, '');
 
         if (!state.speechDetected) {
-            state.transcribing = false;
             setSpeakingStatus(ctx, String(gameText(ctx, 'gamesSpeakingStackTooQuiet')));
-            queueSpeakingStackCaptureRestart(ctx, 120);
+            queueSpeakingStackCaptureRestart(ctx, getSpeakingStackFeedbackHoldMs(ctx));
             return;
         }
 
+        const attempt = {};
+        state.transcribing = attempt;
+        let holdFeedback = false;
+        const isCurrentAttempt = function () {
+            return ctx.run === run && !run.ended && !run.paused && state.transcribing === attempt;
+        };
+        const finishAttempt = function () {
+            if (!isCurrentAttempt()) {
+                return;
+            }
+            const completedAt = currentTimestamp();
+            const playbackCooldownMs = Math.max(0, Number(run.lastCorrectAudioDurationMs) || 0);
+            const feedbackHoldMs = holdFeedback ? getSpeakingStackFeedbackHoldMs(ctx) : 120;
+            const restartDelayMs = Math.max(feedbackHoldMs, playbackCooldownMs + (playbackCooldownMs > 0 ? 180 : 120));
+            run.lastSpeechAt = completedAt;
+            run.spawnHoldUntil = Math.max(
+                Number(run.spawnHoldUntil) || 0,
+                completedAt + getSpeakingStackThinkPaddingMs(ctx, run) + playbackCooldownMs
+            );
+            state.transcribing = false;
+            queueSpeakingStackCaptureRestart(ctx, restartDelayMs);
+        };
         const stackProcessingLabel = isAudioMatcherProvider(run.provider)
             ? String(gameText(ctx, 'gamesSpeakingStackMatching'))
             : String(gameText(ctx, 'gamesSpeakingStackProcessing'));
@@ -10907,7 +10992,7 @@
             }).filter(Boolean);
 
             scoreSpeakingAudioMatcher(ctx, run, blob, candidateWords).then(function (result) {
-                if (!ctx.run || ctx.run !== run || run.ended) {
+                if (!isCurrentAttempt()) {
                     return;
                 }
                 run.lastTranscribeDurationMs = Math.max(0, currentTimestamp() - transcribeStartedAt);
@@ -10915,14 +11000,16 @@
                 setSpeakingStackResultHeard(ctx, result, result && result.transcript_text);
                 const matched = !!(result && result.matched && String(result.bucket || 'wrong') !== 'wrong');
                 if (!matched) {
+                    holdFeedback = true;
                     setSpeakingStatus(ctx, String(gameText(ctx, 'gamesSpeakingStackNoMatch')));
                     return;
                 }
                 handleSpeakingStackMatch(ctx, run, result, String(result && result.transcript_text || ''));
             }).catch(function (error) {
-                if (!ctx.run || ctx.run !== run || run.ended) {
+                if (!isCurrentAttempt()) {
                     return;
                 }
+                holdFeedback = true;
                 run.lastTranscribeDurationMs = Math.max(0, currentTimestamp() - transcribeStartedAt);
                 setSpeakingStatus(
                     ctx,
@@ -10932,25 +11019,12 @@
                         String(gameText(ctx, 'gamesSpeakingStackMicError') || gameText(ctx, 'gamesSpeakingSttError'))
                     )
                 );
-            }).finally(function () {
-                const completedAt = currentTimestamp();
-                const playbackCooldownMs = Math.max(0, Number(run.lastCorrectAudioDurationMs) || 0);
-                const restartDelayMs = Math.max(120, playbackCooldownMs + (playbackCooldownMs > 0 ? 180 : 120));
-                run.lastSpeechAt = completedAt;
-                run.spawnHoldUntil = Math.max(
-                    Number(run.spawnHoldUntil) || 0,
-                    completedAt + getSpeakingStackThinkPaddingMs(ctx, run) + playbackCooldownMs
-                );
-                state.transcribing = false;
-                if (ctx.run === run && !run.ended && !run.paused) {
-                    queueSpeakingStackCaptureRestart(ctx, restartDelayMs);
-                }
-            });
+            }).finally(finishAttempt);
             return;
         }
 
         transcribeSpeakingBlob(ctx, run, blob).then(function (transcript) {
-            if (!ctx.run || ctx.run !== run || run.ended) {
+            if (!isCurrentAttempt()) {
                 return null;
             }
             run.lastTranscribeDurationMs = Math.max(0, currentTimestamp() - transcribeStartedAt);
@@ -10960,38 +11034,27 @@
                 throw new Error(String(gameText(ctx, 'gamesSpeakingStackTooQuiet')));
             }
             return scoreSpeakingStackTranscript(ctx, run, transcriptText).then(function (result) {
-                if (!ctx.run || ctx.run !== run || run.ended) {
+                if (!isCurrentAttempt()) {
                     return;
                 }
 
                 setSpeakingStackResultHeard(ctx, result, transcriptText);
                 const matched = !!(result && result.matched && String(result.bucket || 'wrong') !== 'wrong');
                 if (!matched) {
+                    holdFeedback = true;
                     setSpeakingStatus(ctx, String(gameText(ctx, 'gamesSpeakingStackNoMatch')));
                     return;
                 }
                 handleSpeakingStackMatch(ctx, run, result, transcriptText);
             });
         }).catch(function (error) {
-            if (!ctx.run || ctx.run !== run || run.ended) {
+            if (!isCurrentAttempt()) {
                 return;
             }
+            holdFeedback = true;
             run.lastTranscribeDurationMs = Math.max(0, currentTimestamp() - transcribeStartedAt);
             setSpeakingStatus(ctx, resolveSpeakingServiceErrorMessage(ctx, error, 'gamesSpeakingSttError'));
-        }).finally(function () {
-            const completedAt = currentTimestamp();
-            const playbackCooldownMs = Math.max(0, Number(run.lastCorrectAudioDurationMs) || 0);
-            const restartDelayMs = Math.max(120, playbackCooldownMs + (playbackCooldownMs > 0 ? 180 : 120));
-            run.lastSpeechAt = completedAt;
-            run.spawnHoldUntil = Math.max(
-                Number(run.spawnHoldUntil) || 0,
-                completedAt + getSpeakingStackThinkPaddingMs(ctx, run) + playbackCooldownMs
-            );
-            state.transcribing = false;
-            if (ctx.run === run && !run.ended && !run.paused) {
-                queueSpeakingStackCaptureRestart(ctx, restartDelayMs);
-            }
-        });
+        }).finally(finishAttempt);
     }
 
     function processSpeakingAttempt(ctx, blob) {
@@ -12101,6 +12164,7 @@
             silenceThreshold: clamp(Number(speakingStack.silenceThreshold) || 0.03, 0.005, 0.2),
             speechStartThreshold: clamp(Number(speakingStack.speechStartThreshold) || 0.055, 0.005, 0.3),
             minSpeechMs: Math.max(100, toInt(speakingStack.minSpeechMs) || 120),
+            feedbackHoldMs: clamp(toInt(speakingStack.feedbackHoldMs) || 120, 120, 5000),
             apiCheckTimeoutMs: Math.max(500, toInt(speakingStack.apiCheckTimeoutMs) || 1500),
             thinkPaddingStartMs: Math.max(900, toInt(speakingStack.thinkPaddingStartMs) || 1900),
             thinkPaddingEndMs: Math.max(700, toInt(speakingStack.thinkPaddingEndMs) || 1200)
@@ -12277,8 +12341,7 @@
                 maxStopTimer: 0,
                 autoStartTimer: 0,
                 restartTimer: 0,
-                stopPromise: null,
-                currentBlob: null,
+                captureRequest: null,
                 attemptAudioUrl: '',
                 attemptAudioRevokeTimer: 0,
                 recentLaunchWordIds: [],
