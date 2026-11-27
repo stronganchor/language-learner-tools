@@ -738,6 +738,17 @@ if (!function_exists('ll_tools_privacy_export_study_settings')) {
                 )],
             ];
         }
+        $completion_history = ll_tools_wordset_level_completion_history((int) $user->ID);
+        if (is_array($completion_history) && $completion_history) {
+            $data[] = [
+                'group_id' => 'll-tools-study-settings',
+                'group_label' => __('LL Tools Study Settings', 'll-tools-text-domain'),
+                'item_id' => 'll-tools-level-completions-' . (int) $user->ID,
+                'data' => [ll_tools_privacy_export_data_pair(
+                    __('Level completion celebrations', 'll-tools-text-domain'), $completion_history
+                )],
+            ];
+        }
         $level_intervals = get_user_meta((int) $user->ID, LL_TOOLS_LEVEL_REVIEW_INTERVALS_META, true);
         if (is_array($level_intervals) && $level_intervals) {
             $data[] = [
@@ -1220,6 +1231,7 @@ if (!function_exists('ll_tools_privacy_user_meta_exists_locked')) {
 function ll_tools_privacy_local_erasure_meta_keys(): array {
     return array_values(array_unique(array_filter(array_map('strval', [
         LL_TOOLS_LEVEL_REVIEW_INTERVALS_META,
+        ll_tools_wordset_level_completion_key(),
         ll_tools_wordset_level_daily_meta_key(),
         defined('LL_TOOLS_USER_WORDSET_META') ? LL_TOOLS_USER_WORDSET_META : 'll_user_study_wordset',
         defined('LL_TOOLS_USER_CATEGORY_META') ? LL_TOOLS_USER_CATEGORY_META : 'll_user_study_categories',

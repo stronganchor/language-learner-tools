@@ -19123,7 +19123,7 @@
             curriculum = window.LLWordsetLevels.create({
                 root: $root[0], config: cfg.curriculumLevels, signedIn: isLoggedIn, wordsetId: wordsetId,
                 ajaxUrl: ajaxUrl, category: getCategoryById, launch: launchCurriculumActivity,
-                modeIcon: getModeIconMarkup, progressIcon: buildProgressIconMarkup,
+                modeIcon: getModeIconMarkup, modeLabel: modeLabel, progressIcon: buildProgressIconMarkup,
                 progressBar: buildLevelProgressBar, quizButtons: buildLevelQuizButtons, showLessons: showLevelLessonPreviews,
                 launchQuiz: function (level, mode, request, error) {
                     launchCurriculumPlan(level, 'quiz', mode, mode, request, error);

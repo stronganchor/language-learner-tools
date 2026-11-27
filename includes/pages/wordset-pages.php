@@ -27304,6 +27304,12 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
         $curriculum_levels['nonce'] = $level_token !== '' ? wp_create_nonce('ll_tools_wordset_levels') : '';
         $curriculum_levels['token'] = $level_token;
         $curriculum_levels['i18n'] = ll_tools_wordset_level_labels();
+        if ($is_study_user && $level_token !== '') {
+            $history = ll_tools_wordset_level_completion_history($category_search_user_id);
+            if (is_array($history) && is_array($history[$wordset_id] ?? [])) {
+                $curriculum_levels['completionHistory'] = array_intersect_key($history[$wordset_id] ?? [], $category_search_payload['level_scope']);
+            }
+        }
     } else {
         $curriculum_levels = [];
     }

@@ -242,8 +242,38 @@ function ll_tools_wordset_level_history(int $uid, int $wordset_id, array $catego
     }
     // Session batches can include additional categories which have no dedicated
     // event row. The legacy category store also predates the durable event stream.
-    $legacy = ll_tools_get_user_category_progress($uid);
-    if (ll_tools_user_progress_get_source_error() instanceof WP_Error) { return ll_tools_wordset_level_progress_error(); }
+    ll_tools_user_progress_prepare_source_read();
+    $stored = get_user_meta($uid, LL_TOOLS_USER_CATEGORY_PROGRESS_META, true);
+    if (ll_tools_user_progress_capture_source_error('category_progress_meta') instanceof WP_Error) {
+        return ll_tools_wordset_level_progress_error();
+    }
+    $legacy = array_filter((array) $stored, static function ($row) use ($wordset_id) {
+        return (int) ($row['wordset_id'] ?? 0) === $wordset_id && !empty($row['last_seen_at']);
+    });
+    // Owned lesson IDs already identify their own isolated copy. Only older
+    // rows with different ownership need the historical remap and merge.
+    $unresolved = [];
+    foreach (array_chunk(array_keys($legacy), 200) as $ids) {
+        $terms = get_terms(['taxonomy' => 'word-category', 'include' => $ids, 'hide_empty' => false, 'suppress_filter' => true]);
+        if (ll_tools_user_progress_capture_source_error('category_isolation', $terms) instanceof WP_Error) {
+            return ll_tools_wordset_level_progress_error();
+        }
+        foreach ($terms as $term) {
+            $owner = ll_tools_get_category_wordset_owner_id($term, $complete);
+            if (!$complete) { return ll_tools_wordset_level_progress_error(); }
+            if ($owner !== $wordset_id) {
+                $unresolved[$term->term_id] = $legacy[$term->term_id];
+                unset($legacy[$term->term_id]);
+            }
+        }
+    }
+    if ($unresolved) {
+        $repaired = ll_tools_repair_user_category_progress_store_for_isolation($unresolved);
+        if (ll_tools_user_progress_get_source_error() instanceof WP_Error) { return ll_tools_wordset_level_progress_error(); }
+        foreach ($repaired as $cid => $row) {
+            if (($row['last_seen_at'] ?? '') > ($legacy[$cid]['last_seen_at'] ?? '')) { $legacy[$cid] = $row; }
+        }
+    }
     foreach ($category_ids as $cid) {
         $row = $legacy[$cid] ?? [];
         if ((int) ($row['wordset_id'] ?? 0) === $wordset_id && !empty($row['last_seen_at'])) {
@@ -349,7 +379,7 @@ function ll_tools_wordset_level_course_reviews(int $wordset_id, int $user_id, ar
 }
 
 /** Load exact membership IDs and bounded progress columns for the complete visible course. */
-function ll_tools_wordset_level_member_progress(int $wordset_id, int $user_id, array $level_categories, bool $practice_only = false, string $quiz_mode = '', bool $cache_only = false) {
+function ll_tools_wordset_level_member_progress(int $wordset_id, int $user_id, array $level_categories, bool $practice_only = false, string $quiz_mode = '', bool $cache_only = false, ?array $reported_levels = null) {
     $levels = [];
     $category_ids = [];
     foreach ($level_categories as $level => $rows) {
@@ -377,7 +407,7 @@ function ll_tools_wordset_level_member_progress(int $wordset_id, int $user_id, a
             $items = ll_tools_wordset_level_members($wordset_id, $cid, $cold_budget, $key, $object_cache);
             if (is_wp_error($items) && $items->get_error_code() === 'll_level_progress_preparing') {
                 $preparing = true;
-                if ($cold_budget <= 0) { return $items; }
+                if ($cold_budget <= 0 && $reported_levels === null) { return $items; }
                 continue;
             }
             if (is_wp_error($items)) { return $items; }
@@ -388,21 +418,37 @@ function ll_tools_wordset_level_member_progress(int $wordset_id, int $user_id, a
             $all_ids += $items;
         }
     }
-    if ($preparing) { return ll_tools_wordset_level_preparing(); }
+    $partial = [];
+    if ($preparing) {
+        if ($reported_levels === null) { return ll_tools_wordset_level_preparing(); }
+        // A cold lesson blocks just its own level. Never count a partially projected level.
+        $levels = array_filter($levels, static fn($categories) => !array_diff_key($categories, $members));
+        $partial = ['preparing' => true, 'ready_levels' => array_keys($levels), 'ready_lessons' => count($members)];
+        $levels = array_diff_key($levels, array_fill_keys($reported_levels, true));
+        $category_ids = [];
+        foreach ($levels as $categories) {
+            foreach ($categories as $cid => $_) { $category_ids[$cid] = $cid; }
+        }
+        $members = array_intersect_key($members, $category_ids);
+        $all_ids = [];
+        foreach ($members as $items) { $all_ids += $items; }
+    }
     $complete = true;
     $progress = $quiz_mode === ''
         ? ll_tools_get_user_word_progress_summary_rows($user_id, array_keys($all_ids), $complete)
         : ll_tools_get_user_word_recency_planning_rows($user_id, array_keys($all_ids), $complete);
     if (!$complete) { return ll_tools_wordset_level_progress_error(); }
-    return ['levels' => $levels, 'members' => $members, 'progress' => $progress, 'category_ids' => $category_ids];
+    return ['levels' => $levels, 'members' => $members, 'progress' => $progress, 'category_ids' => $category_ids] + $partial;
 }
 
-function ll_tools_wordset_level_dashboard(int $wordset_id, int $user_id, array $level_categories, array $review_days_by_level = [], ?int $now = null, bool $include_overall = true) {
+function ll_tools_wordset_level_dashboard(int $wordset_id, int $user_id, array $level_categories, array $review_days_by_level = [], ?int $now = null, bool $include_overall = true, ?array $reported_levels = null) {
     global $wpdb;
     $now = $now ?? time();
-    $data = ll_tools_wordset_level_member_progress($wordset_id, $user_id, $level_categories);
+    $data = ll_tools_wordset_level_member_progress($wordset_id, $user_id, $level_categories, false, '', false, $reported_levels);
     if (is_wp_error($data)) { return $data; }
     ['levels' => $levels, 'members' => $members, 'progress' => $progress, 'category_ids' => $category_ids] = $data;
+    $partial = array_intersect_key($data, array_flip(['preparing', 'ready_levels', 'ready_lessons']));
+    if ($partial && !$levels) { return ['levels' => []] + $partial; }
     $history = ll_tools_wordset_level_history($user_id, $wordset_id, array_values($category_ids));
     if (is_wp_error($history)) { return $history; }
     $placement = [];
@@ -415,7 +461,8 @@ function ll_tools_wordset_level_dashboard(int $wordset_id, int $user_id, array $
         $starred = array_fill_keys(ll_tools_get_user_study_starred_word_ids($user_id), true);
         if ($wpdb->last_error !== '') { return ll_tools_wordset_level_progress_error(); }
     }
-    return ll_tools_wordset_level_summarize($wordset_id, $user_id, $levels, $members, $history, $progress, $review_days_by_level, $now, $placement, $starred, $include_overall);
+    $summary = ll_tools_wordset_level_summarize($wordset_id, $user_id, $levels, $members, $history, $progress, $review_days_by_level, $now, $placement, $starred, $include_overall && !$partial);
+    return is_wp_error($summary) ? $summary : $summary + $partial;
 }
 
 function ll_tools_wordset_level_summarize(int $wordset_id, int $user_id, array $levels, array $members, array $history, array $progress, array $review_days_by_level, int $now, array $placement = [], array $starred = [], bool $include_overall = true) {

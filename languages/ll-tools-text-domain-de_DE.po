@@ -28465,6 +28465,10 @@ msgstr "Jetzt wiederholen"
 msgid "Lessons in this level"
 msgstr "Lektionen dieser Stufe"
 
+#: includes/privacy.php:748
+msgid "Level completion celebrations"
+msgstr "Feiern für abgeschlossene Stufen"
+
 #: includes/lib/wordset-level-labels.php:15
 msgid "See all lessons"
 msgstr "Alle Lektionen ansehen"

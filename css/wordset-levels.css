@@ -174,8 +174,24 @@
     background: var(--ll-wp-card);
     color: var(--ll-level-ink);
 }
-.ll-level-complete { width: 1.65rem; height: 1.65rem; background: var(--ll-wp-pill-green); color: var(--ll-wp-pill-green-text); }
+.ll-wordset-page .ll-level-card.is-complete {
+    background-color: var(--ll-wp-pill-green);
+    border-color: var(--ll-wp-pill-green-border);
+}
+.ll-level-complete { width: 1.65rem; height: 1.65rem; background: var(--ll-wp-pill-green-text); color: var(--ll-wp-card); }
 .ll-level-complete svg { stroke-width: 2.5; }
+@media (prefers-reduced-motion: no-preference) {
+    .ll-wordset-page .ll-level-card.is-celebrating {
+        background-image: linear-gradient(110deg, transparent 32%, var(--ll-wp-card) 48%, transparent 65%);
+        background-size: 320% 100%;
+        animation: ll-level-completion-sweep 1050ms ease-out both;
+    }
+    @keyframes ll-level-completion-sweep {
+        from { background-color: var(--ll-wp-card); background-position: 100% 50%; }
+        55% { box-shadow: 0 0 0 3px var(--ll-wp-pill-green-border), 0 8px 22px var(--ll-wp-pill-green-border); }
+        to { background-color: var(--ll-wp-pill-green); background-position: 0% 50%; }
+    }
+}
 .ll-level-progress-count { display: block; color: var(--ll-wp-muted); font-size: .84rem; line-height: 1.45; font-variant-numeric: tabular-nums; }
 .ll-level-card > .ll-wordset-card__progress { margin-block-start: .7rem; }
 .ll-level-activities { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); gap: .65rem; }

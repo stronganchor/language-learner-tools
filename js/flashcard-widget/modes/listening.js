@@ -338,34 +338,6 @@
         return { w: w, h: h, ratio: w / h };
     }
 
-    // Helper: apply a slightly larger, but same-aspect, size for text placeholders
-    function applyTextPlaceholderSizing($ph) {
-        const $jq = getJQuery();
-        if (!$jq || !$ph || !$ph.length) return;
-        const base = getPracticeTextBaseDims();
-        const aspect = base.ratio || (250 / 150);
-
-        // Target a modest scale-up over practice (single-option listening screen)
-        const scale = 1.25; // ~25% larger than practice
-        let targetWidth = Math.round(base.w * scale);
-
-        try {
-            const vw = Math.max(0, (typeof window !== 'undefined' ? window.innerWidth : 0));
-            const vh = Math.max(0, (typeof window !== 'undefined' ? window.innerHeight : 0));
-            // Cap width to viewport and a sensible desktop max, also respect vertical space
-            const maxByVw = Math.floor(vw * 0.92);
-            const isRoomyDesktop = vw >= 900 && vh >= 560;
-            const maxByRule = isRoomyDesktop ? 620 : 520; // match CSS cap used for listening placeholder
-            const heightReserve = isRoomyDesktop ? 190 : 260;
-            const heightAllowance = Math.max(0, vh - heightReserve);
-            const maxByVh = heightAllowance ? Math.floor(aspect * heightAllowance) : Number.POSITIVE_INFINITY;
-            targetWidth = Math.max(1, Math.min(targetWidth, maxByVw || targetWidth, maxByRule, maxByVh));
-        } catch (_) { /* no-op */ }
-
-        // Apply width and fixed aspect ratio inline
-        $ph.css({ width: targetWidth + 'px', 'aspect-ratio': base.w + ' / ' + base.h });
-    }
-
     const LISTENING_RATIO_MIN = 0.55;
     const LISTENING_RATIO_MAX = 2.5;
     const LISTENING_RATIO_DEFAULT = 1;
@@ -382,38 +354,6 @@
         const base = getPracticeTextBaseDims();
         const baseRatio = clampAspectRatio(base.ratio || (250 / 150));
         return baseRatio || LISTENING_RATIO_DEFAULT;
-    }
-
-    function setFlashcardMinHeight(px) {
-        const $jq = getJQuery();
-        const h = Math.max(0, Math.round(px || 0));
-        if ($jq && h > 0) {
-            $jq('#ll-tools-flashcard').css('min-height', h + 'px');
-        }
-    }
-
-    function refreshPlaceholderMetrics($ph) {
-        const $jq = getJQuery();
-        if (!$jq || !$ph || !$ph.length) return;
-        try {
-            const h = Math.round($ph.outerHeight());
-            if (h > 0) {
-                State.listeningLastHeight = h;
-                setFlashcardMinHeight(h);
-            }
-            const w = Math.max(1, Math.round($ph.innerWidth()));
-            const innerH = Math.max(1, Math.round($ph.innerHeight()));
-            const ratio = clampAspectRatio(w && innerH ? (w / innerH) : null);
-            if (ratio) State.listeningLastAspectRatio = ratio;
-        } catch (_) { /* no-op */ }
-    }
-
-    function schedulePlaceholderMetrics($ph) {
-        if (!$ph || !$ph.length) return;
-        const raf = (typeof root !== 'undefined' && root.requestAnimationFrame)
-            ? root.requestAnimationFrame
-            : function (fn) { return setTimeout(fn, 0); };
-        raf(function () { refreshPlaceholderMetrics($ph); });
     }
 
     function resetListeningHistory() {
@@ -1532,26 +1472,24 @@
         if (!$container || typeof $container.append !== 'function') return null;
         const options = opts || {};
         const baseClasses = ['flashcard-container', 'listening-placeholder'];
-        // For listening mode, we want a single large, responsive square.
-        // Keep 'text-based' for font styling, but avoid fixed flashcard-size classes.
+        // Keep the aspect ratio on the media row so the frame fits its available height.
         if (options.textBased) { baseClasses.push('text-based'); }
         const $ph = $jq('<div>', {
             class: baseClasses.join(' '),
             css: { display: 'flex' }
         });
-        if (options.aspectRatio) {
-            const ar = clampAspectRatio(options.aspectRatio);
-            if (ar) $ph.css('aspect-ratio', ar);
-        }
-        // For text-only categories, size the placeholder slightly larger than practice,
-        // but maintain the same aspect ratio as the practice text card.
+        const $media = $jq('<div>', { class: 'll-listening-media' });
         if (options.textBased) {
-            applyTextPlaceholderSizing($ph);
+            const base = getPracticeTextBaseDims();
+            $media.css('--ll-listen-width', Math.round(base.w * 1.25) + 'px');
+            $media.css('--ll-listen-ratio', base.ratio);
+        } else {
+            $media.css('--ll-listen-ratio', options.aspectRatio || LISTENING_RATIO_DEFAULT);
         }
         // Overlay to hide visual content until reveal
         const $overlay = $jq('<div>', { class: 'listening-overlay' });
         $ph.append($overlay);
-        $container.append($ph);
+        $container.append($media.append($ph));
         return $ph;
     }
 
@@ -1657,10 +1595,6 @@
 
         if ($jq) {
             $jq('#ll-tools-prompt').hide();
-        }
-
-        if ($jq && State.listeningLastHeight > 0) {
-            setFlashcardMinHeight(State.listeningLastHeight);
         }
 
         if (!loader || typeof loader.loadResourcesForWord !== 'function') {
@@ -1885,7 +1819,6 @@
                 ($ph && typeof $ph.after === 'function') ? $ph.after($viz) : ($jq('#ll-tools-flashcard').append($viz));
             }
         }
-        schedulePlaceholderMetrics($ph);
         // Prepare the visualizer now that the element exists
         try {
             const viz = namespace.AudioVisualizer;
@@ -1935,26 +1868,15 @@
                             if (this.naturalWidth > this.naturalHeight + fudge) $ph.addClass('landscape');
                             else if (this.naturalWidth + fudge < this.naturalHeight) $ph.addClass('portrait');
 
-                            // Set exact aspect ratio based on the loaded image dimensions
-                            try {
-                                const nw = Math.max(1, this.naturalWidth || 0);
-                                const nh = Math.max(1, this.naturalHeight || 0);
-                                if (nw && nh) {
-                                    const exact = clampAspectRatio(nw / nh);
-                                    if (exact) {
-                                        $ph.css('aspect-ratio', exact);
-                                        State.listeningLastAspectRatio = exact;
-                                    } else {
-                                        $ph.css('aspect-ratio', nw + ' / ' + nh);
-                                    }
-                                }
-                            } catch (_) { /* no-op */ }
-                            schedulePlaceholderMetrics($ph);
+                            const ratio = clampAspectRatio(this.naturalWidth / this.naturalHeight);
+                            if (ratio) {
+                                $ph.parent().css('--ll-listen-ratio', ratio);
+                                State.listeningLastAspectRatio = ratio;
+                            }
                         });
                         $ph.prepend($img);
                     } else {
                         renderTextIntoPlaceholder($ph, answerLabel);
-                        schedulePlaceholderMetrics($ph);
                     }
                 }
             } catch (_) {}
@@ -2231,10 +2153,8 @@
                     const existingText = $ph.find('.quiz-text');
                     if (existingText.length) {
                         existingText.text(answerLabel);
-                        schedulePlaceholderMetrics($ph);
                     } else {
                         renderTextIntoPlaceholder($ph, answerLabel);
-                        schedulePlaceholderMetrics($ph);
                     }
                 }
             };

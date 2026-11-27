@@ -3,11 +3,102 @@ declare(strict_types=1);
 
 final class WordsetLevelProgressTest extends LL_Tools_TestCase
 {
+    public function test_completion_receipts_baseline_and_claim_once_per_learner_course_and_level(): void {
+        $uid = self::factory()->user->create();
+        $course = 88;
+        $scope = [1 => [['id' => 41]], 2 => [['id' => 42]], 3 => []];
+        $observe = static fn ($levels) => ll_tools_wordset_level_observe_completions($uid, $course, $scope, $levels);
+        $this->assertSame(['history' => [1 => 1, 2 => 0], 'celebrate' => []], $observe([1 => '1', 2 => '0']));
+        $this->assertSame(['history' => [2 => 1], 'celebrate' => [2]], $observe([2 => '1']));
+        $this->assertSame(['history' => [2 => 1], 'celebrate' => []], $observe([2 => '1']));
+        $this->assertSame(['history' => [1 => 1, 2 => 1], 'celebrate' => []], $observe([1 => '0', 2 => '0']));
+        $this->assertWPError($observe([3 => 1]));
+        $this->assertWPError($observe([4 => 1]));
+        $this->assertWPError($observe([1 => 'yes']));
+        $this->assertSame([], ll_tools_wordset_level_observe_completions($uid, $course+1, $scope, [2=>1])['celebrate']);
+        $this->assertSame([$course=>[1=>1, 2=>1], $course+1=>[2=>1]], ll_tools_wordset_level_completion_history($uid));
+        $this->assertSame([], ll_tools_wordset_level_completion_history(self::factory()->user->create()));
+        $this->assertContains(ll_tools_wordset_level_completion_key(), ll_tools_privacy_local_erasure_meta_keys());
+        $export = ll_tools_privacy_export_study_settings(get_userdata($uid)->user_email);
+        $this->assertContains('ll-tools-level-completions-' . $uid, array_column($export['data'], 'item_id'));
+    }
+
+    public function test_level_history_batches_owned_lessons_and_keeps_newer_dates_from_legacy_aliases(): void
+    {
+        $user = self::factory()->user->create();
+        $course = self::factory()->term->create(['taxonomy' => 'wordset']);
+        $older = '2025-06-14 12:00:00';
+        $recent = '2025-09-01 12:00:00';
+        $stored = [];
+        for ($i = 0; $i < 20; ++$i) {
+            $id = self::factory()->term->create(['taxonomy' => 'word-category']);
+            ll_tools_set_category_wordset_owner($id, $course);
+            $stored[$id] = ['wordset_id' => $course, 'last_seen_at' => $older];
+        }
+        $ids = array_keys($stored);
+        $stored[999999] = ['wordset_id' => $course, 'last_seen_at' => $recent];
+        update_user_meta($user, LL_TOOLS_USER_CATEGORY_PROGRESS_META, $stored);
+        $term_reads = 0;
+        $watch = static function ($args) use (&$term_reads) { ++$term_reads; return $args; };
+        add_filter('get_terms_args', $watch);
+        try {
+            $this->assertSame(array_fill_keys($ids, $older), ll_tools_wordset_level_history($user, $course, $ids));
+        } finally {
+            remove_filter('get_terms_args', $watch);
+        }
+        $this->assertLessThan(5, $term_reads);
+        $source = self::factory()->term->create(['taxonomy' => 'word-category']);
+        $copy = ll_tools_get_or_create_isolated_category_copy($source, $course);
+        $this->assertNotEquals($source, $copy);
+        $stored[$copy] = ['wordset_id' => $course, 'last_seen_at' => $older];
+        $stored[$source] = ['wordset_id' => $course, 'last_seen_at' => $recent];
+        update_user_meta($user, LL_TOOLS_USER_CATEGORY_PROGRESS_META, $stored);
+        $this->assertSame([$copy => $recent], ll_tools_wordset_level_history($user, $course, [$copy]));
+        $this->assertSame($stored, get_user_meta($user, LL_TOOLS_USER_CATEGORY_PROGRESS_META, true));
+    }
+
     protected function setUp(): void
     {
         parent::setUp();
         require_once dirname(__DIR__, 2) . '/includes/lib/wordset-level-progress.php';
         ll_tools_install_user_progress_schema();
+    }
+
+    public function test_progressive_overview_returns_whole_ready_levels_and_defers_course_review(): void
+    {
+        $user = self::factory()->user->create(['role' => 'subscriber']);
+        wp_set_current_user($user);
+        $wordset = self::factory()->term->create(['taxonomy' => 'wordset']);
+        $scope = [];
+        for ($i = 0; $i < 18; ++$i) {
+            $category = self::factory()->term->create(['taxonomy' => 'word-category']);
+            ll_tools_set_category_wordset_owner($category, $wordset);
+            $scope[$i < 17 ? 1 : 2][] = ['id' => $category];
+        }
+        $this->completeLlToolsSimulatedRequest();
+        $warm = ll_tools_wordset_level_member_key($wordset, $scope[2][0]['id']);
+        set_transient($warm, [900001 => 7], HOUR_IN_SECONDS);
+        $token = ll_tools_wordset_page_store_category_search_payload(['user_id' => $user, 'wordset_id' => $wordset,
+            'access_signature' => ll_tools_wordset_page_category_search_payload_access_signature($wordset, $user),
+            'level_policy' => ll_tools_wordset_level_policy_signature($wordset), 'level_scope' => $scope]);
+        $request = ['wordset_id' => $wordset, 'token' => $token, 'operation' => 'summary', 'progressive' => 1];
+        $first = ll_tools_wordset_level_request($user, $request);
+        $this->assertSame([2], $first['ready_levels'], 'A later cached level can render before the first one.');
+        $this->assertSame([2], array_keys($first['levels']));
+        $this->assertSame(1, $first['levels'][2]['total']);
+        $this->assertArrayNotHasKey('review', $first);
+        $request['ready_levels'] = '1,2,999'; // Client hints never certify incomplete or out-of-scope levels.
+        $second = ll_tools_wordset_level_request($user, $request);
+        $this->assertSame([2], $second['ready_levels']);
+        $this->assertSame([], $second['levels']);
+        $this->assertGreaterThan($first['ready_lessons'], $second['ready_lessons']);
+        $final = ll_tools_wordset_level_request($user, $request);
+        $this->assertArrayNotHasKey('preparing', $final);
+        $this->assertArrayHasKey('review', $final);
+        unset($request['ready_levels'], $request['progressive']);
+        $legacy = ll_tools_wordset_level_request($user, $request);
+        $this->assertSame($legacy['levels'], $final['levels']);
+        $this->assertSame($legacy['review'], $final['review']);
     }
 
     public function test_counts_launch_and_historical_relationships_use_the_same_visible_words(): void

@@ -42,6 +42,7 @@ async function mount(page, options = {}) {
       modeLearning:modeNames.learning,modePractice:modeNames.practice,modeListening:modeNames.listening,modeSelfCheck:modeNames['self-check'],modeGender:modeNames.gender},
     modeLabels:modeNames};
   if (options.exerciseOnly) config.curriculumLevels.levels=groups.map(group => group.level === 2 ? {...group,nextId:0} : group);
+  if (options.completionHistory) config.curriculumLevels.completionHistory=options.completionHistory;
   if (options.modeUi) config.modeUi=options.modeUi;
   if (options.previews) config.categories=catalog.map(cat=>({...cat,preview:(options.previews[cat.id] || []).map(url=>({type:'image',url}))}));
   if (options.catalogNonce) config.nonce='catalog';
@@ -77,6 +78,17 @@ async function mount(page, options = {}) {
     if (url.pathname === '/ajax') {
       const data = Object.fromEntries(new URLSearchParams(route.request().postData() || ''));
       reqs.push(data);
+      if (data.operation === 'completion_seen') {
+        const history={},celebrate=[];
+        for(const [key,value] of Object.entries(data)){
+          const level=key.match(/^levels\[(\d+)\]$/)?.[1];
+          if(!level) continue;
+          const previous=options.completionHistory[level];
+          if(previous===0 && value==='1') celebrate.push(Number(level));
+          history[level]=options.completionHistory[level]=Math.max(previous || 0,Number(value));
+        }
+        return route.fulfill({json:{success:true,data:{history,celebrate}}});
+      }
       if(data.action === 'll_tools_wordset_page_lazy_cards' && data.category_ids) {
         if (options.pauseThumbnails) await options.pauseThumbnails;
         if (options.holdPreview && data.category_ids.split(',').includes(options.holdPreview.id)) await options.holdPreview.until;
@@ -101,6 +113,12 @@ async function mount(page, options = {}) {
         const first=options.completed ? {...summaryRow,mastered:10,working:0,new:0,next_category_id:0} : summaryRow;
         if (options.overlap) first.practice_activity={category_ids:[1,2],word_count:3,label:'2 words in progress'};
         const second = {...summaryRow,days:30,due:0,practice_category_id:0,next_category_id:options.exerciseOnly ? 0 : 15};
+        if (options.partialSummary) {
+          if (!data.ready_levels) {
+            return route.fulfill({json:{success:true,data:{preparing:true,ready_lessons:14,ready_levels:[1],levels:{1:first}}}});
+          }
+          await options.partialSummary;
+        }
         if (options.secondSummaryModes) second.modes=options.secondSummaryModes;
         const totals=options.summary || {due:2,review:{reason:'due',count:2,due:2},levels:{1:first,2:second}};
         return route.fulfill({json:{success:true,data:totals}});
@@ -350,6 +368,76 @@ test('returning learner sees completed levels and receives only visible CTA thum
   const lookups=reqs.filter(r=>r.action==='ll_tools_wordset_page_lazy_cards');
   expect(lookups.length).toBeGreaterThan(0);
   expect(lookups.every(r=>r.category_ids && r.category_ids.split(',').length<=8 && r.preview_limit==='2')).toBe(true);
+});
+
+test('only newly completed levels celebrate, retain their actions and remember completion on return',async({page,context})=>{
+  const completionHistory={},oldLevel={total:4,mastered:4,working:0,new:0,practice_category_id:1,days:30};
+  const stats={...oldLevel,total:8,mastered:7,working:1,practice_category_id:15};
+  const options={signed:true,completionHistory,summary:{levels:{1:oldLevel,2:stats}}};
+  await mount(page,options);
+  const oldCard=page.locator('[data-ll-level-card="1"]'),card=page.locator('[data-ll-level-card="2"]');
+  await expect(oldCard).toHaveClass(/is-complete/);
+  await expect(oldCard).toHaveCSS('background-color',await paletteColor(oldCard,'--ll-wp-pill-green'));
+  await expect(oldCard.locator('.ll-level-complete + .ll-level-title')).toBeVisible();
+  await expect(oldCard.locator('.ll-level-open')).toHaveAccessibleDescription('Level mastered');
+  await expect(oldCard.locator(':scope > .ll-wordset-card__progress')).toHaveCount(0);
+  await expect(oldCard.locator('.ll-level-activity')).toBeVisible();
+  await expect.poll(()=>completionHistory).toEqual({1:1,2:0});
+  await expect(page.locator('.is-celebrating')).toHaveCount(0);
+  // Keep the unfinished bar open and focused when the quiz refresh reports the last learned word.
+  await card.locator(':scope > .ll-wordset-card__progress summary').click();
+  await page.evaluate(()=>{
+    window.awards=[];
+    document.addEventListener('animationstart',event=>{
+      if(event.animationName==='ll-level-completion-sweep') window.awards.push(event.target.dataset.llLevelCard);
+    });
+  });
+  stats.mastered=8;stats.working=0;
+  await page.evaluate(()=>window.jQuery(document).trigger('lltools:progress-updated'));
+  await expect.poll(()=>page.evaluate(()=>window.awards)).toEqual(['2']);
+  await expect(card.locator('.ll-level-open')).toBeFocused();
+  await expect(card.locator(':scope > .ll-wordset-card__progress')).toHaveCount(0);
+  await card.locator('.ll-level-details-toggle').click();
+  await expect(card.locator('.ll-level-fact dd.ll-level-metric-mastered')).toContainText('8');
+  await page.evaluate(()=>window.jQuery(document).trigger('lltools:progress-updated'));
+  await expect(card).not.toHaveClass(/is-celebrating/);
+  expect(await page.evaluate(()=>window.awards)).toEqual(['2']);
+  const returning=await context.newPage();
+  const requests=await mount(returning,options);
+  await expect(returning.locator('.ll-level-card.is-complete')).toHaveCount(2);
+  expect(requests.filter(request=>request.operation==='completion_seen')).toHaveLength(0);
+  await expect(returning.locator('.is-celebrating')).toHaveCount(0);
+  stats.total=9; stats.new=1;
+  await returning.evaluate(()=>window.jQuery(document).trigger('lltools:progress-updated'));
+  const updated=returning.locator('[data-ll-level-card="2"]');
+  await expect(updated).not.toHaveClass(/is-complete/);
+  await expect(updated.locator(':scope > .ll-wordset-card__progress')).toBeVisible();
+  expect(completionHistory[2]).toBe(1);
+});
+
+test('an earned celebration below the fold waits until the card is visible',async({page})=>{
+  await page.setViewportSize({width:390,height:300});
+  const history={1:0,2:0};
+  const reqs=await mount(page,{signed:true,completionHistory:history,summary:{
+    levels:{1:{total:3,mastered:1,next_category_id:1,practice_category_id:2},2:{total:3,mastered:3,practice_category_id:15}}
+  }});
+  const card=page.locator('[data-ll-level-card="2"]');
+  await expect(card).toHaveClass(/is-complete/);
+  await expect(card).not.toBeInViewport();
+  expect(reqs.filter(r=>r.operation==='completion_seen')).toHaveLength(0);
+  await card.scrollIntoViewIfNeeded();
+  await expect.poll(()=>history[2]).toBe(1);
+  await expect(page.locator('[data-ll-level-notice]')).toContainText('Level 2');
+});
+
+test('completed levels respect reduced motion, and empty or missing totals cannot earn a celebration',async({page})=>{
+  await page.emulateMedia({reducedMotion:'reduce'});
+  const history={1:0};
+  await mount(page,{signed:true,completionHistory:history,summary:{levels:{1:{total:2,mastered:2},2:{total:0,mastered:0}}}});
+  await expect(page.locator('.ll-level-card.is-complete')).toHaveCount(1);
+  await expect(page.locator('.ll-level-card.is-celebrating')).toHaveCount(0);
+  await expect.poll(()=>history).toEqual({1:1});
+  await expect(page.locator('[data-ll-level-notice]')).toHaveText('Level 1 · Level mastered');
 });
 
 test('loading lesson thumbnails and refreshing level stats preserve the learner’s open lesson progress and focus',async({page})=>{
@@ -1123,16 +1211,43 @@ test('leaving a daily quiz early updates the remainder after the answer syncs, a
   await expect(daily).toHaveAccessibleName('Review now · Due for review (89) · Words left today · 1');
 });
 
+test('ready levels show exact progress before other lessons finish preparing',async({page})=>{
+  await instrumentQuiz(page);
+  let finish;
+  const partialSummary=new Promise(resolve=>{finish=resolve;});
+  const starter={id:15001,title:'Word',audio:'/sound.mp3',image:'/thumbnail.svg'};
+  const reqs=await mount(page,{signed:true,partialSummary,successful:true,
+    groups:groups.map(group=>({...group,modes:Object.keys(quizModes)})),
+    categories:categories.map(cat=>({...cat,listening_supported:true})),
+    plan:{category_ids:[15],session_word_ids:[starter.id],word_category_ids:{15001:15},starter_rows:[starter]}});
+  const first=page.locator('[data-ll-level-card="1"]'), second=page.locator('[data-ll-level-card="2"]');
+  try {
+    await expect(first.getByLabel('3 Learned, 2 In progress, 5 New',{exact:true})).toBeVisible();
+    await expect(first.getByRole('button',{name:'Practice · Lesson 2'})).toBeVisible();
+    const listen=second.locator('.ll-level-activities').getByRole('button',{name:'Listen · Level 2'});
+    await expect(listen).toBeEnabled();
+    await expect(second.locator('.ll-level-browse-pending')).toBeEnabled();
+    await expect(second.locator('.ll-wordset-card__progress-track.is-loading')).toBeVisible();
+    await expect(page.locator('.ll-level-review-all')).toHaveCount(0);
+    await expect.poll(()=>reqs.filter(r=>r.operation==='summary').at(-1)?.ready_levels).toBe('1');
+    await listen.click();
+    await expect.poll(()=>page.evaluate(()=>window.launchedQuizzes[0]?.categories)).toEqual(['Everyday Expressions']);
+    expect(reqs.find(r=>r.operation==='quiz').level).toBe('2');
+  } finally { finish(); }
+  await expect(page.locator('.ll-level-review-all')).toBeVisible();
+  await expect(second.locator('.ll-wordset-card__progress-track.is-loading')).toHaveCount(0);
+});
+
 for(const width of [390,1140]) {
-  test('the pending daily goal and activity placeholders reserve the loaded row at '+width+'px',async({page})=>{
+  test('the pending daily goal and usable catalog actions reserve the loaded row at '+width+'px',async({page})=>{
     await page.setViewportSize({width,height:850});
     let release;
     const holdSummary=new Promise(done=>{release=done;});
-    await mount(page,{signed:true,holdSummary});
+    await mount(page,{signed:true,holdSummary,groups:groups.map(group=>({...group,modes:Object.keys(quizModes)}))});
     const first=page.locator('[data-ll-level-card="1"]');
-    const pending=first.locator('.ll-level-activities .ll-level-placeholder');
-    await expect(pending).toHaveCount(2);
-    await expect(pending.first()).toHaveAttribute('aria-hidden','true');
+    const pending=first.locator('.ll-level-activities .ll-level-browse-pending');
+    await expect(pending).toBeEnabled();
+    await expect(first.locator('.ll-level-activities').getByRole('button',{name:'Listen · Level 1'})).toBeEnabled();
     const loadingTop=await page.locator('.ll-level-review-placeholder').boundingBox();
     const actions=first.locator('.ll-level-activities');
     const loadingRow=await actions.boundingBox();

@@ -54,6 +54,14 @@
         const contentLevels = new Map();
         const historyKey = 'llWordsetCurriculum';
         const wordset = options.wordsetId;
+        const completionHistory = options.signedIn && config.completionHistory
+            ? Object.assign({},config.completionHistory) : null;
+        const pendingCelebrations = new Set();
+        let completionRequest = null;
+        const completionObserver = completionHistory && typeof window.IntersectionObserver === 'function'
+            ? new IntersectionObserver(entries => {
+                if (entries.some(entry => entry.isIntersecting)) syncCompletions();
+            }) : null;
         const panels = new Set();
         let renderAfterMotion = false;
         const openFilters = new Map();
@@ -73,6 +81,7 @@
         let noticeTimer = 0;
         let refreshTimer = 0;
         let retryUntil = 0;
+        let readyLessonCount = -1;
         let refreshOnReturn = false;
         let lastSummaryRequestAt = 0;
         let dayResetTimer = 0;
@@ -171,6 +180,7 @@
         }
         function ajax(operation, data) {
             function requireReload() {
+                if (operation === 'completion_seen') return;
                 credentialsExpired = true;
                 fetchError = true;
                 summary = null;
@@ -200,12 +210,28 @@
             refreshOnReturn = false;
             lastSummaryRequestAt = Date.now();
             dirty = false;
-            request = ajax('summary');
+            const previousRows = summary?.preparing ? summary.levels : {};
+            request = ajax('summary',{progressive:1,ready_levels:Object.keys(previousRows).join(',')});
             request.done(response => {
                 const data = response && response.success && response.data;
                 fetchError = !data || !data.levels;
                 if (!fetchError) {
+                    if (data.preparing) {
+                        const levels = {};
+                        (data.ready_levels || []).forEach(level => {
+                            const row = data.levels[level] || previousRows[level];
+                            if (row) levels[level] = row;
+                        });
+                        summary = {levels,preparing:true};
+                        const advanced = Number(data.ready_lessons) > readyLessonCount;
+                        if (advanced || !retryUntil) retryUntil = Date.now() + 180000;
+                        readyLessonCount = Number(data.ready_lessons) || 0;
+                        if (Date.now() < retryUntil) scheduleRefresh(advanced ? 100 : 2000);
+                        else { fetchError = true; retryUntil = 0; }
+                        return;
+                    }
                     retryUntil = 0;
+                    readyLessonCount = -1;
                     summary = data;
                     window.clearTimeout(dayResetTimer);
                     const resetIn = Number(data.next_reset_in) * 1000;
@@ -638,6 +664,54 @@
             }
             return info;
         }
+        function levelComplete(stats) {
+            return Number(stats?.total) > 0 && Number(stats.mastered) === Number(stats.total);
+        }
+        function syncCompletions() {
+            if (!completionHistory || !summary || state.view !== 'home' || document.hidden || credentialsExpired
+                || document.body.classList.contains('ll-tools-flashcard-open')) return;
+            const changes = {};
+            for (const [level,stats] of Object.entries(summary.levels)) {
+                if (!(Number(stats.total) > 0)) continue;
+                const done = Number(levelComplete(stats));
+                const card = section.querySelector('[data-ll-level-card="' + Number(level) + '"]');
+                if (!card) continue;
+                // Only claim an earned celebration once the learner can actually see the card.
+                if (done && (completionHistory[level] === 0 || pendingCelebrations.has(level))) {
+                    const rect = card.getBoundingClientRect();
+                    if (rect.bottom <= 0 || rect.top >= window.innerHeight) {
+                        completionObserver?.observe(card);
+                        continue;
+                    }
+                    if (pendingCelebrations.delete(level)) {
+                        if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                            card.classList.add('is-celebrating');
+                            const sweep = card.getAnimations?.().find(motion => motion.animationName === 'll-level-completion-sweep');
+                            const settle = () => {
+                                card.classList.remove('is-celebrating');
+                                if (renderAfterMotion && card.isConnected) render();
+                            };
+                            if (sweep) sweep.finished.then(settle,settle);
+                            else settle();
+                        }
+                        announce(label(level) + ' · ' + t.complete);
+                    }
+                }
+                if (completionHistory[level] === undefined || (done && completionHistory[level] === 0)) {
+                    changes[level] = done;
+                    if (Object.keys(changes).length === 32) break;
+                }
+            }
+            if (completionRequest || !Object.keys(changes).length) return;
+            completionRequest = ajax('completion_seen',{levels:changes});
+            completionRequest.always(() => { completionRequest = null; }).done(response => {
+                const data = response?.success && response.data;
+                if (!data?.history || !Object.keys(data.history).length) return;
+                Object.assign(completionHistory,data.history);
+                (data.celebrate || []).forEach(level => pendingCelebrations.add(String(level)));
+                syncCompletions();
+            });
+        }
         function card(group, existingPreviews) {
             const id = Number(group.level);
             const stats = summary && summary.levels && summary.levels[id];
@@ -656,15 +730,19 @@
             row.append(overview);
             shell.append(row);
             const badges = element('div','ll-level-badges');
-            if (stats && Number(stats.total) > 0 && Number(stats.mastered) === Number(stats.total)) {
+            const complete = levelComplete(stats);
+            if (complete) {
+                shell.classList.add('is-complete');
                 const check = element('span','ll-level-complete');
+                check.id = 'll-level-complete-' + wordset + '-' + id;
                 check.setAttribute('role','img');
                 check.setAttribute('aria-label',t.complete);
                 check.title = t.complete;
                 check.append(icon('check'));
-                head.append(check);
+                open.setAttribute('aria-describedby',check.id);
+                head.prepend(check);
             }
-            const loadingStats = options.signedIn && !summary && !fetchError;
+            const loadingStats = options.signedIn && !stats && !fetchError && (!summary || summary.preparing);
             if (stats) addLevelFilterButtons(id,stats,badges,overview);
             else if (loadingStats && group.categoryIds.size) {
                 badges.setAttribute('aria-hidden','true');
@@ -680,9 +758,22 @@
                 overview.append(element('span','ll-level-progress-count',t.lessons + ' · ' + number(group.categoryIds.size + group.contentIds.size)));
             }
             const actions = element('div','ll-level-activities');
-            if (options.signedIn && !summary && !fetchError && !credentialsExpired) {
-                if (group.nextId) actions.append(loadingPlaceholder('ll-level-activity'));
-                if (group.practiceId) actions.append(loadingPlaceholder('ll-level-activity'));
+            if (loadingStats && !credentialsExpired && group.categoryIds.size) {
+                // Browsing is always available while the exact personalized activity is being prepared.
+                const browse = button(t.seeAll + ' · ' + label(id),'ll-level-activity ll-level-browse-pending','lessons',() => go('level',id));
+                browse.dataset.llFocusKey = 'pending-browse-' + id;
+                browse.append(element('span','ll-level-action-name',t.seeAll),icon('forward'));
+                actions.append(browse);
+                if (group.modes?.includes('listening')) {
+                    const name = options.modeLabel('listening');
+                    const listen = button(name + ' · ' + label(id),'ll-level-activity',null,() => {
+                        options.launchQuiz(id,'listening',ajax,() => announce(t.launchError));
+                    });
+                    listen.dataset.llFocusKey = 'pending-listen-' + id;
+                    listen.insertAdjacentHTML('afterbegin',options.modeIcon('listening','ll-level-mode-icon'));
+                    listen.append(element('span','ll-level-action-name',name),icon('forward'));
+                    actions.append(listen);
+                }
             } else if (stats) {
                 if (stats.next_category_id) actions.append(action(group,'learn',Number(stats.next_category_id)));
                 if (stats.practice_category_id) actions.append(action(group,'practice',Number(stats.practice_category_id)));
@@ -691,7 +782,7 @@
                 actions.append(action(group,group.nextId ? 'learn' : 'practice',Number(group.nextId || group.practiceId),true));
             }
             if (actions.childElementCount) row.append(actions);
-            if (group.categoryIds.size) {
+            if (group.categoryIds.size && !complete) {
                 const progress = options.progressBar(stats,options.signedIn && !stats && !fetchError);
                 progress.querySelector('summary').dataset.llFocusKey = 'progress-' + id;
                 shell.append(progress);
@@ -700,7 +791,7 @@
             return shell;
         }
         function render() {
-            if (state.view === 'home' && section.querySelector('.ll-level-detail-body.is-animating')) {
+            if (state.view === 'home' && section.querySelector('.ll-level-detail-body.is-animating,.ll-level-card.is-celebrating')) {
                 renderAfterMotion = true;
                 return;
             }
@@ -719,7 +810,7 @@
             const focusedPreview = section.contains(focused) && focused.closest('.ll-level-lesson-previews');
             const fragment = document.createDocumentFragment();
             if (state.view === 'home') {
-                if (credentialsExpired || (options.signedIn && (!summary || fetchError))) {
+                if (credentialsExpired || (options.signedIn && (!summary || summary.preparing || fetchError))) {
                     const status = element('div',fetchError || credentialsExpired ? 'll-level-state' : 'screen-reader-text ll-level-loading-status');
                     status.setAttribute('role','status');
                     status.append(element('span','',credentialsExpired ? t.scopeExpired : (fetchError ? t.error : t.loading)));
@@ -733,12 +824,12 @@
                 const grid = element('div','ll-level-grid');
                 const review = summary && dailyReview(summary.review);
                 if (review) fragment.append(review);
-                else if (options.signedIn && !summary && !fetchError && !credentialsExpired) {
+                else if (options.signedIn && (!summary || summary.preparing) && !fetchError && !credentialsExpired) {
                     fragment.append(loadingPlaceholder('ll-level-review-placeholder'));
                 }
                 groups.forEach(group => {
                     const levelCard = card(group,visiblePreviews.get(Number(group.level)));
-                    if (openProgress.has(levelCard.dataset.llLevelCard)) {
+                    if (openProgress.has(levelCard.dataset.llLevelCard) && !levelCard.classList.contains('is-complete')) {
                         levelCard.querySelector(':scope > .ll-wordset-card__progress').open = true;
                     }
                     grid.append(levelCard);
@@ -758,6 +849,8 @@
             fragment.append(status);
             section.replaceChildren(fragment);
             section.hidden = false;
+            completionObserver?.disconnect();
+            syncCompletions();
             if (observer) observer.disconnect();
             const previews = section.querySelectorAll('[data-ll-thumb-categories]');
             if (observer) previews.forEach(btn => observer.observe(btn));
@@ -767,7 +860,9 @@
             }
             if (focusedPreview && section.contains(focused)) focused.focus({preventScroll:true});
             else if (key) {
-                const target = section.querySelector('[data-ll-focus-key="' + key + '"]');
+                const target = section.querySelector('[data-ll-focus-key="' + key + '"]')
+                    || ((key.startsWith('progress-') || key.startsWith('pending-'))
+                        && section.querySelector('[data-ll-focus-key="browse-' + key.split('-').pop() + '"]'));
                 if (target) target.focus({preventScroll:true});
             }
         }
@@ -906,13 +1001,17 @@
                     refreshOnReturn = true;
                 }
                 retryUntil = 0;
-            } else resumeSummary();
+            } else {
+                resumeSummary();
+                syncCompletions();
+            }
         });
         window.addEventListener('pageshow',event => {
             if (event.persisted) refreshOnReturn = true;
             resumeSummary();
         });
         $(document).on('lltools:flashcard-closed.llLevels',refreshSoon);
+        if (!completionObserver && completionHistory) window.addEventListener('scroll',syncCompletions,{passive:true});
         $(document).on('lltools:progress-updated.llLevels',() => {
             if (!document.body.classList.contains('ll-tools-flashcard-open')) refreshSoon();
         });

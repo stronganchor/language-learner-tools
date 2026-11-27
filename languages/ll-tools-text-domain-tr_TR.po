@@ -28459,6 +28459,10 @@ msgstr "Şimdi tekrar et"
 msgid "Lessons in this level"
 msgstr "Bu seviyedeki dersler"
 
+#: includes/privacy.php:748
+msgid "Level completion celebrations"
+msgstr "Seviye tamamlama kutlamaları"
+
 #: includes/lib/wordset-level-labels.php:15
 msgid "See all lessons"
 msgstr "Tüm dersleri gör"

@@ -5,18 +5,7 @@
     background: #e5e7eb;
     box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.06);
     cursor: default;
-    /* Responsive width: keep listening images readable without crowding short viewports. */
-    width: min(86vw, 520px, calc(100vh - 260px));
-    /* Height is determined dynamically in JS via aspect-ratio based on
-       image natural dimensions or measured text height. */
-    height: auto;
     max-width: 100%;
-}
-
-@media (min-width: 900px) and (min-height: 560px) {
-    .flashcard-container.listening-placeholder {
-        width: min(68vw, 620px, calc(100vh - 190px));
-    }
 }
 
 .flashcard-container.listening-placeholder .ll-tools-loading-animation {
@@ -84,16 +73,24 @@
 
 /* Visualizer now placed between the image box and controls */
 #ll-tools-listening-visualizer {
-    position: static;
+    position: relative;
     z-index: auto;
     transform: none;
-    margin: 10px 0 8px;
+    box-sizing: border-box;
+    height: auto;
+    min-height: var(--ll-listen-wave-height, 64px);
+    max-width: 100%;
+    padding: 0;
+    margin: 0;
     background: transparent !important;
-    min-height: 52px;
     display: flex;
     align-items: center;
     justify-content: center;
-    position: relative;
+    flex: none;
+}
+
+#ll-tools-listening-visualizer .ll-tools-visualizer-bar {
+    max-height: var(--ll-listen-wave-height, 64px);
 }
 
 #ll-tools-listening-visualizer.countdown-active .ll-tools-visualizer-bar {
@@ -102,7 +99,9 @@
 }
 
 .listening-visualizer-text {
-    min-height: 56px;
+    min-height: var(--ll-listen-wave-height, 64px);
+    overflow-wrap: anywhere;
+    min-width: 0;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -117,6 +116,9 @@
 }
 
 .listening-text {
+    flex: none;
+    max-width: 100%;
+    overflow-wrap: anywhere;
     min-height: 44px;
     margin: 6px 0 4px;
     font-family: var(--ll-answer-option-font-family, inherit);
@@ -135,14 +137,62 @@
     position: relative;
     align-items: center;
     gap: 8px;
+    min-height: 0;
+    width: 100%;
+}
+
+#ll-tools-flashcard-content:has(.listening-stack) {
+    min-height: 0;
+    flex: 1 1 0;
+    overflow-y: auto;
+    padding-bottom: max(var(--ll-quiz-content-padding, 15px), env(safe-area-inset-bottom, 0px));
+}
+
+#ll-tools-flashcard:has(> .listening-stack) {
+    flex-flow: column nowrap;
+    align-items: stretch;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+/* Only the media row shrinks. Size the picture from this row's real width
+   and height after the header, text, waveform and playback controls fit. */
+.ll-listening-media {
+    --ll-listen-width: min(86vw, 520px);
+    --ll-listen-ratio: 1;
+    container-type: size;
+    display: grid;
+    place-items: center;
+    width: 100%;
+    height: calc(var(--ll-listen-width) / var(--ll-listen-ratio));
+    min-height: 3rem;
+}
+
+@media (min-width: 900px) and (min-height: 560px) {
+    .ll-listening-media { --ll-listen-width: min(68vw, 620px); }
+}
+
+.ll-listening-media .flashcard-container.listening-placeholder {
+    width: min(var(--ll-listen-width), 100cqw, calc(100cqh * var(--ll-listen-ratio)));
+    height: auto;
+    max-width: 100%;
+    aspect-ratio: var(--ll-listen-ratio);
 }
 
 .ll-listening-controls {
     display: flex;
+    flex: none;
+    flex-wrap: wrap;
+    max-width: 100%;
     justify-content: center;
     align-items: center;
-    gap: 14px;
+    gap: clamp(4px, 1vw, 14px);
     margin-top: 14px;
+}
+
+@media (max-height: 520px) {
+    .listening-stack { gap: 4px; --ll-listen-wave-height: 40px; }
+    .ll-listening-controls { margin-top: 4px; }
 }
 
 .ll-listening-controls .ll-listen-btn {

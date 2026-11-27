@@ -277,6 +277,9 @@ function ll_tools_wordset_level_request_in_scope(int $user_id, int $wordset_id, 
     $scope = $user_id ? ll_tools_wordset_level_visible_study_scope($payload['level_scope'], $user_id, $complete) : $payload['level_scope'];
     if (!$complete) { return ll_tools_wordset_level_read_error(); }
     $operation = $request['operation'] ?? '';
+    if ($operation === 'completion_seen') {
+        return ll_tools_wordset_level_observe_completions($user_id, $wordset_id, $scope, $request['levels'] ?? []);
+    }
     $level = filter_var($request['level'] ?? 0, FILTER_VALIDATE_INT);
     $mode = $request['launch_mode'] ?? '';
     $global_review = $operation === 'launch' && in_array($mode, ['due', 'review'], true) && $level === 0;
@@ -299,7 +302,10 @@ function ll_tools_wordset_level_request_in_scope(int $user_id, int $wordset_id, 
     }
     $now = time();
     if ($operation === 'summary') {
-        $dashboard = ll_tools_wordset_level_dashboard($wordset_id, $user_id, $scope, $days, $now);
+        $reported_levels = !empty($request['progressive'])
+            ? array_intersect(array_keys($scope), wp_parse_id_list($request['ready_levels'] ?? []))
+            : null;
+        $dashboard = ll_tools_wordset_level_dashboard($wordset_id, $user_id, $scope, $days, $now, true, $reported_levels);
         if (is_wp_error($dashboard)) {
             return $dashboard;
         }
@@ -312,6 +318,7 @@ function ll_tools_wordset_level_request_in_scope(int $user_id, int $wordset_id, 
             }
         }
         unset($row);
+        if (!empty($dashboard['preparing'])) { return $dashboard; }
         $overall = $dashboard['overall'];
         $next_midnight = (new DateTimeImmutable('@' . $now))->setTimezone(wp_timezone())->modify('tomorrow');
         return [
@@ -382,4 +389,50 @@ function ll_tools_wordset_level_policy_signature(int $wordset_id): string {
         }
     }
     return hash('sha256', serialize($policy));
+}
+
+function ll_tools_wordset_level_completion_key(): string {
+    global $wpdb;
+    return $wpdb->get_blog_prefix() . 'll_tools_level_completions_seen';
+}
+
+function ll_tools_wordset_level_completion_history(int $user_id) {
+    global $wpdb;
+    $wpdb->last_error = '';
+    $history = get_user_meta($user_id, ll_tools_wordset_level_completion_key(), true);
+    if ($wpdb->last_error !== '' || ($history !== '' && !is_array($history))) { return ll_tools_wordset_level_read_error(); }
+    return $history === '' ? [] : $history;
+}
+
+/** These receipts record what this learner has seen. They never grant or change mastery. */
+function ll_tools_wordset_level_observe_completions(int $user_id, int $wordset_id, array $scope, $observed) {
+    if (!$user_id || !$wordset_id || !is_array($observed) || !$observed || count($observed) > 32) {
+        return ll_tools_wordset_level_read_error();
+    }
+    foreach ($observed as $level => $value) {
+        if (!is_int($level) || empty($scope[$level]) || !in_array($value, [0, 1, '0', '1'], true)) {
+            return ll_tools_wordset_level_read_error();
+        }
+    }
+    return ll_tools_offline_app_run_user_data_write_locked($user_id, static function () use ($user_id, $wordset_id, $observed) {
+        wp_cache_delete($user_id, 'user_meta');
+        $courses = ll_tools_wordset_level_completion_history($user_id);
+        if (is_wp_error($courses)) { return $courses; }
+        $history = $courses[$wordset_id] ?? [];
+        if (!is_array($history)) { return ll_tools_wordset_level_read_error(); }
+        $next = $history;
+        $celebrate = [];
+        foreach ($observed as $level => $value) {
+            if (($history[$level] ?? null) === 0 && (int) $value === 1) { $celebrate[] = $level; }
+            // Unknown completed levels establish a quiet baseline; old tabs cannot reset it.
+            $next[$level] = max((int) ($history[$level] ?? 0), (int) $value);
+        }
+        if ($next !== $history) {
+            $courses[$wordset_id] = $next;
+            if (!ll_tools_user_progress_update_meta_verified($user_id, ll_tools_wordset_level_completion_key(), $courses)) {
+                return ll_tools_wordset_level_read_error();
+            }
+        }
+        return ['history' => array_intersect_key($next, $observed), 'celebrate' => $celebrate];
+    });
 }
