@@ -47,8 +47,6 @@ function ll_tools_wordset_level_labels(): array {
         'saved' => __('Saved', 'll-tools-text-domain'),
         'loading' => __('Loading progress…', 'll-tools-text-domain'),
         'error' => __('Could not load progress.', 'll-tools-text-domain'),
-        'scopeExpired' => __('Reload this page to update your levels.', 'll-tools-text-domain'),
-        'reload' => __('Reload', 'll-tools-text-domain'),
         'launchError' => __('Could not start this activity.', 'll-tools-text-domain'),
         'saveError' => __('Could not save this interval.', 'll-tools-text-domain'),
         'retry' => __('Retry', 'll-tools-text-domain'),

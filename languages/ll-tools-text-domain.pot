@@ -2,14 +2,14 @@
 # This file is distributed under the same license as the Language Learner Tools plugin.
 msgid ""
 msgstr ""
-"Project-Id-Version: Language Learner Tools 6.7.112\n"
+"Project-Id-Version: Language Learner Tools 6.7.113\n"
 "Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/language-learner-tools\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-11-27T07:01:41+00:00\n"
+"POT-Creation-Date: 2026-11-27T07:25:10+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.10.0\n"
 "X-Domain: ll-tools-text-domain\n"
@@ -762,7 +762,7 @@ msgstr ""
 #: includes/content-lesson-cloze.php:289
 #: includes/lib/recording-history.php:279
 #: includes/lib/word-copy.php:465
-#: includes/lib/wordset-level-labels.php:54
+#: includes/lib/wordset-level-labels.php:52
 #: includes/lms/assignment-experience.php:416
 #: includes/pages/content-lesson-pages.php:1308
 #: includes/pages/quiz-pages.php:1120
@@ -17565,51 +17565,37 @@ msgid "Could not load progress."
 msgstr ""
 
 #: includes/lib/wordset-level-labels.php:50
-#: includes/lib/wordset-level-page.php:258
-#: includes/lib/wordset-level-page.php:261
-#: includes/lib/wordset-level-page.php:266
-#: includes/lib/wordset-level-page.php:285
-msgid "Reload this page to update your levels."
-msgstr ""
-
-#: includes/lib/wordset-level-labels.php:51
-#: includes/pages/wordset-transcription-review.php:291
-#: templates/vocab-lesson-template.php:1404
-msgid "Reload"
-msgstr ""
-
-#: includes/lib/wordset-level-labels.php:52
 msgid "Could not start this activity."
 msgstr ""
 
-#: includes/lib/wordset-level-labels.php:53
+#: includes/lib/wordset-level-labels.php:51
 msgid "Could not save this interval."
 msgstr ""
 
-#: includes/lib/wordset-level-labels.php:55
+#: includes/lib/wordset-level-labels.php:53
 msgid "Words left today"
 msgstr ""
 
-#: includes/lib/wordset-level-labels.php:65
+#: includes/lib/wordset-level-labels.php:63
 msgid "New and in progress"
 msgstr ""
 
 #. translators: %d: number of new words in this practice round.
-#: includes/lib/wordset-level-labels.php:69
+#: includes/lib/wordset-level-labels.php:67
 msgid "%d new word"
 msgid_plural "%d new words"
 msgstr[0] ""
 msgstr[1] ""
 
 #. translators: %d: number of words still in progress in this practice round.
-#: includes/lib/wordset-level-labels.php:73
+#: includes/lib/wordset-level-labels.php:71
 msgid "%d word in progress"
 msgid_plural "%d words in progress"
 msgstr[0] ""
 msgstr[1] ""
 
 #. translators: %d: number of already learned words in this practice round.
-#: includes/lib/wordset-level-labels.php:77
+#: includes/lib/wordset-level-labels.php:75
 msgid "%d learned word"
 msgid_plural "%d learned words"
 msgstr[0] ""
@@ -17633,6 +17619,13 @@ msgstr ""
 
 #: includes/lib/wordset-level-page.php:252
 msgid "Please sign in to view your progress."
+msgstr ""
+
+#: includes/lib/wordset-level-page.php:258
+#: includes/lib/wordset-level-page.php:261
+#: includes/lib/wordset-level-page.php:266
+#: includes/lib/wordset-level-page.php:285
+msgid "Reload this page to update your levels."
 msgstr ""
 
 #: includes/lib/wordset-level-page.php:298
@@ -24860,6 +24853,11 @@ msgstr ""
 
 #: includes/pages/wordset-transcription-review.php:288
 msgid "Finish saving or reload the changed recordings before leaving this page."
+msgstr ""
+
+#: includes/pages/wordset-transcription-review.php:291
+#: templates/vocab-lesson-template.php:1404
+msgid "Reload"
 msgstr ""
 
 #: includes/pages/wordset-transcription-review.php:291

@@ -104,8 +104,9 @@ async function mount(page, options = {}) {
       if (data.operation === 'summary') {
         if (options.holdSummary) await options.holdSummary;
         if (options.pauseSummary) await options.pauseSummary;
-        if (options.expired && reqs.filter(r=>r.operation==='summary').length===1) {
-          return route.fulfill({status:403,contentType:'text/plain',body:'-1'});
+        if (options.summaryFailures) {
+          const failure = options.summaryFailures[reqs.filter(r=>r.operation==='summary').length - 1];
+          if (failure) return route.fulfill(failure);
         }
         if (options.prepare && reqs.filter(r => r.operation === 'summary').length === 1) {
           return route.fulfill({status:503,json:{success:false,data:{code:'ll_level_progress_preparing',retry_after:1}}});
@@ -127,6 +128,7 @@ async function mount(page, options = {}) {
         summaryRow.days=Number(data.days);
         return route.fulfill({json:{success:true,data:{level:1,days:summaryRow.days}}});
       }
+      if (data.operation === 'launch' && options.launchFailure) return route.fulfill(options.launchFailure);
       if ((data.operation === 'launch' || data.operation === 'quiz') && options.successful) {
         if (data.launch_mode === 'listening' && options.coldListening) {
           return route.fulfill({json:{success:true,data:{mode:'listening',stream_categories:true,category_ids:[2,1],session_word_ids:[]}}});
@@ -1457,14 +1459,113 @@ test('an answer-only prompt cannot take the place of the planned review word',as
   expect(await page.evaluate(()=>window.launchedQuizzes)).toEqual([]);
 });
 
-test('expired signed-in credentials leave browsing and a working reload available',async({page})=>{
-  const reqs=await mount(page,{signed:true,expired:true});
-  await expect(page.getByText('Reload this page to update your levels.')).toBeVisible();
-  await expect(page.getByRole('button',{name:'Learn · Lesson 1'}).locator('.ll-level-action-name')).toHaveText('Lesson 1');
-  await page.getByRole('button',{name:'Reload',exact:true}).click();
+async function mountWithFailingSummary(page, failures) {
+  const documents = [];
+  page.on('request', request => {
+    if (request.isNavigationRequest() && request.frame() === page.mainFrame()) documents.push(request.url());
+  });
+  let release;
+  const pauseSummary = new Promise(resolve => { release = resolve; });
+  const requests = await mount(page,{signed:true,pauseSummary,summaryFailures:failures});
+  return {documents, release, summaryCount:() => requests.filter(request => request.operation === 'summary').length};
+}
+
+const recoveredLevelDocuments = [base+'/',base+'/?ll_category_search_recovery=1'];
+const expiredLevelScope = {status:410,json:{success:false,data:{code:'ll_level_scope_expired'}}};
+
+test('an expired level nonce automatically reloads the document and restores personalized activities',async({page})=>{
+  const probe = await mountWithFailingSummary(page,[{status:403,contentType:'text/plain',body:'-1'}]);
+  probe.release();
   await expect(page.locator('.ll-level-review-all')).toBeVisible();
-  expect(reqs.filter(r=>r.operation==='summary')).toHaveLength(2);
+  await expect(page.getByRole('button',{name:'Reload',exact:true})).toHaveCount(0);
+  expect(probe.documents).toEqual(recoveredLevelDocuments);
+  await expect(page).toHaveURL(base+'/');
+  expect(probe.summaryCount()).toBe(2);
 });
+
+test('a persistently expired level scope reloads once and leaves the lesson catalog browsable',async({page})=>{
+  const probe = await mountWithFailingSummary(page,[expiredLevelScope,expiredLevelScope]);
+  probe.release();
+  await expect.poll(probe.summaryCount).toBe(2);
+  const fallback = page.getByRole('button',{name:'Learn · Lesson 1'});
+  await expect(fallback).toBeVisible();
+  await expect(page.getByText('Reload this page to update your levels.')).toHaveCount(0);
+  await expect(page.getByRole('button',{name:'Reload',exact:true})).toHaveCount(0);
+  await page.getByRole('button',{name:'Browse lessons · Level 1',exact:true}).click();
+  await expect(page.locator('[data-ll-wordset-page]')).toHaveAttribute('data-ll-level-view','level');
+  await expect(page.locator('.ll-wordset-card[data-cat-id="1"]')).toBeVisible();
+  expect(probe.documents).toEqual(recoveredLevelDocuments);
+  await expect(page).toHaveURL(base+'/');
+  expect(probe.summaryCount()).toBe(2);
+});
+
+test('an expiry discovered during a quiz waits until the quiz closes to reload',async({page})=>{
+  const probe = await mountWithFailingSummary(page,[expiredLevelScope]);
+  await page.evaluate(() => {
+    document.body.classList.add('ll-tools-flashcard-open');
+    window.jQuery(document).one('ajaxComplete',() => { window.summarySettled = true; });
+  });
+  probe.release();
+  await expect.poll(()=>page.evaluate(()=>window.summarySettled)).toBe(true);
+  expect(probe.documents).toHaveLength(1);
+  await expect(page.getByText('Reload this page to update your levels.')).toHaveCount(0);
+  await page.evaluate(() => {
+    document.body.classList.remove('ll-tools-flashcard-open');
+    window.jQuery(document).trigger('lltools:flashcard-closed');
+  });
+  await expect(page.locator('.ll-level-review-all')).toBeVisible();
+  expect(probe.documents).toEqual(recoveredLevelDocuments);
+  await expect(page).toHaveURL(base+'/');
+  expect(probe.summaryCount()).toBe(2);
+});
+
+for (const view of ['level','search']) {
+  test('automatic expiry recovery preserves the current '+view+' view and bookmark',async({page})=>{
+    const probe = await mountWithFailingSummary(page,[expiredLevelScope]);
+    const bookmark = base+'/?utm_source=bookmark#levels';
+    await page.evaluate(url=>history.replaceState(history.state,'',url),bookmark);
+    if (view === 'level') {
+      await page.getByRole('button',{name:'Browse lessons · Level 2',exact:true}).click();
+    } else {
+      await page.getByRole('searchbox').fill('Everyday');
+    }
+    const root = page.locator('[data-ll-wordset-page]');
+    await expect(root).toHaveAttribute('data-ll-level-view',view);
+    probe.release();
+    await expect.poll(probe.summaryCount).toBe(2);
+    await expect(root).toHaveAttribute('data-ll-level-view',view);
+    await expect(page).toHaveURL(bookmark);
+    if (view === 'level') {
+      await expect(page.locator('.ll-wordset-card[data-cat-id="15"]')).toBeVisible();
+      await expect(page.locator('.ll-wordset-card[data-cat-id="1"]')).toBeHidden();
+    } else {
+      await expect(page.getByRole('searchbox')).toHaveValue('Everyday');
+    }
+    expect(probe.documents).toHaveLength(2);
+  });
+}
+
+test('an expired level launch refreshes after its loading popup closes without replaying the activity',async({page})=>{
+  await instrumentQuiz(page);
+  const reqs = await mount(page,{signed:true,launchFailure:{status:403,json:{success:false,data:{code:'ll_level_scope_changed'}}}});
+  await page.locator('.ll-level-review-all').click();
+  await expect.poll(()=>reqs.filter(request=>request.operation==='summary').length).toBe(2);
+  await expect(page.locator('.ll-level-review-all')).toBeVisible();
+  await expect(page.locator('body')).not.toHaveClass(/ll-tools-flashcard-open/);
+  expect(reqs.filter(request=>request.operation==='launch')).toHaveLength(1);
+  expect(await page.evaluate(()=>window.launchedQuizzes)).toEqual([]);
+});
+
+for (const status of [403,500]) {
+  test('an unrelated level server error ('+status+') can be retried in the current document',async({page})=>{
+    const probe = await mountWithFailingSummary(page,[{status,json:{success:false,data:{code:'unrelated_error'}}}]);
+    probe.release();
+    await page.getByRole('button',{name:labels.retry,exact:true}).click();
+    await expect(page.locator('.ll-level-review-all')).toBeVisible();
+    expect(probe.documents).toEqual([base+'/']);
+    expect(probe.summaryCount()).toBe(2);
+  });
+}
 
 test('hidden tabs pause warming and refresh once when a stale catalog returns',async({page})=>{
   await page.clock.install({time:new Date('2026-11-01T09:00:00Z')});

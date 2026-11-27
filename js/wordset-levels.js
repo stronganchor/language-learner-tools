@@ -89,6 +89,8 @@
         let dayResetTimer = 0;
         let dayResetAt = 0;
         const staleAfter = 60 * 1000;
+        // Search removes this private, cache-bypassing marker from the address bar after initialization.
+        let recoveryUsed = new URL(location.href).searchParams.get(options.recoveryParam) === '1';
         const thumbnailAttempts = new Set();
         const thumbnailUrls = new Map();
         const brokenThumbnails = new Set();
@@ -180,21 +182,37 @@
             window.clearTimeout(noticeTimer);
             if (message) noticeTimer = window.setTimeout(() => announce(''), 8000);
         }
+        function reloadExpiredPage() {
+            if (!credentialsExpired || recoveryUsed || document.hidden || document.body.classList.contains('ll-tools-flashcard-open')) return;
+            recoveryUsed = true;
+            const url = new URL(location.href);
+            url.searchParams.set(options.recoveryParam, '1');
+            // Reload the current entry so its selected level, search and Back behavior survive.
+            try { history.replaceState(history.state, '', url.href); }
+            catch (_) { location.replace(url.href); return; }
+            location.reload();
+        }
         function ajax(operation, data) {
             function requireReload() {
-                if (operation === 'completion_seen') return;
+                if (operation === 'completion_seen' || credentialsExpired) return;
                 credentialsExpired = true;
                 fetchError = true;
                 summary = null;
                 window.clearTimeout(refreshTimer);
+                window.clearTimeout(dayResetTimer);
+                // A failed launch releases its loading overlay after the AJAX callbacks finish.
+                window.setTimeout(reloadExpiredPage,0);
                 render();
             }
             return $.ajax({url: options.ajaxUrl, method: 'POST', dataType: 'json', timeout: 20000,
                 data: Object.assign({action:'ll_tools_wordset_levels', operation, wordset_id:wordset,
                     nonce:config.nonce, token:config.token},data)}).done(response => {
                 if (response === -1 || response === '-1') requireReload();
+                else if (!credentialsExpired && operation !== 'completion_seen' && response?.success && !response.data?.preparing) recoveryUsed = false;
             }).fail(xhr => {
-                if (xhr.status === 403 || xhr.status === 410 || String(xhr.responseText || '').trim() === '-1') requireReload();
+                const code = xhr.responseJSON?.data?.code;
+                if (xhr.status === 410 || String(xhr.responseText || '').trim() === '-1'
+                    || (xhr.status === 403 && ['ll_level_scope_changed','ll_level_access'].includes(code))) requireReload();
             });
         }
         function scheduleRefresh(delay) {
@@ -215,6 +233,7 @@
             const previousRows = summary?.preparing ? summary.levels : {};
             request = ajax('summary',{progressive:1,ready_levels:Object.keys(previousRows).join(',')});
             request.done(response => {
+                if (credentialsExpired) return;
                 const data = response && response.success && response.data;
                 fetchError = !data || !data.levels;
                 if (!fetchError) {
@@ -823,14 +842,13 @@
             const focusedPreview = section.contains(focused) && focused.closest('.ll-level-lesson-previews');
             const fragment = document.createDocumentFragment();
             if (state.view === 'home') {
-                if (credentialsExpired || (options.signedIn && (!summary || summary.preparing || fetchError))) {
-                    const status = element('div',fetchError || credentialsExpired ? 'll-level-state' : 'screen-reader-text ll-level-loading-status');
+                if (options.signedIn && !credentialsExpired && (!summary || summary.preparing || fetchError)) {
+                    const status = element('div',fetchError ? 'll-level-state' : 'screen-reader-text ll-level-loading-status');
                     status.setAttribute('role','status');
-                    status.append(element('span','',credentialsExpired ? t.scopeExpired : (fetchError ? t.error : t.loading)));
+                    status.append(element('span','',fetchError ? t.error : t.loading));
                     if (fetchError) {
-                        const label = credentialsExpired ? t.reload : t.retry;
-                        const retry = button(label,'ll-level-retry','repeat',credentialsExpired ? () => location.reload() : refresh);
-                        retry.append(element('span','',label)); status.append(retry);
+                        const retry = button(t.retry,'ll-level-retry','repeat',refresh);
+                        retry.append(element('span','',t.retry)); status.append(retry);
                     }
                     fragment.append(status);
                 }
@@ -1005,7 +1023,8 @@
             else section.querySelector('[data-ll-level-focus], .ll-level-open')?.focus({preventScroll:true});
         });
         function resumeSummary() {
-            if (document.hidden || !options.signedIn || credentialsExpired || request || refreshTimer) return;
+            if (credentialsExpired) { reloadExpiredPage(); return; }
+            if (document.hidden || !options.signedIn || request || refreshTimer) return;
             if (refreshOnReturn || (dayResetAt && Date.now() >= dayResetAt) || Date.now() - lastSummaryRequestAt >= staleAfter) refresh();
         }
         document.addEventListener('visibilitychange',() => {
@@ -1025,7 +1044,10 @@
             if (event.persisted) refreshOnReturn = true;
             resumeSummary();
         });
-        $(document).on('lltools:flashcard-closed.llLevels',refreshSoon);
+        $(document).on('lltools:flashcard-closed.llLevels',() => {
+            if (credentialsExpired) reloadExpiredPage();
+            else refreshSoon();
+        });
         if (!completionObserver && completionHistory) window.addEventListener('scroll',syncCompletions,{passive:true});
         $(document).on('lltools:progress-updated.llLevels',() => {
             if (!document.body.classList.contains('ll-tools-flashcard-open')) refreshSoon();
