@@ -2119,6 +2119,149 @@ test('games page keeps launch disabled when logged out', async ({ page }) => {
   await expect(gameLaunchButton(page, 'bubble-pop')).toBeDisabled();
 });
 
+for (const isLoggedIn of [false, true]) {
+  test(`browser speaking merges with the ${isLoggedIn ? 'learner' : 'guest'} games page`, async ({ page }) => {
+    await mountGamesPage(page, {
+      isLoggedIn,
+      configOverrides: {
+        games: {
+          browserSpeakingOnly: true,
+          catalog: { 'speaking-practice': { title: 'Native Speaking Practice' } }
+        }
+      }
+    });
+
+    const practiceCard = page.locator('[data-game-slug="speaking-practice"]');
+    await expect(practiceCard).toBeHidden();
+    await page.evaluate(({ guest, words }) => {
+      const games = window.LLWordsetGames;
+      const $ = window.jQuery;
+      const root = games.__ctx.rootEl;
+      if (guest) {
+        const button = root.querySelector('[data-game-slug="speaking-practice"] [data-ll-wordset-game-launch]');
+        const login = document.createElement('a');
+        login.className = 'll-wordset-game-card__launch ll-wordset-game-card__launch--login';
+        login.href = '/sign-in/';
+        button.replaceWith(login);
+      }
+
+      const post = $.post;
+      $.post = (url, data) => {
+        const request = post(url, data);
+        if (data.action !== 'll_wordset_games_bootstrap') {
+          return request;
+        }
+        const held = $.Deferred();
+        request.done((response) => {
+          window.__releaseMixedCatalog = () => held.resolve(response);
+        }).fail((error) => held.reject(error));
+        return held.promise();
+      };
+
+      const ctx = games.init(root, window.llWordsetPageData);
+      window.__mixedBrowserCalls = [];
+      window.__mixedBrowserReady = false;
+      const bridge = {
+        isSpeakingReady: () => window.__mixedBrowserReady,
+        transcribeSpeakingAttempt() {
+          window.__mixedBrowserCalls.push('transcribe');
+          return 'browser-only transcript';
+        },
+        scoreSpeakingAttempt(run, transcript) {
+          window.__mixedBrowserCalls.push('score');
+          return {
+            word_id: run.prompt.target.id,
+            score: 100,
+            bucket: 'right',
+            display_transcript_text: transcript
+          };
+        },
+        scoreSpeakingMatchAttempt(_run, transcript, activeWordIds) {
+          window.__mixedBrowserCalls.push('match');
+          return {
+            matched: true,
+            word_id: activeWordIds[0],
+            score: 100,
+            bucket: 'right',
+            display_transcript_text: transcript
+          };
+        }
+      };
+      const entries = Object.fromEntries(['speaking-practice', 'speaking-stack'].map((slug) => [slug, {
+        title: slug === 'speaking-stack' ? 'Browser Word Stack' : 'Browser Speaking Practice',
+        description: 'A fixed browser deck.',
+        provider: 'embedded_model',
+        launchable: true,
+        minimum_word_count: 5,
+        launch_word_cap: words.length,
+        words
+      }]));
+      window.__mixedCatalogRegistered = games.useBrowserSpeakingCatalog(ctx, entries, bridge, {});
+      window.__mixedOriginalPlay = root.querySelector('[data-game-slug="speaking-practice"] [data-ll-wordset-game-launch]');
+    }, { guest: !isLoggedIn, words: buildSpeakingStackWords(59) });
+
+    expect(await page.evaluate(() => window.__mixedCatalogRegistered)).toBe(true);
+    await expect(practiceCard.getByRole('heading')).toHaveText('Browser Speaking Practice');
+    await expect(gameStatus(page, 'speaking-practice')).toHaveText('59 words ready');
+    await expect(gameStatus(page, 'speaking-stack')).toHaveText('59 words ready');
+    await expect(practiceCard.locator('.ll-wordset-game-card__launch--login')).toHaveCount(0);
+    if (isLoggedIn) {
+      await page.evaluate(() => window.__releaseMixedCatalog());
+      await expect(gameLaunchButton(page, 'space-shooter')).toBeEnabled();
+      await expect(practiceCard.getByRole('heading')).toHaveText('Browser Speaking Practice');
+      await expect(gameStatus(page, 'speaking-practice')).toHaveText('59 words ready');
+      expect(await gameLaunchButton(page, 'speaking-practice').evaluate((button) => (
+        button === window.__mixedOriginalPlay
+      ))).toBe(true);
+    } else {
+      await expect(gameLaunchButton(page, 'space-shooter')).toBeDisabled();
+    }
+
+    await gameLaunchButton(page, 'speaking-practice').click();
+    await expect(page.locator('[data-ll-wordset-game-run-modal]')).toBeHidden();
+    await page.evaluate(() => { window.__mixedBrowserReady = true; });
+    await gameLaunchButton(page, 'speaking-practice').click();
+    await expect(page.locator('[data-ll-wordset-speaking-round]')).toHaveText('Word 1 of 59');
+    await page.locator('[data-ll-wordset-speaking-record]').click();
+    await expect(page.locator('[data-ll-wordset-speaking-transcript]')).toHaveText('browser-only transcript');
+    expect(await page.evaluate(() => window.__mixedBrowserCalls)).toEqual(['transcribe', 'score']);
+    expect(await page.evaluate(() => window.__speakingFetchLog)).toEqual([]);
+    expect(await page.evaluate(() => window.__gameAjaxCalls.filter((call) => (
+      call.action === 'll_wordset_games_launch'
+    )))).toEqual([]);
+    expect(await page.evaluate(() => window.__progressAuthContextCalls.at(-1))).toMatchObject({
+      isUserLoggedIn: isLoggedIn,
+      ajaxUrl: '/fake-admin-ajax.php',
+      nonce: isLoggedIn ? 'nonce-77' : ''
+    });
+
+    await closeRunPopup(page);
+    await gameLaunchButton(page, 'speaking-stack').click();
+    await expect(page.locator('[data-ll-wordset-speaking-stack-heard]')).toHaveText('browser-only transcript');
+    expect(await page.evaluate(() => window.__mixedBrowserCalls.slice(0, 4))).toEqual([
+      'transcribe', 'score', 'transcribe', 'match'
+    ]);
+    expect(await page.evaluate(() => window.__speakingFetchLog)).toEqual([]);
+
+    if (isLoggedIn) {
+      await closeRunPopup(page);
+      await gameLaunchButton(page, 'space-shooter').click();
+      await expect(page.locator('[data-ll-wordset-game-stage]')).toHaveAttribute(
+        'data-ll-wordset-active-game', 'space-shooter'
+      );
+      expect(await page.evaluate(() => window.__gameAjaxCalls.at(-1))).toEqual({
+        action: 'll_wordset_games_launch',
+        game_slug: 'space-shooter'
+      });
+      await page.waitForFunction(() => window.LLWordsetGames.__debug.getRunState()?.targetWordId > 0);
+      await page.evaluate(() => window.LLWordsetGames.__debug.resolvePrompt('correct'));
+      expect(await page.evaluate(() => window.__queuedProgressEvents.some((event) => (
+        event.type === 'word_outcome' && event.entry.payload.game_slug === 'space-shooter'
+      )))).toBe(true);
+    }
+  });
+}
+
 test('games page initializes progress tracker with pseudonymous scoped auth context', async ({ page }) => {
   await mountGamesPage(page, { isLoggedIn: true });
   await page.waitForFunction(() => window.__progressAuthContextCalls.length === 1);
@@ -2679,6 +2822,142 @@ test('word stack starts with a much slower fall speed before the first transcrip
   await closeRunPopup(page);
 });
 
+async function mockWordStackAttempts(page, transcribeDelayMs = 0) {
+  await page.evaluate((delayMs) => {
+    window.__wordStackSpeech = false;
+    window.AudioContext.prototype.createAnalyser = () => ({
+      fftSize: 2048,
+      getByteTimeDomainData(buffer) {
+        buffer.fill(window.__wordStackSpeech ? 155 : 128);
+      }
+    });
+    const fetch = window.fetch;
+    window.fetch = (url, options = {}) => {
+      const data = options.body;
+      const action = data instanceof FormData ? data.get('action') : '';
+      if (delayMs && action === 'll_wordset_games_transcribe_speaking_attempt') {
+        return new Promise((resolve) => window.setTimeout(resolve, delayMs)).then(() => fetch(url, options));
+      }
+      if (action !== 'll_wordset_games_match_speaking_attempt') {
+        return fetch(url, options);
+      }
+      const id = Number(data.getAll('word_ids[]')[0]);
+      const score = window.__wordStackBucket === 'right' ? 100 : 85;
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({
+          success: true,
+          data: { matched: true, word_id: id, bucket: window.__wordStackBucket, score }
+        })
+      });
+    };
+  }, transcribeDelayMs);
+}
+
+async function speakMockWordStackAttempt(page, bucket, { speechMs = 300, responseMs = 850 } = {}) {
+  await page.evaluate((nextBucket) => {
+    window.__wordStackBucket = nextBucket;
+    window.__wordStackSpeech = true;
+  }, bucket);
+  await page.clock.runFor(speechMs);
+  await page.evaluate(() => { window.__wordStackSpeech = false; });
+  await page.clock.runFor(responseMs);
+}
+
+test('word stack picks up the pace for quick spoken rights without counting provider latency', async ({ page }) => {
+  const fallSpeed = 200;
+  const spawnGapMs = 5000;
+  const transcribeDelayMs = 1700;
+  await page.clock.install();
+  await mountGamesPage(page, {
+    isLoggedIn: true,
+    words: buildSpeakingStackWords(20),
+    audioLoadDelayMs: 0,
+    promptAudioDurationSeconds: 0.1,
+    configOverrides: {
+      games: {
+        catalog: {
+          'speaking-stack': { slug: 'speaking-stack', title: 'Word Stack' }
+        },
+        speakingStack: {
+          slug: 'speaking-stack',
+          provider: 'hosted_api',
+          targetField: 'title',
+          cardCount: 4,
+          initialSpawnCount: 6,
+          maxLoadedWords: 20,
+          spawnGapMs,
+          initialSpawnDelayMs: 6000,
+          fallSpeed,
+          preFirstAttemptFallSpeed: 100,
+          maxRecordingMs: 60000,
+          silenceWindowMs: 400,
+          finalSilenceMs: 60000
+        }
+      }
+    }
+  });
+  await mockWordStackAttempts(page, transcribeDelayMs);
+  await gameLaunchButton(page, 'speaking-stack').click();
+  await expect(page.locator('[data-ll-wordset-speaking-stack-stage]')).toBeVisible();
+
+  const readPace = () => page.evaluate(() => {
+    const run = window.LLWordsetGames.__ctx.run;
+    const active = run.cards.filter((card) => !card.exploding && !card.removedFromStack);
+    return {
+      clears: run.clearedCount,
+      spokenRights: run.spokenCorrectCount,
+      speed: active.length ? Math.round(active[0].speed / active[0].stackFallSpeedFactor) : null,
+      visible: active.some((card) => card.y + card.height / 2 > 0),
+      spawned: run.spawnedWordCount,
+      spawnGap: run.nextSpawnAt - run.lastSpawnedAt,
+      transcription: run.lastTranscribeDurationMs,
+      pipelineMs: run.lastRecordingDurationMs + run.lastTranscribeDurationMs + run.lastCorrectAudioDurationMs
+    };
+  });
+  const waitUntilVisible = async () => {
+    for (let tick = 0; tick < 25 && !(await readPace()).visible; tick += 1) {
+      await page.clock.runFor(250);
+    }
+    expect((await readPace()).visible).toBe(true);
+  };
+  const speak = async (bucket = 'right') => {
+    await waitUntilVisible();
+    await speakMockWordStackAttempt(page, bucket, { responseMs: 850 + transcribeDelayMs });
+    await waitUntilVisible();
+  };
+
+  expect((await readPace()).speed).toBe(100);
+  await page.clock.runFor(2800);
+  await speak();
+  expect(await readPace()).toMatchObject({ spokenRights: 1, speed: fallSpeed });
+  expect((await readPace()).transcription).toBeGreaterThanOrEqual(transcribeDelayMs);
+
+  for (let quickRight = 1; quickRight <= 7; quickRight += 1) {
+    await speak();
+    const pace = await readPace();
+    expect(pace.spokenRights).toBe(quickRight + 1);
+    expect(pace.speed).toBe(Math.round(fallSpeed * (1 + Math.min(2, Math.floor(quickRight / 3)) / 10)));
+  }
+
+  const beforeSpawn = await readPace();
+  // Let the next box spawn naturally to inspect the faster scheduling window.
+  for (let tick = 0; tick < 6 && (await readPace()).spawned === beforeSpawn.spawned; tick += 1) {
+    await page.clock.runFor(1000);
+  }
+  const afterSpawn = await readPace();
+  expect(afterSpawn.spawned).toBeGreaterThan(beforeSpawn.spawned);
+  expect(afterSpawn.spawnGap).toBeLessThan(spawnGapMs);
+  expect(afterSpawn.spawnGap).toBeGreaterThanOrEqual(afterSpawn.pipelineMs);
+
+  await page.clock.runFor(2400);
+  await speak();
+  expect(await readPace()).toMatchObject({ spokenRights: 9, speed: 220 });
+  await speak('close');
+  expect(await readPace()).toMatchObject({ clears: 10, spokenRights: 9, speed: fallSpeed });
+  await closeRunPopup(page);
+});
+
 test.describe('word stack blast', () => {
   test.use({ hasTouch: true });
 
@@ -2717,31 +2996,7 @@ test.describe('word stack blast', () => {
       }
     });
 
-    await page.evaluate(() => {
-      window.__wordStackSpeech = false;
-      window.AudioContext.prototype.createAnalyser = () => ({
-        fftSize: 2048,
-        getByteTimeDomainData(buffer) {
-          buffer.fill(window.__wordStackSpeech ? 155 : 128);
-        }
-      });
-      const fetch = window.fetch;
-      window.fetch = (url, options = {}) => {
-        const data = options.body;
-        if (!(data instanceof FormData) || data.get('action') !== 'll_wordset_games_match_speaking_attempt') {
-          return fetch(url, options);
-        }
-        const id = Number(data.getAll('word_ids[]')[0]);
-        const score = window.__wordStackBucket === 'right' ? 100 : 85;
-        return Promise.resolve({
-          ok: true,
-          json: () => Promise.resolve({
-            success: true,
-            data: { matched: true, word_id: id, bucket: window.__wordStackBucket, score }
-          })
-        });
-      };
-    });
+    await mockWordStackAttempts(page);
 
     const stage = page.locator('[data-ll-wordset-speaking-stack-stage]');
     const blast = page.locator('[data-ll-wordset-speaking-stack-blast]');
@@ -2758,15 +3013,12 @@ test.describe('word stack blast', () => {
       }
       expect((await activeIds()).length).toBeGreaterThanOrEqual(2);
     };
-    const speak = async (bucket, expectedOutcomes) => {
+    const speak = async (bucket, expectedOutcomes, thinkingMs = 0) => {
       await waitForTwoCards();
-      await page.evaluate((nextBucket) => {
-        window.__wordStackBucket = nextBucket;
-        window.__wordStackSpeech = true;
-      }, bucket);
-      await page.clock.runFor(300);
-      await page.evaluate(() => { window.__wordStackSpeech = false; });
-      await page.clock.runFor(850);
+      if (thinkingMs) {
+        await page.clock.runFor(thinkingMs);
+      }
+      await speakMockWordStackAttempt(page, bucket);
       const outcomes = await spokenOutcomes();
       expect(outcomes).toHaveLength(expectedOutcomes);
       expect(outcomes.at(-1).entry.payload.speaking_game_bucket).toBe(bucket);
@@ -2804,12 +3056,15 @@ test.describe('word stack blast', () => {
     await expect(charges).toHaveText('1');
 
     for (let right = 11; right <= 20; right += 1) {
-      await speak('right', right + 1);
+      await speak('right', right + 1, right >= 19 ? 2000 : 0);
     }
     await expect(charges).toHaveText('2');
     await waitForTwoCards();
     await page.clock.runFor(700);
     const outcomesBeforeBlasts = await spokenOutcomes();
+    const quickRights = () => page.evaluate(() => window.LLWordsetGames.__ctx.run.quickRightCount);
+    const paceBeforeBlasts = await quickRights();
+    expect(paceBeforeBlasts).toBeLessThan(3);
 
     for (const useKeyboard of [false, true]) {
       if (useKeyboard) {
@@ -2849,6 +3104,7 @@ test.describe('word stack blast', () => {
       expect(await page.evaluate((wordId) => window.__audioEventLog.filter((event) =>
         event === `prompt:speaking-${wordId}.mp3`).length, id)).toBe(1);
       expect(await spokenOutcomes()).toEqual(outcomesBeforeBlasts);
+      expect(await quickRights()).toBeLessThanOrEqual(paceBeforeBlasts);
       if (!useKeyboard) {
         await expect(charges).toHaveText('1');
       }
