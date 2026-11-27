@@ -18878,27 +18878,31 @@
     }
 
     function buildLevelQuizButtons(level, modes, levelLabel, expired, launch) {
-        const $buttons = $('<div>', {
-            class: 'll-wordset-card__quiz-actions ll-level-quiz-modes',
-            role: 'group',
-            'aria-label': formatTemplate(i18n.quizModesCategoryAria, [levelLabel])
+        const headingId = 'll-level-quiz-heading-' + wordsetId + '-' + level;
+        const $section = $('<section>', {
+            class: 'll-level-quiz-section',
+            'aria-labelledby': headingId
         });
+        $('<h3>', {id: headingId, class: 'll-level-detail-title', text: i18n.quizModesTitle}).appendTo($section);
+        const $buttons = $('<div>', {class: 'll-level-quiz-modes'}).appendTo($section);
         ['learning', 'practice', 'listening', 'gender', 'self-check'].forEach(function (mode) {
             const supported = Array.isArray(modes) && modes.includes(mode);
-            const name = formatTemplate(i18n.modeCategoryAria, [modeLabel(mode), levelLabel]);
+            const label = modeLabel(mode);
+            const name = formatTemplate(i18n.modeCategoryAria, [label, levelLabel]);
             const $button = $('<button>', {
                 type: 'button',
-                class: 'll-wordset-card__quiz-btn',
+                class: 'll-level-button',
                 'aria-label': name,
                 title: supported ? name : [name, i18n.noWordsInSelection].filter(Boolean).join(' · '),
                 'data-ll-level-quiz-mode': mode,
                 'data-ll-focus-key': 'quiz-' + level + '-' + mode,
                 disabled: expired || !supported
             });
-            $button.html(getModeIconMarkup(mode, 'll-wordset-card__quiz-icon')).on('click', function () { launch(mode); });
+            $button.html(getModeIconMarkup(mode, 'll-level-mode-icon')).append($('<span>', {text: label}));
+            $button.on('click', function () { launch(mode); });
             $buttons.append($button);
         });
-        return $buttons[0];
+        return $section[0];
     }
 
     function buildLevelProgressBar(stats, label, isLoading) {

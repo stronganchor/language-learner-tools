@@ -27562,6 +27562,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             'hideCategoryAria' => __('Hide %s', 'll-tools-text-domain'),
             'deleteCategoryAria' => __('Delete %s', 'll-tools-text-domain'),
             'starredWordsCategoryAria' => __('Starred words in %s', 'll-tools-text-domain'),
+            'quizModesTitle' => __('Quiz modes', 'll-tools-text-domain'),
             'quizModesCategoryAria' => __('Quiz modes for %s', 'll-tools-text-domain'),
             'modeCategoryAria' => __('%1$s: %2$s', 'll-tools-text-domain'),
             'priorityFocusNew' => __('New words', 'll-tools-text-domain'),

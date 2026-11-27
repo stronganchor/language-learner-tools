@@ -19,15 +19,16 @@ const base = 'https://wordset-levels.test';
 async function mount(page, options = {}) {
   const catalog = options.categories || categories;
   const ids = catalog.map(item => item.id);
+  const modeNames=options.modeLabels || quizModes;
   const reqs = [];
   const summaryRow = {total:10,mastered:3,working:2,new:5,due:2,hard:1,starred:3,last_studied_at:'2026-09-02 12:00:00',
     next_category_id:1,practice_category_id:2,due_category_id:3,days:30};
   const config = {view:'main',wordsetId:77,ajaxUrl:'/ajax',nonce:'',categories:catalog,isLoggedIn:!!options.signed,
     curriculumLevels:{levels:options.groups || groups,nonce:'nonce',token:'scope',i18n:labels},
     state:{category_ids:ids},gender:{enabled:true,options:['Masculine','Feminine']},
-    i18n:{selectAll:'Select all',deselectAll:'Deselect all',repeatLabel:'Repeat',modeCategoryAria:'%1$s: %2$s',
-      modeLearning:'Learn',modePractice:'Practice',modeListening:'Listen',modeSelfCheck:'Self Check',modeGender:'Gender'},
-    modeLabels:quizModes};
+    i18n:{selectAll:'Select all',deselectAll:'Deselect all',repeatLabel:'Repeat',modeCategoryAria:'%1$s: %2$s',quizModesTitle:options.quizTitle || 'Quiz modes',
+      modeLearning:modeNames.learning,modePractice:modeNames.practice,modeListening:modeNames.listening,modeSelfCheck:modeNames['self-check'],modeGender:modeNames.gender},
+    modeLabels:modeNames};
   if (options.exerciseOnly) config.curriculumLevels.levels=groups.map(group => group.level === 2 ? {...group,nextId:0} : group);
   if (options.modeUi) config.modeUi=options.modeUi;
   if (options.previews) config.categories=catalog.map(cat=>({...cat,preview:(options.previews[cat.id] || []).map(url=>({type:'image',url}))}));
@@ -214,7 +215,7 @@ test('personalized cards retry preparing summaries, expose review scopes, and au
   await expect(first.getByRole('img',{name:/Added since/})).toHaveCount(0);
   const localDue=first.locator('.ll-level-card-head').getByRole('button',{name:'Due for review (2) · Level 1'});
   await expect(localDue).toBeVisible();
-  await expect(first.getByText('3 / 10 learned')).toBeVisible();
+  await expect(first).not.toContainText(/\b3\s*\/\s*10\s*learned\b/i);
   await expect(first.getByRole('button',{name:'Learn · Lesson 1'})).toBeVisible();
   await expect(page.locator('.ll-level-nudge,.is-suggested,.is-current')).toHaveCount(0);
   await expect(page.locator('.ll-level-review-all')).toHaveAccessibleName('Review now · Due for review (2) · Words this round · 2');
@@ -234,12 +235,8 @@ test('personalized cards retry preparing summaries, expose review scopes, and au
   await localDue.click();
   await expect(localDue).toHaveAttribute('aria-expanded','true');
   await first.locator('.ll-level-overview').getByRole('button',{name:'Review now · Level 1'}).click();
-  const detailPanel=first.locator('.ll-level-detail-panel');
-  await detailPanel.getByRole('button',{name:'Due for review (2) · Level 1'}).click();
-  await expect(detailPanel.getByText(labels.dueHelp)).toBeVisible();
-  await detailPanel.getByRole('button',{name:'Review now · Level 1'}).click();
   await first.getByRole('button',{name:'Practice · Lesson 2'}).click();
-  await expect.poll(()=>reqs.filter(r=>r.operation==='launch').map(r=>[r.level,r.launch_mode])).toEqual([['0','review'],['1','due'],['1','due'],['1','practice']]);
+  await expect.poll(()=>reqs.filter(r=>r.operation==='launch').map(r=>[r.level,r.launch_mode])).toEqual([['0','review'],['1','due'],['1','practice']]);
   await expect(page.getByText('Could not start this activity.')).toBeVisible();
   expect(reqs.filter(r=>r.operation==='interval').map(r=>[r.level,r.days])).toEqual([['1','45']]);
   expect(reqs.filter(r=>r.action==='ll_user_study_recommendation')).toHaveLength(0);
@@ -433,18 +430,17 @@ test('desktop and phone each show one level per row and keep mode icons, statuse
   await expect(chevron).toHaveCSS('transform','matrix(-1, 0, 0, -1, 0, 0)');
   expect(await tail()).toBeLessThan(20);
   await expect(first.getByRole('spinbutton',{name:labels.interval, exact:true})).toBeVisible();
-  for (const [status,count] of [['mastered',3],['studied',2],['new',5],['starred',3]]) {
-    const badge=first.locator('.ll-level-stat-value.ll-level-metric-'+status);
+  const detail=first.locator('.ll-level-detail-panel');
+  for (const [status,name,count] of [['mastered',labels.mastered,3],['studied',labels.working,2],['new',labels.unseen,5],
+    ['older',labels.dueLabel,2],['hard',labels.hard,1],['starred',labels.starred,3]]) {
+    const row=detail.locator('.ll-level-fact').filter({has:page.getByText(name,{exact:true})});
+    await expect(row.locator('dt')).toHaveText(name);
+    const badge=row.locator('dd.ll-level-stat-value.ll-level-metric-'+status);
     await expect(badge).toHaveText(String(count));
     await expect(badge.locator('.ll-level-status-icon')).toBeVisible();
+    await expect(row.locator('button,a,summary,[role="button"],[aria-expanded],[tabindex]')).toHaveCount(0);
   }
-  for (const [filter,count] of [['due',2],['hard',1]]) {
-    await expect(first.locator('.ll-level-detail-panel [data-ll-level-filter="'+filter+'"]')).toHaveText(String(count));
-  }
-  const detail=first.locator('.ll-level-detail-panel');
-  await expect(detail.locator('[data-ll-level-filter="starred"],.ll-level-filter-panel.ll-level-metric-starred')).toHaveCount(0);
-  await expect(detail.locator('.ll-level-stat-value.ll-level-metric-starred').getByRole('button')).toHaveCount(0);
-  await expect(rows.nth(1).locator('.ll-level-detail-panel [data-ll-level-filter="due"]')).toHaveCount(0);
+  await expect(detail.locator('[data-ll-level-filter],.ll-level-filter-panel')).toHaveCount(0);
   await expect(rows.nth(1).locator('.ll-level-detail-panel .ll-level-metric-older')).toHaveText('0');
   await page.keyboard.press('Space');
   await expect(first.getByRole('spinbutton',{name:labels.interval, exact:true})).toBeHidden();
@@ -487,26 +483,33 @@ for (const signed of [true,false]) {
     await page.setViewportSize({width:signed?1140:320,height:800});
     await instrumentQuiz(page);
     const modes=Object.keys(quizModes);
+    const modeLabels=signed?quizModes:{learning:'Öğren',practice:'Tekrarla',listening:'Dinle','self-check':'Kontrol',gender:'Cinsiyet'};
+    const quizTitle=signed?'Quiz modes':'Quiz modları';
     const catalog=categories.map(cat=>({...cat,gender_supported:cat.id===2,listening_supported:true}));
     const secondSummaryModes=modes.filter(mode=>mode!=='gender');
     // A signed-in learner can ignore the only lesson offering Gender in an otherwise public level.
     const levelGroups=groups.map(group=>({...group,modes:group.level===1 || signed ? modes : secondSummaryModes}));
     const ids=Array.from({length:10},(_,index)=>2010-index);
     const plan={category_ids:[2],session_word_ids:ids,word_category_ids:Object.fromEntries(ids.map(id=>[id,2]))};
-    const requests=await mount(page,{signed,successful:true,plan,categories:catalog,groups:levelGroups,secondSummaryModes});
+    const requests=await mount(page,{signed,successful:true,plan,categories:catalog,groups:levelGroups,secondSummaryModes,modeLabels,quizTitle});
     const card=page.locator('[data-ll-level-card="1"]');
-    const buttons=card.locator('.ll-level-detail-panel [data-ll-level-quiz-mode]');
-    await expect(buttons).toHaveCount(5);
-    await expect(buttons.first()).toBeHidden();
+    const quizSection=card.getByRole('region',{name:quizTitle,exact:true});
+    await expect(card.getByRole('heading',{name:quizTitle})).toBeHidden();
     await card.getByLabel('Level details · Level 1',{exact:true}).click();
+    await expect(quizSection.getByRole('heading',{name:quizTitle,level:3})).toBeVisible();
+    const buttons=quizSection.getByRole('button');
+    await expect(buttons).toHaveCount(5);
     const browse=card.getByRole('button',{name:'See all lessons · Level 1'});
     expect(await buttons.first().evaluate((node,link)=>link.compareDocumentPosition(node)&Node.DOCUMENT_POSITION_FOLLOWING,await browse.elementHandle())).toBeTruthy();
     expect(await card.evaluate(el=>el.scrollWidth<=el.clientWidth+1)).toBe(true);
     for(const [index,mode] of modes.entries()){
-      const button=card.locator('[data-ll-level-quiz-mode="'+mode+'"]');
+      const button=quizSection.getByRole('button',{name:modeLabels[mode]+': Level 1',exact:true});
       await expect(button).toBeVisible();
       await expect(button).toBeEnabled();
-      await expect(button).toHaveAccessibleName(new RegExp(quizModes[mode],'i'));
+      await expect(button.getByText(modeLabels[mode],{exact:true})).toBeVisible();
+      const bounds=await button.boundingBox();
+      expect(bounds.height).toBeGreaterThanOrEqual(44);
+      expect(await button.evaluate(el=>el.scrollWidth<=el.clientWidth+1)).toBe(true);
       await button.click();
       await expect.poll(()=>page.evaluate(()=>window.launchedQuizzes.length)).toBe(index+1);
       expect(await page.evaluate(()=>window.launchedQuizzes.at(-1))).toMatchObject({mode,scope:1,ownership:{2:ids}});
@@ -565,7 +568,9 @@ for (const filter of ['hard','starred']) {
     const header=card.locator('.ll-level-card-head');
     await expect(header.locator('[data-ll-level-filter]')).toHaveCount(3);
     await expect(page.locator('[data-ll-level-card="2"] [data-ll-level-filter]')).toHaveCount(0);
-    await expect(page.locator('[data-ll-level-card="2"] .ll-level-detail-panel .ll-level-stat-value.ll-level-metric-starred')).toHaveText('0');
+    for(const status of ['older','hard','starred']){
+      await expect(page.locator('[data-ll-level-card="2"] .ll-level-detail-panel .ll-level-stat-value.ll-level-metric-'+status)).toHaveText('0');
+    }
     const due=header.locator('[data-ll-level-filter="due"]');
     await due.click();
     const badge=header.locator('[data-ll-level-filter="'+filter+'"]');
@@ -582,16 +587,7 @@ for (const filter of ['hard','starred']) {
     await expect(badge.locator('.ll-level-status-icon')).toBeVisible();
     expect(await card.evaluate(el=>el.scrollWidth<=el.clientWidth+1)).toBe(true);
     const launchLabel='Practice · '+labels[filter]+' · Level 1';
-    let launch=preview.getByRole('button',{name:launchLabel,exact:true});
-    if (filter==='hard') {
-      await badge.click();
-      await card.getByLabel('Level details · Level 1',{exact:true}).click();
-      const detail=card.locator('.ll-level-detail-panel');
-      const inner=detail.locator('[data-ll-level-filter="'+filter+'"]');
-      await inner.click();
-      await expect(detail.getByText(labels.hardHelp)).toBeVisible();
-      launch=detail.getByRole('button',{name:launchLabel,exact:true});
-    }
+    const launch=preview.getByRole('button',{name:launchLabel,exact:true});
     expect(reqs.filter(r=>r.operation==='launch')).toHaveLength(0);
     await launch.click();
     await expect.poll(()=>page.evaluate(()=>window.launchedQuizzes.length)).toBe(1);

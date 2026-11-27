@@ -388,27 +388,22 @@
             btn.append(icon('forward'));
             return btn;
         }
-        function levelFilterDisclosures(level, stats, location, panelParent, addCount) {
-            const group = location + '-' + level;
+        function addLevelFilterButtons(level, stats, badges, panelParent) {
             const controls = [];
             levelFilters.forEach(({mode,status,name,help}) => {
                 const count = Number(stats[mode]);
-                if (!Number.isFinite(count)) return;
-                if (count <= 0 || (location === 'detail' && mode === 'starred')) {
-                    if (location === 'detail') addCount(name,Math.max(0,count),status);
-                    return;
-                }
-                const key = location + '-' + mode + '-' + level;
+                if (!Number.isFinite(count) || count <= 0) return;
+                const key = 'head-' + mode + '-' + level;
                 const number = count.toLocaleString(document.documentElement.lang || undefined);
                 const due = mode === 'due';
                 const title = due ? t.due.replace(/%d/g,number) : name + ' · ' + number;
                 const metric = ' ll-level-metric-' + status;
                 const panel = element('div','ll-level-filter-panel' + metric);
                 panel.id = 'll-level-' + wordset + '-' + key;
-                panel.hidden = openFilters.get(group) !== mode;
+                panel.hidden = openFilters.get(level) !== mode;
                 const toggle = button(title + ' · ' + label(level),'ll-level-filter-toggle' + metric,null,() => {
                     const opening = panel.hidden;
-                    if (opening) openFilters.set(group,mode); else openFilters.delete(group);
+                    if (opening) openFilters.set(level,mode); else openFilters.delete(level);
                     controls.forEach(control => {
                         const expanded = opening && control.panel === panel;
                         control.panel.hidden = !expanded;
@@ -424,7 +419,7 @@
                 pill.append(element('span','',number),icon('chevron'));
                 toggle.append(pill);
                 controls.push({toggle,panel});
-                addCount(name,toggle);
+                badges.append(toggle);
 
                 panel.append(element('strong','',title),element('p','',help));
                 const verb = due ? t.reviewAll : t.practice;
@@ -486,7 +481,10 @@
                 addStat(list,t.mastered,stats.mastered,'mastered');
                 addStat(list,t.working,stats.working,'studied');
                 addStat(list,t.unseen,stats.new,'new');
-                levelFilterDisclosures(level,stats,'detail',panel,(name,count,status) => addStat(list,name,count,status));
+                levelFilters.forEach(({mode,status,name}) => {
+                    const count = Number(stats[mode]);
+                    if (Number.isFinite(count)) addStat(list,name,Math.max(0,count),status);
+                });
                 addStat(list,t.lastStudy,studyDate(stats.last_studied_at));
             }
             if (stats && options.signedIn) {
@@ -554,13 +552,12 @@
                 check.append(icon('check'));
                 head.append(check);
             }
-            if (stats) levelFilterDisclosures(id,stats,'head',overview,(_name,count) => badges.append(count));
+            if (stats) addLevelFilterButtons(id,stats,badges,overview);
             if (badges.childElementCount) head.append(badges);
             const number = value => Number(value).toLocaleString(document.documentElement.lang || undefined);
-            const progress = stats && Number(stats.total) > 0
-                ? t.progressCount.replace(/%1\$d/g,number(stats.mastered)).replace(/%2\$d/g,number(stats.total))
-                : t.lessons + ' · ' + number(group.categoryIds.size + group.contentIds.size);
-            overview.append(element('span','ll-level-progress-count',progress));
+            if (!stats || Number(stats.total) === 0) {
+                overview.append(element('span','ll-level-progress-count',t.lessons + ' · ' + number(group.categoryIds.size + group.contentIds.size)));
+            }
             const actions = element('div','ll-level-activities');
             if (stats) {
                 if (stats.next_category_id) actions.append(action(group,'learn',Number(stats.next_category_id)));
