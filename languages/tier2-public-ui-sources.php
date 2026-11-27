@@ -400,12 +400,6 @@ return [
                     'end' => '$category_progress_lookup = [];',
                 ],
                 [
-                    'name' => 'course-level-navigation',
-                    'symbol' => 'll_tools_render_wordset_page_content',
-                    'start' => "esc_attr_e('Course levels'",
-                    'end' => "esc_attr_e('Course levels'",
-                ],
-                [
                     'name' => 'course-main-lessons',
                     'symbol' => 'll_tools_render_wordset_page_content',
                     'start' => "esc_html_e('Main lessons'",

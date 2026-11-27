@@ -28519,6 +28519,14 @@ msgstr ""
 msgid "These are the words you starred in this level."
 msgstr "Bu seviyede yıldızla işaretlediğin kelimeler burada."
 
+#: includes/lib/wordset-level-labels.php:54
+msgid "Words left today"
+msgstr "Bugün kalan kelime"
+
+#: includes/privacy.php:737
+msgid "Daily practice goals"
+msgstr "Günlük alıştırma hedefleri"
+
 #~ #: includes/pages/wordset-pages.php:26340
 #~ #: includes/pages/wordset-pages.php:27409
 #~ msgid "Older than 30 days"

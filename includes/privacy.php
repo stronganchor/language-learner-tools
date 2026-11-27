@@ -727,6 +727,17 @@ if (!function_exists('ll_tools_privacy_export_study_settings')) {
 
         $data = [];
 
+        $daily_review = get_user_meta((int) $user->ID, ll_tools_wordset_level_daily_meta_key(), true);
+        if (is_array($daily_review) && $daily_review) {
+            $data[] = [
+                'group_id' => 'll-tools-study-settings',
+                'group_label' => __('LL Tools Study Settings', 'll-tools-text-domain'),
+                'item_id' => 'll-tools-daily-review-' . (int) $user->ID,
+                'data' => [ll_tools_privacy_export_data_pair(
+                    __('Daily practice goals', 'll-tools-text-domain'), $daily_review
+                )],
+            ];
+        }
         $level_intervals = get_user_meta((int) $user->ID, LL_TOOLS_LEVEL_REVIEW_INTERVALS_META, true);
         if (is_array($level_intervals) && $level_intervals) {
             $data[] = [
@@ -1209,6 +1220,7 @@ if (!function_exists('ll_tools_privacy_user_meta_exists_locked')) {
 function ll_tools_privacy_local_erasure_meta_keys(): array {
     return array_values(array_unique(array_filter(array_map('strval', [
         LL_TOOLS_LEVEL_REVIEW_INTERVALS_META,
+        ll_tools_wordset_level_daily_meta_key(),
         defined('LL_TOOLS_USER_WORDSET_META') ? LL_TOOLS_USER_WORDSET_META : 'll_user_study_wordset',
         defined('LL_TOOLS_USER_CATEGORY_META') ? LL_TOOLS_USER_CATEGORY_META : 'll_user_study_categories',
         defined('LL_TOOLS_USER_STARRED_META') ? LL_TOOLS_USER_STARRED_META : 'll_user_study_starred',

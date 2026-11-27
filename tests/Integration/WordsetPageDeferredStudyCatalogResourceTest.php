@@ -89,15 +89,21 @@ final class WordsetPageDeferredStudyCatalogResourceTest extends LL_Tools_TestCas
                 $this->assertSame(6, $data['lazyCards']['initialCount']);
                 $this->assertTrue($data['lazyCards']['enabled']);
                 $this->assertSame($user_id !== 0, (bool) $data['isLoggedIn']);
-                $this->assertSame($user_id !== 0, $curriculum['token'] !== '');
-                $this->assertSame($user_id !== 0, $curriculum['nonce'] !== '');
-                if ($user_id) {
-                    $this->assertNotFalse(wp_verify_nonce($curriculum['nonce'], 'll_tools_wordset_levels'));
-                    $scope = ll_tools_wordset_page_get_category_search_payload($curriculum['token']);
-                    $this->assertSame($user_id, $scope['user_id']);
-                    $this->assertSame([$ids[8]], array_column($scope['level_scope'][3], 'id'));
-                }
+                // Guests receive a public scope for launching level quizzes. Progress stays learner-only.
+                $this->assertNotSame('', $curriculum['token']);
+                $this->assertNotFalse(wp_verify_nonce($curriculum['nonce'], 'll_tools_wordset_levels'));
+                $scope = ll_tools_wordset_page_get_category_search_payload($curriculum['token']);
+                $this->assertSame($user_id, $scope['user_id']);
+                $this->assertSame([$ids[8]], array_column($scope['level_scope'][3], 'id'));
                 $this->assertStringContainsString('data-ll-wordset-levels', $html);
+                $this->assertStringContainsString('data-ll-level-initial', $html);
+                $this->assertSame(1, preg_match('/<section data-ll-wordset-levels[^>]*>(.*?)<\/section>/s', $html, $shell));
+                foreach ($levels as $level => $_) {
+                    $this->assertStringContainsString('data-ll-level-card="' . $level . '"', $shell[1]);
+                    $this->assertStringContainsString(esc_html(sprintf($curriculum['i18n']['level'], $level)), $shell[1]);
+                }
+                $this->assertStringNotContainsString('<button', $shell[1]);
+                $this->assertSame($user_id !== 0, strpos($shell[1], 'll-level-review-placeholder') !== false);
                 $this->assertStringContainsString('data-ll-level-badge="1"', $html);
                 $this->assertTrue(wp_script_is('ll-wordset-levels-js', 'enqueued'));
                 $this->assertContains('ll-wordset-levels-js', wp_scripts()->registered['ll-wordset-pages-js']->deps);

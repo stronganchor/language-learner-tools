@@ -27,6 +27,7 @@ async function mount(page, options = {}) {
     curriculumLevels:{levels:options.groups || groups,nonce:'nonce',token:'scope',i18n:labels},
     state:{category_ids:ids},gender:{enabled:true,options:['Masculine','Feminine']},
     i18n:{selectAll:'Select all',deselectAll:'Deselect all',repeatLabel:'Repeat',modeCategoryAria:'%1$s: %2$s',quizModesTitle:options.quizTitle || 'Quiz modes',
+      analyticsMastered:labels.mastered,analyticsStudied:labels.working,analyticsNew:labels.unseen,
       modeLearning:modeNames.learning,modePractice:modeNames.practice,modeListening:modeNames.listening,modeSelfCheck:modeNames['self-check'],modeGender:modeNames.gender},
     modeLabels:modeNames};
   if (options.exerciseOnly) config.curriculumLevels.levels=groups.map(group => group.level === 2 ? {...group,nextId:0} : group);
@@ -49,9 +50,12 @@ async function mount(page, options = {}) {
     config.categories = config.categories.map(cat=>({...cat,preview_deferred:true,has_images:true}));
     config.lazyCards={enabled:true,nonce:'lazy',token:'cards',wordsetId:77,total:16,loaded:1};
   }
+  if (options.flat) delete config.curriculumLevels;
+  const shell = options.flat ? '' : '<section data-ll-wordset-levels><div class="ll-level-grid">' +
+    config.curriculumLevels.levels.map(group => '<article class="ll-level-card"><h2 class="ll-level-title">Level ' + group.level + '</h2></article>').join('') + '</div></section>';
   const body = '<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/core.css"><link rel="stylesheet" href="/catalog.css"><link rel="stylesheet" href="/levels.css">' +
-    '<main class="ll-wordset-page" data-ll-wordset-page><div class="ll-wordset-grid-tools"><div class="ll-wordset-grid-search-tools"><div class="ll-wordset-progress-search ll-wordset-progress-search--wordset-page"><input class="ll-wordset-progress-search__input" aria-label="Search" placeholder="Search words or translations" type="search" data-ll-wordset-page-search><button class="ll-wordset-progress-search__clear" data-ll-wordset-page-search-clear hidden>Clear</button></div></div><button data-ll-wordset-select-all>Select all</button></div>' +
-    '<section data-ll-wordset-levels hidden></section><div data-ll-wordset-main-grid class="ll-wordset-grid">' + (options.sparse ? catalog.slice(0,1) : catalog).map(existing).join('') +
+    '<main class="ll-wordset-page" data-ll-wordset-page' + (options.flat ? '' : ' data-ll-level-initial') + '><div class="ll-wordset-grid-tools"><div class="ll-wordset-grid-search-tools"><div class="ll-wordset-progress-search ll-wordset-progress-search--wordset-page"><input class="ll-wordset-progress-search__input" aria-label="Search" placeholder="Search words or translations" type="search" data-ll-wordset-page-search><button class="ll-wordset-progress-search__clear" data-ll-wordset-page-search-clear hidden>Clear</button></div></div><button data-ll-wordset-select-all>Select all</button></div>' +
+    shell + '<div data-ll-wordset-main-grid class="ll-wordset-grid">' + catalog.slice(0,options.sparse ? 1 : options.initialCards).map(existing).join('') +
     '</div><div data-ll-wordset-page-search-empty hidden>Empty</div></main><div id="ll-study-results-actions" style="display:none"><button id="ll-study-results-same-chunk"></button><button id="ll-study-results-different-chunk"></button><button id="ll-study-results-next-chunk"></button></div><script>window.llWordsetPageData='+JSON.stringify(config)+'</script>' +
     '<script src="/jquery.js"></script><script src="/loader.js"></script><script src="/levels.js"></script><script src="/main.js"></script>';
   await page.route(base+'/**', async route => {
@@ -60,6 +64,8 @@ async function mount(page, options = {}) {
       const data = Object.fromEntries(new URLSearchParams(route.request().postData() || ''));
       reqs.push(data);
       if(data.action === 'll_tools_wordset_page_lazy_cards' && data.category_ids) {
+        if (options.pauseThumbnails) await options.pauseThumbnails;
+        if (options.thumbnailLookupFails) return route.fulfill({status:500,body:''});
         const ids=data.category_ids.split(',').map(Number);
         const html=ids.map(id=>{
           const urls=options.serverPreviews?.[id] || ['/thumbnail.svg','/thumbnail-two.svg'];
@@ -69,6 +75,8 @@ async function mount(page, options = {}) {
         return route.fulfill({json:{success:true,data:{category_ids:ids,html}}});
       }
       if (data.operation === 'summary') {
+        if (options.holdSummary) await options.holdSummary;
+        if (options.pauseSummary) await options.pauseSummary;
         if (options.expired && reqs.filter(r=>r.operation==='summary').length===1) {
           return route.fulfill({status:403,contentType:'text/plain',body:'-1'});
         }
@@ -122,14 +130,63 @@ async function mount(page, options = {}) {
       if (data.operation === 'launch') return route.fulfill({status:409,json:{success:false,data:{code:'ll_level_no_activity'}}});
       return route.fulfill({json:{success:true,data:{}}});
     }
-    if (url.pathname.startsWith('/thumbnail')) return route.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><circle cx="20" cy="20" r="17" fill="teal"/></svg>'});
+    if (url.pathname.startsWith('/thumbnail')) {
+      if (options.pauseImages) await options.pauseImages;
+      if (url.pathname === '/thumbnail-broken') return route.fulfill({status:404,body:''});
+      return route.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><circle cx="20" cy="20" r="17" fill="teal"/></svg>'});
+    }
+    if (url.pathname === '/jquery.js' && options.scriptGate) await options.scriptGate;
     if (files[url.pathname]) return route.fulfill({contentType:url.pathname.endsWith('.css')?'text/css':'text/javascript',body:files[url.pathname]});
     return route.fulfill({contentType:'text/html',body:url.pathname === '/' ? body : '<h1>Lesson</h1>'});
   });
-  await page.goto(base+'/');
-  await expect(page.locator('[data-ll-wordset-page]')).toHaveAttribute('data-ll-level-view','home');
+  await page.goto(base+'/', {waitUntil: options.scriptGate ? 'commit' : 'load'});
+  if (!options.scriptGate && !options.noScripts && !options.flat) {
+    await expect(page.locator('[data-ll-wordset-page]')).toHaveAttribute('data-ll-level-view','home');
+  }
   return reqs;
 }
+
+test('slow quiz scripts paint curriculum rows before initialization and leave flat catalogs visible', async ({page}) => {
+  for (const flat of [false, true]) {
+    let release;
+    const scriptGate = new Promise(resolve => { release = resolve; });
+    try {
+      await mount(page, {flat, signed:true, scriptGate});
+      const grid = page.locator('[data-ll-wordset-main-grid]');
+      await expect(page.getByRole('searchbox')).toBeVisible();
+      if (flat) {
+        await expect(grid.getByRole('link').first()).toBeVisible();
+      } else {
+        await expect(page.getByRole('heading', {name:'Level 1', exact:true})).toBeVisible();
+        await expect(grid).toBeHidden();
+        await expect(page.locator('[data-ll-wordset-levels] button')).toHaveCount(0);
+        const row = await page.locator('.ll-level-card').first().boundingBox();
+        const search = await page.locator('.ll-wordset-progress-search--wordset-page').boundingBox();
+        expect(Math.abs(row.x - search.x)).toBeLessThanOrEqual(1);
+        expect(Math.abs(row.width - search.width)).toBeLessThanOrEqual(1);
+      }
+    } finally { release(); }
+    await page.waitForLoadState('load');
+    if (!flat) await expect(page.locator('[data-ll-wordset-page]')).toHaveAttribute('data-ll-level-view','home');
+    await page.unrouteAll({behavior:'wait'});
+  }
+});
+
+test('without JavaScript both curriculum and flat wordsets expose regular lesson links', async ({browser}) => {
+  const context = await browser.newContext({javaScriptEnabled:false});
+  try {
+    for (const flat of [false, true]) {
+      const page = await context.newPage();
+      await mount(page, {flat, noScripts:true});
+      await expect(page.locator('[data-ll-wordset-levels]')).toBeHidden();
+      const lesson = page.getByRole('link', {name:'Lesson 1', exact:true});
+      await expect(lesson).toBeVisible();
+      await lesson.click();
+      await expect(page.getByRole('heading', {name:'Lesson', exact:true})).toBeVisible();
+      await page.close();
+    }
+  } finally { await context.close(); }
+});
 
 test('mobile browse, bounded pages, global search, clear, and Back preserve their own scope', async ({page}) => {
   await page.setViewportSize({width:390,height:664});
@@ -143,8 +200,9 @@ test('mobile browse, bounded pages, global search, clear, and Back preserve thei
   await expect(grid).toBeHidden();
   await expect(page.locator('[aria-current="step"],.ll-level-card.is-current')).toHaveCount(0);
   const guestLearn=page.getByRole('button',{name:'Learn · Lesson 1',exact:true});
-  await expect(guestLearn).toHaveText('Lesson 1');
-  await expect(guestLearn.locator(':scope > .ll-level-mode-icon:first-child')).toBeVisible();
+  await expect(guestLearn.locator('.ll-level-action-name')).toHaveText('Lesson 1');
+  await expect(guestLearn.locator('.ll-level-activity-mode:first-child .ll-level-mode-icon')).toBeVisible();
+  await expect(guestLearn.locator('.ll-level-mode-caption')).toHaveText('Learn');
   await expect(guestLearn.locator('.ll-level-thumbs')).toHaveCount(0);
   await expect(guestLearn.locator(':scope > .ll-level-glyph--forward:last-child')).toBeVisible();
   await page.getByRole('button',{name:'Browse lessons · Level 1'}).focus();
@@ -211,14 +269,14 @@ test('personalized cards retry preparing summaries, expose review scopes, and au
   await expect(page.getByText('Loading progress…')).toBeVisible();
   await expect(page.locator('.ll-level-review-all')).toBeVisible();
   const first=page.locator('[data-ll-level-card="1"]');
-  await expect(first.getByRole('img',{name:'Learned 3, In progress 2, New 5'})).toBeVisible();
+  await expect(first.getByLabel('Learned 3, In progress 2, New 5',{exact:true})).toBeVisible();
   await expect(first.getByRole('img',{name:/Added since/})).toHaveCount(0);
   const localDue=first.locator('.ll-level-card-head').getByRole('button',{name:'Due for review (2) · Level 1'});
   await expect(localDue).toBeVisible();
   await expect(first).not.toContainText(/\b3\s*\/\s*10\s*learned\b/i);
   await expect(first.getByRole('button',{name:'Learn · Lesson 1'})).toBeVisible();
   await expect(page.locator('.ll-level-nudge,.is-suggested,.is-current')).toHaveCount(0);
-  await expect(page.locator('.ll-level-review-all')).toHaveAccessibleName('Review now · Due for review (2) · Words this round · 2');
+  await expect(page.locator('.ll-level-review-all')).toHaveAccessibleName('Review now · Due for review (2) · Words left today · 2');
   await expect(page.locator('.ll-level-review-all .ll-level-thumbs')).toHaveCount(0);
   await first.getByLabel('Level details · Level 1',{exact:true}).click();
   const days=first.getByRole('spinbutton',{name:labels.interval, exact:true});
@@ -234,7 +292,7 @@ test('personalized cards retry preparing summaries, expose review scopes, and au
   await page.locator('.ll-level-review-all').click();
   await localDue.click();
   await expect(localDue).toHaveAttribute('aria-expanded','true');
-  await first.locator('.ll-level-overview').getByRole('button',{name:'Review now · Level 1'}).click();
+  await first.locator('.ll-level-overview').getByRole('button',{name:'Practice · Due for review · Level 1'}).click();
   await first.getByRole('button',{name:'Practice · Lesson 2'}).click();
   await expect.poll(()=>reqs.filter(r=>r.operation==='launch').map(r=>[r.level,r.launch_mode])).toEqual([['0','review'],['1','due'],['1','practice']]);
   await expect(page.getByText('Could not start this activity.')).toBeVisible();
@@ -273,6 +331,82 @@ test('returning learner sees completed levels and receives only visible CTA thum
   expect(lookups.every(r=>r.category_ids && r.category_ids.split(',').length<=8 && r.preview_limit==='2')).toBe(true);
 });
 
+for (const width of [360,1240]) {
+  test('level thumbnails and status flags reserve their space on delayed responses at '+width+'px',async({page})=>{
+    await page.setViewportSize({width,height:820});
+    await page.emulateMedia({reducedMotion:width===360 ? 'reduce' : 'no-preference'});
+    let showSummary, showUrls, showImages;
+    const pauseSummary=new Promise(resolve=>{showSummary=resolve;});
+    const pauseThumbnails=new Promise(resolve=>{showUrls=resolve;});
+    const pauseImages=new Promise(resolve=>{showImages=resolve;});
+    const row={total:10,mastered:4,working:3,new:3,due:2,hard:1,starred:3,next_category_id:1,practice_category_id:2};
+    await mount(page,{signed:true,sparse:true,pauseSummary,pauseThumbnails,pauseImages,
+      summary:{levels:{1:row,2:{...row,due:0,hard:0,starred:0,next_category_id:15}}}});
+    const first=page.locator('[data-ll-level-card="1"]');
+    const badges=first.locator('.ll-level-badges');
+    const placeholders=badges.locator('.ll-level-sheen');
+    await expect(placeholders).toHaveCount(3);
+    await expect(badges).toHaveAttribute('aria-hidden','true');
+    await expect(first.locator('[data-ll-level-filter]')).toHaveCount(0);
+    const animation=width===360 ? 'none' : 'll-wordset-skeleton-shimmer';
+    await expect(placeholders.first()).toHaveCSS('animation-name',animation);
+    const heightBefore=(await badges.boundingBox()).height;
+    showSummary();
+    await expect(first.locator('[data-ll-level-filter]')).toHaveCount(3);
+    await expect(placeholders).toHaveCount(0);
+    expect((await badges.boundingBox()).height).toBe(heightBefore);
+    await expect(page.locator('[data-ll-level-card="2"] .ll-level-badges')).toHaveCount(0);
+    const learn=first.locator('[data-ll-level-action="learn"]');
+    const loading=learn.locator('.ll-level-thumb-slot.ll-level-sheen:visible');
+    await expect(loading).toHaveCount(2);
+    await expect(loading.first()).toHaveCSS('animation-name',animation);
+    const dimensions=()=>learn.evaluate(el=>{
+      const label=el.querySelector('.ll-level-action-name').getBoundingClientRect();
+      const button=el.getBoundingClientRect();
+      return [label.left-button.left,label.top-button.top,button.height];
+    });
+    const before=await dimensions();
+    showUrls();
+    await expect(learn.locator('img.ll-level-thumb')).toHaveCount(2);
+    await expect(loading).toHaveCount(2);
+    await expect(learn.locator('img').first()).toHaveCSS('opacity','0');
+    showImages();
+    await expect(loading).toHaveCount(0);
+    await expect(learn.locator('img').first()).toHaveCSS('opacity','1');
+    expect(await dimensions()).toEqual(before);
+  });
+}
+
+test('empty previews, failed lookups and broken images leave no loading sheen or broken image',async({page})=>{
+  for (const thumbnailLookupFails of [false,true]) {
+    const view=await page.context().newPage();
+    await mount(view,{sparse:true,thumbnailLookupFails,
+      serverPreviews:{1:[],15:['/thumbnail-broken']},previews:{15:['/thumbnail-broken']}});
+    const slots=view.locator('.ll-level-thumb-slot');
+    await expect(slots.first()).toBeVisible();
+    await expect(view.locator('.ll-level-thumb-slot.ll-level-sheen')).toHaveCount(0);
+    await expect(view.locator('img.ll-level-thumb')).toHaveCount(0);
+    await expect(view.locator('.ll-level-badge-placeholder')).toHaveCount(0);
+    await view.close();
+  }
+});
+
+test('scrolling to later levels resolves thumbnail slots without IntersectionObserver',async({page})=>{
+  await page.addInitScript(()=>{delete window.IntersectionObserver;});
+  await page.setViewportSize({width:360,height:650});
+  const manyLevels=categories.map(item=>({level:item.id,categoryIds:[item.id],contentIds:[],nextId:item.id}));
+  const reqs=await mount(page,{groups:manyLevels,sparse:true});
+  const last=page.locator('[data-ll-level-card="16"]');
+  const lookups=()=>reqs.filter(req=>req.action==='ll_tools_wordset_page_lazy_cards' && req.category_ids)
+    .flatMap(req=>req.category_ids.split(',').map(Number));
+  await expect.poll(lookups).toContain(1);
+  expect(lookups()).not.toContain(16);
+  await last.scrollIntoViewIfNeeded();
+  await expect.poll(lookups).toContain(16);
+  await expect(last.locator('.ll-level-thumb')).toHaveCount(2);
+  await expect(last.locator('.ll-level-thumb-slot.ll-level-sheen:visible')).toHaveCount(0);
+});
+
 test('photos stay distinct, represent mixed Practice and use one image when only one exists',async({page})=>{
   const previews={1:['/thumbnail-family-150x150.webp'],2:['/thumbnail-cat.webp','/thumbnail-dog.webp'],15:['/thumbnail-bird.webp']};
   const serverPreviews={1:['/thumbnail-family-300x300.webp','/thumbnail-house.webp'],15:['/thumbnail-bird.webp']};
@@ -285,26 +419,31 @@ test('photos stay distinct, represent mixed Practice and use one image when only
   await expect(learn).toHaveCount(2);
   await expect(learn.nth(1)).toHaveAttribute('src','/thumbnail-house.webp');
   const mixed=page.locator('[data-ll-level-card="1"] [data-ll-level-action="practice"]');
-  await expect(mixed).toHaveText('2 words in progress');
+  await expect(mixed.locator('.ll-level-action-name')).toHaveText('2 words in progress');
   expect((await learn.first().boundingBox()).width).toBeGreaterThanOrEqual(48);
   await expect(page.getByRole('button',{name:'Learn · Everyday Expressions'}).locator('.ll-level-thumb')).toHaveCount(1);
   for (const width of [1240,390,320]) {
     await page.setViewportSize({width,height:820});
     for (const name of ['Learn · Lesson 1','Practice · 2 words in progress']) {
       const button=page.getByRole('button',{name,exact:true});
-      const mode=button.locator(':scope > .ll-level-mode-icon:first-child');
+      const mode=button.locator(':scope > .ll-level-activity-mode:first-child .ll-level-mode-icon');
+      const caption=button.locator('.ll-level-mode-caption');
+      await expect(caption).toHaveText(name.split(' · ')[0]);
+      await expect(caption).toBeVisible();
       const arrow=button.locator(':scope > .ll-level-glyph--forward:last-child');
       await expect(mode).toHaveAttribute('aria-hidden','true');
       await expect(arrow).toHaveAttribute('aria-hidden','true');
       await expect(arrow).toHaveAttribute('focusable','false');
       const firstPhoto=button.locator('.ll-level-thumb:visible').first();
       const lastPhoto=button.locator('.ll-level-thumb:visible').last();
-      const [icon,first,last,label,go,control]=await Promise.all(
-        [mode,firstPhoto,lastPhoto,button.locator('.ll-level-action-name'),arrow,button].map(node=>node.boundingBox())
+      const [icon,captionBox,first,last,label,go,control]=await Promise.all(
+        [mode,caption,firstPhoto,lastPhoto,button.locator('.ll-level-action-name'),arrow,button].map(node=>node.boundingBox())
       );
       expect(icon.x).toBeGreaterThanOrEqual(control.x);
       expect(first.x).toBeGreaterThan(icon.x+icon.width);
-      expect(Math.abs(icon.width-first.width)).toBeLessThanOrEqual(2);
+      expect(icon.width).toBeLessThan(first.width);
+      expect(captionBox.y).toBeGreaterThanOrEqual(icon.y+icon.height);
+      expect(Math.abs(captionBox.x+captionBox.width/2-icon.x-icon.width/2)).toBeLessThan(1);
       expect(label.x).toBeGreaterThan(last.x+last.width);
       expect(go.x).toBeGreaterThan(label.x+label.width);
       expect(go.x+go.width).toBeLessThanOrEqual(control.x+control.width);
@@ -330,7 +469,7 @@ test('daily review separates the complete due backlog from the next round and fo
   const summary={due:681,review:{reason:'due',count:64,due:681},levels:{1:row,2:{...row,due:0,next_category_id:15,practice_category_id:15,due_category_id:0}}};
   const reqs=await mount(page,{signed:true,summary});
   const review=page.locator('.ll-level-review-all');
-  await expect(review).toHaveAccessibleName('Review now · Due for review (681) · Words this round · 64');
+  await expect(review).toHaveAccessibleName('Review now · Due for review (681) · Words left today · 64');
   await expect(review.locator('img')).toHaveCount(0);
   await expect(review).toHaveClass(/ll-level-metric-older/);
   await expect(page.locator('.is-suggested')).toHaveCount(0);
@@ -347,7 +486,10 @@ test('daily review separates the complete due backlog from the next round and fo
   await expect(panel.getByText(labels.dueHelp)).toBeVisible();
   await expect(panel.getByText('Words this round · 12')).toBeVisible();
   await page.keyboard.press('Tab');
-  await expect(panel.getByRole('button',{name:'Review now · Level 1'})).toBeFocused();
+  const launch=panel.getByRole('button',{name:'Practice · Due for review · Level 1'});
+  await expect(launch).toBeFocused();
+  await expect(launch).toHaveText('Practice');
+  await expect(launch.locator('.ll-level-mode-icon')).toHaveAttribute('data-emoji','❓');
   expect(await panel.evaluate(el=>el.getBoundingClientRect().right<=window.innerWidth)).toBe(true);
   await badge.focus();
   await page.keyboard.press('Space');
@@ -364,7 +506,7 @@ test('daily review separates the complete due backlog from the next round and fo
     summary.due=0;
     summary.review={reason,count:5,due:0};
     await page.evaluate(()=>window.jQuery(document).trigger('lltools:progress-updated'));
-    await expect(review).toHaveAccessibleName('Practice · '+text+' · Words this round · 5');
+    await expect(review).toHaveAccessibleName('Practice · '+text+' · Words left today · 5');
     await expect(review).toHaveClass(new RegExp('ll-level-metric-'+status));
     await expect(review.locator('.ll-level-daily-icon')).toBeVisible();
   }
@@ -418,7 +560,7 @@ test('desktop and phone each show one level per row and keep mode icons, statuse
   const details=first.getByLabel('Level details · Level 1',{exact:true});
   const chevron=details.locator('.ll-level-glyph--chevron');
   await expect(chevron).toBeVisible();
-  const tail=async()=>first.evaluate(node=>node.getBoundingClientRect().bottom-node.querySelector('summary').getBoundingClientRect().bottom);
+  const tail=async()=>first.evaluate(node=>node.getBoundingClientRect().bottom-node.querySelector('.ll-level-details-toggle').getBoundingClientRect().bottom);
   expect(await tail()).toBeLessThan(20);
   await expect(chevron).toHaveCSS('transform','none');
   const title=first.getByRole('button',{name:'Browse lessons · Level 1'});
@@ -427,7 +569,7 @@ test('desktop and phone each show one level per row and keep mode icons, statuse
   await expect(title.locator('svg')).toHaveCount(0);
   await details.focus();
   await page.keyboard.press('Enter');
-  const moving = () => first.evaluate(card => card.querySelector('details').getAnimations({subtree:true})
+  const moving = () => first.evaluate(card => card.querySelector('.ll-level-details').getAnimations({subtree:true})
     .filter(animation => animation.playState === 'running' || animation.pending).length);
   expect(await moving()).toBe(0);
   await expect(chevron).toHaveCSS('transform','matrix(-1, 0, 0, -1, 0, 0)');
@@ -454,13 +596,108 @@ test('desktop and phone each show one level per row and keep mode icons, statuse
   await expect(page.locator('.ll-wordset-card[data-cat-id="15"]')).toBeHidden();
 });
 
+test('progress disclosures show the tooltip counts on levels and lessons, and glyphs only where they fit',async({page})=>{
+  const stats={total:100,mastered:1,working:3,new:96,days:30,next_category_id:1};
+  const catalog=categories.map(cat=>({...cat,count:100,mastered_words:1,studied_words:4,new_words:96}));
+  await page.setViewportSize({width:360,height:800});
+  await mount(page,{signed:true,summary:{levels:{1:stats}},categories:catalog,initialCards:0});
+  const level=page.locator('[data-ll-level-card="1"]');
+  const progress=level.locator('details.ll-wordset-card__progress');
+  const summary=progress.locator('summary');
+  const icon=status=>progress.locator('.ll-wordset-card__progress-segment--'+status+' .ll-wordset-card__progress-icon');
+  const checkLegend=async target=>{
+    const keys=target.locator('.ll-wordset-card__progress-key');
+    await expect(keys).toHaveText(['Learned 1','In progress 3','New 96']);
+    expect((await keys.allTextContents()).join(', ')).toBe(await target.locator('summary').getAttribute('title'));
+  };
+  await expect(summary).toHaveAccessibleName('Learned 1, In progress 3, New 96');
+  await expect(icon('mastered')).toBeHidden();
+  await expect(icon('studied')).toBeHidden();
+  await expect(icon('new')).toBeVisible();
+  await expect(progress.locator('.ll-wordset-card__progress-segment--studied')).toBeVisible();
+  await summary.press('Space');
+  await expect(progress).toHaveJSProperty('open',true);
+  await checkLegend(progress);
+  await expect(level.locator('.ll-level-details')).toHaveJSProperty('open',false);
+  await page.setViewportSize({width:1240,height:820});
+  await expect(icon('studied')).toBeVisible();
+  stats.working=2;
+  stats.new=97;
+  await page.evaluate(()=>window.jQuery(document).trigger('lltools:progress-updated'));
+  await expect(summary).toHaveAttribute('title','Learned 1, In progress 2, New 97');
+  await expect(progress).toHaveJSProperty('open',true);
+  await expect(summary).toBeFocused();
+  await summary.press('Enter');
+  await expect(progress).toHaveJSProperty('open',false);
+  await level.getByRole('button',{name:'Browse lessons · Level 1'}).click();
+  const lesson=page.locator('[data-cat-id="1"].ll-wordset-card details.ll-wordset-card__progress');
+  await lesson.locator('.ll-wordset-card__progress-track').click();
+  await expect(lesson).toHaveJSProperty('open',true);
+  await checkLegend(lesson);
+  await expect(page).toHaveURL(base+'/');
+  await lesson.locator('summary').click();
+  await expect(lesson).toHaveJSProperty('open',false);
+});
+
+test('lesson thumbnail decoding and progress hydration reserve their final dimensions',async({page})=>{
+  const catalog=categories.map(cat=>cat.id===4 || cat.id===5 ? {
+    ...cat,aspect_bucket:'ratio:16:9',preview_requires_images:true,
+    has_images:cat.id===4,preview_deferred:cat.id===5,
+    preview:cat.id===4 ? [{type:'image',url:'/lesson-image.svg'}] : []
+  } : cat);
+  let finishSummary, finishImage;
+  const pauseSummary=new Promise(resolve=>{finishSummary=resolve;});
+  await page.setViewportSize({width:390,height:830});
+  await mount(page,{signed:true,initialCards:0,categories:catalog,pauseSummary});
+  const bar=page.locator('[data-ll-level-card="1"] .ll-wordset-card__progress');
+  const track=bar.locator('.ll-wordset-card__progress-track');
+  const animation=element=>element.evaluate(el=>getComputedStyle(el,'::after').animationName);
+  await expect(bar).toHaveJSProperty('inert',true);
+  await expect(track).toHaveCSS('background-color','rgb(226, 232, 240)');
+  expect(await animation(track)).toBe('ll-wordset-skeleton-shimmer');
+  const initial=await bar.boundingBox();
+  await page.emulateMedia({reducedMotion:'reduce'});
+  expect(await animation(track)).toBe('none');
+  finishSummary();
+  await expect(bar).toHaveJSProperty('inert',false);
+  const ready=await bar.boundingBox();
+  expect(ready.height).toBe(initial.height);
+  expect(ready.width).toBe(initial.width);
+  await page.emulateMedia({reducedMotion:'no-preference'});
+  const pauseImage=new Promise(resolve=>{finishImage=resolve;});
+  await page.route(base+'/lesson-image.svg',async route=>{
+    await pauseImage;
+    await route.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180"/>'});
+  });
+  await page.getByRole('button',{name:'Browse lessons · Level 1'}).click();
+  const card=page.locator('.ll-wordset-card[data-cat-id="4"]');
+  const photo=card.locator('.ll-wordset-preview-item--image');
+  const deferredPhoto=page.locator('.ll-wordset-card[data-cat-id="5"] .ll-wordset-preview-item--lazy-skeleton').first();
+  await photo.scrollIntoViewIfNeeded();
+  await expect(photo).toHaveClass(/ll-image-load-pending/);
+  expect(await animation(photo)).toBe('ll-wordset-skeleton-shimmer');
+  await expect(deferredPhoto).toHaveCSS('animation-name','ll-wordset-skeleton-shimmer');
+  const beforePhoto=await photo.boundingBox();
+  const beforeModes=await card.locator('.ll-wordset-card__quiz-actions').boundingBox();
+  const reserved=await deferredPhoto.boundingBox();
+  expect(beforePhoto.width/beforePhoto.height).toBeCloseTo(16/9,2);
+  expect(reserved.width/reserved.height).toBeCloseTo(16/9,2);
+  await page.emulateMedia({reducedMotion:'reduce'});
+  expect(await animation(photo)).toBe('none');
+  await expect(deferredPhoto).toHaveCSS('animation-name','none');
+  finishImage();
+  await expect(photo).toHaveClass(/ll-image-loaded/);
+  expect(await photo.boundingBox()).toEqual(beforePhoto);
+  expect(await card.locator('.ll-wordset-card__quiz-actions').boundingBox()).toEqual(beforeModes);
+});
+
 test('a level opens and closes progressively and reverses from its current height',async({page})=>{
   await page.setViewportSize({width:390,height:800});
   await page.emulateMedia({reducedMotion:'no-preference'});
   await mount(page);
   const card=page.locator('[data-ll-level-card="1"]');
   const trace=await card.evaluate(async node=>{
-    const summary=node.querySelector('summary');
+    const summary=node.querySelector('.ll-level-details-toggle');
     const arrow=summary.querySelector('.ll-level-glyph--chevron');
     const height=()=>node.getBoundingClientRect().height;
     async function toggle(reverseBelow=0) {
@@ -504,7 +741,7 @@ test('a level opens and closes progressively and reverses from its current heigh
   expect(interrupted.heights.at(-1)).toBeCloseTo(expanded,0);
   expect(closing.heights.at(-1)).toBeCloseTo(collapsed,0);
   await expect(card.getByRole('region',{name:'Quiz modes'})).toBeHidden();
-  await expect(card.locator('details')).not.toHaveAttribute('open');
+  await expect(card.locator('.ll-level-details')).not.toHaveAttribute('open');
 });
 
 test('a progress refresh arriving during expansion preserves the open level and keyboard focus',async({page})=>{
@@ -531,7 +768,7 @@ test('complete and unfinished curricula expose actions without singling out a le
   const complete={total:10,mastered:10,working:0,new:0,studied:10,due:2,practice_category_id:2,due_category_id:2,days:90};
   await mount(page,{signed:true,summary:{due:2,review:{reason:'due',count:2,due:2},levels:{1:complete,2:{...complete,due:0,practice_category_id:15}}}});
   await expect(page.locator('.is-suggested,.is-current')).toHaveCount(0);
-  await expect(page.locator('.ll-level-review-all')).toHaveAccessibleName('Review now · Due for review (2) · Words this round · 2');
+  await expect(page.locator('.ll-level-review-all')).toHaveAccessibleName('Review now · Due for review (2) · Words left today · 2');
   await expect(page.getByRole('img',{name:'Level mastered'})).toHaveCount(2);
   const nextPage=await page.context().newPage();
   const active={...complete,total:20,mastered:12,working:4,new:4,due:0,next_category_id:1};
@@ -667,6 +904,8 @@ for (const filter of ['hard','starred']) {
     expect(await card.evaluate(el=>el.scrollWidth<=el.clientWidth+1)).toBe(true);
     const launchLabel='Practice · '+labels[filter]+' · Level 1';
     const launch=preview.getByRole('button',{name:launchLabel,exact:true});
+    await expect(launch).toHaveText('Practice');
+    await expect(launch.locator('.ll-level-mode-icon')).toHaveAttribute('data-emoji','❓');
     expect(reqs.filter(r=>r.operation==='launch')).toHaveLength(0);
     await launch.click();
     await expect.poll(()=>page.evaluate(()=>window.launchedQuizzes.length)).toBe(1);
@@ -674,6 +913,77 @@ for (const filter of ['hard','starred']) {
     expect(await page.evaluate(()=>window.llToolsFlashcardsData.logicalSessionWordIds)).toEqual(ids);
   });
 }
+
+test('leaving a daily quiz early updates the remainder after the answer syncs, and it survives a reload',async({page})=>{
+  const summary={due:90,review:{reason:'due',count:2,due:90},levels:{}};
+  await instrumentQuiz(page);
+  await mount(page,{signed:true,successful:true,summary});
+  const daily=page.locator('.ll-level-review-all');
+  await daily.click();
+  await expect.poll(()=>page.evaluate(()=>window.launchedQuizzes.length)).toBe(1);
+  await page.addScriptTag({path:path.join(root,'js/flashcard-widget/progress-tracker.js')});
+  const pending=page.waitForRequest(req=>req.postData()?.includes('ll_user_study_progress_batch'));
+  let release;
+  const delayed=new Promise(done=>{release=done;});
+  await page.route(base+'/ajax',async route=>{
+    const form=new URLSearchParams(route.request().postData());
+    if(form.get('action')!=='ll_user_study_progress_batch') return route.fallback();
+    await delayed;
+    const outcomes=JSON.parse(form.get('events'));
+    expect(outcomes.map(e=>[e.wordset_id,e.word_id,e.is_correct])).toEqual([[77,2002,true]]);
+    summary.review={reason:'due',count:1,due:89};
+    await route.fulfill({json:{success:true,data:{}}});
+  });
+  await page.evaluate(()=>{
+    Object.assign(window.llToolsFlashcardsData,{isUserLoggedIn:true,ajaxurl:'/ajax',userStudyNonce:'test'});
+    const tracker=window.LLFlashcards.ProgressTracker;
+    tracker.trackWordOutcome({wordsetId:77,wordId:2002,categoryId:2,mode:'practice',isCorrect:true});
+    tracker.flush();
+    window.jQuery(document).trigger('lltools:flashcard-closed');
+  });
+  await pending;
+  await expect(daily.locator('.ll-level-round-size strong')).toHaveText('2');
+  release();
+  await expect(daily).toHaveAccessibleName('Review now · Due for review (89) · Words left today · 1');
+  await page.reload();
+  await expect(daily).toHaveAccessibleName('Review now · Due for review (89) · Words left today · 1');
+});
+
+for(const width of [390,1140]) {
+  test('the pending daily goal and activity placeholders reserve the loaded row at '+width+'px',async({page})=>{
+    await page.setViewportSize({width,height:850});
+    let release;
+    const holdSummary=new Promise(done=>{release=done;});
+    await mount(page,{signed:true,holdSummary});
+    const first=page.locator('[data-ll-level-card="1"]');
+    const pending=first.locator('.ll-level-activities .ll-level-placeholder');
+    await expect(pending).toHaveCount(2);
+    await expect(pending.first()).toHaveAttribute('aria-hidden','true');
+    const loadingTop=await page.locator('.ll-level-review-placeholder').boundingBox();
+    const actions=first.locator('.ll-level-activities');
+    const loadingRow=await actions.boundingBox();
+    release();
+    const daily=page.locator('.ll-level-review-all');
+    await expect(daily).toBeVisible();
+    await expect(pending).toHaveCount(0);
+    const readyRow=await actions.boundingBox();
+    expect(Math.abs((await daily.boundingBox()).height-loadingTop.height)).toBeLessThanOrEqual(1);
+    expect(Math.abs(readyRow.height-loadingRow.height)).toBeLessThanOrEqual(1);
+    expect(Math.abs(readyRow.y-loadingRow.y)).toBeLessThanOrEqual(2);
+  });
+}
+
+test('an open wordset refreshes its goal at site midnight',async({page})=>{
+  await page.clock.install();
+  const summary={review:{reason:'hard',count:3,due:12},levels:{},next_reset_in:45};
+  await mount(page,{signed:true,summary});
+  const daily=page.locator('.ll-level-review-all');
+  await expect(daily).toHaveAccessibleName('Practice · Hard · Words left today · 3');
+  summary.review={reason:'due',count:10,due:12};
+  summary.next_reset_in=86400;
+  await page.clock.fastForward(46000);
+  await expect(daily).toHaveAccessibleName('Review now · Due for review (12) · Words left today · 10');
+});
 
 test('a daily round hydrates 16 exact targets in two batches and appends the second to the active quiz',async({page})=>{
   const ids=Array.from({length:16},(_,i)=>2001+i);
@@ -757,7 +1067,7 @@ test('an answer-only prompt cannot take the place of the planned review word',as
 test('expired signed-in credentials leave browsing and a working reload available',async({page})=>{
   const reqs=await mount(page,{signed:true,expired:true});
   await expect(page.getByText('Reload this page to update your levels.')).toBeVisible();
-  await expect(page.getByRole('button',{name:'Learn · Lesson 1'})).toHaveText('Lesson 1');
+  await expect(page.getByRole('button',{name:'Learn · Lesson 1'}).locator('.ll-level-action-name')).toHaveText('Lesson 1');
   await page.getByRole('button',{name:'Reload',exact:true}).click();
   await expect(page.locator('.ll-level-review-all')).toBeVisible();
   expect(reqs.filter(r=>r.operation==='summary')).toHaveLength(2);
@@ -779,7 +1089,10 @@ test('hidden tabs pause warming and refresh once when a stale catalog returns',a
   await expect(page.locator('.ll-level-review-all')).toBeVisible();
   await page.evaluate(()=>window.dispatchEvent(new Event('pageshow')));
   expect(reads()).toBe(2);
-  await page.clock.setSystemTime(new Date('2026-11-01T11:00:00Z'));
+  await page.clock.fastForward(61000);
   await page.evaluate(()=>window.dispatchEvent(new Event('pageshow')));
   await expect.poll(reads).toBe(3);
+  await page.waitForFunction(()=>window.jQuery.active===0);
+  await page.evaluate(()=>window.dispatchEvent(new PageTransitionEvent('pageshow',{persisted:true})));
+  await expect.poll(reads).toBe(4);
 });

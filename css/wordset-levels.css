@@ -1,4 +1,11 @@
 /* A level row is mounted only when the catalogue exposes a curriculum. */
+.ll-wordset-page[data-ll-level-initial]:not([data-ll-level-view]) [data-ll-wordset-levels] { display: none; }
+/* Keep the regular server-rendered lesson links available when scripting is disabled. */
+@media (scripting: enabled) {
+    .ll-wordset-page[data-ll-level-initial]:not([data-ll-level-view]) [data-ll-wordset-levels] { display: block; }
+    .ll-wordset-page[data-ll-level-initial]:not([data-ll-level-view]) :is([data-ll-wordset-main-grid], [data-ll-wordset-lazy-root], [data-ll-wordset-main-sort-root], [data-ll-wordset-select-all], [data-ll-wordset-selection-bar], .ll-wordset-top-actions) { display: none !important; }
+}
+.ll-level-shell-title { display: inline-flex; align-items: center; min-height: 44px; padding-inline: .2rem; }
 .ll-wordset-page[data-ll-level-view="home"] [data-ll-wordset-main-grid],
 .ll-wordset-page[data-ll-level-view="home"] [data-ll-wordset-main-sort-root],
 .ll-wordset-page[data-ll-level-view="home"] [data-ll-wordset-select-all],
@@ -132,6 +139,8 @@
     line-height: 1;
 }
 .ll-level-badge { gap: .32rem; min-width: 2.95rem; min-height: 1.75rem; padding: .25rem .5rem; }
+.ll-level-badge-placeholder { display: inline-flex; align-items: center; min-height: 44px; padding-inline: 1px; }
+.ll-level-badge-placeholder > .ll-level-badge { width: 4rem; }
 .ll-level-filter-toggle .ll-level-badge { color: var(--ll-level-ink); background: var(--ll-level-tint); border-color: var(--ll-level-border); }
 .ll-wordset-page .ll-level-filter-toggle, .ll-wordset-page .ll-level-filter-toggle:hover {
     padding: 0;
@@ -181,15 +190,22 @@
 }
 .ll-wordset-page .ll-level-activity:only-child { width: min(100%, 22rem); justify-self: start; }
 .ll-level-thumbs { display: inline-flex; align-items: center; gap: .2rem; flex: 0 0 auto; }
-.ll-wordset-page .ll-level-thumb {
+.ll-level-thumb-slot {
+    display: block;
     flex: 0 0 auto;
     width: var(--ll-level-image-size);
     height: var(--ll-level-image-size);
+    overflow: hidden;
+    border-radius: 6px;
+}
+.ll-wordset-page .ll-level-thumb {
+    display: block;
+    width: 100%;
+    height: 100%;
     max-width: none;
     object-fit: cover;
-    border-radius: 6px;
-    background: var(--ll-wp-card);
 }
+.ll-level-thumb-slot.ll-level-sheen img { opacity: 0; }
 .ll-level-mode-icon, .ll-level-mode-icon svg {
     display: inline-flex;
     align-items: center;
@@ -204,14 +220,30 @@
     font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", system-ui, sans-serif;
 }
 .ll-level-action-name { min-width: 0; overflow-wrap: anywhere; font-size: .96rem; font-weight: 650; }
-.ll-level-activity > .ll-level-mode-icon {
-    width: var(--ll-level-image-size);
-    height: var(--ll-level-image-size);
-    font-size: var(--ll-level-image-size);
+.ll-level-activity-mode {
+    --ll-level-mode-size: 2rem;
+    display: flex;
+    flex: 0 0 auto;
+    flex-direction: column;
+    align-items: center;
+    gap: .15rem;
+    min-width: 2.6rem;
+    max-width: 4.5rem;
+    text-align: center;
 }
-.ll-level-activity > .ll-level-mode-icon svg { width: 100%; height: 100%; }
+.ll-level-activity-mode .ll-level-mode-icon, .ll-level-activity-mode .ll-level-mode-icon svg {
+    width: var(--ll-level-mode-size);
+    height: var(--ll-level-mode-size);
+    font-size: var(--ll-level-mode-size);
+}
+.ll-level-mode-caption {
+    font-size: .75rem;
+    font-weight: 600;
+    line-height: 1.15;
+    overflow-wrap: anywhere;
+}
 .ll-level-activity > .ll-level-glyph--forward { margin-inline-start: auto; }
-.ll-level-activity:dir(rtl) > .ll-level-glyph--forward { transform: scaleX(-1); }
+.ll-level-button:dir(rtl) > .ll-level-glyph--forward { transform: scaleX(-1); }
 .ll-wordset-page .ll-level-review-all {
     justify-content: flex-start;
     gap: .75rem;
@@ -221,6 +253,26 @@
     color: var(--ll-level-ink);
 }
 .ll-wordset-page .ll-level-review-all:hover { background: var(--ll-level-tint); color: var(--ll-level-ink); border-color: var(--ll-level-ink); }
+.ll-wordset-page .ll-level-review-all,
+.ll-wordset-page .ll-level-review-placeholder { display: flex; width: fit-content; min-height: 3.5rem; }
+.ll-wordset-page .ll-level-review-placeholder { width: min(100%, 19rem); margin-block-end: .7rem; }
+.ll-wordset-page .ll-level-placeholder { pointer-events: none; }
+.ll-wordset-page .ll-level-sheen {
+    background: linear-gradient(100deg, #ecf1f6 16%, #f6f9fc 34%, #ecf1f6 52%);
+    background-size: 220% 100%;
+    animation: ll-wordset-skeleton-shimmer 1.15s linear infinite;
+}
+.ll-wordset-page .ll-level-loading-status {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+@media (prefers-reduced-motion: reduce) {
+    .ll-wordset-page .ll-level-sheen { animation: none; }
+}
 .ll-level-review-copy { display: grid; gap: .1rem; }
 .ll-level-review-reason { font-size: .82rem; font-weight: 500; }
 .ll-level-round-size { display: grid; gap: .1rem; margin-inline-start: auto; padding-inline-start: .7rem; border-inline-start: 1px solid var(--ll-level-tint); font-size: .82rem; font-weight: 500; }
@@ -283,7 +335,8 @@
 .ll-level-detail-panel { margin-top: .85rem; padding: .85rem .15rem .15rem; border-top: 1px solid var(--ll-wp-border); }
 .ll-level-quiz-section { margin: 0 0 .85rem; padding-block-end: .85rem; border-bottom: 1px solid var(--ll-wp-border); }
 .ll-level-quiz-modes { display: flex; flex-wrap: wrap; gap: .5rem; margin-block-start: .6rem; }
-.ll-level-quiz-modes .ll-level-mode-icon, .ll-level-quiz-modes .ll-level-mode-icon svg { width: 1.35rem; height: 1.35rem; font-size: 1.35rem; }
+:is(.ll-level-quiz-modes, .ll-level-filter-start) .ll-level-mode-icon,
+:is(.ll-level-quiz-modes, .ll-level-filter-start) .ll-level-mode-icon svg { width: 1.35rem; height: 1.35rem; font-size: 1.35rem; }
 .ll-level-quiz-modes .ll-level-button { white-space: normal; overflow-wrap: anywhere; }
 .ll-wordset-page .ll-level-quiz-modes .ll-level-button:disabled {
     background: var(--ll-wp-bg);
@@ -314,15 +367,17 @@
 @container ll-level-catalog (max-width: 29rem) {
     .ll-level-activities { grid-template-columns: minmax(0, 1fr); }
     .ll-wordset-page .ll-level-activity { --ll-level-image-size: 2.4rem; min-height: 58px; }
+    .ll-level-activity-mode { --ll-level-mode-size: 1.55rem; }
 }
 @container ll-level-action (max-width: 18rem) {
-    .ll-wordset-page .ll-level-thumb, .ll-level-activity > .ll-level-mode-icon { --ll-level-image-size: 2.4rem; }
+    .ll-level-thumb-slot { --ll-level-image-size: 2.4rem; }
+    .ll-level-activity-mode { --ll-level-mode-size: 1.55rem; }
 }
 @container ll-level-action (max-width: 14.75rem) {
-    .ll-level-thumb + .ll-level-thumb { display: none; }
+    .ll-level-thumb-slot + .ll-level-thumb-slot { display: none; }
 }
 @container ll-level-section (max-width: 23rem) {
-    .ll-wordset-page .ll-level-review-all { width: 100%; gap: .45rem; padding: .5rem; }
+    .ll-wordset-page .ll-level-review-all, .ll-wordset-page .ll-level-review-placeholder { width: 100%; gap: .45rem; padding: .5rem; }
 }
 @media (forced-colors: active) {
     .ll-level-badge, .ll-level-card .ll-wordset-card__progress-segment { border: 1px solid CanvasText; }

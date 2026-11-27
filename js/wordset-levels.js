@@ -74,9 +74,12 @@
         let retryUntil = 0;
         let refreshOnReturn = false;
         let lastSummaryRequestAt = 0;
-        const staleAfter = 60 * 60 * 1000;
+        let dayResetTimer = 0;
+        let dayResetAt = 0;
+        const staleAfter = 60 * 1000;
         const thumbnailAttempts = new Set();
         const thumbnailUrls = new Map();
+        const brokenThumbnails = new Set();
         const thumbnailQueue = new Set();
         let thumbnailRequest = null;
         let thumbnailTimer = 0;
@@ -88,6 +91,19 @@
                     queueButtonThumbnails(entry.target);
                 });
             }, {rootMargin:'120px'}) : null;
+        let unobservedThumbnails = [];
+        function loadNearbyThumbnails() {
+            unobservedThumbnails = unobservedThumbnails.filter(control => {
+                const rect = control.getBoundingClientRect();
+                if (rect.bottom < -120 || rect.top > window.innerHeight + 120) return true;
+                queueButtonThumbnails(control);
+                return false;
+            });
+        }
+        if (!observer) {
+            window.addEventListener('scroll',loadNearbyThumbnails,{passive:true});
+            window.addEventListener('resize',loadNearbyThumbnails);
+        }
 
         function register(row) {
             const group = Object.assign({}, row, {
@@ -190,6 +206,10 @@
                 if (!fetchError) {
                     retryUntil = 0;
                     summary = data;
+                    window.clearTimeout(dayResetTimer);
+                    const resetIn = Number(data.next_reset_in) * 1000;
+                    dayResetAt = resetIn > 0 ? Date.now() + resetIn : 0;
+                    if (dayResetAt) dayResetTimer = window.setTimeout(refresh,resetIn);
                 }
             }).fail(xhr => {
                 const detail = xhr.responseJSON && xhr.responseJSON.data;
@@ -266,24 +286,52 @@
             const sources = ids.map(categoryThumbnails);
             // A mixed review can show one photo from each lesson before a second from either.
             const urls = distinctThumbnails(sources.map(images => images[0]).concat(...sources)).slice(0,2);
+            const mayLoadMore = !!options.loadThumbnails && ids.some((id,index) => {
+                const cat = options.category(id);
+                return !thumbnailUrls.has(id) && sources[index].length < 2 && (cat.preview_deferred || cat.has_images);
+            });
             let strip = control.querySelector('.ll-level-thumbs');
-            if (!urls.length) return;
+            const slotCount = mayLoadMore ? 2 : urls.length;
+            if (!slotCount && !strip) return;
             if (!strip) {
                 strip = element('span','ll-level-thumbs');
                 strip.setAttribute('aria-hidden','true');
-                control.querySelector('.ll-level-mode-icon').after(strip);
+                control.querySelector('.ll-level-activity-mode').after(strip);
             }
-            urls.forEach((url,index) => {
-                let image = strip.children[index];
-                if (!image) {
-                    image = element('img','ll-level-thumb');
-                    image.alt = '';
-                    image.loading = 'lazy';
-                    image.decoding = 'async';
-                    strip.append(image);
+            // Keep the original footprint when a lookup returns fewer photos than expected.
+            for (let index = 0; index < Math.max(slotCount,strip.children.length); index++) {
+                let slot = strip.children[index];
+                if (!slot) {
+                    slot = element('span','ll-level-thumb-slot');
+                    strip.append(slot);
                 }
-                if (image.getAttribute('src') !== url) image.src = url;
-            });
+                const url = urls[index];
+                if (!url || brokenThumbnails.has(url)) {
+                    slot.replaceChildren();
+                    slot.classList.toggle('ll-level-sheen',!url && mayLoadMore);
+                    continue;
+                }
+                if (slot.firstChild?.getAttribute('src') === url) continue;
+                const image = element('img','ll-level-thumb');
+                image.alt = '';
+                image.loading = 'lazy';
+                image.decoding = 'async';
+                slot.classList.add('ll-level-sheen');
+                slot.replaceChildren(image);
+                image.onload = async () => {
+                    if (image.decode) {
+                        try { await image.decode(); } catch (_) { /* The loaded image can still be painted. */ }
+                    }
+                    if (image.parentElement === slot) slot.classList.remove('ll-level-sheen');
+                };
+                image.onerror = () => {
+                    brokenThumbnails.add(url);
+                    if (image.parentElement !== slot) return;
+                    slot.classList.remove('ll-level-sheen');
+                    image.remove();
+                };
+                image.src = url;
+            }
         }
         function queueButtonThumbnails(control) {
             const ids = control.dataset.llThumbCategories.split(' ').map(Number);
@@ -306,19 +354,19 @@
             if (!batchIds.length) return;
             batchIds.forEach(id => {thumbnailQueue.delete(id); thumbnailAttempts.add(id);});
             const result = options.loadThumbnails(batchIds);
-            if (!result) return;
-            thumbnailRequest = result;
-            result.done(urls => {
+            function finish(urls) {
                 const controls = new Set();
                 batchIds.forEach(id => {
-                    if (urls && urls[id]) thumbnailUrls.set(id,urls[id]);
+                    thumbnailUrls.set(id,urls && urls[id] || []);
                     section.querySelectorAll('[data-ll-thumb-categories~="' + id + '"]').forEach(control => controls.add(control));
                 });
                 controls.forEach(updateButtonThumbnails);
-            }).always(() => {
                 thumbnailRequest = null;
                 if (thumbnailQueue.size) thumbnailTimer = window.setTimeout(loadThumbnails,30);
-            });
+            }
+            if (!result) { finish(); return; }
+            thumbnailRequest = result;
+            result.done(finish).fail(() => finish());
         }
         function dailyReview(review) {
             const reasons = {
@@ -331,7 +379,7 @@
             const backlog = Number(review.due) || 0;
             const topic = review.reason === 'due' ? t.due.replace(/%d/g,backlog) : reasonLabel;
             const verb = review.reason === 'due' ? t.reviewAll : t.practice;
-            const label = [verb,topic,t.roundSize,review.count].join(' · ');
+            const label = [verb,topic,t.dailyRemaining,review.count].join(' · ');
             const control = button(label,'ll-level-review-all ll-level-metric-' + status,null,() => {
                 announce('');
                 options.launch(0,'review',0,ajax,() => announce(t.launchError));
@@ -344,9 +392,14 @@
             const copy = element('span','ll-level-review-copy');
             copy.append(element('strong','',verb),element('span','ll-level-review-reason',topic));
             const size = element('span','ll-level-round-size');
-            size.append(element('span','',t.roundSize),element('strong','',review.count));
+            size.append(element('span','',t.dailyRemaining),element('strong','',review.count));
             control.append(copy,size,icon('forward'));
             return control;
+        }
+        function loadingPlaceholder(className) {
+            const slot = element('span','ll-level-button ll-level-sheen ll-level-placeholder ' + className);
+            slot.setAttribute('aria-hidden','true');
+            return slot;
         }
         function action(group, plan, categoryId, fallback) {
             const item = categoryId ? options.category(categoryId) : null;
@@ -366,7 +419,10 @@
             btn.dataset.level = String(group.level);
             btn.dataset.category = String(categoryId);
             btn.dataset.llFocusKey = 'activity-' + group.level + '-' + plan;
-            btn.insertAdjacentHTML('beforeend',options.modeIcon(plan === 'learn' ? 'learning' : 'practice','ll-level-mode-icon'));
+            const mode = element('span','ll-level-activity-mode');
+            mode.insertAdjacentHTML('beforeend',options.modeIcon(plan === 'learn' ? 'learning' : 'practice','ll-level-mode-icon'));
+            mode.append(element('span','ll-level-mode-caption',verb));
+            btn.append(mode);
             const previewIds = severalLessons ? [categoryId,...planned.category_ids] : [categoryId];
             if (Array.isArray(previewIds) && previewIds.length) {
                 const ids = new Set(previewIds.map(Number));
@@ -423,14 +479,13 @@
                 badges.append(toggle);
 
                 panel.append(element('strong','',title),element('p','',help));
-                const verb = due ? t.reviewAll : t.practice;
-                const launchLabel = due ? verb : verb + ' · ' + name;
-                const launch = button(launchLabel + ' · ' + label(level),'ll-level-filter-start',null,() => {
+                const launch = button([t.practice,name,label(level)].join(' · '),'ll-level-filter-start',null,() => {
                     announce('');
                     options.launch(level,mode,due ? Number(stats.due_category_id) : 0,ajax,() => announce(t.launchError));
                 });
                 launch.dataset.llFocusKey = key + '-start';
-                launch.append(element('span','',verb),icon('forward'));
+                launch.insertAdjacentHTML('beforeend',options.modeIcon('practice','ll-level-mode-icon'));
+                launch.append(element('span','',t.practice),icon('forward'));
                 const round = due && stats.due_activity?.session_word_ids?.length;
                 if (round && round < count) panel.append(element('small','',t.roundSize + ' · ' + round));
                 panel.append(launch);
@@ -597,14 +652,26 @@
                 check.append(icon('check'));
                 head.append(check);
             }
+            const loadingStats = options.signedIn && !summary && !fetchError;
             if (stats) addLevelFilterButtons(id,stats,badges,overview);
+            else if (loadingStats && group.categoryIds.size) {
+                badges.setAttribute('aria-hidden','true');
+                levelFilters.forEach(() => {
+                    const placeholder = element('span','ll-level-badge-placeholder');
+                    placeholder.append(element('span','ll-level-badge ll-level-sheen'));
+                    badges.append(placeholder);
+                });
+            }
             if (badges.childElementCount) head.append(badges);
             const number = value => Number(value).toLocaleString(document.documentElement.lang || undefined);
-            if (!stats || Number(stats.total) === 0) {
+            if (!loadingStats && (!stats || Number(stats.total) === 0)) {
                 overview.append(element('span','ll-level-progress-count',t.lessons + ' · ' + number(group.categoryIds.size + group.contentIds.size)));
             }
             const actions = element('div','ll-level-activities');
-            if (stats) {
+            if (options.signedIn && !summary && !fetchError && !credentialsExpired) {
+                if (group.nextId) actions.append(loadingPlaceholder('ll-level-activity'));
+                if (group.practiceId) actions.append(loadingPlaceholder('ll-level-activity'));
+            } else if (stats) {
                 if (stats.next_category_id) actions.append(action(group,'learn',Number(stats.next_category_id)));
                 if (stats.practice_category_id) actions.append(action(group,'practice',Number(stats.practice_category_id)));
             }
@@ -613,11 +680,9 @@
             }
             if (actions.childElementCount) row.append(actions);
             if (group.categoryIds.size) {
-                const description = stats && Number(stats.total) > 0
-                    ? [[t.mastered,stats.mastered],[t.working,stats.working],[t.unseen,stats.new]]
-                        .map(([name,value]) => name + ' ' + number(value)).join(', ')
-                    : '';
-                shell.append(options.progressBar(stats,description,options.signedIn && !stats && !fetchError));
+                const progress = options.progressBar(stats,options.signedIn && !stats && !fetchError);
+                progress.querySelector('summary').dataset.llFocusKey = 'progress-' + id;
+                shell.append(progress);
             }
             shell.append(detail(group,stats));
             return shell;
@@ -635,10 +700,12 @@
                 return;
             }
             const key = section.contains(focused) && focused.dataset.llFocusKey;
+            const openProgress = new Set(Array.from(section.querySelectorAll('.ll-wordset-card__progress[open]'),
+                progress => progress.closest('[data-ll-level-card]').dataset.llLevelCard));
             const fragment = document.createDocumentFragment();
             if (state.view === 'home') {
                 if (credentialsExpired || (options.signedIn && (!summary || fetchError))) {
-                    const status = element('div','ll-level-state');
+                    const status = element('div',fetchError || credentialsExpired ? 'll-level-state' : 'screen-reader-text ll-level-loading-status');
                     status.setAttribute('role','status');
                     status.append(element('span','',credentialsExpired ? t.scopeExpired : (fetchError ? t.error : t.loading)));
                     if (fetchError) {
@@ -651,7 +718,16 @@
                 const grid = element('div','ll-level-grid');
                 const review = summary && dailyReview(summary.review);
                 if (review) fragment.append(review);
-                groups.forEach(group => grid.append(card(group)));
+                else if (options.signedIn && !summary && !fetchError && !credentialsExpired) {
+                    fragment.append(loadingPlaceholder('ll-level-review-placeholder'));
+                }
+                groups.forEach(group => {
+                    const levelCard = card(group);
+                    if (openProgress.has(levelCard.dataset.llLevelCard)) {
+                        levelCard.querySelector('.ll-wordset-card__progress').open = true;
+                    }
+                    grid.append(levelCard);
+                });
                 fragment.append(grid);
             } else {
                 const nav = element('div','ll-level-nav');
@@ -669,10 +745,11 @@
             section.hidden = false;
             if (observer) observer.disconnect();
             const previews = section.querySelectorAll('[data-ll-thumb-categories]');
-            previews.forEach((btn,index) => {
-                if (observer) observer.observe(btn);
-                else if (index < 8) queueButtonThumbnails(btn);
-            });
+            if (observer) previews.forEach(btn => observer.observe(btn));
+            else {
+                unobservedThumbnails = Array.from(previews);
+                loadNearbyThumbnails();
+            }
             if (key) {
                 const target = section.querySelector('[data-ll-focus-key="' + key + '"]');
                 if (target) target.focus({preventScroll:true});
@@ -803,7 +880,7 @@
         });
         function resumeSummary() {
             if (document.hidden || !options.signedIn || credentialsExpired || request || refreshTimer) return;
-            if (refreshOnReturn || Date.now() - lastSummaryRequestAt >= staleAfter) refresh();
+            if (refreshOnReturn || (dayResetAt && Date.now() >= dayResetAt) || Date.now() - lastSummaryRequestAt >= staleAfter) refresh();
         }
         document.addEventListener('visibilitychange',() => {
             if (document.hidden) {
@@ -815,7 +892,10 @@
                 retryUntil = 0;
             } else resumeSummary();
         });
-        window.addEventListener('pageshow',resumeSummary);
+        window.addEventListener('pageshow',event => {
+            if (event.persisted) refreshOnReturn = true;
+            resumeSummary();
+        });
         $(document).on('lltools:flashcard-closed.llLevels',refreshSoon);
         $(document).on('lltools:progress-updated.llLevels',() => {
             if (!document.body.classList.contains('ll-tools-flashcard-open')) refreshSoon();

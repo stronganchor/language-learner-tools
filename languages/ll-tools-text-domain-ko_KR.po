@@ -6063,6 +6063,10 @@ msgstr "퀴즈 답변을 보면 이 단어들은 조금 더 연습할 필요가 
 msgid "These are the words you starred in this level."
 msgstr "이 레벨에서 별표를 표시한 단어들입니다."
 
+#: includes/lib/wordset-level-labels.php:54
+msgid "Words left today"
+msgstr "오늘 남은 단어"
+
 #~ #. ll-tools-public-key: 91649783c0e23511c87fd6ea6b7e7b29d6353216
 #~ #: includes/flashcard-shell.php:174
 #~ msgid "Switch Mode"

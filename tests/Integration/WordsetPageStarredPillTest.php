@@ -3,6 +3,20 @@ declare(strict_types=1);
 
 final class WordsetPageStarredPillTest extends LL_Tools_TestCase
 {
+    public function test_lesson_bar_renders_its_exact_counts_before_javascript_and_waits_for_deferred_progress(): void
+    {
+        $category = ['id' => 27, 'name' => 'Food', 'count' => 100, 'url' => '/lesson/food/'];
+        $context = ['category_progress_lookup' => [27 => ['total' => 100, 'mastered' => 1, 'studied' => 3, 'new' => 96]]];
+        $card = ll_tools_wordset_page_render_category_card($category, $context);
+        $this->assertStringContainsString('<details class="ll-wordset-card__progress">', $card);
+        $this->assertStringContainsString('title="Learned 1, In progress 3, New 96"', $card);
+        foreach (['Learned 1', 'In progress 3', 'New 96'] as $value) {
+            $this->assertStringContainsString('<span>' . $value . '</span>', $card);
+        }
+        $deferred = ll_tools_wordset_page_render_category_card($category, ['summary_counts_deferred' => true]);
+        $this->assertStringContainsString('<details class="ll-wordset-card__progress" inert>', $deferred);
+    }
+
     public function test_main_view_renders_category_starred_pills_when_analytics_words_are_deferred(): void
     {
         $user_id = self::factory()->user->create(['role' => 'subscriber']);

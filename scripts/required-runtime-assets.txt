@@ -4,6 +4,7 @@ language-learner-tools.php
 includes/lib/complete-source-reads.php
 includes/lib/static-cache-maintenance.php
 includes/lib/wordset-curriculum.php
+includes/lib/wordset-level-daily.php
 includes/lib/wordset-level-labels.php
 includes/lib/wordset-level-page.php
 includes/lib/wordset-level-progress.php

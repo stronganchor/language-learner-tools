@@ -51,6 +51,7 @@ function ll_tools_wordset_level_labels(): array {
         'launchError' => __('Could not start this activity.', 'll-tools-text-domain'),
         'saveError' => __('Could not save this interval.', 'll-tools-text-domain'),
         'retry' => __('Retry', 'll-tools-text-domain'),
+        'dailyRemaining' => __('Words left today', 'll-tools-text-domain'),
     ];
 }
 

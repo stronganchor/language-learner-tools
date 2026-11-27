@@ -1366,7 +1366,7 @@
             return '';
         }
         const catName = String(cat.name || cat.translation || '').trim();
-        const previewAspectRatio = String(cat.preview_aspect_ratio || '').trim();
+        const previewAspectRatio = wordsetCategoryPreviewAspect(cat);
         const previewStyle = previewAspectRatio
             ? ' style="--ll-wordset-preview-aspect: ' + escapeHtml(previewAspectRatio) + ';"'
             : '';
@@ -9554,7 +9554,7 @@
                 word_count: parseInt(category && category.count, 10) || 0,
                 mastered_words: parseInt(category && category.mastered_words, 10) || 0,
                 studied_words: parseInt(category && category.studied_words, 10) || 0,
-                new_words: parseInt(category && category.new_words, 10) || 0
+                new_words: category.new_words
             });
         });
         return lookup;
@@ -9608,18 +9608,23 @@
         return Math.max(previewItems.length, configuredLimit || defaultSlotCount, 1);
     }
 
-    function buildWordsetCategoryPreviewLoadingSlotMarkup(category) {
-        const cat = (category && typeof category === 'object') ? category : {};
-        const ratio = String(cat.preview_aspect_ratio || '').trim();
-        const ratioStyle = ratio ? ' style="aspect-ratio: ' + escapeHtml(ratio) + ' !important;"' : '';
-        return '<span class="ll-wordset-preview-item ll-wordset-preview-item--lazy-skeleton"' + ratioStyle + ' aria-hidden="true"></span>';
+    function wordsetCategoryPreviewAspect(category) {
+        const ratio = String(category.preview_aspect_ratio || '').trim();
+        if (ratio) { return ratio; }
+        // The compact lesson registry already carries this ratio before media hydration.
+        const dimensions = /^ratio:([1-9]\d*):([1-9]\d*)$/.exec(category.aspect_bucket || '');
+        return dimensions ? dimensions[1] + ' / ' + dimensions[2] : '';
+    }
+
+    function buildWordsetCategoryPreviewLoadingSlotMarkup() {
+        return '<span class="ll-wordset-preview-item ll-wordset-preview-item--lazy-skeleton" aria-hidden="true"></span>';
     }
 
     function buildWordsetCategoryPreviewLoadingSlotsMarkup(category, count) {
         const slotCount = Math.max(1, parseInt(count, 10) || getWordsetCategoryPreviewSlotCount(category));
         let html = '';
         for (let index = 0; index < slotCount; index += 1) {
-            html += buildWordsetCategoryPreviewLoadingSlotMarkup(category);
+            html += buildWordsetCategoryPreviewLoadingSlotMarkup();
         }
         return html;
     }
@@ -9682,16 +9687,16 @@
             const preview = (previewItems[index] && typeof previewItems[index] === 'object') ? previewItems[index] : null;
             if (!preview) {
                 html += useLoadingSlots
-                    ? buildWordsetCategoryPreviewLoadingSlotMarkup(cat)
+                    ? buildWordsetCategoryPreviewLoadingSlotMarkup()
                     : '<span class="ll-wordset-preview-item ll-wordset-preview-item--empty" aria-hidden="true"></span>';
                 continue;
             }
 
             if (String(preview.type || '').toLowerCase() === 'image' && String(preview.url || '').trim() !== '') {
-                const ratio = String(preview.ratio || '').trim();
-                const ratioStyle = ratio ? ' style="aspect-ratio: ' + escapeHtml(ratio) + ' !important;"' : '';
                 const width = Math.max(0, parseInt(preview.width, 10) || 0);
                 const height = Math.max(0, parseInt(preview.height, 10) || 0);
+                const ratio = String(preview.ratio || '').trim() || (width && height ? width + ' / ' + height : '');
+                const ratioStyle = ratio ? ' style="aspect-ratio: ' + escapeHtml(ratio) + ' !important;"' : '';
                 html += '<span class="ll-wordset-preview-item ll-wordset-preview-item--image"' + ratioStyle + '>'
                     + '<img src="' + escapeHtml(String(preview.url || '')) + '" alt="' + escapeHtml(String(preview.alt || '')) + '"'
                     + (width > 0 ? ' width="' + width + '"' : '')
@@ -9702,7 +9707,7 @@
             }
 
             if (useLoadingSlots && String(preview.label || '').trim() === '') {
-                html += buildWordsetCategoryPreviewLoadingSlotMarkup(cat);
+                html += buildWordsetCategoryPreviewLoadingSlotMarkup();
                 continue;
             }
 
@@ -9811,15 +9816,30 @@
         return html;
     }
 
-    function buildWordsetCardProgressMarkup(values, isLoading, label) {
+    function wordsetCardProgressLabels(counts) {
+        const names = {mastered: i18n.analyticsMastered, studied: i18n.analyticsStudied, new: i18n.analyticsNew};
+        return Object.keys(names).map(function (status) {
+            const name = names[status] || '';
+            return counts ? name + ' ' + counts[status].toLocaleString(document.documentElement.lang || undefined) : name;
+        });
+    }
+
+    function buildWordsetCardProgressMarkup(values, isLoading) {
+        const labels = wordsetCardProgressLabels(values.counts);
+        const description = escapeHtml(labels.join(', '));
         const segments = ['mastered', 'studied', 'new'].map(function (status) {
             return '<span class="ll-wordset-card__progress-segment ll-wordset-card__progress-segment--' + status
                 + '" style="width: ' + formatProgressPercent(values[status]) + ';">'
                 + buildProgressIconMarkup(status, 'll-wordset-progress-pill__icon ll-wordset-card__progress-icon') + '</span>';
         });
-        const description = label ? 'role="img" aria-label="' + escapeHtml(label) + '" title="' + escapeHtml(label) + '"' : 'aria-hidden="true"';
-        return '<div class="ll-wordset-card__progress" ' + description + '><span class="ll-wordset-card__progress-track'
-            + (isLoading ? ' is-loading' : '') + '">' + segments.join('') + '</span></div>';
+        const legend = ['mastered', 'studied', 'new'].map(function (status, index) {
+            return '<span class="ll-wordset-card__progress-key"><i aria-hidden="true" class="ll-wordset-progress-pill--' + status
+                + '"></i><span>' + escapeHtml(labels[index]) + '</span></span>';
+        });
+        return '<details class="ll-wordset-card__progress"' + (isLoading ? ' inert' : '') + '>'
+            + '<summary class="ll-wordset-card__progress-toggle" title="' + description + '" aria-label="' + description + '">'
+            + '<span class="ll-wordset-card__progress-track' + (isLoading ? ' is-loading' : '') + '" aria-hidden="true">'
+            + segments.join('') + '</span></summary><div class="ll-wordset-card__progress-legend">' + legend.join(' ') + '</div></details>';
     }
 
     function buildWordsetCategoryCardMarkup(category, options) {
@@ -9852,9 +9872,9 @@
         const canLinkInactive = !isPublic && inactiveLinkUrl !== '';
         const publicNote = String((deletionActive ? cat.deletion_message : '') || cat.public_note || i18n.categoryNotPublicDefaultNote || '').trim();
         const publicNoteLabel = String(cat.public_note_label || i18n.notPublicLabel || '').trim();
-        const progressValues = progressLookup[categoryId] || { mastered: 0, studied: 0, new: 100 };
+        const progressValues = progressLookup[categoryId] || buildWordsetCardProgressPercentsFromAnalyticsRow({word_count:cat.count});
         const starredCount = Math.max(0, parseInt(starredLookup[categoryId], 10) || 0);
-        const previewAspectRatio = String(cat.preview_aspect_ratio || '').trim();
+        const previewAspectRatio = wordsetCategoryPreviewAspect(cat);
         const previewStyle = previewAspectRatio
             ? ' style="--ll-wordset-preview-aspect: ' + escapeHtml(previewAspectRatio) + ';"'
             : '';
@@ -9924,7 +9944,8 @@
                 + (canPreviewInactive ? ' role="button" tabindex="0" data-ll-wordset-inactive-preview-trigger' : '')
                 + '>';
         }
-        html += '  <div class="ll-wordset-card__preview ' + (cat.has_images ? 'has-images' : 'has-text') + '"' + previewStyle + '>';
+        const imagePreview = cat.has_images || (cat.preview_deferred && cat.preview_requires_images);
+        html += '  <div class="ll-wordset-card__preview ' + (imagePreview ? 'has-images' : 'has-text') + '"' + previewStyle + '>';
         if (isPublic && starredCount > 0) {
             html += '    <span class="ll-wordset-card__starred-pill ll-wordset-progress-pill ll-wordset-progress-pill--starred" aria-label="' + escapeHtml(starredAria) + '">'
                 + buildProgressIconMarkup('starred', 'll-wordset-progress-pill__icon ll-wordset-card__starred-icon')
@@ -10298,8 +10319,15 @@
         const $existingSlot = getMainCategoryCardSlotByCategoryId(targetId);
         if ($existingSlot.length) {
             if ($existingSlot.is('[data-ll-wordset-search-rendered="true"], [data-ll-wordset-inline-placeholder="true"]')) {
+                const progress = $existingSlot.find('details.ll-wordset-card__progress')[0];
+                const restoreFocus = progress && progress.contains(document.activeElement);
                 $node.insertBefore($existingSlot);
                 $existingSlot.remove();
+                const replacement = $node.find('details.ll-wordset-card__progress')[0];
+                if (progress && replacement) {
+                    replacement.open = progress.open;
+                    if (restoreFocus) { replacement.querySelector('summary').focus({preventScroll:true}); }
+                }
                 return $node;
             }
             $node.remove();
@@ -13166,7 +13194,8 @@
 
     function setWordsetCardProgressLoadingState(isLoading) {
         const loading = !!isLoading;
-        $root.find('.ll-wordset-card .ll-wordset-card__progress-track').toggleClass('is-loading', loading);
+        $root.find('.ll-wordset-card .ll-wordset-card__progress-track').toggleClass('is-loading', loading)
+            .closest('details.ll-wordset-card__progress').prop('inert', loading);
     }
 
     function isWordsetCardProgressPendingResolution($card) {
@@ -13177,7 +13206,7 @@
     function setWordsetCardProgressResolvedState($card, isResolved) {
         const segments = getWordsetCardProgressSegments($card);
         if (!segments.track.length) { return; }
-        segments.track.toggleClass('is-loading', !isResolved);
+        segments.track.toggleClass('is-loading', !isResolved).closest('details.ll-wordset-card__progress').prop('inert', !isResolved);
     }
 
     function shouldAllowNativeLinkActivation(e) {
@@ -13277,8 +13306,21 @@
         return {
             mastered: masteredPct,
             studied: studiedPct,
-            new: newPct
+            new: newPct,
+            counts: {mastered: masteredWords, studied: studiedWords, new: newWords}
         };
+    }
+
+    function syncWordsetCardProgressLabels($card, counts) {
+        const $toggle = $card.find('.ll-wordset-card__progress-toggle');
+        if (!$toggle.length || !counts) { return; }
+        const labels = wordsetCardProgressLabels(counts);
+        const description = labels.join(', ');
+        if ($toggle.attr('title') === description) { return; }
+        $toggle.attr({'aria-label': description, title: description});
+        $toggle.next().find('.ll-wordset-card__progress-key > span').each(function (index) {
+            this.textContent = labels[index];
+        });
     }
 
     function hasWordsetCardProgressDelta(current, next) {
@@ -13311,6 +13353,7 @@
             setCardProgressSegmentPercent(segments.mastered, next.mastered);
             setCardProgressSegmentPercent(segments.studied, next.studied);
             setCardProgressSegmentPercent(segments.new, next.new);
+            syncWordsetCardProgressLabels($card, next.counts);
             syncWordsetCardProgressSegmentVisualState($card);
         };
 
@@ -13625,6 +13668,7 @@
             }
 
             if (!hasDelta) {
+                syncWordsetCardProgressLabels($card, nextValues.counts);
                 delete pendingCategoryProgressUpdates[categoryId];
                 return;
             }
@@ -18905,12 +18949,12 @@
         return $section[0];
     }
 
-    function buildLevelProgressBar(stats, label, isLoading) {
+    function buildLevelProgressBar(stats, isLoading) {
         const values = stats && stats.total > 0 ? buildWordsetCardProgressPercentsFromAnalyticsRow({
             mastered_words: stats.mastered, studied_words: Number(stats.mastered) + Number(stats.working),
             new_words: stats.new, word_count: stats.total
-        }) : {mastered: 0, studied: 0, new: isLoggedIn ? 0 : 100};
-        const $bar = $(buildWordsetCardProgressMarkup(values, isLoading, label));
+        }) : {mastered: 0, studied: 0, new: isLoggedIn ? 0 : 100, counts: stats ? {mastered:0, studied:0, new:0} : null};
+        const $bar = $(buildWordsetCardProgressMarkup(values, isLoading));
         syncWordsetCardProgressSegmentVisualState($bar);
         return $bar[0];
     }

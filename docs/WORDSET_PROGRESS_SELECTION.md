@@ -17,8 +17,11 @@ It stays available at portrait phone widths even when the Last column is hidden.
   uses purple and a clock icon.
 - **Due for review** uses the learner's review intervals on a curriculum
   wordset. The overview, Progress count, filtered rows and selection of all
-  matching IDs use the same course queue. Its daily activity takes the oldest
-  due words up to the recommended round size. Flat wordsets use 30 days. A
+  matching IDs use the same course queue. The overview's daily activity starts
+  with the oldest due words. Its remaining count drops as the learner answers
+  those words in Practice. The next launch resumes the unfinished goal. After
+  the goal is complete, the overview can offer another group while the Progress
+  page still shows the full overdue queue. Flat wordsets use 30 days. A
   previously studied, due phrase can represent its learned component words
   in the current scope. A correct learning, practice, or self-check outcome
   on that phrase credits the corresponding review date. An exposure or an unsuccessful

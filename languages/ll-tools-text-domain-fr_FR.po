@@ -6120,6 +6120,10 @@ msgstr ""
 msgid "These are the words you starred in this level."
 msgstr "Voici les mots que tu as marqués d’une étoile dans ce niveau."
 
+#: includes/lib/wordset-level-labels.php:54
+msgid "Words left today"
+msgstr "Mots restants pour aujourd’hui"
+
 #~ #. ll-tools-public-key: 91649783c0e23511c87fd6ea6b7e7b29d6353216
 #~ #: includes/flashcard-shell.php:174
 #~ msgid "Switch Mode"

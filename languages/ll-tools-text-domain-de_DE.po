@@ -28526,6 +28526,14 @@ msgstr ""
 msgid "These are the words you starred in this level."
 msgstr "Diese Wörter hast du in dieser Stufe mit einem Stern markiert."
 
+#: includes/lib/wordset-level-labels.php:54
+msgid "Words left today"
+msgstr "Heute verbleibende Wörter"
+
+#: includes/privacy.php:737
+msgid "Daily practice goals"
+msgstr "Tägliche Übungsziele"
+
 #~ #: includes/pages/wordset-pages.php:26340
 #~ #: includes/pages/wordset-pages.php:27409
 #~ msgid "Older than 30 days"

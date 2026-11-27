@@ -79,6 +79,17 @@ final class WordsetLevelProgressTest extends LL_Tools_TestCase
         ll_tools_wordset_level_save_interval($uid, $ws, 1, 7);
         $this->assertSame(['reason' => 'due', 'count' => 1, 'due' => 1], ll_tools_wordset_level_request($uid, $request)['review']);
         $this->assertSame('due', ll_tools_wordset_level_request($uid, $review_request)['reason']);
+
+        $event = ['event_uuid' => wp_generate_uuid4(), 'event_type' => 'word_outcome', 'mode' => 'practice',
+            'word_id' => $ids[0], 'category_id' => $cat, 'wordset_id' => $ws, 'is_correct' => false];
+        $this->assertSame(1, ll_tools_process_progress_events_batch($uid, [$event])['processed']);
+        $this->assertSame(['reason' => 'due', 'count' => 1, 'due' => 0], ll_tools_wordset_level_request($uid, $request)['review']);
+        $this->assertSame([$ids[0]], ll_tools_wordset_level_request($uid, $review_request)['bounded']['word_ids']);
+        $event['is_correct'] = true;
+        $event['had_wrong_before'] = true;
+        $event['event_uuid'] = wp_generate_uuid4();
+        $this->assertSame(1, ll_tools_process_progress_events_batch($uid, [$event])['processed']);
+        $this->assertNotSame('due', ll_tools_wordset_level_request($uid, $request)['review']['reason']);
     }
 
     public function test_hard_and_starred_launches_match_the_current_learners_counts_in_each_level(): void
@@ -305,6 +316,80 @@ final class WordsetLevelProgressTest extends LL_Tools_TestCase
         $limited = ll_tools_wordset_level_summarize(0, 0, $levels, $members, [], $rows, [1 => 90, 2 => 30], $now)['overall'];
         $this->assertSame(7, $limited['count']);
         $this->assertSame(range(1, 7), $limited['activity']['session_word_ids']);
+    }
+
+    public function test_daily_goal_resumes_partial_batches_and_rotates_back_to_due(): void
+    {
+        global $wpdb;
+        update_option('timezone_string', 'Europe/Istanbul');
+        $now = strtotime('2026-11-27 20:59:00 UTC');
+        $old = '2026-06-01 00:00:00';
+        $uid = self::factory()->user->create();
+        $ws = self::factory()->term->create(['taxonomy' => 'wordset']);
+        $eligible = $rows = [];
+        foreach (range(1, 33) as $id) {
+            $eligible[$id] = ['id' => $id, 'category_id' => 7, 'date' => $old, 'days' => 30, 'due' => $id <= 30];
+            $rows[$id] = ['total_coverage' => 1, 'last_seen_at' => $old];
+            if ($id === 32) { $rows[$id]['incorrect'] = 8; }
+            if ($id !== 31 && $id !== 32) { $rows[$id]['mastery_unlocked'] = 1; $rows[$id]['stage'] = 5; }
+        }
+        $plan = static function (bool $start = false, int $later = 0) use ($uid, $ws, &$eligible, $rows, $now): array {
+            return ll_tools_wordset_level_daily_plan($uid, $ws, $eligible, $rows, [33 => true], [1 => 30], $now + $later, $start);
+        };
+        $record = function (array $ids, int $user_id, int $wordset_id) use ($wpdb, $now): void {
+            foreach ($ids as $id) {
+                $this->assertNotFalse($wpdb->insert(ll_tools_user_progress_table_names()['events'], [
+                    'user_id' => $user_id, 'wordset_id' => $wordset_id, 'word_id' => $id, 'event_uuid' => wp_generate_uuid4(),
+                    'event_type' => 'word_outcome', 'mode' => 'practice', 'is_correct' => 1, 'created_at' => gmdate('Y-m-d H:i:s', $now),
+                ]));
+            }
+        };
+        $finish = static function (array $ids) use ($record, $uid, $ws, &$eligible, $now): void {
+            $record($ids, $uid, $ws);
+            foreach ($ids as $id) {
+                $eligible[$id]['due'] = false;
+                $eligible[$id]['date'] = gmdate('Y-m-d H:i:s', $now);
+            }
+        };
+
+        $this->assertSame(12, $plan()['count']);
+        $this->assertSame('', get_user_meta($uid, ll_tools_wordset_level_daily_meta_key(), true));
+        $this->assertSame(range(1, 12), $plan(true)['activity']['session_word_ids']);
+        $record([3], $uid + 1, $ws);
+        $record([4], $uid, $ws + 1);
+        $finish([1, 1, 2]);
+        wp_cache_flush();
+        $remaining = $plan();
+        $this->assertSame(['due', 10, 28], [$remaining['reason'], $remaining['count'], $remaining['due']]);
+        $this->assertSame(range(3, 12), $plan(true)['activity']['session_word_ids']);
+        $finish(range(3, 12));
+        foreach (['working' => [31], 'hard' => [32], 'starred' => [33], 'least_recent' => range(13, 24)] as $reason => $ids) {
+            $next = $plan(true);
+            $this->assertSame($reason, $next['reason']);
+            $this->assertSame($ids, $next['activity']['session_word_ids']);
+            if ($reason === 'least_recent') {
+                $this->assertSame('due', $plan(false, 60)['reason'], 'The next local day starts at 21:00 UTC.');
+            }
+            $finish($ids);
+        }
+        $next = $plan(true);
+        $this->assertSame('due', $next['reason']);
+        $this->assertSame(range(25, 30), $next['activity']['session_word_ids']);
+        $this->assertContains(ll_tools_wordset_level_daily_meta_key(), ll_tools_privacy_local_erasure_meta_keys());
+        $export = ll_tools_privacy_export_study_settings(get_userdata($uid)->user_email);
+        $this->assertContains('ll-tools-daily-review-' . $uid, array_column($export['data'], 'item_id'));
+    }
+
+    public function test_large_non_due_daily_goals_have_a_hundred_word_cap(): void
+    {
+        $eligible = [];
+        $rows = [];
+        foreach (range(1, 3000) as $id) {
+            $eligible[$id] = ['id' => $id, 'category_id' => 11, 'date' => '2026-11-25 01:00:00', 'days' => 30, 'due' => false];
+            $rows[$id] = ['total_coverage' => 1];
+        }
+        $plan = ll_tools_wordset_level_global_plan($eligible, $rows, []);
+        $this->assertSame(['working', 100], [$plan['reason'], $plan['count']]);
     }
 
     public function test_global_no_due_plan_uses_one_named_pool_and_filters_unsupported_stars(): void

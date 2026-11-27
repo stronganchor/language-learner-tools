@@ -1,6 +1,7 @@
 <?php
 if (!defined('ABSPATH')) { exit; }
 /** Learner-specific level summaries. Callers supply the complete, access-checked public lesson map. */
+require_once __DIR__ . '/wordset-level-daily.php';
 
 function ll_tools_wordset_level_progress_error(): WP_Error {
     return new WP_Error('ll_level_progress_unavailable', __('Could not load level progress.', 'll-tools-text-domain'), ['status' => 503]);
@@ -336,47 +337,10 @@ function ll_tools_wordset_level_course_reviews(int $wordset_id, int $user_id, ar
         if (!$studied && !isset($starred[$wid])) { continue; }
         $candidates[$wid] = ['id' => $wid, 'category_id' => $cid, 'days' => $word_days[$wid],
             'date' => ll_tools_context_review_last_studied_at($row),
+            'review_in_context' => !empty($row['review_in_context']),
             'due' => $studied && ll_tools_context_review_word_due($row, $word_days[$wid], $now)];
     }
     return $candidates;
-}
-
-/** Size one review from unique studied words and their shortest practice-eligible intervals. */
-function ll_tools_wordset_level_global_plan(array $eligible, array $progress, array $starred): array {
-    $cohorts = [];
-    $interval_counts = [];
-    foreach ($eligible as $wid => $word) {
-        $row = $progress[$wid] ?? [];
-        if (ll_tools_user_progress_word_is_studied($row)) {
-            $days = $word['days'];
-            $interval_counts[$days] = ($interval_counts[$days] ?? 0) + 1;
-            $cohorts['least_recent'][$wid] = $word;
-            if (!ll_tools_user_progress_word_is_mastered($row)) {
-                $reason = ll_tools_user_progress_word_is_hard($row) ? 'hard' : 'working';
-                $cohorts[$reason][$wid] = $word;
-            }
-        }
-        if ($word['due']) { $cohorts['due'][$wid] = $word; }
-        if (isset($starred[$wid])) { $cohorts['starred'][$wid] = $word; }
-    }
-    $daily = 0.0;
-    foreach ($interval_counts as $days => $count) {
-        $daily += $count / $days;
-    }
-    $budget = max(12, (int) ceil(round($daily * 1.2, 8)));
-    $result = ['due' => count($cohorts['due'] ?? []), 'due_word_ids' => [], 'reason' => '', 'count' => 0, 'activity' => null];
-    foreach (['due', 'working', 'hard', 'starred', 'least_recent'] as $reason) {
-        $pool = $cohorts[$reason] ?? [];
-        if (!$pool) { continue; }
-        ll_tools_wordset_level_sort_candidates($pool);
-        if ($reason === 'due') { $result['due_word_ids'] = array_keys($pool); }
-        $selected = array_slice($pool, 0, $budget, true);
-        $result['reason'] = $reason;
-        $result['count'] = count($selected);
-        $result['activity'] = ll_tools_wordset_level_exact_practice($selected);
-        break;
-    }
-    return $result;
 }
 
 /** Load exact membership IDs and bounded progress columns for the complete visible course. */
@@ -425,7 +389,7 @@ function ll_tools_wordset_level_member_progress(int $wordset_id, int $user_id, a
     return ['levels' => $levels, 'members' => $members, 'progress' => $progress, 'category_ids' => $category_ids];
 }
 
-function ll_tools_wordset_level_dashboard(int $wordset_id, int $user_id, array $level_categories, array $review_days_by_level = [], ?int $now = null) {
+function ll_tools_wordset_level_dashboard(int $wordset_id, int $user_id, array $level_categories, array $review_days_by_level = [], ?int $now = null, bool $include_overall = true) {
     global $wpdb;
     $now = $now ?? time();
     $data = ll_tools_wordset_level_member_progress($wordset_id, $user_id, $level_categories);
@@ -443,10 +407,10 @@ function ll_tools_wordset_level_dashboard(int $wordset_id, int $user_id, array $
         $starred = array_fill_keys(ll_tools_get_user_study_starred_word_ids($user_id), true);
         if ($wpdb->last_error !== '') { return ll_tools_wordset_level_progress_error(); }
     }
-    return ll_tools_wordset_level_summarize($wordset_id, $user_id, $levels, $members, $history, $progress, $review_days_by_level, $now, $placement, $starred);
+    return ll_tools_wordset_level_summarize($wordset_id, $user_id, $levels, $members, $history, $progress, $review_days_by_level, $now, $placement, $starred, $include_overall);
 }
 
-function ll_tools_wordset_level_summarize(int $wordset_id, int $user_id, array $levels, array $members, array $history, array $progress, array $review_days_by_level, int $now, array $placement = [], array $starred = []) {
+function ll_tools_wordset_level_summarize(int $wordset_id, int $user_id, array $levels, array $members, array $history, array $progress, array $review_days_by_level, int $now, array $placement = [], array $starred = [], bool $include_overall = true) {
     $result = [];
     foreach ($levels as $level => $categories) {
         $days = max(1, min(365, (int) ($review_days_by_level[$level] ?? 30)));
@@ -526,26 +490,31 @@ function ll_tools_wordset_level_summarize(int $wordset_id, int $user_id, array $
             'due_category_id' => $due_activity['category_ids'][0] ?? 0,
             'practice_activity' => $practice_activity, 'due_activity' => $due_activity];
     }
+    if (!$include_overall) { return ['levels' => $result]; }
     $global = ll_tools_wordset_level_course_reviews($wordset_id, $user_id, $levels, $members, $progress, $review_days_by_level, $now, $starred);
     if (is_wp_error($global)) { return $global; }
-    return ['levels' => $result, 'overall' => ll_tools_wordset_level_global_plan($global, $progress, $starred)];
+    $overall = ll_tools_wordset_level_daily_plan($user_id, $wordset_id, $global, $progress, $starred, $review_days_by_level, $now);
+    return is_wp_error($overall) ? $overall : ['levels' => $result, 'overall' => $overall];
 }
 
 function ll_tools_wordset_level_progress(int $wordset_id, int $user_id, array $level_categories, array $review_days_by_level = [], ?int $now = null) {
-    $dashboard = ll_tools_wordset_level_dashboard($wordset_id, $user_id, $level_categories, $review_days_by_level, $now);
+    $dashboard = ll_tools_wordset_level_dashboard($wordset_id, $user_id, $level_categories, $review_days_by_level, $now, false);
     return is_wp_error($dashboard) ? $dashboard : $dashboard['levels'];
 }
 
-function ll_tools_wordset_level_overall_review(int $wordset_id, int $user_id, array $level_categories, array $review_days_by_level = [], ?int $now = null) {
+function ll_tools_wordset_level_overall_review(int $wordset_id, int $user_id, array $level_categories, array $review_days_by_level = [], ?int $now = null, bool $start_daily = false) {
     global $wpdb;
     $data = ll_tools_wordset_level_member_progress($wordset_id, $user_id, $level_categories, true);
     if (is_wp_error($data)) { return $data; }
     $wpdb->last_error = '';
     $starred = $user_id > 0 ? array_fill_keys(ll_tools_get_user_study_starred_word_ids($user_id), true) : [];
     if ($wpdb->last_error !== '') { return ll_tools_wordset_level_progress_error(); }
+    $now = $now ?? time();
     $reviews = ll_tools_wordset_level_course_reviews($wordset_id, $user_id, $data['levels'], $data['members'],
-        $data['progress'], $review_days_by_level, $now ?? time(), $starred);
-    return is_wp_error($reviews) ? $reviews : ll_tools_wordset_level_global_plan($reviews, $data['progress'], $starred);
+        $data['progress'], $review_days_by_level, $now, $starred);
+    if (is_wp_error($reviews)) { return $reviews; }
+    if (!$start_daily) { return ll_tools_wordset_level_global_plan($reviews, $data['progress'], $starred); }
+    return ll_tools_wordset_level_daily_plan($user_id, $wordset_id, $reviews, $data['progress'], $starred, $review_days_by_level, $now, true);
 }
 
 function ll_tools_wordset_level_launch(int $wordset_id, int $user_id, array $categories, int $review_days, string $action, ?int $now = null, int $level = 0) {
@@ -573,9 +542,9 @@ function ll_tools_wordset_level_launch(int $wordset_id, int $user_id, array $cat
         ll_tools_wordset_level_sort_candidates($selected);
         return ll_tools_wordset_level_exact_practice($selected);
     }
-    $dashboard = ll_tools_wordset_level_dashboard($wordset_id, $user_id, [$level => $categories], [$level => $review_days], $now);
-    if (is_wp_error($dashboard)) { return $dashboard; }
-    $row = $dashboard['levels'][$level];
+    $levels = ll_tools_wordset_level_progress($wordset_id, $user_id, [$level => $categories], [$level => $review_days], $now);
+    if (is_wp_error($levels)) { return $levels; }
+    $row = $levels[$level];
     if ($action === 'learn' && $row['next_category_id']) {
         return ll_tools_wordset_level_activity('learning', [$row['next_category_id']]);
     }

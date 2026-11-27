@@ -73,6 +73,57 @@ function ll_tools_wordset_level_page_catalog(int $wordset_id, array $categories,
     ];
 }
 
+/** Public catalog data is enough to paint the level layout before the interactive controls load. */
+function ll_tools_wordset_level_render_initial_catalog(array $catalog, bool $signed_in): string {
+    ob_start();
+    ?>
+    <section data-ll-wordset-levels aria-label="<?php esc_attr_e('Course levels', 'll-tools-text-domain'); ?>">
+        <?php if ($signed_in) : ?>
+            <span class="ll-level-button ll-level-review-placeholder ll-level-placeholder ll-level-sheen" aria-hidden="true"></span>
+        <?php endif; ?>
+        <div class="ll-level-grid">
+            <?php foreach ($catalog['levels'] as $group) :
+                $slots = (int) !empty($group['nextId']) + (int) !empty($group['practiceId']);
+                $has_categories = !empty($group['categoryIds']);
+                ?>
+                <article class="ll-level-card" data-ll-level-card="<?php echo (int) $group['level']; ?>">
+                    <div class="ll-level-row">
+                        <div class="ll-level-overview">
+                            <div class="ll-level-card-head">
+                                <h2 class="ll-level-title"><span class="ll-level-shell-title"><?php
+                                    echo esc_html(sprintf($catalog['i18n']['level'], (int) $group['level']));
+                                ?></span></h2>
+                                <?php if ($signed_in && $has_categories) : ?>
+                                    <div class="ll-level-badges" aria-hidden="true">
+                                        <?php for ($i = 0; $i < 3; ++$i) : ?>
+                                            <span class="ll-level-badge-placeholder"><span class="ll-level-badge ll-level-sheen"></span></span>
+                                        <?php endfor; ?>
+                                    </div>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                        <?php if ($slots) : ?>
+                            <div class="ll-level-activities" aria-hidden="true">
+                                <?php for ($i = 0; $i < ($signed_in ? $slots : 1); ++$i) : ?>
+                                    <span class="ll-level-button ll-level-activity ll-level-placeholder ll-level-sheen"></span>
+                                <?php endfor; ?>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                    <?php if ($has_categories) : ?>
+                        <div class="ll-wordset-card__progress" aria-hidden="true">
+                            <span class="ll-wordset-card__progress-toggle"><span class="ll-wordset-card__progress-track is-loading"></span></span>
+                        </div>
+                    <?php endif; ?>
+                    <div class="ll-level-details" aria-hidden="true"></div>
+                </article>
+            <?php endforeach; ?>
+        </div>
+    </section>
+    <?php
+    return (string) ob_get_clean();
+}
+
 function ll_tools_wordset_level_intervals(int $user_id, int $wordset_id, array $levels) {
     global $wpdb;
     $wpdb->last_error = '';
@@ -201,6 +252,13 @@ function ll_tools_wordset_level_request(int $user_id, array $request) {
         return new WP_Error('ll_level_scope_expired', __('Reload this page to update your levels.', 'll-tools-text-domain'), ['status' => 410]);
     }
     try {
+        if (($request['operation'] ?? '') === 'launch' && ($request['launch_mode'] ?? '') === 'review' && $user_id > 0) {
+            // Resolve current preferences, visible targets and the saved batch under the same learner lock.
+            return ll_tools_offline_app_run_user_data_write_locked($user_id, static function () use ($user_id, $wordset_id, $payload, $request) {
+                wp_cache_delete($user_id, 'user_meta');
+                return ll_tools_wordset_level_request_in_scope($user_id, $wordset_id, $payload, $request);
+            });
+        }
         return ll_tools_wordset_level_request_in_scope($user_id, $wordset_id, $payload, $request);
     } finally {
         $restore();
@@ -252,14 +310,16 @@ function ll_tools_wordset_level_request_in_scope(int $user_id, int $wordset_id, 
         }
         unset($row);
         $overall = $dashboard['overall'];
+        $next_midnight = (new DateTimeImmutable('@' . $now))->setTimezone(wp_timezone())->modify('tomorrow');
         return [
             'levels' => $dashboard['levels'],
             'due' => $overall['due'],
+            'next_reset_in' => $next_midnight->getTimestamp() - $now,
             'review' => ['reason' => $overall['reason'], 'count' => $overall['count'], 'due' => $overall['due']],
         ];
     }
     if ($global_review) {
-        $overall = ll_tools_wordset_level_overall_review($wordset_id, $user_id, $scope, $days, $now);
+        $overall = ll_tools_wordset_level_overall_review($wordset_id, $user_id, $scope, $days, $now, $mode === 'review');
         if (is_wp_error($overall)) { return $overall; }
         $activity = $mode === 'due' && !$overall['due'] ? null : $overall['activity'];
         if ($activity && $mode === 'review') { $activity['reason'] = $overall['reason']; }

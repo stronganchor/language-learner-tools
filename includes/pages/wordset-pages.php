@@ -7210,10 +7210,15 @@ function ll_tools_wordset_page_render_category_card(array $cat, array $context =
     $mode_labels = (isset($context['mode_labels']) && is_array($context['mode_labels'])) ? $context['mode_labels'] : [];
     $mode_fallback_icons = (isset($context['mode_fallback_icons']) && is_array($context['mode_fallback_icons'])) ? $context['mode_fallback_icons'] : [];
 
-    $preview_style = '';
-    if (!empty($cat['preview_aspect_ratio'])) {
-        $preview_style = ' style="--ll-wordset-preview-aspect: ' . esc_attr((string) $cat['preview_aspect_ratio']) . ';"';
+    $preview_ratio = (string) ($cat['preview_aspect_ratio'] ?? '');
+    if ($preview_ratio === '' && strpos((string) ($cat['aspect_bucket'] ?? ''), 'ratio:') === 0) {
+        [$width, $height] = ll_tools_aspect_ratio_dimensions_from_key(substr($cat['aspect_bucket'], 6));
+        if ($width && $height) {
+            $preview_ratio = $width . ' / ' . $height;
+        }
     }
+    $preview_style = $preview_ratio !== '' ? ' style="--ll-wordset-preview-aspect: ' . esc_attr($preview_ratio) . ';"' : '';
+    $image_preview = !empty($cat['has_images']) || (!empty($cat['preview_deferred']) && !empty($cat['preview_requires_images']));
 
     $card_word_total = max(0, (int) ($cat['count'] ?? 0));
     $card_progress = $category_progress_lookup[$cat_id] ?? [
@@ -7226,6 +7231,13 @@ function ll_tools_wordset_page_render_category_card(array $cat, array $context =
     $card_mastered_pct = max(0, min(100, (($card_progress['mastered'] ?? 0) * 100) / $card_progress_total));
     $card_studied_pct = max(0, min(100 - $card_mastered_pct, (($card_progress['studied'] ?? 0) * 100) / $card_progress_total));
     $card_new_pct = max(0, 100 - $card_mastered_pct - $card_studied_pct);
+    $progress_widths = ['mastered' => $card_mastered_pct, 'studied' => $card_studied_pct, 'new' => $card_new_pct];
+    $progress_labels = [
+        'mastered' => __('Learned', 'll-tools-text-domain') . ' ' . number_format_i18n((int) ($card_progress['mastered'] ?? 0)),
+        'studied' => __('In progress', 'll-tools-text-domain') . ' ' . number_format_i18n((int) ($card_progress['studied'] ?? 0)),
+        'new' => __('New', 'll-tools-text-domain') . ' ' . number_format_i18n((int) ($card_progress['new'] ?? $card_word_total)),
+    ];
+    $progress_description = implode(', ', $progress_labels);
     $card_starred_count = max(0, (int) ($category_starred_lookup[$cat_id] ?? 0));
 
     $cat_name = isset($cat['name']) ? (string) $cat['name'] : '';
@@ -7355,7 +7367,7 @@ function ll_tools_wordset_page_render_category_card(array $cat, array $context =
         <?php else : ?>
             <div class="ll-wordset-card__lesson-link ll-wordset-card__lesson-link--inactive" aria-label="<?php echo esc_attr($cat_name); ?>">
         <?php endif; ?>
-                <div class="ll-wordset-card__preview <?php echo !empty($cat['has_images']) ? 'has-images' : 'has-text'; ?>"<?php echo $preview_style; ?>>
+                <div class="ll-wordset-card__preview <?php echo $image_preview ? 'has-images' : 'has-text'; ?>"<?php echo $preview_style; ?>>
                     <?php if ($is_public && $card_starred_count > 0) : ?>
                         <span
                             class="ll-wordset-card__starred-pill ll-wordset-progress-pill ll-wordset-progress-pill--starred"
@@ -7373,13 +7385,13 @@ function ll_tools_wordset_page_render_category_card(array $cat, array $context =
                         <?php foreach (array_slice($preview_items, 0, $current_preview_limit) as $preview) : ?>
                             <?php if (($preview['type'] ?? '') === 'image') : ?>
                                 <?php
-                                $preview_ratio_style = '';
-                                if (!empty($preview['ratio'])) {
-                                    $ratio_value = esc_attr((string) $preview['ratio']);
-                                    $preview_ratio_style = ' style="aspect-ratio: ' . $ratio_value . ' !important;"';
-                                }
                                 $preview_width = !empty($preview['width']) ? (int) $preview['width'] : 0;
                                 $preview_height = !empty($preview['height']) ? (int) $preview['height'] : 0;
+                                $ratio_value = (string) ($preview['ratio'] ?? '');
+                                if ($ratio_value === '' && $preview_width > 0 && $preview_height > 0) {
+                                    $ratio_value = $preview_width . ' / ' . $preview_height;
+                                }
+                                $preview_ratio_style = $ratio_value !== '' ? ' style="aspect-ratio: ' . esc_attr($ratio_value) . ' !important;"' : '';
                                 $preview_width_attr = $preview_width > 0 ? ' width="' . esc_attr($preview_width) . '"' : '';
                                 $preview_height_attr = $preview_height > 0 ? ' height="' . esc_attr($preview_height) . '"' : '';
                                 ?>
@@ -7421,19 +7433,22 @@ function ll_tools_wordset_page_render_category_card(array $cat, array $context =
                 <?php echo ll_tools_wordset_page_render_inactive_category_hidden_action_form($cat, 'preview'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
             <?php endif; ?>
         <?php else : ?>
-            <div class="ll-wordset-card__progress" aria-hidden="true">
-                <span class="ll-wordset-card__progress-track<?php echo $summary_counts_deferred ? ' is-loading' : ''; ?>">
-                    <span class="ll-wordset-card__progress-segment ll-wordset-card__progress-segment--mastered" style="width: <?php echo esc_attr(number_format((float) $card_mastered_pct, 2, '.', '')); ?>%;">
-                        <?php echo ll_tools_wordset_page_render_progress_icon('mastered', 'll-wordset-progress-pill__icon ll-wordset-card__progress-icon'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+            <details class="ll-wordset-card__progress"<?php echo $summary_counts_deferred ? ' inert' : ''; ?>>
+                <summary class="ll-wordset-card__progress-toggle" title="<?php echo esc_attr($progress_description); ?>" aria-label="<?php echo esc_attr($progress_description); ?>">
+                    <span class="ll-wordset-card__progress-track<?php echo $summary_counts_deferred ? ' is-loading' : ''; ?>" aria-hidden="true">
+                        <?php foreach ($progress_widths as $status => $width) : ?>
+                            <span class="ll-wordset-card__progress-segment ll-wordset-card__progress-segment--<?php echo esc_attr($status); ?>" style="width: <?php echo esc_attr(number_format($width, 2, '.', '')); ?>%;">
+                                <?php echo ll_tools_wordset_page_render_progress_icon($status, 'll-wordset-progress-pill__icon ll-wordset-card__progress-icon'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                            </span>
+                        <?php endforeach; ?>
                     </span>
-                    <span class="ll-wordset-card__progress-segment ll-wordset-card__progress-segment--studied" style="width: <?php echo esc_attr(number_format((float) $card_studied_pct, 2, '.', '')); ?>%;">
-                        <?php echo ll_tools_wordset_page_render_progress_icon('studied', 'll-wordset-progress-pill__icon ll-wordset-card__progress-icon'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
-                    </span>
-                    <span class="ll-wordset-card__progress-segment ll-wordset-card__progress-segment--new" style="width: <?php echo esc_attr(number_format((float) $card_new_pct, 2, '.', '')); ?>%;">
-                        <?php echo ll_tools_wordset_page_render_progress_icon('new', 'll-wordset-progress-pill__icon ll-wordset-card__progress-icon'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
-                    </span>
-                </span>
-            </div>
+                </summary>
+                <div class="ll-wordset-card__progress-legend">
+                    <?php foreach ($progress_labels as $status => $label) : ?>
+                        <span class="ll-wordset-card__progress-key"><i aria-hidden="true" class="ll-wordset-progress-pill--<?php echo esc_attr($status); ?>"></i><span><?php echo esc_html($label); ?></span></span>
+                    <?php endforeach; ?>
+                </div>
+            </details>
             <div class="ll-wordset-card__quiz-actions" role="group" aria-label="<?php echo esc_attr(sprintf(__('Quiz modes for %s', 'll-tools-text-domain'), $cat_name)); ?>">
                 <?php
                 $card_modes = ll_tools_get_study_launch_mode_order($gender_enabled && !empty($cat['gender_supported']));
@@ -27705,6 +27720,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
     <<?php echo esc_html($wrapper_tag); ?>
         class="<?php echo esc_attr(implode(' ', $classes)); ?>"
         data-ll-wordset-page
+        <?php if ($curriculum_levels) : ?>data-ll-level-initial<?php endif; ?>
         data-ll-wordset-view="<?php echo esc_attr($view === '' ? 'main' : $view); ?>"
         data-ll-visible-category-count="<?php echo esc_attr($visible_category_count); ?>"
         data-ll-wordset-id="<?php echo esc_attr($wordset_id); ?>">
@@ -28738,7 +28754,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                     </div>
                 <?php endif; ?>
                 <?php if ($curriculum_levels) : ?>
-                    <section data-ll-wordset-levels hidden aria-label="<?php esc_attr_e('Course levels', 'll-tools-text-domain'); ?>"></section>
+                    <?php echo ll_tools_wordset_level_render_initial_catalog($curriculum_levels, $is_study_user); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
                 <?php endif; ?>
                 <div class="ll-wordset-grid" role="list" data-ll-wordset-main-grid>
                     <?php if ($can_manage_wordset_categories) : ?>
