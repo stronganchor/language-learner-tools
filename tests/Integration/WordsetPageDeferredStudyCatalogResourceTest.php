@@ -47,7 +47,7 @@ final class WordsetPageDeferredStudyCatalogResourceTest extends LL_Tools_TestCas
                 'wordset_id' => $wordset, 'operation' => 'summary', 'token' => $token, 'locale' => 'en_US',
             ]);
             $this->assertIsArray($summary);
-            $this->assertSame('öğrenmekte olduğun 2 kelime', $summary['levels'][1]['practice_activity']['label']);
+            $this->assertSame('Çalıştığın 2 kelime', $summary['levels'][1]['practice_activity']['label']);
             $this->assertSame('en_US', determine_locale());
             $this->assertSame('2 words in progress', ll_tools_wordset_level_practice_label(['working' => 2]));
             $this->assertSame('en_US', get_user_meta($user_id, 'locale', true));

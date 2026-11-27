@@ -28498,8 +28498,8 @@ msgstr[1] "%d yeni kelime"
 #: includes/lib/wordset-level-labels.php:71
 msgid "%d word in progress"
 msgid_plural "%d words in progress"
-msgstr[0] "öğrenmekte olduğun %d kelime"
-msgstr[1] "öğrenmekte olduğun %d kelime"
+msgstr[0] "Çalıştığın %d kelime"
+msgstr[1] "Çalıştığın %d kelime"
 
 #. translators: %d: number of already learned words in this practice round.
 #: includes/lib/wordset-level-labels.php:75
