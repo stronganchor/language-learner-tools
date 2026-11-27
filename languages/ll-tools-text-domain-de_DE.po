@@ -19811,6 +19811,24 @@ msgstr "Noch keine Übereinstimmung."
 msgid "Heard"
 msgstr "Gehört"
 
+#: includes/pages/wordset-pages.php:13631
+#, php-format
+msgid "Blast (%1$d)"
+msgstr "Sprengen (%1$d)"
+
+#: includes/pages/wordset-pages.php:13632
+msgid "Choose a box"
+msgstr "Wähle eine Kiste aus"
+
+#: includes/pages/wordset-pages.php:13633
+#, php-format
+msgid "Blast box %1$d"
+msgstr "Kiste %1$d sprengen"
+
+#: includes/pages/wordset-pages.php:13634
+msgid "Box cleared"
+msgstr "Kiste gesprengt"
+
 #: includes/pages/wordset-pages.php:13601
 msgid "You cleared the stack"
 msgstr "Du hast den Stapel geleert"

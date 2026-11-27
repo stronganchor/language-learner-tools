@@ -3643,6 +3643,24 @@ msgstr "Пока нет совпадений."
 msgid "Heard"
 msgstr "Слышал"
 
+#: includes/pages/wordset-pages.php:13631
+#, php-format
+msgid "Blast (%1$d)"
+msgstr "Взорвать (%1$d)"
+
+#: includes/pages/wordset-pages.php:13632
+msgid "Choose a box"
+msgstr "Выберите коробку"
+
+#: includes/pages/wordset-pages.php:13633
+#, php-format
+msgid "Blast box %1$d"
+msgstr "Взорвать коробку %1$d"
+
+#: includes/pages/wordset-pages.php:13634
+msgid "Box cleared"
+msgstr "Коробка уничтожена"
+
 #. ll-tools-public-key: 72161fd1ef6a601c5408a5536777714fc0fa7095
 #: includes/pages/wordset-pages.php:13601
 msgid "You cleared the stack"

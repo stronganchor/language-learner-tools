@@ -8,6 +8,7 @@
     const LINEUP_GAME_SLUG = 'line-up';
     const SPEAKING_PRACTICE_GAME_SLUG = 'speaking-practice';
     const SPEAKING_STACK_GAME_SLUG = 'speaking-stack';
+    const SPEAKING_STACK_RIGHTS_PER_BLAST = 10;
     const GAME_LENGTH_ALL = 'all';
     const MODULE_NS = '.llWordsetGames';
     const UNSCRAMBLE_DRAG_NS = '.llWordsetGamesUnscrambleDrag';
@@ -1427,6 +1428,9 @@
             relayoutSpeakingStackCards(ctx, run, {
                 instant: true
             });
+            if (run.blastTargeting) {
+                renderSpeakingStackBlastTargets(ctx, run);
+            }
         }
         bullets.forEach(function (bullet) {
             bullet.x = clamp(bullet.x, 0, run.width);
@@ -6214,6 +6218,7 @@
         }
 
         run.ended = true;
+        updateSpeakingStackBlastControl(ctx, run);
         teardownSpeaking(ctx);
         flushProgress(ctx);
         pausePromptAudio(ctx);
@@ -6262,6 +6267,10 @@
     function stepSpeakingStackRun(ctx, now, dtMs) {
         const run = ctx.run;
         if (!run || run.ended) {
+            return;
+        }
+        if (run.blastTargeting || run.blastPlayback) {
+            removeResolvedObjects(run, now);
             return;
         }
 
@@ -6633,6 +6642,9 @@
         }
         run.pauseReason = String(opts.reason || 'manual');
         if (isSpeakingStackRun(ctx, run)) {
+            run.blastTargeting = false;
+            run.blastPlayback = null;
+            updateSpeakingStackBlastControl(ctx, run);
             teardownSpeaking(ctx);
             setSpeakingStatus(ctx, String(gameText(ctx, 'gamesPaused')));
         }
@@ -6672,6 +6684,7 @@
         updatePauseUi(ctx);
 
         if (isSpeakingStackRun(ctx, run)) {
+            updateSpeakingStackBlastControl(ctx, run);
             speakingState(ctx).audioContext = createSpeakingAudioContext();
             setSpeakingStatus(ctx, String(gameText(ctx, 'gamesSpeakingStackReady')));
             queueSpeakingStackCaptureRestart(ctx, 40);
@@ -6783,6 +6796,7 @@
         }
         resetLineupStage(ctx);
         ctx.run = null;
+        updateSpeakingStackBlastControl(ctx, null);
         updatePauseUi(ctx);
     }
 
@@ -9028,7 +9042,7 @@
         clearSpeakingTimeout(speakingState(ctx), 'autoStartTimer');
     }
 
-    function teardownSpeaking(ctx) {
+    function cancelSpeakingCapture(ctx) {
         const state = speakingState(ctx);
         if (!state) {
             return;
@@ -9046,18 +9060,26 @@
             } catch (_) { /* no-op */ }
         }
         state.audioChunks = [];
-        clearSpeakingAttemptAudioSource(ctx);
         state.transcribing = false;
         state.speechDetected = false;
         state.speechStartedAt = 0;
         state.silenceStartedAt = 0;
+        resetSpeakingMeter(ctx);
+    }
+
+    function teardownSpeaking(ctx) {
+        const state = speakingState(ctx);
+        if (!state) {
+            return;
+        }
+        cancelSpeakingCapture(ctx);
+        clearSpeakingAttemptAudioSource(ctx);
         if (state.mediaStream) {
             stopSpeakingStream(state.mediaStream);
             state.mediaStream = null;
         }
         closeSpeakingAudioContext(state.audioContext);
         state.audioContext = null;
-        resetSpeakingMeter(ctx);
         setSpeakingStackHeard(ctx, '');
     }
 
@@ -9225,6 +9247,9 @@
         const state = speakingState(ctx);
         if (!run || !state) {
             return Promise.reject(new Error('missing_state'));
+        }
+        if (run.blastTargeting || run.blastPlayback) {
+            return Promise.resolve();
         }
         if (!ensureSpeakingSupported()) {
             return Promise.reject(new Error(String(gameText(ctx, 'gamesSpeakingNotSupported'))));
@@ -10872,6 +10897,156 @@
         }, Math.max(0, toInt(delayMs) || 0));
     }
 
+    function updateSpeakingStackBlastControl(ctx, run) {
+        const available = !!(run && !run.paused && !run.ended && run.blastCharges);
+        const targeting = available && run.blastTargeting;
+        ctx.$speakingStackBlast
+            .prop('hidden', !available)
+            .prop('disabled', !!(run && run.blastPlayback))
+            .attr('aria-pressed', targeting ? 'true' : 'false');
+        if (available) {
+            ctx.$speakingStackBlast.attr('aria-label', formatMessage(gameText(ctx, 'gamesSpeakingStackBlastCharges'), [run.blastCharges]));
+            ctx.$speakingStackBlastCount.text(run.blastCharges);
+        }
+        ctx.$canvasWrap.toggleClass('ll-wordset-speaking-stack-aiming', !!targeting);
+        ctx.$speakingStackBlastTargets.prop('hidden', !targeting);
+        if (!targeting) {
+            ctx.$speakingStackBlastTargets.empty();
+        }
+    }
+
+    function getSpeakingStackBlastCards(run) {
+        return getSpeakingStackActiveCards(run).filter(function (card) {
+            return card.y + card.height / 2 > 0 && card.y - card.height / 2 < run.height
+                && card.x + card.width / 2 > 0 && card.x - card.width / 2 < run.width;
+        });
+    }
+
+    function renderSpeakingStackBlastTargets(ctx, run) {
+        const layer = ctx.$speakingStackBlastTargets.get(0);
+        if (!layer) {
+            return;
+        }
+        const targetAttribute = 'data-ll-wordset-speaking-stack-blast-target';
+        const focused = layer.contains(root.document.activeElement) ? root.document.activeElement.getAttribute(targetAttribute) : null;
+        const targets = getSpeakingStackBlastCards(run).map(function (card, index) {
+            const target = root.document.createElement('button');
+            target.type = 'button';
+            target.className = 'll-wordset-speaking-stack-blast-target';
+            target.setAttribute(targetAttribute, String(card.word.id));
+            target.setAttribute('aria-label', formatMessage(gameText(ctx, 'gamesSpeakingStackBlastTarget'), [index + 1]));
+            target.style.left = (card.x - card.width / 2) + 'px';
+            target.style.top = (card.y - card.height / 2) + 'px';
+            target.style.width = card.width + 'px';
+            target.style.height = card.height + 'px';
+            return target;
+        });
+        layer.replaceChildren(...targets);
+        if (focused) {
+            const target = targets.find(function (button) { return button.getAttribute(targetAttribute) === focused; });
+            (target || targets[0] || ctx.$speakingStackBlast.get(0)).focus({ preventScroll: true });
+        }
+    }
+
+    function resumeSpeakingStackAfterBlast(ctx, run) {
+        const now = currentTimestamp();
+        run.lastSpeechAt = now;
+        run.spawnHoldUntil = Math.max(Number(run.spawnHoldUntil) || 0, now + getSpeakingStackThinkPaddingMs(ctx, run));
+        if (!run.allWordsQueued || getSpeakingStackActiveCards(run).length) {
+            queueSpeakingStackCaptureRestart(ctx, 120);
+        }
+    }
+
+    function cancelSpeakingStackBlastAim(ctx) {
+        const run = ctx.run;
+        if (!run || !run.blastTargeting) {
+            return false;
+        }
+        run.blastTargeting = false;
+        updateSpeakingStackBlastControl(ctx, run);
+        ctx.$speakingStackBlast.get(0).focus({ preventScroll: true });
+        setSpeakingStatus(ctx, String(gameText(ctx, 'gamesSpeakingStackReady')));
+        resumeSpeakingStackAfterBlast(ctx, run);
+        return true;
+    }
+
+    function toggleSpeakingStackBlast(ctx) {
+        const run = ctx.run;
+        if (!run || !isSpeakingStackRun(ctx, run) || run.ended || run.paused || !run.blastCharges || run.blastPlayback) {
+            return;
+        }
+        if (cancelSpeakingStackBlastAim(ctx) || !getSpeakingStackBlastCards(run).length) {
+            return;
+        }
+        run.blastTargeting = true;
+        // End the current attempt before choosing a box or playing its reference.
+        cancelSpeakingCapture(ctx);
+        updateSpeakingStackBlastControl(ctx, run);
+        renderSpeakingStackBlastTargets(ctx, run);
+        ctx.$speakingStackBlastTargets.children().first().get(0).focus({ preventScroll: true });
+        setSpeakingStatus(ctx, String(gameText(ctx, 'gamesSpeakingStackBlastAim')));
+    }
+
+    function clearSpeakingStackCard(ctx, run, card, correctAudioUrl, blasted) {
+        const now = currentTimestamp();
+        run.clearedCount += 1;
+        card.removedFromStack = true;
+        card.exploding = true;
+        card.explosionStyle = blasted ? 'dramatic' : 'correct';
+        card.explosionDuration = blasted ? 320 : 220;
+        card.removeAt = now + card.explosionDuration;
+
+        spawnExplosion(run, {
+            x: card.x,
+            y: card.y,
+            radius: Math.max(card.width, card.height) * 0.74,
+            primaryColor: blasted ? 'rgba(245, 158, 11, 0.96)' : 'rgba(16, 185, 129, 0.96)',
+            secondaryColor: blasted ? 'rgba(255, 239, 156, 0.90)' : 'rgba(103, 232, 249, 0.78)',
+            duration: 300,
+            style: 'ring'
+        });
+        relayoutSpeakingStackCards(ctx, run);
+        setSpeakingStackProgressFromRun(ctx, run);
+        if (!correctAudioUrl) {
+            return Promise.resolve();
+        }
+        return playQueuedAudioSources(ctx, [correctAudioUrl], {
+            cacheKey: 'speaking-stack-word:' + String(toInt(card.word && card.word.id)),
+            volume: getPromptAudioVolume(ctx, run),
+            pausePrompt: false
+        });
+    }
+
+    function useSpeakingStackBlast(ctx, wordId) {
+        const run = ctx.run;
+        if (!run || !run.blastTargeting || run.paused || run.ended || !run.blastCharges) {
+            return;
+        }
+        const card = getSpeakingStackBlastCards(run).find(function (target) {
+            return toInt(target.word.id) === wordId;
+        });
+        if (!card) {
+            return;
+        }
+        run.blastTargeting = false;
+        run.blastCharges -= 1;
+        stopFeedbackAudio(ctx);
+        setSpeakingStackHeard(ctx, '');
+        setSpeakingStatus(ctx, String(gameText(ctx, 'gamesSpeakingStackBlastUsed')));
+        const playback = clearSpeakingStackCard(ctx, run, card, String(card.word.speaking_best_correct_audio_url || ''), true);
+        run.blastPlayback = playback;
+        updateSpeakingStackBlastControl(ctx, run);
+        ctx.$pauseButton.get(0)?.focus({ preventScroll: true });
+        playback.finally(function () {
+            if (ctx.run !== run || run.blastPlayback !== playback || run.ended) {
+                return;
+            }
+            run.blastPlayback = null;
+            updateSpeakingStackBlastControl(ctx, run);
+            resumeSpeakingStackAfterBlast(ctx, run);
+        });
+    }
+
     function handleSpeakingStackMatch(ctx, run, result, transcript) {
         const card = findSpeakingStackCardByWordId(run, toInt(result && result.word_id));
         if (!card) {
@@ -10881,27 +11056,16 @@
 
         const bucket = String(result && result.bucket || 'right');
         const score = clamp(Number(result && result.score) || 0, 0, 100);
-        const now = currentTimestamp();
         const correctAudioUrl = String(result && result.best_correct_audio_url || card.word && card.word.speaking_best_correct_audio_url || '');
-        run.clearedCount += 1;
         run.lastCorrectAudioDurationMs = correctAudioUrl ? getLoadedAudioDurationMs(ctx, correctAudioUrl) : 0;
-        card.removedFromStack = true;
-        card.exploding = true;
-        card.explosionStyle = 'correct';
-        card.explosionDuration = 220;
-        card.removeAt = now + card.explosionDuration;
-
-        spawnExplosion(run, {
-            x: card.x,
-            y: card.y,
-            radius: Math.max(card.width, card.height) * 0.74,
-            primaryColor: 'rgba(16, 185, 129, 0.96)',
-            secondaryColor: 'rgba(103, 232, 249, 0.78)',
-            duration: 300,
-            style: 'ring'
-        });
-        relayoutSpeakingStackCards(ctx, run);
-        setSpeakingStackProgressFromRun(ctx, run);
+        clearSpeakingStackCard(ctx, run, card, correctAudioUrl, false);
+        if (bucket === 'right') {
+            run.spokenCorrectCount += 1;
+            if (run.spokenCorrectCount % SPEAKING_STACK_RIGHTS_PER_BLAST === 0) {
+                run.blastCharges += 1;
+                updateSpeakingStackBlastControl(ctx, run);
+            }
+        }
         setSpeakingStatus(ctx, String({
             right: gameText(ctx, 'gamesSpeakingResultRight'),
             close: gameText(ctx, 'gamesSpeakingResultClose')
@@ -10920,13 +11084,6 @@
             speaking_target_field: String(run.targetField || '')
         });
 
-        if (correctAudioUrl) {
-            playQueuedAudioSources(ctx, [correctAudioUrl], {
-                cacheKey: 'speaking-stack-word:' + String(toInt(card.word && card.word.id)),
-                volume: getPromptAudioVolume(ctx, run),
-                pausePrompt: false
-            });
-        }
         return true;
     }
 
@@ -11238,6 +11395,10 @@
             wordQueue: shuffledWords.slice(),
             totalWordCount: shuffledWords.length,
             clearedCount: 0,
+            spokenCorrectCount: 0,
+            blastCharges: 0,
+            blastTargeting: false,
+            blastPlayback: null,
             spawnedWordCount: 0,
             promptDeck: [],
             prompt: null,
@@ -11426,6 +11587,9 @@
 
             if (matchesKey(event, ['escape'], ['escape']) && isRunModalVisible(ctx)) {
                 event.preventDefault();
+                if (cancelSpeakingStackBlastAim(ctx)) {
+                    return;
+                }
                 requestCloseGame(ctx);
                 return;
             }
@@ -11730,6 +11894,14 @@
                 return;
             }
             pauseRun(ctx);
+        });
+
+        ctx.$page.on('click' + MODULE_NS, '[data-ll-wordset-speaking-stack-blast]', function () {
+            toggleSpeakingStackBlast(ctx);
+        });
+
+        ctx.$page.on('click' + MODULE_NS, '[data-ll-wordset-speaking-stack-blast-target]', function () {
+            useSpeakingStackBlast(ctx, toInt(this.getAttribute('data-ll-wordset-speaking-stack-blast-target')));
         });
 
         ctx.$page.on('click' + MODULE_NS, '[data-ll-wordset-speaking-record]', function (event) {
@@ -12235,6 +12407,9 @@
             $speakingStackStage: $gamesRoot.find('[data-ll-wordset-speaking-stack-stage]').first(),
             $speakingStackProgress: $gamesRoot.find('[data-ll-wordset-speaking-stack-progress]').first(),
             $speakingStackStatus: $gamesRoot.find('[data-ll-wordset-speaking-stack-status]').first(),
+            $speakingStackBlast: $gamesRoot.find('[data-ll-wordset-speaking-stack-blast]').first(),
+            $speakingStackBlastCount: $gamesRoot.find('[data-ll-wordset-speaking-stack-blast-count]').first(),
+            $speakingStackBlastTargets: $gamesRoot.find('[data-ll-wordset-speaking-stack-blast-targets]').first(),
             $speakingStackHeardRow: $gamesRoot.find('[data-ll-wordset-speaking-stack-heard-row]').first(),
             $speakingStackHeard: $gamesRoot.find('[data-ll-wordset-speaking-stack-heard]').first(),
             $speakingStackMeter: $gamesRoot.find('[data-ll-wordset-speaking-stack-meter]').first(),

@@ -3631,6 +3631,24 @@ msgstr "아직 일치하는 항목이 없습니다."
 msgid "Heard"
 msgstr "들었어"
 
+#: includes/pages/wordset-pages.php:13631
+#, php-format
+msgid "Blast (%1$d)"
+msgstr "폭파 (%1$d)"
+
+#: includes/pages/wordset-pages.php:13632
+msgid "Choose a box"
+msgstr "상자를 선택하세요"
+
+#: includes/pages/wordset-pages.php:13633
+#, php-format
+msgid "Blast box %1$d"
+msgstr "상자 %1$d 폭파"
+
+#: includes/pages/wordset-pages.php:13634
+msgid "Box cleared"
+msgstr "상자가 제거됐어요"
+
 #. ll-tools-public-key: 72161fd1ef6a601c5408a5536777714fc0fa7095
 #: includes/pages/wordset-pages.php:13601
 msgid "You cleared the stack"

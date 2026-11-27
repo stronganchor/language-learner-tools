@@ -115,10 +115,14 @@ function buildGamesMarkup() {
               </div>
               <div class="ll-wordset-game-stage__canvas-wrap">
                 <canvas data-ll-wordset-game-canvas width="720" height="960"></canvas>
+                <div class="ll-wordset-speaking-stack-blast-targets" data-ll-wordset-speaking-stack-blast-targets hidden></div>
                 <section class="ll-wordset-speaking-stack-stage" data-ll-wordset-speaking-stack-stage hidden aria-live="polite">
                   <div class="ll-wordset-speaking-stack-stage__topline">
                     <span class="ll-wordset-speaking-stack-stage__progress" data-ll-wordset-speaking-stack-progress>0 left</span>
                     <span class="ll-wordset-speaking-stack-stage__status" data-ll-wordset-speaking-stack-status>Mic ready</span>
+                    <button type="button" class="ll-wordset-speaking-stack-blast" data-ll-wordset-speaking-stack-blast aria-pressed="false" hidden>
+                      <span data-ll-wordset-speaking-stack-blast-count aria-hidden="true"></span>
+                    </button>
                   </div>
                   <div class="ll-wordset-speaking-stack-stage__heard-row" data-ll-wordset-speaking-stack-heard-row hidden>
                     <span class="ll-wordset-speaking-stack-stage__heard-label">Heard</span>
@@ -1012,6 +1016,10 @@ function buildGamesConfig(isLoggedIn, overrides = null) {
       gamesSpeakingStackNoMatch: 'No match yet.',
       gamesSpeakingStackMicError: 'Microphone access failed.',
       gamesSpeakingStackHeardLabel: 'Heard',
+      gamesSpeakingStackBlastCharges: 'Blast (%1$d)',
+      gamesSpeakingStackBlastAim: 'Choose a box',
+      gamesSpeakingStackBlastTarget: 'Blast box %1$d',
+      gamesSpeakingStackBlastUsed: 'Box cleared',
       gamesSpeakingStackWinTitle: 'You cleared the stack',
       gamesSpeakingStackLoseStackedTitle: 'The stack reached the top',
       gamesSpeakingStackLoseSilenceTitle: 'Time ran out',
@@ -2669,6 +2677,190 @@ test('word stack starts with a much slower fall speed before the first transcrip
   expect(activeCards.every((card) => card.speed >= 45 && card.speed <= 60)).toBe(true);
 
   await closeRunPopup(page);
+});
+
+test.describe('word stack blast', () => {
+  test.use({ hasTouch: true });
+
+  test('banks a blast per ten spoken rights and clears the chosen box with touch or keyboard', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.clock.install();
+    await mountGamesPage(page, {
+      isLoggedIn: true,
+      words: buildSpeakingStackWords(23),
+      audioLoadDelayMs: 0,
+      promptAudioDurationSeconds: 0.1,
+      configOverrides: {
+        games: {
+          catalog: {
+            'speaking-stack': {
+              slug: 'speaking-stack',
+              title: 'Word Stack',
+              description: 'Say the word before the stack gets too high.'
+            }
+          },
+          speakingStack: {
+            slug: 'speaking-stack',
+            provider: 'hosted_api',
+            targetField: 'title',
+            maxLoadedWords: 23,
+            initialSpawnCount: 3,
+            spawnGapMs: 4000,
+            initialSpawnDelayMs: 4000,
+            fallSpeed: 1600,
+            preFirstAttemptFallSpeed: 1600,
+            maxRecordingMs: 60000,
+            silenceWindowMs: 400,
+            finalSilenceMs: 60000
+          }
+        }
+      }
+    });
+
+    await page.evaluate(() => {
+      window.__wordStackSpeech = false;
+      window.AudioContext.prototype.createAnalyser = () => ({
+        fftSize: 2048,
+        getByteTimeDomainData(buffer) {
+          buffer.fill(window.__wordStackSpeech ? 155 : 128);
+        }
+      });
+      const fetch = window.fetch;
+      window.fetch = (url, options = {}) => {
+        const data = options.body;
+        if (!(data instanceof FormData) || data.get('action') !== 'll_wordset_games_match_speaking_attempt') {
+          return fetch(url, options);
+        }
+        const id = Number(data.getAll('word_ids[]')[0]);
+        const score = window.__wordStackBucket === 'right' ? 100 : 85;
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({
+            success: true,
+            data: { matched: true, word_id: id, bucket: window.__wordStackBucket, score }
+          })
+        });
+      };
+    });
+
+    const stage = page.locator('[data-ll-wordset-speaking-stack-stage]');
+    const blast = page.locator('[data-ll-wordset-speaking-stack-blast]');
+    const charges = page.locator('[data-ll-wordset-speaking-stack-blast-count]');
+    const targets = page.locator('[data-ll-wordset-speaking-stack-blast-target]');
+    const activeIds = () => page.evaluate(() => window.LLWordsetGames.__debug.getRunState().cardSnapshot
+      .filter((card) => !card.exploding && !card.removedFromStack)
+      .map((card) => card.wordId));
+    const spokenOutcomes = () => page.evaluate(() => window.__queuedProgressEvents.filter((event) =>
+      event.type === 'word_outcome' && event.entry.payload.event_source === 'speaking_stack'));
+    const waitForTwoCards = async () => {
+      for (let attempt = 0; attempt < 6 && (await activeIds()).length < 2; attempt += 1) {
+        await page.clock.runFor(1000);
+      }
+      expect((await activeIds()).length).toBeGreaterThanOrEqual(2);
+    };
+    const speak = async (bucket, expectedOutcomes) => {
+      await waitForTwoCards();
+      await page.evaluate((nextBucket) => {
+        window.__wordStackBucket = nextBucket;
+        window.__wordStackSpeech = true;
+      }, bucket);
+      await page.clock.runFor(300);
+      await page.evaluate(() => { window.__wordStackSpeech = false; });
+      await page.clock.runFor(850);
+      const outcomes = await spokenOutcomes();
+      expect(outcomes).toHaveLength(expectedOutcomes);
+      expect(outcomes.at(-1).entry.payload.speaking_game_bucket).toBe(bucket);
+    };
+
+    await gameLaunchButton(page, 'speaking-stack').click();
+    await expect(stage).toBeVisible();
+    await expect(blast).toBeHidden();
+    await page.clock.runFor(200);
+    await speak('close', 1);
+    for (let right = 1; right <= 9; right += 1) {
+      await speak('right', right + 1);
+    }
+    await expect(blast).toBeHidden();
+
+    await speak('right', 11);
+    await expect(charges).toHaveText('1');
+    await expect(blast).toHaveAttribute('aria-pressed', 'false');
+    await blast.click();
+    await expect(blast).toHaveAttribute('aria-pressed', 'true');
+    await expect(targets.first()).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(stage).toBeVisible();
+    await expect(blast).toBeFocused();
+    await expect(blast).toHaveAttribute('aria-pressed', 'false');
+    await expect(charges).toHaveText('1');
+    await expect(targets).toHaveCount(0);
+
+    await blast.click();
+    await page.locator('[data-ll-wordset-game-pause-toggle]').click();
+    await expect(page.locator('[data-ll-wordset-game-overlay-title]')).toHaveText('Paused');
+    await expect(targets).toHaveCount(0);
+    await page.locator('[data-ll-wordset-game-replay]').click();
+    await expect(blast).toHaveAttribute('aria-pressed', 'false');
+    await expect(charges).toHaveText('1');
+
+    for (let right = 11; right <= 20; right += 1) {
+      await speak('right', right + 1);
+    }
+    await expect(charges).toHaveText('2');
+    await waitForTwoCards();
+    await page.clock.runFor(700);
+    const outcomesBeforeBlasts = await spokenOutcomes();
+
+    for (const useKeyboard of [false, true]) {
+      if (useKeyboard) {
+        await blast.focus();
+        await page.keyboard.press('Space');
+      } else {
+        await blast.tap();
+      }
+      await expect(blast).toHaveAttribute('aria-pressed', 'true');
+      const target = targets.first();
+      await expect(target).toBeVisible();
+      const id = Number(await target.getAttribute('data-ll-wordset-speaking-stack-blast-target'));
+      expect(await activeIds()).toContain(id);
+      const alignment = await target.evaluate((button, wordId) => {
+        const ctx = window.LLWordsetGames.__ctx;
+        const card = ctx.run.cards.find((entry) => Number(entry.word.id) === wordId);
+        const canvas = ctx.$canvas[0].getBoundingClientRect();
+        const hitbox = button.getBoundingClientRect();
+        return {
+          horizontal: Math.abs(hitbox.left + hitbox.width / 2 - (canvas.left + card.x * canvas.width / ctx.run.width)),
+          vertical: Math.abs(hitbox.top + hitbox.height / 2 - (canvas.top + card.y * canvas.height / ctx.run.height))
+        };
+      }, id);
+      expect(alignment.horizontal).toBeLessThan(2);
+      expect(alignment.vertical).toBeLessThan(2);
+      if (useKeyboard) {
+        await target.focus();
+        await page.clock.runFor(200);
+        await expect(target).toBeFocused();
+        await page.keyboard.press('Enter');
+      } else {
+        await target.tap();
+      }
+      expect(await activeIds()).not.toContain(id);
+      await expect(targets).toHaveCount(0);
+      await page.clock.runFor(400);
+      expect(await page.evaluate((wordId) => window.__audioEventLog.filter((event) =>
+        event === `prompt:speaking-${wordId}.mp3`).length, id)).toBe(1);
+      expect(await spokenOutcomes()).toEqual(outcomesBeforeBlasts);
+      if (!useKeyboard) {
+        await expect(charges).toHaveText('1');
+      }
+    }
+
+    await expect(blast).toBeHidden();
+    await page.clock.runFor(750);
+    await expect(page.locator('[data-ll-wordset-game-overlay-title]')).toHaveText('You cleared the stack');
+    await expect(page.locator('[data-ll-wordset-speaking-stack-progress]')).toHaveText('0 left');
+    await closeRunPopup(page);
+    await expect(targets).toHaveCount(0);
+  });
 });
 
 test('line up and unscramble launch dedicated sequence stages', async ({ page }) => {

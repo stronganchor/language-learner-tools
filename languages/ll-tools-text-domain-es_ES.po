@@ -3669,6 +3669,24 @@ msgstr "Aún no coincide."
 msgid "Heard"
 msgstr "Detectado"
 
+#: includes/pages/wordset-pages.php:13631
+#, php-format
+msgid "Blast (%1$d)"
+msgstr "Detonar (%1$d)"
+
+#: includes/pages/wordset-pages.php:13632
+msgid "Choose a box"
+msgstr "Elige una caja"
+
+#: includes/pages/wordset-pages.php:13633
+#, php-format
+msgid "Blast box %1$d"
+msgstr "Detonar la caja %1$d"
+
+#: includes/pages/wordset-pages.php:13634
+msgid "Box cleared"
+msgstr "Caja eliminada"
+
 #. ll-tools-public-key: 72161fd1ef6a601c5408a5536777714fc0fa7095
 #: includes/pages/wordset-pages.php:13601
 msgid "You cleared the stack"

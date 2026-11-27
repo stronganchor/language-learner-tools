@@ -13628,6 +13628,10 @@ function ll_tools_get_wordset_games_i18n_messages(): array {
         'gamesSpeakingStackNoMatch' => __('No match yet.', 'll-tools-text-domain'),
         'gamesSpeakingStackMicError' => __('Microphone access failed.', 'll-tools-text-domain'),
         'gamesSpeakingStackHeardLabel' => __('Heard', 'll-tools-text-domain'),
+        'gamesSpeakingStackBlastCharges' => __('Blast (%1$d)', 'll-tools-text-domain'),
+        'gamesSpeakingStackBlastAim' => __('Choose a box', 'll-tools-text-domain'),
+        'gamesSpeakingStackBlastTarget' => __('Blast box %1$d', 'll-tools-text-domain'),
+        'gamesSpeakingStackBlastUsed' => __('Box cleared', 'll-tools-text-domain'),
         'gamesSpeakingStackWinTitle' => __('You cleared the stack', 'll-tools-text-domain'),
         'gamesSpeakingStackLoseStackedTitle' => __('The stack reached the top', 'll-tools-text-domain'),
         'gamesSpeakingStackLoseSilenceTitle' => __('Time ran out', 'll-tools-text-domain'),
@@ -29699,10 +29703,17 @@ function ll_tools_render_wordset_games_shell(array $args): string {
                                 width="720"
                                 height="960"
                                 aria-label="<?php echo esc_attr__('Wordset game board', 'll-tools-text-domain'); ?>"></canvas>
+                            <div class="ll-wordset-speaking-stack-blast-targets" data-ll-wordset-speaking-stack-blast-targets hidden></div>
                             <section class="ll-wordset-speaking-stack-stage" data-ll-wordset-speaking-stack-stage hidden aria-live="polite">
                                 <div class="ll-wordset-speaking-stack-stage__topline">
                                     <span class="ll-wordset-speaking-stack-stage__progress" data-ll-wordset-speaking-stack-progress><?php echo esc_html(sprintf(__('%1$d left', 'll-tools-text-domain'), 0)); ?></span>
                                     <span class="ll-wordset-speaking-stack-stage__status" data-ll-wordset-speaking-stack-status><?php echo esc_html__('Mic ready', 'll-tools-text-domain'); ?></span>
+                                    <button type="button" class="ll-wordset-speaking-stack-blast" data-ll-wordset-speaking-stack-blast aria-pressed="false" hidden>
+                                        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false">
+                                            <path fill="currentColor" d="M12 1 14.6 7.1 20.9 3.1 17.4 9.7 23 12 17.4 14.3 20.9 20.9 14.6 16.9 12 23 9.4 16.9 3.1 20.9 6.6 14.3 1 12 6.6 9.7 3.1 3.1 9.4 7.1Z"/>
+                                        </svg>
+                                        <span data-ll-wordset-speaking-stack-blast-count aria-hidden="true"></span>
+                                    </button>
                                 </div>
                                 <div class="ll-wordset-speaking-stack-stage__heard-row" data-ll-wordset-speaking-stack-heard-row hidden>
                                     <span class="ll-wordset-speaking-stack-stage__heard-label"><?php echo esc_html__('Heard', 'll-tools-text-domain'); ?></span>

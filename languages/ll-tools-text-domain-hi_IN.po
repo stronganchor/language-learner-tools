@@ -3639,6 +3639,24 @@ msgstr "अभी तक कोई मेल नहीं मिला।"
 msgid "Heard"
 msgstr "सुना"
 
+#: includes/pages/wordset-pages.php:13631
+#, php-format
+msgid "Blast (%1$d)"
+msgstr "उड़ाएँ (%1$d)"
+
+#: includes/pages/wordset-pages.php:13632
+msgid "Choose a box"
+msgstr "एक डिब्बा चुनें"
+
+#: includes/pages/wordset-pages.php:13633
+#, php-format
+msgid "Blast box %1$d"
+msgstr "डिब्बा %1$d उड़ाएँ"
+
+#: includes/pages/wordset-pages.php:13634
+msgid "Box cleared"
+msgstr "डिब्बा हट गया"
+
 #. ll-tools-public-key: 72161fd1ef6a601c5408a5536777714fc0fa7095
 #: includes/pages/wordset-pages.php:13601
 msgid "You cleared the stack"
