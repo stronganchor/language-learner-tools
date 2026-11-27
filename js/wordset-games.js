@@ -8681,6 +8681,12 @@
         ctx.$speakingStackProgress.text(String(text || ''));
     }
 
+    function getSpeakingDisplayTranscript(result, transcript) {
+        return result && typeof result.display_transcript_text === 'string'
+            ? result.display_transcript_text
+            : String(transcript || '');
+    }
+
     function setSpeakingStackHeard(ctx, text, options) {
         if (!ctx || !ctx.$speakingStackHeard || !ctx.$speakingStackHeard.length) {
             return;
@@ -8702,6 +8708,13 @@
             clamp(Number(opts.score) || 0, 0, 100),
             'heard'
         ));
+    }
+
+    function setSpeakingStackResultHeard(ctx, result, transcript) {
+        setSpeakingStackHeard(ctx, getSpeakingDisplayTranscript(result, transcript), {
+            targetText: String(result && (result.display_target_text || result.target_text || result.normalized_target_text) || ''),
+            score: Number(result && result.score) || 0
+        });
     }
 
     function resetSpeakingMeter(ctx) {
@@ -10644,11 +10657,14 @@
             : {};
         const title = String(displayTexts.title || '');
         const ipa = String(displayTexts.ipa || '');
-        const targetLabel = String(result && result.target_label || displayTexts.target_label || gameText(ctx, 'gamesSpeakingTargetLabel'));
-        const targetText = String(result && result.target_text || displayTexts.target_text || '');
+        const displayTarget = String(result && result.display_target_text || '');
+        const targetLabel = displayTarget
+            ? String(gameText(ctx, 'gamesSpeakingTitleLabel'))
+            : String(result && result.target_label || displayTexts.target_label || gameText(ctx, 'gamesSpeakingTargetLabel'));
+        const targetText = displayTarget || String(result && result.target_text || displayTexts.target_text || '');
         const correctAudioUrl = String(result && result.best_correct_audio_url || '');
-        const transcriptText = String(transcript || result && result.normalized_transcript_text || '');
-        const showTitle = title !== '' && title !== targetText;
+        const transcriptText = getSpeakingDisplayTranscript(result, transcript || result && result.normalized_transcript_text);
+        const showTitle = !displayTarget && title !== '' && title !== targetText;
         const showIpa = ipa !== '' && ipa !== targetText;
         const bucketLabelMap = {
             right: String(gameText(ctx, 'gamesSpeakingResultRight')),
@@ -10825,10 +10841,7 @@
             right: gameText(ctx, 'gamesSpeakingResultRight'),
             close: gameText(ctx, 'gamesSpeakingResultClose')
         }[bucket] || gameText(ctx, 'gamesSpeakingResultRight')));
-        setSpeakingStackHeard(ctx, String(transcript || ''), {
-            targetText: String(result && result.target_text || result && result.normalized_target_text || ''),
-            score: score
-        });
+        setSpeakingStackResultHeard(ctx, result, transcript);
 
         queueOutcome(ctx, {
             target: card.word,
@@ -10899,10 +10912,7 @@
                 }
                 run.lastTranscribeDurationMs = Math.max(0, currentTimestamp() - transcribeStartedAt);
 
-                setSpeakingStackHeard(ctx, String(result && result.transcript_text || ''), {
-                    targetText: String(result && result.target_text || result && result.normalized_target_text || ''),
-                    score: clamp(Number(result && result.score) || 0, 0, 100)
-                });
+                setSpeakingStackResultHeard(ctx, result, result && result.transcript_text);
                 const matched = !!(result && result.matched && String(result.bucket || 'wrong') !== 'wrong');
                 if (!matched) {
                     setSpeakingStatus(ctx, String(gameText(ctx, 'gamesSpeakingStackNoMatch')));
@@ -10954,10 +10964,7 @@
                     return;
                 }
 
-                setSpeakingStackHeard(ctx, transcriptText, {
-                    targetText: String(result && result.target_text || result && result.normalized_target_text || ''),
-                    score: clamp(Number(result && result.score) || 0, 0, 100)
-                });
+                setSpeakingStackResultHeard(ctx, result, transcriptText);
                 const matched = !!(result && result.matched && String(result.bucket || 'wrong') !== 'wrong');
                 if (!matched) {
                     setSpeakingStatus(ctx, String(gameText(ctx, 'gamesSpeakingStackNoMatch')));
