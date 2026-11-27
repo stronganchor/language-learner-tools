@@ -274,9 +274,14 @@
     background: var(--ll-wp-bg-accent);
 }
 .ll-level-details-toggle::-webkit-details-marker { display: none; }
-.ll-level-details[open] > .ll-level-details-toggle .ll-level-glyph { transform: rotate(180deg); }
+.ll-level-details-toggle[aria-expanded="true"] .ll-level-glyph { transform: rotate(180deg); }
+@media (prefers-reduced-motion: no-preference) {
+    .ll-level-details-toggle .ll-level-glyph { transition: transform 220ms ease-in-out; }
+}
+.ll-level-detail-body { display: flow-root; }
+.ll-level-detail-body.is-animating { overflow: hidden; }
 .ll-level-detail-panel { margin-top: .85rem; padding: .85rem .15rem .15rem; border-top: 1px solid var(--ll-wp-border); }
-.ll-level-quiz-section { margin-block: 1rem .5rem; padding-block-start: .85rem; border-top: 1px solid var(--ll-wp-border); }
+.ll-level-quiz-section { margin: 0 0 .85rem; padding-block-end: .85rem; border-bottom: 1px solid var(--ll-wp-border); }
 .ll-level-quiz-modes { display: flex; flex-wrap: wrap; gap: .5rem; margin-block-start: .6rem; }
 .ll-level-quiz-modes .ll-level-mode-icon, .ll-level-quiz-modes .ll-level-mode-icon svg { width: 1.35rem; height: 1.35rem; font-size: 1.35rem; }
 .ll-level-quiz-modes .ll-level-button { white-space: normal; overflow-wrap: anywhere; }

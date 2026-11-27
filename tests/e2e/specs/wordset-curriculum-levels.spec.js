@@ -427,6 +427,9 @@ test('desktop and phone each show one level per row and keep mode icons, statuse
   await expect(title.locator('svg')).toHaveCount(0);
   await details.focus();
   await page.keyboard.press('Enter');
+  const moving = () => first.evaluate(card => card.querySelector('details').getAnimations({subtree:true})
+    .filter(animation => animation.playState === 'running' || animation.pending).length);
+  expect(await moving()).toBe(0);
   await expect(chevron).toHaveCSS('transform','matrix(-1, 0, 0, -1, 0, 0)');
   expect(await tail()).toBeLessThan(20);
   await expect(first.getByRole('spinbutton',{name:labels.interval, exact:true})).toBeVisible();
@@ -443,11 +446,85 @@ test('desktop and phone each show one level per row and keep mode icons, statuse
   await expect(detail.locator('[data-ll-level-filter],.ll-level-filter-panel')).toHaveCount(0);
   await expect(rows.nth(1).locator('.ll-level-detail-panel .ll-level-metric-older')).toHaveText('0');
   await page.keyboard.press('Space');
+  expect(await moving()).toBe(0);
   await expect(first.getByRole('spinbutton',{name:labels.interval, exact:true})).toBeHidden();
   await details.click();
   await first.getByRole('button',{name:'See all lessons · Level 1'}).click();
   await expect(page.locator('[data-ll-wordset-page]')).toHaveAttribute('data-ll-level-view','level');
   await expect(page.locator('.ll-wordset-card[data-cat-id="15"]')).toBeHidden();
+});
+
+test('a level opens and closes progressively and reverses from its current height',async({page})=>{
+  await page.setViewportSize({width:390,height:800});
+  await page.emulateMedia({reducedMotion:'no-preference'});
+  await mount(page);
+  const card=page.locator('[data-ll-level-card="1"]');
+  const trace=await card.evaluate(async node=>{
+    const summary=node.querySelector('summary');
+    const arrow=summary.querySelector('.ll-level-glyph--chevron');
+    const height=()=>node.getBoundingClientRect().height;
+    async function toggle(reverseBelow=0) {
+      const heights=[height()];
+      let steadyFrames=0;
+      let reversal=null;
+      let rotated=false;
+      const deadline=performance.now()+2500;
+      summary.click();
+      while(steadyFrames<5 && performance.now()<deadline) {
+        await new Promise(resolve=>requestAnimationFrame(resolve));
+        const current=height();
+        const transform=getComputedStyle(arrow).transform;
+        if(transform!=='none' && Math.abs(new DOMMatrixReadOnly(transform).b)>.05) rotated=true;
+        steadyFrames=Math.abs(current-heights.at(-1))<0.1 ? steadyFrames+1 : 0;
+        heights.push(current);
+        if(reverseBelow && !reversal && current<reverseBelow) {
+          summary.click();
+          reversal={before:current,after:height()};
+          steadyFrames=0;
+        }
+      }
+      return {heights,reversal,rotated};
+    }
+    const opening=await toggle();
+    const collapsed=opening.heights[0], expanded=opening.heights.at(-1);
+    const interrupted=await toggle(collapsed+(expanded-collapsed)*.75);
+    const closing=await toggle();
+    return {opening,closing,interrupted,collapsed,expanded};
+  });
+  const {opening,closing,interrupted,collapsed,expanded}=trace;
+  expect(expanded-collapsed).toBeGreaterThan(50);
+  const transitional=height=>height>collapsed+1 && height<expanded-1;
+  expect(opening.heights.some(transitional)).toBe(true);
+  expect(closing.heights.some(transitional)).toBe(true);
+  expect(opening.rotated).toBe(true);
+  expect(closing.rotated).toBe(true);
+  expect(interrupted.reversal).not.toBeNull();
+  expect(transitional(interrupted.reversal.before)).toBe(true);
+  expect(Math.abs(interrupted.reversal.before-interrupted.reversal.after)).toBeLessThan(2);
+  expect(interrupted.heights.at(-1)).toBeCloseTo(expanded,0);
+  expect(closing.heights.at(-1)).toBeCloseTo(collapsed,0);
+  await expect(card.getByRole('region',{name:'Quiz modes'})).toBeHidden();
+  await expect(card.locator('details')).not.toHaveAttribute('open');
+});
+
+test('a progress refresh arriving during expansion preserves the open level and keyboard focus',async({page})=>{
+  const stats={total:10,mastered:3,working:2,new:5,days:30,due:0,next_category_id:1};
+  await mount(page,{signed:true,summary:{levels:{1:stats}}});
+  const card=page.locator('[data-ll-level-card="1"]');
+  const toggle=card.getByLabel('Level details · Level 1',{exact:true});
+  const learned=card.locator('.ll-level-detail-panel dd.ll-level-metric-mastered');
+  await expect(learned).toHaveText('3');
+  let received;
+  const pending=new Promise(resolve=>{received=resolve;});
+  await page.route(base+'/ajax',route=>received(route),{times:1});
+  stats.mastered=4;
+  await page.evaluate(()=>window.jQuery(document).trigger('lltools:progress-updated'));
+  const refresh=await pending;
+  await toggle.press('Enter');
+  await refresh.fallback();
+  await expect(learned).toHaveText('4');
+  await expect(card.getByRole('region',{name:'Quiz modes'})).toBeVisible();
+  await expect(toggle).toBeFocused();
 });
 
 test('complete and unfinished curricula expose actions without singling out a level or activity',async({page})=>{
@@ -499,8 +576,10 @@ for (const signed of [true,false]) {
     await expect(quizSection.getByRole('heading',{name:quizTitle,level:3})).toBeVisible();
     const buttons=quizSection.getByRole('button');
     await expect(buttons).toHaveCount(5);
-    const browse=card.getByRole('button',{name:'See all lessons · Level 1'});
-    expect(await buttons.first().evaluate((node,link)=>link.compareDocumentPosition(node)&Node.DOCUMENT_POSITION_FOLLOWING,await browse.elementHandle())).toBeTruthy();
+    const detailHeading=card.getByRole('heading',{name:labels.stats,exact:true});
+    expect(await quizSection.evaluate((section,heading)=>Boolean(section.compareDocumentPosition(heading)&Node.DOCUMENT_POSITION_FOLLOWING),await detailHeading.elementHandle())).toBe(true);
+    const quizBox=await quizSection.boundingBox(), headingBox=await detailHeading.boundingBox();
+    expect(quizBox.y+quizBox.height).toBeLessThanOrEqual(headingBox.y+1);
     expect(await card.evaluate(el=>el.scrollWidth<=el.clientWidth+1)).toBe(true);
     for(const [index,mode] of modes.entries()){
       const button=quizSection.getByRole('button',{name:modeLabels[mode]+': Level 1',exact:true});

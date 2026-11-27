@@ -54,6 +54,7 @@
         const historyKey = 'llWordsetCurriculum';
         const wordset = options.wordsetId;
         const panels = new Set();
+        let renderAfterMotion = false;
         const openFilters = new Map();
         const levelFilters = [
             {mode:'due',status:'older',name:t.dueLabel,help:t.dueHelp},
@@ -451,6 +452,52 @@
             const parsed = new Date(date);
             return Number.isFinite(parsed.getTime()) ? parsed.toLocaleDateString(document.documentElement.lang || undefined) : String(value);
         }
+        function bindDetailToggle(level, info, heading, body) {
+            let motion = null;
+            function reflect(open) {
+                if (open) panels.add(level); else panels.delete(level);
+                heading.setAttribute('aria-expanded',String(open));
+            }
+            function settle(open) {
+                info.open = open;
+                if (motion) motion.cancel();
+                motion = null;
+                body.classList.remove('is-animating');
+                body.inert = false;
+                if (renderAfterMotion && info.isConnected) render();
+            }
+            reflect(info.open);
+            info.addEventListener('toggle',() => {
+                // Native reveals (e.g. find in page) also survive a progress refresh.
+                if (info.isConnected && !motion) reflect(info.open);
+            });
+            heading.addEventListener('click',event => {
+                event.preventDefault();
+                const open = motion ? !panels.has(level) : !info.open;
+                const from = info.open ? body.getBoundingClientRect().height : 0;
+                if (motion) {
+                    motion.onfinish = null;
+                    motion.cancel();
+                }
+                if (!open && body.contains(document.activeElement)) heading.focus({preventScroll:true});
+                reflect(open);
+                if (!body.animate || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                    settle(open);
+                    return;
+                }
+                // Keep the native disclosure open until its closing slide is finished.
+                info.open = true;
+                const to = open ? body.getBoundingClientRect().height : 0;
+                if (from === to) {
+                    settle(open);
+                    return;
+                }
+                body.classList.add('is-animating');
+                body.inert = !open;
+                motion = body.animate([{height:from + 'px'},{height:to + 'px'}],{duration:220,easing:'ease-in-out',fill:'both'});
+                motion.onfinish = () => settle(open);
+            });
+        }
         function detail(group, stats) {
             const level = Number(group.level);
             const info = element('details','ll-level-details');
@@ -460,19 +507,22 @@
             heading.setAttribute('aria-label',heading.title);
             heading.dataset.llFocusKey = 'stats-' + level;
             heading.append(icon('chevron'));
-            info.append(heading);
-            info.addEventListener('toggle',() => {
-                if (!info.isConnected) return;
-                if (info.open) panels.add(level); else panels.delete(level);
-            });
+            const body = element('div','ll-level-detail-body');
             const panel = element('div','ll-level-detail-panel');
+            body.append(panel);
+            info.append(heading,body);
+            bindDetailToggle(level,info,heading,body);
+            const modes = options.signedIn && Array.isArray(stats?.modes) ? stats.modes : group.modes;
+            panel.append(options.quizButtons(level,modes,label(level),credentialsExpired || !config.nonce || !config.token,mode => {
+                announce('');
+                options.launchQuiz(level,mode,ajax,() => announce(t.launchError));
+            }));
             const panelHeader = element('div','ll-level-detail-header');
             const browse = button(t.seeAll + ' · ' + label(level),'ll-level-see-all',null,() => go('level',level));
             browse.dataset.llFocusKey = 'see-all-' + level;
             browse.append(element('span','',t.seeAll),icon('forward'));
             panelHeader.append(element('h3','ll-level-detail-title',t.stats),browse);
             panel.append(panelHeader);
-            info.append(panel);
             const list = element('dl','ll-level-facts');
             panel.append(list);
             addStat(list,t.lessons,group.categoryIds.size + group.contentIds.size);
@@ -519,11 +569,6 @@
                     retry.append(document.createTextNode(t.retry)); panel.append(retry);
                 }
             }
-            const modes = options.signedIn && Array.isArray(stats?.modes) ? stats.modes : group.modes;
-            panel.append(options.quizButtons(level,modes,label(level),credentialsExpired || !config.nonce || !config.token,mode => {
-                announce('');
-                options.launchQuiz(level,mode,ajax,() => announce(t.launchError));
-            }));
             return info;
         }
         function card(group) {
@@ -578,6 +623,11 @@
             return shell;
         }
         function render() {
+            if (state.view === 'home' && section.querySelector('.ll-level-detail-body.is-animating')) {
+                renderAfterMotion = true;
+                return;
+            }
+            renderAfterMotion = false;
             const focused = document.activeElement;
             // Updating progress must not eat partially typed interval edits.
             if (section.contains(focused) && focused.matches('input[type=number]') && state.view === 'home') {
