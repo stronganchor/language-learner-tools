@@ -102,6 +102,14 @@ final class WordsetPageDeferredStudyCatalogResourceTest extends LL_Tools_TestCas
                     $this->assertStringContainsString('data-ll-level-card="' . $level . '"', $shell[1]);
                     $this->assertStringContainsString(esc_html(sprintf($curriculum['i18n']['level'], $level)), $shell[1]);
                 }
+                $expected_rows = array_filter($curriculum['levels'], static function ($level) {
+                    return !empty($level['nextId']) || !empty($level['practiceId']);
+                });
+                $this->assertNotEmpty($expected_rows);
+                $this->assertSame(count($expected_rows), preg_match_all('/<div class="ll-level-activities" aria-hidden="true">(.*?)<\/div>/s', $shell[1], $rows));
+                foreach ($rows[1] as $row) {
+                    $this->assertSame('<span class="ll-level-button ll-level-activity ll-level-placeholder ll-level-sheen"></span>', trim($row));
+                }
                 $this->assertStringNotContainsString('<button', $shell[1]);
                 $this->assertSame($user_id !== 0, strpos($shell[1], 'll-level-review-placeholder') !== false);
                 $this->assertStringContainsString('data-ll-level-badge="1"', $html);

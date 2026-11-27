@@ -321,6 +321,15 @@
 .ll-level-detail-header { display: flex; align-items: center; flex-wrap: wrap; justify-content: space-between; gap: .5rem; }
 .ll-wordset-page .ll-level-detail-title { font-size: .98rem; }
 .ll-level-details { position: relative; margin-top: .35rem; padding-bottom: 44px; }
+/* Extend the open menu to the inside edge of the completed card's border. */
+.ll-level-card.is-complete > .ll-level-details[open] {
+    margin: .85rem -1rem -.3rem;
+    padding-inline: 1rem;
+    border-block-start: 1px solid var(--ll-wp-border);
+    border-radius: 0 0 16px 16px;
+    background: var(--ll-wp-card);
+}
+.ll-level-card.is-complete .ll-level-detail-panel { margin-top: 0; border-top: 0; }
 .ll-wordset-page summary.ll-level-details-toggle {
     position: absolute;
     inset: auto 0 0;

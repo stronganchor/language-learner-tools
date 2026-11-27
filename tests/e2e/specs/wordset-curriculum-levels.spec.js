@@ -370,6 +370,34 @@ test('returning learner sees completed levels and receives only visible CTA thum
   expect(lookups.every(r=>r.category_ids && r.category_ids.split(',').length<=8 && r.preview_limit==='2')).toBe(true);
 });
 
+for (const width of [390, 1240]) {
+  test('completed level keeps a green header above a white expanded menu at '+width+'px',async({page})=>{
+    await page.setViewportSize({width,height:850});
+    await page.emulateMedia({reducedMotion:'reduce'});
+    await mount(page,{signed:true,completed:true});
+    const card=page.locator('[data-ll-level-card="1"].is-complete');
+    const menu=card.locator(':scope > .ll-level-details'),toggle=menu.locator('summary.ll-level-details-toggle');
+    const green=await paletteColor(card,'--ll-wp-pill-green'),white=await paletteColor(card,'--ll-wp-card');
+    await expect(card).toHaveCSS('background-color',green);
+    const closed=await card.boundingBox();
+    await toggle.click();
+    await expect(toggle).toHaveAttribute('aria-expanded','true');
+    await expect(menu).toHaveCSS('background-color',white);
+    await expect(card).toHaveCSS('background-color',green);
+    const innerEdges=await menu.evaluate(el=>{
+      const card=el.parentElement,outer=card.getBoundingClientRect(),inner=el.getBoundingClientRect();
+      return [inner.left-outer.left-card.clientLeft,outer.right-inner.right-card.clientLeft,
+        outer.bottom-inner.bottom-parseFloat(getComputedStyle(card).borderBottomWidth)];
+    });
+    innerEdges.forEach(gap=>expect(Math.abs(gap)).toBeLessThan(1));
+    await toggle.click();
+    await expect(toggle).toHaveAttribute('aria-expanded','false');
+    await expect(menu).toHaveCSS('background-color','rgba(0, 0, 0, 0)');
+    await expect(card).toHaveCSS('background-color',green);
+    expect((await card.boundingBox()).height).toBeCloseTo(closed.height,0);
+  });
+}
+
 test('only newly completed levels celebrate, retain their actions and remember completion on return',async({page,context})=>{
   const completionHistory={},oldLevel={total:4,mastered:4,working:0,new:0,practice_category_id:1,days:30};
   const stats={...oldLevel,total:8,mastered:7,working:1,practice_category_id:15};
@@ -1224,41 +1252,53 @@ test('ready levels show exact progress before other lessons finish preparing',as
   try {
     await expect(first.getByLabel('3 Learned, 2 In progress, 5 New',{exact:true})).toBeVisible();
     await expect(first.getByRole('button',{name:'Practice · Lesson 2'})).toBeVisible();
-    const listen=second.locator('.ll-level-activities').getByRole('button',{name:'Listen · Level 2'});
-    await expect(listen).toBeEnabled();
-    await expect(second.locator('.ll-level-browse-pending')).toBeEnabled();
+    await expect(first.locator('.ll-level-activities .ll-level-placeholder')).toHaveCount(0);
+    const actions=second.locator('.ll-level-activities');
+    await expect(actions.locator('.ll-level-activity.ll-level-placeholder.ll-level-sheen')).toBeVisible();
+    await expect(actions.getByRole('button')).toHaveCount(0);
     await expect(second.locator('.ll-wordset-card__progress-track.is-loading')).toBeVisible();
     await expect(page.locator('.ll-level-review-all')).toHaveCount(0);
     await expect.poll(()=>reqs.filter(r=>r.operation==='summary').at(-1)?.ready_levels).toBe('1');
-    await listen.click();
+    await second.getByLabel('Level details · Level 2',{exact:true}).click();
+    await second.locator('[data-ll-level-quiz-mode="listening"]').click();
     await expect.poll(()=>page.evaluate(()=>window.launchedQuizzes[0]?.categories)).toEqual(['Everyday Expressions']);
     expect(reqs.find(r=>r.operation==='quiz').level).toBe('2');
   } finally { finish(); }
   await expect(page.locator('.ll-level-review-all')).toBeVisible();
+  await expect(second.locator('.ll-level-activities .ll-level-placeholder')).toHaveCount(0);
   await expect(second.locator('.ll-wordset-card__progress-track.is-loading')).toHaveCount(0);
 });
 
 for(const width of [390,1140]) {
-  test('the pending daily goal and usable catalog actions reserve the loaded row at '+width+'px',async({page})=>{
+  test('each pending level shows one button-sized sheen until its actions are ready at '+width+'px',async({page})=>{
     await page.setViewportSize({width,height:850});
     let release;
     const holdSummary=new Promise(done=>{release=done;});
     await mount(page,{signed:true,holdSummary,groups:groups.map(group=>({...group,modes:Object.keys(quizModes)}))});
     const first=page.locator('[data-ll-level-card="1"]');
-    const pending=first.locator('.ll-level-activities .ll-level-browse-pending');
-    await expect(pending).toBeEnabled();
-    await expect(first.locator('.ll-level-activities').getByRole('button',{name:'Listen · Level 1'})).toBeEnabled();
-    const loadingTop=await page.locator('.ll-level-review-placeholder').boundingBox();
     const actions=first.locator('.ll-level-activities');
-    const loadingRow=await actions.boundingBox();
-    release();
+    const pending=actions.locator('.ll-level-activity.ll-level-sheen');
+    let loadingTop, loadingButton;
+    try {
+      const actionRows=page.locator('[data-ll-level-card] .ll-level-activities');
+      await expect(actionRows).toHaveCount(groups.length);
+      for(const row of await actionRows.all()){
+        const placeholder=row.locator(':scope > .ll-level-activity.ll-level-placeholder.ll-level-sheen');
+        await expect(placeholder).toBeVisible();
+        await expect(placeholder).toHaveAttribute('aria-hidden','true');
+        await expect(row).toHaveText('');
+        await expect(row.getByRole('button')).toHaveCount(0);
+      }
+      loadingTop=await page.locator('.ll-level-review-placeholder').boundingBox();
+      loadingButton=await pending.boundingBox();
+    } finally { release(); }
     const daily=page.locator('.ll-level-review-all');
     await expect(daily).toBeVisible();
     await expect(pending).toHaveCount(0);
-    const readyRow=await actions.boundingBox();
+    const readyButton=await actions.getByRole('button').first().boundingBox();
     expect(Math.abs((await daily.boundingBox()).height-loadingTop.height)).toBeLessThanOrEqual(1);
-    expect(Math.abs(readyRow.height-loadingRow.height)).toBeLessThanOrEqual(1);
-    expect(Math.abs(readyRow.y-loadingRow.y)).toBeLessThanOrEqual(2);
+    expect(Math.abs(readyButton.height-loadingButton.height)).toBeLessThanOrEqual(1);
+    expect(Math.abs(readyButton.y-loadingButton.y)).toBeLessThanOrEqual(2);
   });
 }
 

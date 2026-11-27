@@ -758,22 +758,8 @@
                 overview.append(element('span','ll-level-progress-count',t.lessons + ' · ' + number(group.categoryIds.size + group.contentIds.size)));
             }
             const actions = element('div','ll-level-activities');
-            if (loadingStats && !credentialsExpired && group.categoryIds.size) {
-                // Browsing is always available while the exact personalized activity is being prepared.
-                const browse = button(t.seeAll + ' · ' + label(id),'ll-level-activity ll-level-browse-pending','lessons',() => go('level',id));
-                browse.dataset.llFocusKey = 'pending-browse-' + id;
-                browse.append(element('span','ll-level-action-name',t.seeAll),icon('forward'));
-                actions.append(browse);
-                if (group.modes?.includes('listening')) {
-                    const name = options.modeLabel('listening');
-                    const listen = button(name + ' · ' + label(id),'ll-level-activity',null,() => {
-                        options.launchQuiz(id,'listening',ajax,() => announce(t.launchError));
-                    });
-                    listen.dataset.llFocusKey = 'pending-listen-' + id;
-                    listen.insertAdjacentHTML('afterbegin',options.modeIcon('listening','ll-level-mode-icon'));
-                    listen.append(element('span','ll-level-action-name',name),icon('forward'));
-                    actions.append(listen);
-                }
+            if (loadingStats && (group.nextId || group.practiceId)) {
+                actions.append(loadingPlaceholder('ll-level-activity'));
             } else if (stats) {
                 if (stats.next_category_id) actions.append(action(group,'learn',Number(stats.next_category_id)));
                 if (stats.practice_category_id) actions.append(action(group,'practice',Number(stats.practice_category_id)));
@@ -861,7 +847,7 @@
             if (focusedPreview && section.contains(focused)) focused.focus({preventScroll:true});
             else if (key) {
                 const target = section.querySelector('[data-ll-focus-key="' + key + '"]')
-                    || ((key.startsWith('progress-') || key.startsWith('pending-'))
+                    || (key.startsWith('progress-')
                         && section.querySelector('[data-ll-focus-key="browse-' + key.split('-').pop() + '"]'));
                 if (target) target.focus({preventScroll:true});
             }

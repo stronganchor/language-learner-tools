@@ -83,7 +83,7 @@ function ll_tools_wordset_level_render_initial_catalog(array $catalog, bool $sig
         <?php endif; ?>
         <div class="ll-level-grid">
             <?php foreach ($catalog['levels'] as $group) :
-                $slots = (int) !empty($group['nextId']) + (int) !empty($group['practiceId']);
+                $has_activity = !empty($group['nextId']) || !empty($group['practiceId']);
                 $has_categories = !empty($group['categoryIds']);
                 ?>
                 <article class="ll-level-card" data-ll-level-card="<?php echo (int) $group['level']; ?>">
@@ -102,11 +102,9 @@ function ll_tools_wordset_level_render_initial_catalog(array $catalog, bool $sig
                                 <?php endif; ?>
                             </div>
                         </div>
-                        <?php if ($slots) : ?>
+                        <?php if ($has_activity) : ?>
                             <div class="ll-level-activities" aria-hidden="true">
-                                <?php for ($i = 0; $i < ($signed_in ? $slots : 1); ++$i) : ?>
-                                    <span class="ll-level-button ll-level-activity ll-level-placeholder ll-level-sheen"></span>
-                                <?php endfor; ?>
+                                <span class="ll-level-button ll-level-activity ll-level-placeholder ll-level-sheen"></span>
                             </div>
                         <?php endif; ?>
                     </div>
