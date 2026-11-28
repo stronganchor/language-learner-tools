@@ -1040,6 +1040,38 @@ test('a level opens and closes progressively and reverses from its current heigh
   await expect(card.locator('.ll-level-details')).not.toHaveAttribute('open');
 });
 
+test('scrolling during level expansion follows the gesture without anchoring to the moving arrow',async({page})=>{
+  await page.setViewportSize({width:390,height:720});
+  await page.emulateMedia({reducedMotion:'no-preference'});
+  const manyLevels=categories.map(({id:level})=>({level,categoryIds:[level],contentIds:[],nextId:level}));
+  const progress={total:10,mastered:3,working:2,new:5,next_category_id:4};
+  await mount(page,{signed:true,sparse:true,groups:manyLevels,summary:{levels:{
+    4:progress, 7:{...progress,mastered:10,working:0,new:0,next_category_id:0}
+  }}});
+  await expect(page.locator('[data-ll-level-card="7"]')).toHaveClass(/is-complete/);
+  for (const level of [4,7]) {
+    const card=page.locator('[data-ll-level-card="'+level+'"]');
+    const toggle=card.locator('.ll-level-details-toggle');
+    const initialScroll=await toggle.evaluate(node=>{
+      window.scrollTo({top:window.scrollY+node.getBoundingClientRect().top-40,behavior:'instant'});
+      node.focus({preventScroll:true});
+      return window.scrollY;
+    });
+    await page.mouse.move(180,240);
+    await toggle.evaluate(node=>{
+      node.click();
+      // Leave plenty of time to send the wheel event while the disclosure is moving.
+      node.parentElement.querySelector('.ll-level-detail-body').getAnimations()[0].playbackRate=.25;
+    });
+    await card.locator('.ll-level-detail-body.is-animating').waitFor();
+    await page.mouse.wheel(0,250);
+    await expect(card.locator('.ll-level-detail-body.is-animating')).toHaveCount(0);
+    await expect(toggle).toHaveAttribute('aria-expanded','true');
+    await expect(toggle).toBeFocused();
+    expect(Math.abs(await page.evaluate(()=>window.scrollY)-initialScroll-250)).toBeLessThanOrEqual(2);
+  }
+});
+
 test('a progress refresh arriving during expansion preserves the open level and keyboard focus',async({page})=>{
   const stats={total:10,mastered:3,working:2,new:5,days:30,due:0,next_category_id:1};
   await mount(page,{signed:true,summary:{levels:{1:stats}}});
@@ -1620,4 +1652,32 @@ test('level status buttons stay together and reserve a shared activity column', 
       await chips.first().click();
     }
   }
+});
+
+test('opening the lesson catalog starts at the top and Back restores the overview position', async ({page}) => {
+  await page.setViewportSize({width:390,height:664});
+  await page.emulateMedia({reducedMotion:'reduce'});
+  await mount(page,{
+    groups:[
+      {level:1,categoryIds:[15],contentIds:[],nextId:15},
+      {level:2,categoryIds:firstLevel,contentIds:[],nextId:1}
+    ]
+  });
+  await page.addStyleTag({content:'html {scroll-behavior:smooth} .ll-wordset-card {min-height:150px}'});
+  const level = page.locator('[data-ll-level-card="2"]');
+  await level.locator('.ll-level-details-toggle').click();
+  const seeAll = level.getByRole('button',{name:'See all lessons · Level 2'});
+  await seeAll.scrollIntoViewIfNeeded();
+  const overviewScroll = await page.evaluate(() => window.scrollY);
+  expect(overviewScroll).toBeGreaterThan(100);
+  await seeAll.click();
+  const root = page.locator('[data-ll-wordset-page]');
+  await expect(root).toHaveAttribute('data-ll-level-view','level');
+  await expect(page.getByRole('heading',{name:'Level 2',exact:true})).toBeInViewport();
+  expect(await page.evaluate(() => window.scrollY)).toBe(0);
+
+  await page.getByRole('button',{name:'Back',exact:true}).click();
+  await expect(root).toHaveAttribute('data-ll-level-view','home');
+  await expect(seeAll).toBeInViewport();
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(overviewScroll);
 });

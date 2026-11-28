@@ -150,6 +150,7 @@
             state = Object.assign(home(), {view, level, parent: true, origin: state.view === 'level' ? state.level : null});
             writeState('pushState');
             apply(true);
+            if (view === 'level') window.scrollTo({top:0,behavior:'instant'});
         }
         function back() {
             if (state.parent && history.state && history.state[historyKey]) {
