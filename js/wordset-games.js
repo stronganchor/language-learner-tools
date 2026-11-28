@@ -4795,10 +4795,12 @@
         });
     }
 
-    function waitForFeedbackAudioToFinish(ctx, audio, sequenceVersion, fallbackMs) {
+    function waitForFeedbackAudioToFinish(ctx, audio, sequenceVersion, fallbackMs, playback) {
         return new Promise(function (resolve) {
             let settled = false;
             let timeoutId = 0;
+            let lastPosition = Number(audio.currentTime) || 0;
+            const timeoutMs = playback ? ASSET_PRELOAD_TIMEOUT_MS : Math.max(140, toInt(fallbackMs) || 0) + 80;
 
             const cleanup = function () {
                 if (timeoutId) {
@@ -4808,6 +4810,7 @@
                 audio.removeEventListener('ended', onDone);
                 audio.removeEventListener('error', onDone);
                 audio.removeEventListener('pause', onPause);
+                audio.removeEventListener('timeupdate', onTimeUpdate);
             };
 
             const finish = function () {
@@ -4823,8 +4826,24 @@
                 finish();
             };
             const onPause = function () {
-                if ((ctx.feedbackQueueVersion || 0) !== sequenceVersion) {
+                if ((ctx.feedbackQueueVersion || 0) !== sequenceVersion || (playback && audio.paused && !audio.ended)) {
                     finish();
+                }
+            };
+            const onTimeout = function () {
+                if (playback && (ctx.feedbackQueueVersion || 0) === sequenceVersion
+                    && !audio.ended && (Number(audio.currentTime) || 0) > lastPosition) {
+                    onTimeUpdate();
+                    return;
+                }
+                finish();
+            };
+            const onTimeUpdate = function () {
+                const position = Number(audio.currentTime) || 0;
+                if (position > lastPosition) {
+                    lastPosition = position;
+                    root.clearTimeout(timeoutId);
+                    timeoutId = root.setTimeout(onTimeout, timeoutMs);
                 }
             };
 
@@ -4836,7 +4855,12 @@
             audio.addEventListener('ended', onDone);
             audio.addEventListener('error', onDone);
             audio.addEventListener('pause', onPause);
-            timeoutId = root.setTimeout(onDone, Math.max(140, toInt(fallbackMs) || 0) + 80);
+            if (playback) {
+                // Buffering can outlast the reported clip duration, so only time out after a stall.
+                audio.addEventListener('timeupdate', onTimeUpdate);
+                playback.catch(finish);
+            }
+            timeoutId = root.setTimeout(onTimeout, timeoutMs);
         });
     }
 
@@ -4883,11 +4907,17 @@
                 }
 
                 ctx.feedbackPlaying = true;
-                return Promise.resolve(feedbackAudio.play()).catch(function () {
-                    return false;
-                }).then(function () {
-                    return waitForFeedbackAudioToFinish(ctx, feedbackAudio, sequenceVersion, feedbackDurationMs);
-                }).finally(function () {
+                const playback = Promise.resolve().then(function () {
+                    if ((ctx.feedbackQueueVersion || 0) === sequenceVersion) {
+                        return feedbackAudio.play();
+                    }
+                });
+                const finished = opts.waitForPlaybackEnd
+                    ? waitForFeedbackAudioToFinish(ctx, feedbackAudio, sequenceVersion, feedbackDurationMs, playback)
+                    : playback.catch(function () { return false; }).then(function () {
+                        return waitForFeedbackAudioToFinish(ctx, feedbackAudio, sequenceVersion, feedbackDurationMs);
+                    });
+                return finished.finally(function () {
                     if ((ctx.feedbackQueueVersion || 0) === sequenceVersion) {
                         ctx.feedbackPlaying = false;
                     }
@@ -6326,6 +6356,30 @@
         }
     }
 
+    function celebrateSpeakingStackWin(ctx) {
+        if (root.matchMedia && root.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+            return;
+        }
+
+        const confetti = root.document.createElement('div');
+        confetti.className = 'll-wordset-game-stage__confetti';
+        confetti.setAttribute('data-ll-wordset-game-confetti', '');
+        confetti.setAttribute('aria-hidden', 'true');
+        const colors = ['#facc15', '#fb7185', '#5eead4', '#60a5fa', '#a78bfa'];
+        const pieceCount = 24;
+        for (let index = 0; index < pieceCount; index++) {
+            const piece = root.document.createElement('span');
+            piece.style.left = ((index + 0.5) * 100 / pieceCount) + '%';
+            piece.style.backgroundColor = colors[index % colors.length];
+            piece.style.animationDelay = (index % 7 * 35) + 'ms';
+            piece.style.setProperty('--ll-confetti-drift', Math.round(randomBetween(-70, 70)) + 'px');
+            piece.style.setProperty('--ll-confetti-turn', Math.round(randomBetween(-640, 640)) + 'deg');
+            confetti.appendChild(piece);
+        }
+        ctx.$overlay.get(0).appendChild(confetti);
+        root.setTimeout(function () { confetti.remove(); }, 1900);
+    }
+
     function finishSpeakingStackRun(ctx, reason) {
         const run = ctx.run;
         if (!run || run.ended) {
@@ -6378,6 +6432,9 @@
                 secondaryLabel: String(gameText(ctx, 'gamesBackToCatalog'))
             }
         );
+        if (isWin) {
+            celebrateSpeakingStackWin(ctx);
+        }
     }
 
     function stepSpeakingStackRun(ctx, now, dtMs) {
@@ -6429,7 +6486,7 @@
         if (run.visibleTargetSince === null && getVisibleSpeakingStackCards(run).length) {
             run.visibleTargetSince = now;
         }
-        if (run.allWordsQueued && !getSpeakingStackActiveCards(run).length
+        if (isSpeakingStackCleared(run)
             && !hasSpeakingStackAttemptInProgress(ctx)
             && !run.cards.some(function (card) { return !!(card && card.exploding); })) {
             finishSpeakingStackRun(ctx, 'win');
@@ -6668,6 +6725,7 @@
     }
 
     function showOverlay(ctx, title, summary, options) {
+        ctx.$overlay.children('[data-ll-wordset-game-confetti]').remove();
         const opts = options || {};
         const summaryText = String(summary || '');
         const primaryLabel = Object.prototype.hasOwnProperty.call(opts, 'primaryLabel')
@@ -6703,6 +6761,7 @@
     }
 
     function hideOverlay(ctx) {
+        ctx.$overlay.children('[data-ll-wordset-game-confetti]').remove();
         ctx.overlayMode = '';
         if (ctx.$overlayCard && ctx.$overlayCard.length) {
             ctx.$overlayCard.prop('hidden', false);
@@ -10768,6 +10827,10 @@
         });
     }
 
+    function isSpeakingStackCleared(run) {
+        return run.allWordsQueued && !getSpeakingStackActiveCards(run).length;
+    }
+
     function pickBestSpeakingStackMatch(results) {
         const bucketRank = {
             wrong: 0,
@@ -11034,7 +11097,7 @@
         }
 
         clearSpeakingTimeout(state, 'restartTimer');
-        if (!run || run.ended || run.paused || !isSpeakingStackRun(ctx, run)) {
+        if (!run || run.ended || run.paused || !isSpeakingStackRun(ctx, run) || isSpeakingStackCleared(run)) {
             return;
         }
 
@@ -11110,9 +11173,7 @@
         const now = currentTimestamp();
         run.lastSpeechAt = now;
         run.spawnHoldUntil = Math.max(Number(run.spawnHoldUntil) || 0, now + getSpeakingStackThinkPaddingMs(ctx, run));
-        if (!run.allWordsQueued || getSpeakingStackActiveCards(run).length) {
-            queueSpeakingStackCaptureRestart(ctx, 120);
-        }
+        queueSpeakingStackCaptureRestart(ctx, 120);
     }
 
     function cancelSpeakingStackBlastAim(ctx) {
@@ -11169,7 +11230,8 @@
         return playQueuedAudioSources(ctx, [correctAudioUrl], {
             cacheKey: 'speaking-stack-word:' + String(toInt(card.word && card.word.id)),
             volume: getPromptAudioVolume(ctx, run),
-            pausePrompt: false
+            pausePrompt: false,
+            waitForPlaybackEnd: true
         });
     }
 
@@ -11330,7 +11392,6 @@
         const quickResponse = state.stackQuickResponse;
         let holdFeedback = false;
         let quickRight = false;
-        let awaitedFeedback = false;
         const isCurrentAttempt = function () {
             return ctx.run === run && !run.ended && !run.paused && state.transcribing === attempt;
         };
@@ -11341,9 +11402,8 @@
             const outcome = handleSpeakingStackMatches(ctx, run, activeCards, result, transcript);
             holdFeedback = !outcome.cleared;
             quickRight = outcome.right > 0 && quickResponse === true;
-            // Keep the recorder closed while the reference clips from a burst are queued.
-            awaitedFeedback = outcome.cleared > 1;
-            if (awaitedFeedback) {
+            // Keep the recorder and end-of-round checks waiting through the pronunciation clips.
+            if (outcome.cleared > 0) {
                 return waitForFeedbackQueue(ctx);
             }
         };
@@ -11352,16 +11412,14 @@
                 return;
             }
             const completedAt = currentTimestamp();
-            const playbackCooldownMs = awaitedFeedback ? 0 : Math.max(0, Number(run.lastCorrectAudioDurationMs) || 0);
-            const feedbackHoldMs = holdFeedback ? getSpeakingStackFeedbackHoldMs(ctx) : 120;
-            const restartDelayMs = Math.max(feedbackHoldMs, playbackCooldownMs + (playbackCooldownMs > 0 ? 180 : 120));
+            const restartDelayMs = holdFeedback ? getSpeakingStackFeedbackHoldMs(ctx) : 120;
             if (quickResponse !== null) {
                 updateSpeakingStackPace(ctx, run, quickRight);
             }
             run.lastSpeechAt = completedAt;
             run.spawnHoldUntil = Math.max(
                 Number(run.spawnHoldUntil) || 0,
-                completedAt + getSpeakingStackThinkPaddingMs(ctx, run) + playbackCooldownMs
+                completedAt + getSpeakingStackThinkPaddingMs(ctx, run)
             );
             state.transcribing = false;
             queueSpeakingStackCaptureRestart(ctx, restartDelayMs);

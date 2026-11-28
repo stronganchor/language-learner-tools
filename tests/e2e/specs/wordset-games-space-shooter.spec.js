@@ -1302,6 +1302,7 @@ async function mountGamesPage(page, {
         _queueEnded() {
           this._clearPlayTimer();
           const expectedSrc = this._src;
+          const completionDelayMs = Number(window.__audioCompletionDelayByFile?.[expectedSrc.split('/').pop()]) || 0;
           const durationMs = Math.max(20, Math.round((Number(this.duration) || 0.12) * 1000));
           this._playTimer = window.setTimeout(() => {
             if (this._src !== expectedSrc) {
@@ -1310,7 +1311,7 @@ async function mountGamesPage(page, {
             this.paused = true;
             this._logEvent('ended');
             this.dispatchEvent(new Event('ended'));
-          }, durationMs);
+          }, durationMs + completionDelayMs);
         }
       };
 
@@ -2911,6 +2912,19 @@ async function speakMockWordStackAttempt(page, bucket, { speechMs = 300, respons
   await page.clock.runFor(responseMs);
 }
 
+async function recordWordStackCelebrations(page) {
+  await page.evaluate(() => {
+    window.__wordStackCelebrations = 0;
+    new MutationObserver((records) => {
+      for (const { addedNodes } of records) {
+        for (const node of addedNodes) {
+          if (node.matches?.('[data-ll-wordset-game-confetti]')) window.__wordStackCelebrations += 1;
+        }
+      }
+    }).observe(document.body, { childList: true, subtree: true });
+  });
+}
+
 test('word stack keeps the screen awake only during a visible active round', async ({ page }) => {
   await page.clock.install();
   await mountGamesPage(page, {
@@ -3123,6 +3137,7 @@ test('word stack picks up the pace for quick spoken rights without counting prov
 });
 
 test('word stack clears distinct matches in one utterance and plays the final references before ending', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
   await page.clock.install();
   await mountGamesPage(page, {
     isLoggedIn: true,
@@ -3150,6 +3165,7 @@ test('word stack clears distinct matches in one utterance and plays the final re
     }
   });
   await mockWordStackAttempts(page);
+  await recordWordStackCelebrations(page);
   await page.evaluate(() => {
     const match = (word_id) => ({ word_id, bucket: 'right', score: 100 });
     window.__wordStackMatchResponder = (ids) => {
@@ -3225,14 +3241,111 @@ test('word stack clears distinct matches in one utterance and plays the final re
     transcribing: true,
     ended: false
   });
-  await page.clock.runFor(2000);
+  for (let tick = 0; tick < 12 && !(await state()).clips.includes(clip(fifth)); tick += 1) {
+    await page.clock.runFor(80);
+  }
+  expect(await state()).toMatchObject({
+    ended: false,
+    clips: initial.activeIds.map(clip),
+    finishedClips: [first, second, third, fourth].map((id) => `${clip(id)}-ended`)
+  });
+  await expect(page.locator('[data-ll-wordset-game-overlay]')).toBeHidden();
+  expect(await page.evaluate(() => window.__wordStackCelebrations)).toBe(0);
+  await page.clock.runFor(1000);
   expect(await state()).toMatchObject({
     ended: true,
     clips: initial.activeIds.map(clip),
     finishedClips: initial.activeIds.map((id) => `${clip(id)}-ended`)
   });
   await expect(page.locator('[data-ll-wordset-game-overlay-title]')).toHaveText('You cleared the stack');
+  const confetti = page.locator('[data-ll-wordset-game-confetti]');
+  await expect(confetti).toHaveCount(1);
+  await expect(confetti).toHaveAttribute('aria-hidden', 'true');
+  await page.clock.runFor(2500);
+  await expect(confetti).toHaveCount(0);
+  expect(await page.evaluate(() => window.__wordStackCelebrations)).toBe(1);
 });
+
+for (const exitDuringPlayback of [false, true]) {
+  test(exitDuringPlayback
+    ? 'word stack exit during the final reference cancels the pending win'
+    : 'word stack waits for the last single reference to end and respects reduced motion', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: exitDuringPlayback ? 'no-preference' : 'reduce' });
+    await page.clock.install();
+    await mountGamesPage(page, {
+      isLoggedIn: true,
+      words: buildSpeakingStackWords(5),
+      audioLoadDelayMs: 0,
+      promptAudioDurationSeconds: 2,
+      configOverrides: {
+        games: {
+          catalog: { 'speaking-stack': { slug: 'speaking-stack', title: 'Word Stack' } },
+          speakingStack: {
+            slug: 'speaking-stack',
+            provider: 'hosted_api',
+            targetField: 'title',
+            initialSpawnCount: 5,
+            maxLoadedWords: 5,
+            fallSpeed: 100,
+            preFirstAttemptFallSpeed: 100,
+            maxRecordingMs: 60000,
+            silenceWindowMs: 400,
+            finalSilenceMs: 60000
+          }
+        }
+      }
+    });
+    await mockWordStackAttempts(page);
+    await recordWordStackCelebrations(page);
+    await page.evaluate(() => {
+      window.__wordStackMatchResponder = (ids) => ({
+        matched: true,
+        matches: (ids.length > 1 ? ids.slice(0, -1) : ids).map((word_id) => ({
+          word_id, matched: true, bucket: 'right', score: 100
+        }))
+      });
+    });
+    const overlay = page.locator('[data-ll-wordset-game-overlay]');
+    const audioEvents = () => page.evaluate(() => window.__audioEventLog);
+    await gameLaunchButton(page, 'speaking-stack').click();
+    await expect(page.locator('[data-ll-wordset-speaking-stack-stage]')).toBeVisible();
+    await page.clock.runFor(2500);
+    await speakMockWordStackAttempt(page, 'right');
+    await page.clock.runFor(8500);
+
+    const activeIds = await page.evaluate(() => window.LLWordsetGames.__ctx.run.cards
+      .filter((card) => !card.exploding && !card.removedFromStack).map((card) => Number(card.word.id)));
+    expect(activeIds).toHaveLength(1);
+    const lastFile = `speaking-${activeIds[0]}.mp3`;
+    const lastClip = `prompt:${lastFile}`;
+    await page.evaluate((filename) => { window.__audioCompletionDelayByFile = { [filename]: 2000 }; }, lastFile);
+    await speakMockWordStackAttempt(page, 'right');
+    await page.clock.runFor(650);
+    expect(await audioEvents()).toContain(lastClip);
+    expect(await audioEvents()).not.toContain(`${lastClip}-ended`);
+    await expect(overlay).toBeHidden();
+    expect(await page.evaluate(() => window.__wordStackCelebrations)).toBe(0);
+
+    if (exitDuringPlayback) {
+      await closeRunPopup(page);
+      await page.clock.runFor(4500);
+      expect(await audioEvents()).not.toContain(`${lastClip}-ended`);
+      await expect(overlay).toBeHidden();
+      expect(await page.evaluate(() => window.__wordStackCelebrations)).toBe(0);
+      return;
+    }
+
+    // The clip's metadata says two seconds, but playback takes longer in this fixture.
+    await page.clock.runFor(2000);
+    expect(await audioEvents()).not.toContain(`${lastClip}-ended`);
+    await expect(overlay).toBeHidden();
+    await page.clock.runFor(2000);
+    expect(await audioEvents()).toContain(`${lastClip}-ended`);
+    await expect(overlay).toBeVisible();
+    await expect(page.locator('[data-ll-wordset-game-overlay-title]')).toHaveText('You cleared the stack');
+    expect(await page.evaluate(() => window.__wordStackCelebrations)).toBe(0);
+  });
+}
 
 test('word stack immediately refills with two cards after the first full clear and three thereafter', async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 844 });
@@ -3485,6 +3598,9 @@ test.describe('word stack blast', () => {
       expect(alignment.horizontal).toBeLessThan(2);
       expect(alignment.vertical).toBeLessThan(2);
       if (useKeyboard) {
+        await page.evaluate((wordId) => {
+          window.__audioCompletionDelayByFile = { [`speaking-${wordId}.mp3`]: 1500 };
+        }, id);
         await target.focus();
         await page.clock.runFor(200);
         await expect(target).toBeFocused();
@@ -3501,6 +3617,13 @@ test.describe('word stack blast', () => {
       expect(await quickRights()).toBeLessThanOrEqual(paceBeforeBlasts);
       if (!useKeyboard) {
         await expect(charges).toHaveText('1');
+      } else {
+        const clipEnded = () => page.evaluate((wordId) =>
+          window.__audioEventLog.includes(`prompt:speaking-${wordId}.mp3-ended`), id);
+        expect(await clipEnded()).toBe(false);
+        await expect(page.locator('[data-ll-wordset-game-overlay]')).toBeHidden();
+        await page.clock.runFor(1500);
+        expect(await clipEnded()).toBe(true);
       }
     }
 

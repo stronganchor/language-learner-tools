@@ -724,6 +724,39 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
     backdrop-filter: blur(10px);
 }
 
+.ll-wordset-game-stage__confetti {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    overflow: hidden;
+    border-radius: inherit;
+    pointer-events: none;
+}
+
+.ll-wordset-game-stage__confetti > span {
+    position: absolute;
+    top: -12px;
+    width: 7px;
+    height: 11px;
+    border-radius: 2px;
+    animation: ll-wordset-stack-confetti-fall 1.6s ease-in both;
+}
+
+@keyframes ll-wordset-stack-confetti-fall {
+    0% { opacity: 0; transform: translate(0, 0) rotate(0); }
+    16%, 70% { opacity: 1; }
+    100% {
+        opacity: 0;
+        transform: translate(var(--ll-confetti-drift), calc(100dvh + 20px)) rotate(var(--ll-confetti-turn));
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ll-wordset-game-stage__confetti {
+        display: none;
+    }
+}
+
 .ll-wordset-game-stage[data-ll-wordset-game-preparing] > :not(.ll-wordset-game-stage__overlay) {
     visibility: hidden;
 }
