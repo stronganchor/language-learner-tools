@@ -3830,6 +3830,7 @@ test.describe('mobile Unscramble', () => {
       }
     });
 
+    await page.addStyleTag({ content: 'html { font-size: 14.5px; }' });
     await gameLaunchButton(page, 'unscramble').tap();
     const stage = page.locator('[data-ll-wordset-lineup-stage]');
     const tiles = stage.locator('[data-ll-wordset-unscramble-tile]');
