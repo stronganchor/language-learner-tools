@@ -12848,14 +12848,15 @@
         for (const slug of slugs) {
             const entry = entries && entries[slug];
             if (!entry || entry.provider !== 'embedded_model' || entry.hidden) {
-                return false;
+                continue;
             }
             const localEntry = buildPreparedEntry(ctx, slug, entry);
             if (!localEntry || !localEntry.launchable || !entryHasLaunchPayload(localEntry)) {
-                return false;
+                continue;
             }
             prepared[slug] = localEntry;
         }
+        if (!Object.keys(prepared).length) return false;
 
         if (stackOptions) {
             const stack = ctx.gameConfigs[SPEAKING_STACK_GAME_SLUG];
@@ -12873,7 +12874,7 @@
         ctx.browserSpeakingBridge = bridge;
         ctx.browserSpeakingEntries = prepared;
         setCatalogEntries(ctx, ctx.catalogEntries);
-        slugs.forEach(function (slug) {
+        Object.keys(prepared).forEach(function (slug) {
             const entry = prepared[slug];
             let card = ctx.catalogCards[slug];
             if (!card) {

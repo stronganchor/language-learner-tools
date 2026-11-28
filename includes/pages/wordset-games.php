@@ -5662,6 +5662,7 @@ function ll_tools_wordset_games_get_audio_details(int $word_id, string $recordin
     $args = wp_parse_args($args, [
         'speaking_short_only' => false,
         'target_field' => 'recording_text',
+        'public_only' => false,
     ]);
     $speaking_short_only = !empty($args['speaking_short_only']);
     $target_field = (($args['target_field'] ?? '') === 'recording_ipa') ? 'recording_ipa' : 'recording_text';
@@ -5723,6 +5724,9 @@ function ll_tools_wordset_games_get_audio_details(int $word_id, string $recordin
     }
 
     foreach ($candidate_audio_posts as $audio_post) {
+        if ($args['public_only'] && $audio_post->post_password !== '') {
+            continue;
+        }
         $audio_path = trim((string) get_post_meta($audio_post->ID, 'audio_file_path', true));
         if ($audio_path === '') {
             continue;

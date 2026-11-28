@@ -27490,6 +27490,9 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
 
     ll_tools_wordset_page_enqueue_styles();
     ll_tools_wordset_page_enqueue_scripts();
+    if ($view === 'games') {
+        ll_tools_zipa_enqueue_games($wordset_id);
+    }
     $localize_wordset_runtime = wp_script_is('ll-wordset-pages-js', 'enqueued');
     $wordset_page_scripts = wp_scripts();
     if ($localize_wordset_runtime && $wordset_page_scripts instanceof WP_Scripts && isset($wordset_page_scripts->registered['ll-wordset-pages-js'])) {

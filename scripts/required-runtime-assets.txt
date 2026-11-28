@@ -1,6 +1,21 @@
 # Runtime assets that must be present in any installable plugin archive.
 # This release safety check covers required modules and enqueued assets.
 language-learner-tools.php
+includes/admin/zipa-settings.php
+includes/lib/zipa-settings.php
+includes/lib/zipa-matcher.php
+includes/pages/wordset-zipa-games.php
+js/zipa/zipa-games.js
+js/zipa/zipa-phonemic-matcher.mjs
+js/zipa/zipa-orthographic-display.mjs
+js/zipa/THIRD_PARTY_NOTICES.md
+js/zipa/runtime/zipa-audio.mjs
+js/zipa/runtime/zipa-features.mjs
+js/zipa/runtime/zipa-model-assets.mjs
+js/zipa/runtime/zipa-worker.mjs
+js/zipa/runtime/vendor/LICENSE-onnxruntime.txt
+js/zipa/runtime/vendor/ort-wasm-simd-threaded.mjs
+js/zipa/runtime/vendor/ort.wasm.min.mjs
 includes/lib/complete-source-reads.php
 includes/lib/static-cache-maintenance.php
 includes/lib/wordset-curriculum.php

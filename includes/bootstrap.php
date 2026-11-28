@@ -128,6 +128,7 @@ if (ll_tools_should_load_admin_modules()) {
     require_once(__DIR__ . '/admin/missing-audio-admin-page.php');
     require_once(__DIR__ . '/admin/audio-image-matcher.php');
     require_once(__DIR__ . '/admin/settings.php');
+    require_once(__DIR__ . '/admin/zipa-settings.php');
     require_once(__DIR__ . '/admin/audio-processor-admin.php');
     require_once(__DIR__ . '/admin/login-blocks-admin.php');
     require_once(__DIR__ . '/admin/recording-types-admin.php');
@@ -190,6 +191,9 @@ if (function_exists('ll_tools_register_autopage_activation') && defined('LL_TOOL
 require_once(__DIR__ . '/pages/vocab-lesson-pages.php');
 require_once(__DIR__ . '/pages/content-lesson-pages.php');
 require_once(__DIR__ . '/pages/wordset-games.php');
+require_once(__DIR__ . '/lib/zipa-settings.php');
+require_once(__DIR__ . '/lib/zipa-matcher.php');
+require_once(__DIR__ . '/pages/wordset-zipa-games.php');
 require_once(__DIR__ . '/pages/wordset-pages.php');
 require_once(__DIR__ . '/pages/wordset-editor.php');
 require_once(__DIR__ . '/pages/wordset-transcription-review.php');
