@@ -2168,12 +2168,18 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     color: var(--ll-wp-pill-red-text);
 }
 
-.ll-wordset-grid {
+.ll-wordset-grid,
+.ll-level-lesson-previews {
+    --ll-wp-lesson-card-width: 330px;
+    --ll-wp-lesson-grid-gap: clamp(16px, 2vw, 22px);
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(min(100%, 250px), 330px));
-    gap: clamp(16px, 2vw, 22px);
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 250px), var(--ll-wp-lesson-card-width)));
+    gap: var(--ll-wp-lesson-grid-gap);
     align-items: stretch;
     justify-content: start;
+}
+
+.ll-wordset-grid {
     margin-bottom: 84px;
 }
 
@@ -9874,8 +9880,9 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     }
 
     .ll-wordset-grid,
+    .ll-level-lesson-previews,
     .ll-wordset-grid-lazy__placeholders {
-        grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 330px));
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), var(--ll-wp-lesson-card-width, 330px)));
         justify-content: center;
     }
 
@@ -9988,6 +9995,7 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     }
 
     .ll-wordset-grid,
+    .ll-level-lesson-previews,
     .ll-wordset-grid-lazy__placeholders {
         grid-template-columns: 1fr;
         justify-content: center;

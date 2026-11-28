@@ -507,8 +507,8 @@ test('loading lesson thumbnails and refreshing level stats preserve the learnerâ
   await expect(toggle).toBeFocused();
 });
 
-for (const width of [390,1240]) {
-  test('expanded level previews link and launch its lessons at '+width+'px',async({page})=>{
+for (const width of [320,390,600,1240]) {
+  test('expanded level previews use normal lesson cards and link and launch at '+width+'px',async({page})=>{
     await page.setViewportSize({width,height:850});
     await page.emulateMedia({reducedMotion:'reduce'});
     await instrumentQuiz(page);
@@ -553,9 +553,18 @@ for (const width of [390,1240]) {
       expect(browse.y+browse.height).toBeGreaterThan(second.y);
       expect(browse.y).toBeLessThan(second.y+second.height);
     } else {
-      expect(browse.y).toBeGreaterThanOrEqual(Math.max(first.y+first.height,second.y+second.height)-1);
+      expect(second.width).toBeCloseTo(first.width,0);
+      expect(second.x).toBeCloseTo(first.x,0);
+      expect(second.y).toBeGreaterThan(first.y+first.height);
+      expect(browse.y).toBeGreaterThanOrEqual(second.y+second.height);
       expect(browse.x+browse.width).toBeLessThanOrEqual(width);
     }
+    const cardStyle = (lesson) => lesson.evaluate(element => {
+      const style=getComputedStyle(element);
+      return {padding:style.padding,borderRadius:style.borderRadius,gap:style.gap};
+    });
+    const previewStyle=await cardStyle(lessons.first());
+    await expect(lessons.first().locator('.ll-wordset-card__progress')).toBeVisible();
     await lessons.first().locator('[data-ll-wordset-category-mode][data-mode="listening"]').click();
     await expect.poll(()=>page.evaluate(()=>window.launchedQuizzes.map(q=>[q.mode,q.categories]))).toEqual([['listening',['Lesson 3']]]);
     await seeAll.click();
@@ -563,6 +572,10 @@ for (const width of [390,1240]) {
     const grid=page.locator('[data-ll-wordset-main-grid]');
     await expect(grid.locator('article:visible')).toHaveCount(scoped.length);
     expect(await grid.locator('article:visible').evaluateAll(items=>items.map(el=>Number(el.dataset.catId)))).toEqual(scoped);
+    const catalogCard=grid.locator('.ll-wordset-card[data-cat-id="3"]');
+    expect(previewStyle).toEqual(await cardStyle(catalogCard));
+    const catalogBox=await catalogCard.boundingBox();
+    expect(first.width).toBeCloseTo(Math.min(section.width,catalogBox.width),0);
     await page.getByRole('button',{name:'Back',exact:true}).click();
     if (!await seeAll.isVisible()) await card.locator('.ll-level-details-toggle').press('Enter');
     await links.first().click();
