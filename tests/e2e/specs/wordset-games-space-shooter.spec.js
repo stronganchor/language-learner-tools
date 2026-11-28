@@ -3747,6 +3747,23 @@ test('unscramble supports keyboard tile reordering, progress events, and complet
 test.describe('mobile Unscramble', () => {
   test.use({ viewport: { width: 360, height: 700 }, hasTouch: true });
 
+  async function dragTilesByTouch(page, first, last) {
+    const touch = await page.context().newCDPSession(page);
+    try {
+      await touch.send('Input.dispatchTouchEvent', {
+        type: 'touchStart',
+        touchPoints: [{ x: first.x + first.width / 2, y: first.y + first.height / 2 }]
+      });
+      await touch.send('Input.dispatchTouchEvent', {
+        type: 'touchMove',
+        touchPoints: [{ x: last.x + last.width / 2, y: last.y + last.height / 2 }]
+      });
+      await touch.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    } finally {
+      await touch.detach();
+    }
+  }
+
   test('keeps image-clue tiles within the board and reorders them by touch', async ({ page, browserName }) => {
     test.skip(browserName !== 'chromium', 'Native touch drags use the Chromium DevTools protocol.');
     const [, word] = buildUnscrambleWords(2);
@@ -3785,22 +3802,66 @@ test.describe('mobile Unscramble', () => {
     const { orderUnitIds: initialOrder } = await getUnscrambleUnitState(page);
     const first = await tiles.first().boundingBox();
     const last = await tiles.last().boundingBox();
-    const touch = await page.context().newCDPSession(page);
-    try {
-      await touch.send('Input.dispatchTouchEvent', {
-        type: 'touchStart',
-        touchPoints: [{ x: first.x + first.width / 2, y: first.y + first.height / 2 }]
-      });
-      await touch.send('Input.dispatchTouchEvent', {
-        type: 'touchMove',
-        touchPoints: [{ x: last.x + last.width / 2, y: last.y + last.height / 2 }]
-      });
-      await touch.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-    } finally {
-      await touch.detach();
-    }
+    await dragTilesByTouch(page, first, last);
     await expect.poll(async () => (await getUnscrambleUnitState(page)).orderUnitIds)
       .toEqual([...initialOrder.slice(1), initialOrder[0]]);
+  });
+
+  test('wraps readable phrase tiles and drags across rows without moving spaces', async ({ page, browserName }) => {
+    test.skip(browserName !== 'chromium', 'Native touch drags use the Chromium DevTools protocol.');
+    const answer = 'Ğele vay dun';
+    const units = Array.from(answer, (text, index) => ({ id: 100 + index, text, movable: text !== ' ' }));
+    const [word] = buildUnscrambleWords(1);
+    await mountGamesPage(page, {
+      isLoggedIn: true,
+      unscrambleWords: [{
+        ...word,
+        title: answer,
+        unscramble_answer_text: answer,
+        unscramble_unit_count: units.length,
+        unscramble_movable_unit_count: units.filter((unit) => unit.movable).length,
+        unscramble_units: units
+      }],
+      configOverrides: {
+        games: {
+          catalog: { unscramble: { slug: 'unscramble', title: 'Unscramble' } },
+          unscramble: { slug: 'unscramble', minimumWordCount: 1, maxLoadedWords: 1 }
+        }
+      }
+    });
+
+    await gameLaunchButton(page, 'unscramble').tap();
+    const stage = page.locator('[data-ll-wordset-lineup-stage]');
+    const tiles = stage.locator('[data-ll-wordset-unscramble-tile]');
+    await expect(tiles).toHaveCount(10);
+    const layout = await stage.locator('[data-ll-wordset-lineup-card]').evaluateAll((cards) => {
+      const board = cards[0].parentElement.getBoundingClientRect();
+      const bounds = cards.map((card) => card.getBoundingClientRect());
+      return {
+        rowCount: new Set(bounds.map((tile) => tile.top)).size,
+        minTileWidth: Math.min(...bounds.map((tile) => tile.width)),
+        minFontSize: Math.min(...cards.map((card) => parseFloat(getComputedStyle(card.querySelector('p')).fontSize))),
+        allTilesFit: bounds.every((tile) => tile.left >= board.left && tile.right <= board.right
+          && tile.top >= board.top && tile.bottom <= board.bottom)
+      };
+    });
+    expect(layout.rowCount).toBeGreaterThan(1);
+    expect(layout.minTileWidth).toBeGreaterThanOrEqual(44);
+    expect(layout.minFontSize).toBeGreaterThanOrEqual(18);
+    expect(layout.allTilesFit).toBe(true);
+
+    const { orderUnitIds: initialOrder } = await getUnscrambleUnitState(page);
+    const first = await tiles.first().boundingBox();
+    const last = await tiles.last().boundingBox();
+    expect(last.y).toBeGreaterThan(first.y);
+    await dragTilesByTouch(page, first, last);
+
+    const movedLetters = [...initialOrder.slice(1), initialOrder[0]].filter((id) => units[id - 100].movable);
+    const expectedOrder = units.map((unit) => unit.movable ? movedLetters.shift() : unit.id);
+    await expect.poll(async () => (await getUnscrambleUnitState(page)).orderUnitIds).toEqual(expectedOrder);
+
+    await page.keyboard.press('Escape');
+    await expect(page.locator('[data-ll-wordset-game-run-modal]')).toBeHidden();
   });
 });
 
