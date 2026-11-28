@@ -12,6 +12,7 @@
     const SPEAKING_STACK_QUICK_RESPONSE_MS = 1250;
     const SPEAKING_STACK_RIGHTS_PER_PACE_STEP = 3;
     const SPEAKING_STACK_MAX_PACE_STEP = 2;
+    const SPEAKING_STACK_MAX_REFILL_CARDS = 3;
     const GAME_LENGTH_ALL = 'all';
     const MODULE_NS = '.llWordsetGames';
     const UNSCRAMBLE_DRAG_NS = '.llWordsetGamesUnscrambleDrag';
@@ -1243,9 +1244,16 @@
             (gameSlug === DEFAULT_GAME_SLUG || gameSlug === BUBBLE_POP_GAME_SLUG)
             && laneCount <= 3
         );
-        const cardWidth = useExpandedImageCards
+        let cardWidth = useExpandedImageCards
             ? clamp(laneWidth * 0.88, defaultCardWidth, 188)
             : defaultCardWidth;
+        if (gameSlug === SPEAKING_STACK_GAME_SLUG) {
+            const bounds = getSpeakingStackHorizontalBounds(run, cardWidth);
+            const gap = getSpeakingStackSlotSpacing(run, cardWidth) - cardWidth;
+            const availableWidth = bounds.maxX - bounds.minX + cardWidth;
+            const refillGapWidth = (SPEAKING_STACK_MAX_REFILL_CARDS - 1) * gap;
+            cardWidth = Math.min(cardWidth, Math.floor((availableWidth - refillGapWidth) / SPEAKING_STACK_MAX_REFILL_CARDS));
+        }
         const cardHeight = useExpandedImageCards
             ? clamp(cardWidth * 1.28, 140, 236)
             : clamp(cardWidth * 1.28, 112, 180);
@@ -1639,6 +1647,9 @@
         card.width = dimensions.width;
         card.height = dimensions.height;
         card.aspectRatio = dimensions.aspectRatio;
+        if (isSpeakingStackRun(ctx, run)) {
+            return;
+        }
         if (isBubblePopRun(ctx, run)) {
             if (isFinite(Number(card.entryStartX))) {
                 card.x = Number(card.entryStartX);
@@ -3036,7 +3047,7 @@
     function getSpeakingStackSlotLayout(run) {
         const baseCardWidth = Math.max(1, Number(run && run.metrics && run.metrics.cardWidth) || 96);
         const bounds = getSpeakingStackHorizontalBounds(run, baseCardWidth);
-        const preferredSlotCount = Math.max(2, toInt(run && run.cardCount) || 4);
+        const preferredSlotCount = Math.max(SPEAKING_STACK_MAX_REFILL_CARDS, toInt(run && run.cardCount) || 4);
         const slotSpacing = getSpeakingStackSlotSpacing(run, baseCardWidth);
         const usableWidth = Math.max(0, bounds.maxX - bounds.minX);
         const maxSlotCount = usableWidth > 0
@@ -11054,16 +11065,27 @@
         if (!getVisibleSpeakingStackCards(run).length) {
             run.visibleTargetSince = null;
             const now = currentTimestamp();
-            let nextCard = getSpeakingStackActiveCards(run)[0];
-            if (!nextCard && !run.allWordsQueued) {
-                nextCard = spawnSpeakingStackCard(ctx, run, now);
+            const enteringCards = getSpeakingStackActiveCards(run).slice(0, 1);
+            if (!enteringCards.length && !run.allWordsQueued) {
+                const refillCount = run.hasRefilledClearedStack ? SPEAKING_STACK_MAX_REFILL_CARDS : 2;
+                while (enteringCards.length < refillCount && !run.allWordsQueued) {
+                    const card = spawnSpeakingStackCard(ctx, run, now);
+                    if (!card) {
+                        break;
+                    }
+                    card.x = card.stackTargetX;
+                    enteringCards.push(card);
+                }
+                run.hasRefilledClearedStack = true;
                 scheduleNextSpeakingStackSpawn(ctx, run, now);
             }
-            if (nextCard) {
-                // Give the player a prompt during feedback when the screen would be empty.
-                nextCard.y = Math.min(nextCard.stackTargetY, nextCard.height / 2);
-                nextCard.entryStartX = nextCard.x;
-                nextCard.entryStartY = nextCard.y;
+            // Bring the next prompts into view during feedback when the screen would be empty.
+            for (const card of enteringCards) {
+                card.y = Math.min(card.stackTargetY, card.height / 2);
+                card.entryStartX = card.x;
+                card.entryStartY = card.y;
+            }
+            if (enteringCards.length) {
                 run.visibleTargetSince = now;
             }
         }
@@ -11475,6 +11497,7 @@
             blastTargeting: false,
             blastPlayback: null,
             spawnedWordCount: 0,
+            hasRefilledClearedStack: false,
             promptDeck: [],
             prompt: null,
             cards: [],

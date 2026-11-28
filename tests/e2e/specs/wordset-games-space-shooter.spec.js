@@ -3069,11 +3069,12 @@ test('word stack clears distinct matches in one utterance and plays the final re
   await expect(page.locator('[data-ll-wordset-game-overlay-title]')).toHaveText('You cleared the stack');
 });
 
-test('word stack reveals a replacement immediately after single and rapid-fire clears', async ({ page }) => {
+test('word stack immediately refills with two cards after the first full clear and three thereafter', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 844 });
   await page.clock.install();
   await mountGamesPage(page, {
     isLoggedIn: true,
-    words: buildSpeakingStackWords(7),
+    words: buildSpeakingStackWords(13),
     audioLoadDelayMs: 0,
     promptAudioDurationSeconds: 1.2,
     configOverrides: {
@@ -3086,7 +3087,7 @@ test('word stack reveals a replacement immediately after single and rapid-fire c
           provider: 'hosted_api',
           targetField: 'title',
           initialSpawnCount: 3,
-          maxLoadedWords: 7,
+          maxLoadedWords: 13,
           spawnGapMs: 14000,
           initialSpawnDelayMs: 14000,
           fallSpeed: 300,
@@ -3102,8 +3103,12 @@ test('word stack reveals a replacement immediately after single and rapid-fire c
     const { run, speaking, feedbackPlaying } = window.LLWordsetGames.__ctx;
     const active = run.cards.filter((card) => !card.exploding && !card.removedFromStack);
     return {
+      width: run.width,
       activeIds: active.map((card) => card.word.id),
       visibleIds: active.filter((card) => card.y >= card.height / 2).map((card) => card.word.id),
+      overlapping: active.some((card, index) => active.slice(index + 1).some((other) =>
+        Math.abs(card.x - other.x) < (card.width + other.width) / 2
+        && Math.abs(card.y - other.y) < (card.height + other.height) / 2)),
       queuedIds: run.wordQueue.map((word) => word.id),
       cleared: run.clearedCount,
       spawned: run.spawnedWordCount,
@@ -3117,9 +3122,11 @@ test('word stack reveals a replacement immediately after single and rapid-fire c
   await gameLaunchButton(page, 'speaking-stack').click();
   await page.clock.runFor(1800);
   const initial = await stackState();
+  expect(initial.width).toBeLessThan(316);
   expect(initial.visibleIds).toHaveLength(3);
   const [, second, incoming] = initial.visibleIds;
-  const [singleRefill, scheduledCard, burstRefill, lastQueued] = initial.queuedIds;
+  const firstWave = initial.queuedIds.slice(0, 2);
+  const scheduledCard = initial.queuedIds[2];
 
   await speakMockWordStackAttempt(page, 'right');
   expect(await stackState()).toMatchObject({
@@ -3144,15 +3151,15 @@ test('word stack reveals a replacement immediately after single and rapid-fire c
   await speakMockWordStackAttempt(page, 'right');
   const afterSingle = await stackState();
   expect(afterSingle).toMatchObject({
-    activeIds: [singleRefill], visibleIds: [singleRefill], cleared: 3,
-    spawned: 4, queuedIds: [scheduledCard, burstRefill, lastQueued], feedbackPlaying: true, recording: false
+    activeIds: firstWave, visibleIds: firstWave, overlapping: false, cleared: 3,
+    spawned: 5, queuedIds: initial.queuedIds.slice(2), feedbackPlaying: true, recording: false
   });
   expect(afterSingle.nextSpawnAt).toBeGreaterThan(initial.nextSpawnAt);
   await page.clock.runFor(3000);
-  expect((await stackState()).spawned).toBe(4);
+  expect((await stackState()).spawned).toBe(5);
   await page.clock.runFor(Math.ceil((await stackState()).timingRemaining) + 1200);
   expect(await stackState()).toMatchObject({
-    activeIds: [singleRefill, scheduledCard], visibleIds: [singleRefill, scheduledCard], spawned: 5
+    activeIds: [...firstWave, scheduledCard], visibleIds: [...firstWave, scheduledCard], spawned: 6
   });
 
   await page.evaluate(() => {
@@ -3161,11 +3168,22 @@ test('word stack reveals a replacement immediately after single and rapid-fire c
       matches: ids.map((word_id) => ({ word_id, bucket: 'right', score: 100 }))
     });
   });
+  let queuedOffset = 3;
+  for (const [cleared, waveSize] of [[6, 3], [9, 3], [12, 1]]) {
+    const wave = initial.queuedIds.slice(queuedOffset, queuedOffset + waveSize);
+    queuedOffset += waveSize;
+    await speakMockWordStackAttempt(page, 'right');
+    expect(await stackState()).toMatchObject({
+      activeIds: wave, visibleIds: wave, overlapping: false, cleared, spawned: cleared + waveSize,
+      queuedIds: initial.queuedIds.slice(queuedOffset), feedbackPlaying: true, recording: false, transcribing: true
+    });
+    await page.clock.runFor(4500);
+  }
+
   await speakMockWordStackAttempt(page, 'right');
-  expect(await stackState()).toMatchObject({
-    activeIds: [burstRefill], visibleIds: [burstRefill], cleared: 5,
-    spawned: 6, queuedIds: [lastQueued], feedbackPlaying: true, recording: false, transcribing: true
-  });
+  expect(await stackState()).toMatchObject({ activeIds: [], visibleIds: [], cleared: 13, spawned: 13, queuedIds: [] });
+  await page.clock.runFor(2000);
+  await expect(page.locator('[data-ll-wordset-game-overlay-title]')).toHaveText('You cleared the stack');
   await closeRunPopup(page);
 });
 
