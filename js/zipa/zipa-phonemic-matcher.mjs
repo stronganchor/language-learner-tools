@@ -118,18 +118,19 @@ export function createZipaMatcher({
         return neighbors;
     }
 
-    function duplicateSpellingRepairs(spelling) {
-        const letters = Array.from(spelling);
-        const repairs = new Map();
-        letters.forEach((letter, index) => {
-            if (letter !== letters[index + 1]) return;
+    function* duplicateSpellingEdits(spelling) {
+        for (const {1: letter, index} of spelling.matchAll(/(.)\1+/gu)) {
             const reason = repairableVowels.includes(letter) ? 'duplicate_vowel_match'
                 : repairableConsonants.includes(letter) ? 'duplicate_consonant_match' : '';
-            if (!reason) return;
-            const variant = letters.slice();
-            variant.splice(index, 1);
-            repairs.set(variant.join(''), reason);
-        });
+            if (reason) yield {unit: letter + letter, index, replacement: letter, start: index, close: false, reason};
+        }
+    }
+
+    function duplicateSpellingRepairs(spelling) {
+        const repairs = new Map();
+        for (const {unit, index, replacement, reason} of duplicateSpellingEdits(spelling)) {
+            repairs.set(spelling.slice(0, index) + replacement + spelling.slice(index + unit.length), reason);
+        }
         return repairs;
     }
 
@@ -353,6 +354,7 @@ export function createZipaMatcher({
     }
 
     function* joinedSpellingEdits(heard) {
+        yield* duplicateSpellingEdits(heard);
         for (const {0: unit, index} of roundedVowelsPattern ? heard.matchAll(roundedVowelsPattern) : []) {
             const onset = Array.from(heard.slice(0, index)).at(-1);
             if (!onset || !roundedVowelOnsets.includes(onset)) continue;
@@ -368,8 +370,9 @@ export function createZipaMatcher({
 
     function splitWithSpellingRepair(heard, forms, ids) {
         let recovered = [];
+        let recoveredSpelling;
         for (const edit of joinedSpellingEdits(heard)) {
-            // A complete full-credit vowel repair takes precedence over a Close result.
+            // A complete full-credit repair takes precedence over a Close result.
             if (edit.close && recovered.length && !recovered.some(part => part.repaired)) return recovered;
 
             const {unit, index, replacement} = edit;
@@ -391,8 +394,10 @@ export function createZipaMatcher({
                 return {word_id: ids.get(form), repaired: edited && edit.close};
             });
             if (!containsEdit) continue;
-            if (recovered.length) return null;
+            if (recovered.length && (corrected !== recoveredSpelling
+                || parts.some((part, offset) => part.repaired !== recovered[offset].repaired))) return null;
             recovered = parts;
+            recoveredSpelling = corrected;
         }
         return recovered;
     }

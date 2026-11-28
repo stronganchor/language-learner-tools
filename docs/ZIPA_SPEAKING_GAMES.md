@@ -85,7 +85,7 @@ as Close in Word Stack, and normalizes IPA `ŋ` to `n` only before `ɡ`.
 | `inputSymbols`, `ignorableIpaMarks`, `tiedPairs` | Initial symbol substitutions, marks to remove, and allowed tie-bar pairs such as `"tʃ"`. Leave out `tiedPairs` to preserve the ties. |
 | `ipaReplacements` | Literal rules applied in order. Each rule takes `from` and `to`, with optional `precededBy` and `followedBy` lists. An empty string in either list matches the start or end of the transcript on that side. `ignorePreceding` lists intervening symbols to skip when checking the left context. |
 | `confusableGraphemes`, `joinedConfusables`, `internalJoinedConfusables` | Single spelling substitutions eligible for Close, the subset allowed in joined speech, and the subset that must stay away from word boundaries. |
-| `repairableVowels`, `repairableConsonants` | Strings listing letters that can be reduced from a doubled character to a single character. |
+| `repairableVowels`, `repairableConsonants` | Strings listing letters whose accidental doubling can be corrected for full credit. In joined speech, one such edit can recover an otherwise exact, unambiguous answer. |
 | `openVowelAlternatives`, `roundedVowels`, `roundedVowelOnsets` | One written vowel substitution for full credit when it produces a unique match. `openVowelAlternatives` maps individual letters to allowed alternatives. `roundedVowels` lists interchangeable written units after a consonant from `roundedVowelOnsets`. |
 | `displayRules`, `lowercaseMap`, `uppercaseMap` | The fallback spelling map and optional case overrides. Use ordered `clusters` pairs, a `phones` map, a `finalPhones` map, and an `ignoredMarks` list inside `displayRules`. An exact reviewed IPA match displays the saved card title. |
 

@@ -49,3 +49,28 @@ test('unknown-middle fallback rejects tied, overlapping and same-owner anchors a
     assert.deepEqual(matcher.splitSpellingBurst('Mulanokatela', {...spellings, 34: 'Mula Noka'}), []);
     assert.deepEqual(matcher.splitIpaBurst('mula noʊ tela', {...references, 34: ['mula noʊ']}), ['mula noʊ', 'tela']);
 });
+
+test('one configured doubled consonant or vowel can be corrected anywhere in joined speech', () => {
+    const matcher = createZipaMatcher({repairableConsonants: 'w', repairableVowels: 'a'});
+    const deck = {41: 'Dara', 42: 'Vila', 43: 'Cwel'};
+    const matches = ids => ids.map(word_id => ({word_id, repaired: false}));
+    assert.deepEqual(matcher.splitSpellingBurst('Daravilacwwel', deck), matches([41, 42, 43]));
+    assert.deepEqual(matcher.splitSpellingBurst('Daracwwelvila', deck), matches([41, 43, 42]));
+    assert.deepEqual(matcher.splitSpellingBurst('Cwweldaravila', deck), matches([43, 41, 42]));
+    assert.deepEqual(matcher.splitSpellingBurst('Daaraavila', deck), []);
+    assert.deepEqual(matcher.splitSpellingBurst('Daara', deck), []);
+    assert.deepEqual(matcher.splitSpellingBurst('Daaravila', deck), matches([41, 42]));
+    assert.deepEqual(createZipaMatcher().splitSpellingBurst('Daracwwel', deck), []);
+    assert.equal(matcher.scoreIpa('cwwel', {43: ['cwel']}, false, 'Cwwel', deck).reason, 'duplicate_consonant_match');
+});
+
+test('exact spelling keeps priority and a repair needs a unique result', () => {
+    const matcher = createZipaMatcher({
+        repairableConsonants: 'w', repairableVowels: 'e', roundedVowels: ['wu', 'u'], roundedVowelOnsets: 'w',
+    });
+    const matches = ids => ids.map(word_id => ({word_id, repaired: false}));
+    assert.deepEqual(matcher.splitSpellingBurst('Nawwel', {41: 'Naw', 42: 'Wel', 43: 'Na'}), matches([41, 42]));
+    assert.deepEqual(matcher.splitSpellingBurst('Daracwwel', {41: 'Dara', 43: 'Cwel', 44: 'Cwel'}), []);
+    assert.deepEqual(matcher.splitSpellingBurst('Daracwweel', {41: 'Dara', 43: 'Cweel', 44: 'Cwwel'}), []);
+    assert.deepEqual(matcher.splitSpellingBurst('Daracwwu', {41: 'Dara', 43: 'Cwu'}), matches([41, 43]));
+});

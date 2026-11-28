@@ -50,6 +50,51 @@ final class ZipaGamesTest extends LL_Tools_TestCase
         $this->assertSame('close', $close['bucket']);
     }
 
+    public function test_word_stack_credits_one_configured_doubling_in_joined_speech(): void
+    {
+        $cards = [
+            21 => $this->card(21, 'Wela', 'wela'),
+            22 => $this->card(22, 'Mina', 'mina'),
+            23 => $this->card(23, 'Tao', 'tao'),
+        ];
+        $profile = [
+            'repairableConsonants' => 'w',
+            'repairableVowels' => 'e',
+            'displayRules' => ['phones' => ['w' => 'w', 'ʷ' => 'w', 'e' => 'e', 'l' => 'l',
+                'a' => 'a', 'm' => 'm', 'i' => 'i', 'n' => 'n', 't' => 't', 'o' => 'o']],
+        ];
+        foreach (['wʷelaminatao', 'wʷela mina tao', 'weelaminatao'] as $transcript) {
+            $result = ll_tools_zipa_score(10, $transcript, $cards, [21, 22, 23], 0, $profile);
+            $this->assertSame([21, 22, 23], array_column($result['matches'], 'word_id'), $transcript);
+            $this->assertSame(['right', 'right', 'right'], array_column($result['matches'], 'bucket'), $transcript);
+            $this->assertSame('Wela Mina Tao', $result['display_transcript_text'], $transcript);
+        }
+
+        $inactive = ll_tools_zipa_score(10, 'wʷelaminatao', $cards, [22, 23], 0, $profile);
+        $this->assertSame([22, 23], array_column($inactive['matches'], 'word_id'));
+
+        $cards[24] = $this->card(24, 'Wwela', 'wwela');
+        $exact = ll_tools_zipa_score(10, 'wʷelaminatao', $cards, [21, 22, 23, 24], 0, $profile);
+        $this->assertSame([24, 22, 23], array_column($exact['matches'], 'word_id'));
+
+        $cards[25] = $this->card(25, 'Weela', 'weela');
+        $ambiguous = ll_tools_zipa_score(10, 'wʷeelaminatao', $cards, [21, 22, 23, 24, 25], 0, $profile);
+        $this->assertFalse($ambiguous['matched']);
+    }
+
+    public function test_equivalent_repair_rules_count_once_in_joined_speech(): void
+    {
+        $matcher = new LL_Tools_Zipa_Matcher([
+            'repairableConsonants' => 'w',
+            'roundedVowels' => ['u', 'wu'],
+            'roundedVowelOnsets' => 'w',
+        ]);
+        $this->assertSame([
+            ['word_id' => 21, 'repaired' => false],
+            ['word_id' => 22, 'repaired' => false],
+        ], $matcher->split_spelling_burst('wwulamina', [21 => 'Wula', 22 => 'Mina']));
+    }
+
     public function test_word_stack_keeps_exact_words_around_an_unrenderable_middle(): void
     {
         $cards = [

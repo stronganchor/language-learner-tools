@@ -233,24 +233,24 @@ final class LL_Tools_Zipa_Matcher {
         return $neighbors;
     }
 
-    private function duplicate_spelling_repairs(string $spelling): array {
-        preg_match_all('/./u', $spelling, $matches);
-        $repairs = [];
-        $letters = $matches[0];
-        foreach ($letters as $index => $letter) {
-            if ($letter !== ($letters[$index + 1] ?? null)) {
-                continue;
-            }
+    private function duplicate_spelling_edits(string $spelling): Generator {
+        preg_match_all('/(.)\1+/u', $spelling, $matches, PREG_OFFSET_CAPTURE);
+        foreach ($matches[1] as [$letter, $offset]) {
             $reason = match (true) {
                 str_contains($this->profile['repairableVowels'], $letter) => 'duplicate_vowel_match',
                 str_contains($this->profile['repairableConsonants'], $letter) => 'duplicate_consonant_match',
                 default => '',
             };
             if ($reason !== '') {
-                $variant = $letters;
-                array_splice($variant, $index, 1);
-                $repairs[implode('', $variant)] = $reason;
+                yield [$letter, $offset, $reason];
             }
+        }
+    }
+
+    private function duplicate_spelling_repairs(string $spelling): array {
+        $repairs = [];
+        foreach ($this->duplicate_spelling_edits($spelling) as [$letter, $offset, $reason]) {
+            $repairs[substr_replace($spelling, '', $offset, strlen($letter))] = $reason;
         }
         return $repairs;
     }
@@ -628,6 +628,10 @@ final class LL_Tools_Zipa_Matcher {
     }
 
     private function joined_spelling_edits(string $heard): Generator {
+        foreach ($this->duplicate_spelling_edits($heard) as [$letter, $offset]) {
+            yield [$letter . $letter, $offset, $letter, $offset, false];
+        }
+
         if ($this->rounded_vowels_pattern !== '' && $this->profile['roundedVowelOnsets'] !== '') {
             preg_match_all($this->rounded_vowels_pattern, $heard, $vowels, PREG_OFFSET_CAPTURE);
             $onset_pattern = '/[' . preg_quote($this->profile['roundedVowelOnsets'], '/') . ']\z/u';
@@ -658,8 +662,9 @@ final class LL_Tools_Zipa_Matcher {
     /** Null marks an ambiguous full correction, which also blocks partial recovery. */
     private function split_corrected_spelling(string $heard, array $counts, array $owners): ?array {
         $match = [];
+        $matched_spelling = null;
         foreach ($this->joined_spelling_edits($heard) as [$unit, $offset, $replacement, $edit_start, $close]) {
-            // A complete full-credit vowel repair takes precedence over a Close result.
+            // A complete full-credit repair takes precedence over a Close result.
             if ($close && $match !== [] && !in_array(true, array_column($match, 'repaired'), true)) {
                 return $match;
             }
@@ -688,10 +693,11 @@ final class LL_Tools_Zipa_Matcher {
                 $start = $end;
             }
             if ($found_edit) {
-                if ($match !== []) {
+                if ($match !== [] && ($matched_spelling !== $edited || $match !== $segments)) {
                     return null;
                 }
                 $match = $segments;
+                $matched_spelling = $edited;
             }
         }
         return $match;
