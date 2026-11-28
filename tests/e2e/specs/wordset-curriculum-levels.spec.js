@@ -577,7 +577,8 @@ for (const width of [320,390,600,1240]) {
     const catalogBox=await catalogCard.boundingBox();
     expect(first.width).toBeCloseTo(Math.min(section.width,catalogBox.width),0);
     await page.getByRole('button',{name:'Back',exact:true}).click();
-    if (!await seeAll.isVisible()) await card.locator('.ll-level-details-toggle').press('Enter');
+    await expect(page.locator('[data-ll-wordset-page]')).toHaveAttribute('data-ll-level-view','home');
+    await expect(seeAll).toBeVisible();
     await links.first().click();
     await expect(page).toHaveURL(/\/lesson\/3$/);
   });
