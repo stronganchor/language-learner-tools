@@ -67,15 +67,18 @@ Learner save contention: `ll_tools_user_study_recommendation_payload()` owns the
 bounded recommendation window for settings, study-state saves, progress batches,
 queue removal, and explicit refreshes. These operations retain the shared user
 write/privacy lock; never hydrate the full wordset catalog under that lock.
-`postStudyMutation()` serializes page settings writes and retries only a typed
-pre-write lock refusal (at most four attempts, respecting short server backoff).
+`postStudyMutation()` serializes page settings writes. `queueStudyPrefsSave()`
+serializes quiz preference writes, including Practice stars. Both retry only a
+typed pre-write lock refusal (at most four attempts, respecting short server
+backoff). Quiz retries stay active when the popup closes.
 Authentication failures, privacy erasure, and ambiguous transport failures must
 not be replayed. Failed optimistic study-state saves retain the latest local
 choices, show a localized Saving/Saved/error status with explicit Retry, and
 warn before navigation while dirty. Fence acknowledgements at draft change,
 including the debounce interval; only the current acknowledged draft is Saved.
 Canonical guards are `UserProgressRecommendationTest`,
-`OfflineAppSyncTest`, and `wordset-study-save-recovery.spec.js`.
+`OfflineAppSyncTest`, `wordset-study-save-recovery.spec.js`, and
+`flashcard-study-prefs-save.spec.js`.
 
 For a compact source-to-test index, start with
 [the codebase map](docs/ai-context/codebase-map.md). Use

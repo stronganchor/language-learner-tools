@@ -8,15 +8,17 @@ const mainSource = fs.readFileSync(
   'utf8'
 );
 
-test('rapid practice-mode unstars queue study saves and preserve the latest state', async ({ page }) => {
+async function mountPracticeStarFixture(page) {
   await page.goto('about:blank');
   await page.setContent(`
-    <div id="ll-tools-flashcard-content"></div>
-    <div id="ll-tools-category-stack">
-      <button id="ll-tools-repeat-flashcard" type="button"></button>
+    <div id="ll-tools-flashcard-quiz-popup">
+      <div id="ll-tools-flashcard-content"></div>
+      <div id="ll-tools-category-stack">
+        <button id="ll-tools-repeat-flashcard" type="button"></button>
+      </div>
+      <div id="ll-tools-prompt"></div>
+      <div id="ll-tools-flashcard"></div>
     </div>
-    <div id="ll-tools-prompt"></div>
-    <div id="ll-tools-flashcard"></div>
   `);
 
   await page.addScriptTag({ content: jquerySource });
@@ -55,12 +57,15 @@ test('rapid practice-mode unstars queue study saves and preserve the latest stat
 
     window.LLFlashcards = {
       State: {
-        STATES: {},
+        STATES: { CLOSING: 'closing', IDLE: 'idle' },
         categoryNames: ['Cat A'],
+        is: () => false,
+        transitionTo: noop,
         wordsByCategory: {
           'Cat A': [
             { id: 101, title: 'One', label: 'One' },
-            { id: 102, title: 'Two', label: 'Two' }
+            { id: 102, title: 'Two', label: 'Two' },
+            { id: 103, title: 'Three', label: 'Three' }
           ]
         },
         currentCategoryName: 'Cat A',
@@ -138,6 +143,10 @@ test('rapid practice-mode unstars queue study saves and preserve the latest stat
   });
 
   await page.addScriptTag({ content: mainSource });
+}
+
+test('rapid practice-mode unstars queue study saves and preserve the latest state', async ({ page }) => {
+  await mountPracticeStarFixture(page);
 
   const firstPass = await page.evaluate(() => {
     const manager = window.LLFlashcards.StarManager;
@@ -211,6 +220,66 @@ test('rapid practice-mode unstars queue study saves and preserve the latest stat
   expect(finalState.postCount).toBe(2);
   expect(finalState.prefs).toEqual([]);
   expect(finalState.state).toEqual([]);
+});
+
+function rejectSaveForLock(page, index) {
+  return page.evaluate((index) => {
+    window.__llPostResolvers[index].reject({
+      status: 503,
+      responseJSON: { data: { code: 'user_data_mutation_lock_unavailable', retryable: true, retry_after: 1 } }
+    });
+  }, index);
+}
+
+function acceptSave(page, index) {
+  return page.evaluate((index) => {
+    const state = Object.assign({}, window.__llPostCalls[index].data);
+    window.__llPostResolvers[index].resolve({ success: true, data: { state } });
+  }, index);
+}
+
+async function displayPracticeStar(page, wordId) {
+  await page.evaluate((id) => {
+    const { StarManager, State } = window.LLFlashcards;
+    StarManager.updateForWord(State.wordsByCategory['Cat A'].find(word => word.id === id));
+  }, wordId);
+  return page.locator('.ll-quiz-star-btn');
+}
+
+test('a Practice star retries a rejected lock and survives closing the quiz', async ({ page }) => {
+  await mountPracticeStarFixture(page);
+  const star = await displayPracticeStar(page, 103);
+  await expect(star).toHaveAttribute('aria-pressed', 'false');
+  await star.click();
+  await expect(star).toHaveAttribute('aria-pressed', 'true');
+  await rejectSaveForLock(page, 0);
+  await page.evaluate(() => window.LLFlashcards.Main.closeFlashcard());
+  await expect(page.locator('#ll-tools-flashcard-quiz-popup')).toBeHidden();
+
+  await expect.poll(() => page.evaluate(() => window.__llPostCalls.length), { timeout: 3000 }).toBe(2);
+  const payloads = await page.evaluate(() => window.__llPostCalls.map(record => record.data));
+  expect(payloads[1]).toEqual(payloads[0]);
+  expect(payloads[1].starred_word_ids).toEqual([101, 102, 103]);
+  await acceptSave(page, 1);
+  expect(await page.evaluate(() => window.llToolsFlashcardsData.userStudyState.starred_word_ids)).toEqual([101, 102, 103]);
+});
+
+test('a newer Practice star toggle wins while a lock retry is pending', async ({ page }) => {
+  await mountPracticeStarFixture(page);
+  const star = await displayPracticeStar(page, 103);
+  await star.click();
+  await rejectSaveForLock(page, 0);
+  await star.click();
+  await expect(star).toHaveAttribute('aria-pressed', 'false');
+  expect(await page.evaluate(() => window.__llPostCalls.length)).toBe(1);
+
+  await expect.poll(() => page.evaluate(() => window.__llPostCalls.length), { timeout: 3000 }).toBe(2);
+  await acceptSave(page, 1);
+  await expect.poll(() => page.evaluate(() => window.__llPostCalls.length)).toBe(3);
+  expect(await page.evaluate(() => window.__llPostCalls[2].data.starred_word_ids)).toEqual([101, 102]);
+  expect(await page.evaluate(() => window.llToolsStudyPrefs.starredWordIds)).toEqual([101, 102]);
+  await acceptSave(page, 2);
+  await expect(star).toHaveAttribute('aria-pressed', 'false');
 });
 
 test('changing star mode in the flashcard runtime stays session-local and does not queue a study save', async ({ page }) => {

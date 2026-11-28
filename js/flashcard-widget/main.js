@@ -1488,6 +1488,32 @@
         };
     }
 
+    function postStudyPrefs(ajaxContext, payload) {
+        const request = $.Deferred();
+        const data = Object.assign({ action: 'll_user_study_save', nonce: ajaxContext.nonce }, payload);
+
+        function send(attempt) {
+            $.post(ajaxContext.ajaxUrl, data).done(function (response) {
+                request.resolve(response);
+            }).fail(function (xhr) {
+                const error = xhr && xhr.responseJSON && xhr.responseJSON.data;
+                const retryAfter = Math.max(1, Number(error && error.retry_after) || 1);
+                // The shared progress lock can refuse a save before any write occurs.
+                // Retry only that explicit response, in the existing save order.
+                if (xhr && xhr.status === 503 && error && error.retryable === true
+                    && error.code === 'user_data_mutation_lock_unavailable'
+                    && retryAfter <= 5 && attempt < 4) {
+                    root.setTimeout(function () { send(attempt + 1); }, retryAfter * 1000);
+                    return;
+                }
+                request.reject(xhr);
+            });
+        }
+
+        send(1);
+        return request.promise();
+    }
+
     function ensureStudyPrefs() {
         const payloadState = (root.llToolsStudyData && root.llToolsStudyData.payload && root.llToolsStudyData.payload.state) || null;
         const flashState = root.llToolsFlashcardsData || {};
@@ -3278,10 +3304,7 @@
         const requestToken = ++savePrefsRequestToken;
         savePrefsLatestToken = requestToken;
 
-        savePrefsInFlightRequest = $.post(ajaxContext.ajaxUrl, Object.assign({
-            action: 'll_user_study_save',
-            nonce: ajaxContext.nonce
-        }, payload)).done(function (res) {
+        savePrefsInFlightRequest = postStudyPrefs(ajaxContext, payload).done(function (res) {
             if (savePrefsQueued || requestToken !== savePrefsLatestToken) {
                 return;
             }
@@ -3344,10 +3367,7 @@
 
         // Serialize preference saves so an older request cannot overwrite a
         // newer star change when users toggle several items in one session.
-        savePrefsInFlightRequest = $.post(ajaxContext.ajaxUrl, Object.assign({
-            action: 'll_user_study_save',
-            nonce: ajaxContext.nonce
-        }, payload)).done(function (res) {
+        savePrefsInFlightRequest = postStudyPrefs(ajaxContext, payload).done(function (res) {
             if (savePrefsQueued || requestToken !== savePrefsLatestToken) {
                 return;
             }

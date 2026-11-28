@@ -598,7 +598,7 @@ Representative E2E coverage areas:
   - Verifies image answer options with translation captions keep full image tile sizing, adapt caption rows, hide empty captions cleanly, and stay inside small embedded iframe viewports without shrinking large iframe/desktop cards; white prompt images retain a visible shadow boundary on mobile and desktop.
   - Covers shared full-screen phone controls and spacing across answer types in nested and portaled quizzes. Checks that the title stays in place during loading and that full-size picture tiles admit a third row when it fits.
 - `tests/e2e/specs/flashcard-study-prefs-save.spec.js`
-  - Verifies rapid practice-mode preference saves keep the latest queued study state.
+  - Verifies rapid Practice preference saves preserve the latest queued state and recover from explicit pre-write lock contention after the quiz closes.
 - `tests/e2e/specs/wordset-study-save-recovery.spec.js`
   - Verifies serialized goal/state writes and bounded typed lock-refusal retry. Failed optimistic state saves retain choices with visible localized Retry and dirty-navigation protection; older acknowledgements cannot overwrite an edit during debounce, and feedback remains visible/theme-resistant on a scrolled page.
 - `tests/e2e/specs/prompt-card-progress-tracker.spec.js`
