@@ -5518,13 +5518,10 @@
             newSession();
             const launchSession = __LLSession;
 
-            // Clear any leftover overlays/flags from a previous popup session
+            // Clear any leftover overlay from a previous popup session.
             try {
                 if (root.LLFlashcards?.Dom?.hideAutoplayBlockedOverlay) {
                     root.LLFlashcards.Dom.hideAutoplayBlockedOverlay();
-                }
-                if (root.FlashcardAudio?.clearAutoplayBlock) {
-                    root.FlashcardAudio.clearAutoplayBlock();
                 }
             } catch (_) { }
             $('#ll-tools-flashcard').css('pointer-events', 'auto');
@@ -5893,9 +5890,6 @@
         try {
             if (root.LLFlashcards?.Dom?.hideAutoplayBlockedOverlay) {
                 root.LLFlashcards.Dom.hideAutoplayBlockedOverlay();
-            }
-            if (root.FlashcardAudio?.clearAutoplayBlock) {
-                root.FlashcardAudio.clearAutoplayBlock();
             }
         } catch (_) { }
         $('#ll-tools-flashcard-content').off('.llAutoplayKick');

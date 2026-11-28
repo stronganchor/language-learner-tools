@@ -201,10 +201,6 @@
             event.preventDefault();
             event.stopPropagation();
 
-            if (audioApi && typeof audioApi.clearAutoplayBlock === 'function') {
-                audioApi.clearAutoplayBlock();
-            }
-
             if (!audio) {
                 return;
             }
@@ -221,19 +217,18 @@
                 }
             } catch (_) { /* no-op */ }
 
+            const transition = soundGateOverlayTransition;
             const playRequest = (audioApi && typeof audioApi.playAudio === 'function')
-                ? audioApi.playAudio(audio)
+                ? audioApi.playAudio(audio, { immediate: true })
                 : audio.play();
 
             Promise.resolve(playRequest)
                 .then(function () {
-                    if (!isSoundGateAudioMuted(audio)) {
+                    if (transition === soundGateOverlayTransition && !isSoundGateAudioMuted(audio)) {
                         Dom.hideAutoplayBlockedOverlay();
                     }
                 })
-                .catch(function () {
-                    setSoundGateState(true);
-                });
+                .catch(function () { /* Leave the current gate available for another tap. */ });
         };
 
         $overlay.on('pointerdown.llAutoOverlay keydown.llAutoOverlay', haltPropagation);

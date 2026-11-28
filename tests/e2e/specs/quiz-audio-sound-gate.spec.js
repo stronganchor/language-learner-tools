@@ -4,6 +4,8 @@ const path = require('path');
 
 const jquerySource = fs.readFileSync(require.resolve('jquery'), 'utf8');
 const domSource = fs.readFileSync(path.resolve(__dirname, '../../../js/flashcard-widget/dom.js'), 'utf8');
+const audioSource = fs.readFileSync(path.resolve(__dirname, '../../../js/flashcard-widget/audio.js'), 'utf8');
+const cardsSource = fs.readFileSync(path.resolve(__dirname, '../../../js/flashcard-widget/cards.js'), 'utf8');
 
 const LEARN_PATH = process.env.LL_E2E_LEARN_PATH || '/learn/';
 
@@ -52,6 +54,123 @@ test('rapid sound-gate reactivation keeps its blocking overlay attached', async 
     pointerEvents: document.getElementById('ll-tools-flashcard').style.pointerEvents,
     soundGateActive: window.LLFlashcards.State.soundGateActive
   }))).toEqual({ pointerEvents: 'auto', soundGateActive: false });
+});
+
+async function mountManagedSoundGate(page) {
+  await page.setContent(`
+    <div id="ll-tools-flashcard-quiz-popup">
+      <div id="ll-tools-flashcard-content">
+        <div id="ll-tools-flashcard"><button data-word-id="1">Answer</button></div>
+      </div>
+    </div>
+  `);
+  await page.addScriptTag({ content: jquerySource });
+  await page.evaluate(() => {
+    window.llToolsFlashcardsData = { plugin_dir: '/' };
+    window.answers = [];
+    window.LLFlashcards = {
+      State: { widgetActive: true, isLearningMode: true },
+      Main: { onCorrectAnswer(target) { window.answers.push(target.id); } }
+    };
+    let soundGateClick;
+    document.addEventListener('click', event => {
+      if (event.target.closest('.ll-tools-autoplay-button')) soundGateClick = event;
+    }, true);
+    HTMLMediaElement.prototype.load = function () {};
+    HTMLMediaElement.prototype.play = function () {
+      if (!this.allowTestPlayback) {
+        return Promise.reject(new DOMException('Playback requires a gesture', 'NotAllowedError'));
+      }
+      window.targetPlayedDuringGateClick = Boolean(soundGateClick && soundGateClick.eventPhase !== Event.NONE);
+      Object.defineProperty(this, 'currentTime', { configurable: true, writable: true, value: 0.6 });
+      this.dispatchEvent(new Event('timeupdate'));
+      return Promise.resolve();
+    };
+  });
+  await page.addScriptTag({ content: audioSource });
+  await page.addScriptTag({ content: domSource });
+  await page.addScriptTag({ content: cardsSource });
+  await page.evaluate(() => {
+    window.FlashcardAudio.initializeAudio();
+    window.LLFlashcards.Cards.addClickEventToCard(window.jQuery('[data-word-id="1"]'), 0, { id: 1 }, 'image', 'audio');
+  });
+}
+
+async function attemptBlockedPrompt(page) {
+  await page.evaluate(async () => {
+    const { Dom } = window.LLFlashcards;
+    const audio = window.FlashcardAudio;
+    Dom.setSoundGateRequired(true);
+    await audio.setTargetWordAudio({ id: 1, audio: '/prompt.mp3' }, { autoplay: false });
+    const target = audio.getCurrentTargetAudio();
+    Object.defineProperty(target, 'readyState', { configurable: true, value: 3 });
+    Dom.bindRepeatButtonAudio(target);
+    await audio.playAudio(target).catch(error => {
+      if (error.name !== 'NotAllowedError') throw error;
+    });
+  });
+}
+
+test('denied feedback leaves the speaker gate available to unlock a Learn answer', async ({ page }) => {
+  await mountManagedSoundGate(page);
+  await page.evaluate(async () => {
+    window.LLFlashcards.Dom.setSoundGateRequired(true);
+    await window.FlashcardAudio.playFeedback(true);
+  });
+  const overlay = page.locator('#ll-tools-autoplay-overlay');
+  const answer = page.locator('[data-word-id="1"]');
+  await expect(overlay).toHaveCount(0);
+
+  await attemptBlockedPrompt(page);
+  await expect(overlay).toBeVisible();
+  await answer.dispatchEvent('click');
+  expect(await page.evaluate(() => window.answers)).toEqual([]);
+
+  await page.evaluate(() => {
+    const target = window.FlashcardAudio.getCurrentTargetAudio();
+    Object.defineProperty(target, 'readyState', { configurable: true, value: 0 });
+    target.allowTestPlayback = true;
+  });
+  await overlay.getByRole('button', { name: 'Play audio' }).click();
+  expect(await page.evaluate(() => window.targetPlayedDuringGateClick)).toBe(true);
+  await expect(overlay).toBeHidden();
+  await answer.click();
+  expect(await page.evaluate(() => window.answers)).toEqual([1]);
+});
+
+test('a new prompt can show the speaker gate after another round cleared it', async ({ page }) => {
+  await mountManagedSoundGate(page);
+  const overlay = page.locator('#ll-tools-autoplay-overlay');
+  await attemptBlockedPrompt(page);
+  await expect(overlay).toBeVisible();
+  await page.evaluate(() => window.LLFlashcards.Dom.setSoundGateRequired(false));
+  await expect(overlay).toBeHidden();
+
+  await attemptBlockedPrompt(page);
+  await expect(overlay).toBeVisible();
+});
+
+test('old speaker playback cannot dismiss the gate for a replacement prompt', async ({ page }) => {
+  await mountManagedSoundGate(page);
+  const overlay = page.locator('#ll-tools-autoplay-overlay');
+  await attemptBlockedPrompt(page);
+  await page.evaluate(() => {
+    window.FlashcardAudio.getCurrentTargetAudio().play = () => new Promise(resolve => {
+      window.finishOldGatePlayback = resolve;
+    });
+  });
+  await overlay.getByRole('button', { name: 'Play audio' }).click();
+
+  await page.evaluate(() => window.LLFlashcards.Dom.setSoundGateRequired(false));
+  await attemptBlockedPrompt(page);
+  await expect(overlay).toBeVisible();
+  const gateStillActive = await page.evaluate(async () => {
+    window.finishOldGatePlayback();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    return window.LLFlashcards.Dom.isSoundGateActive();
+  });
+  expect(gateStillActive).toBe(true);
+  await expect(overlay).toBeVisible();
 });
 
 async function waitForQuizControlsWithWarmingRecovery(page) {

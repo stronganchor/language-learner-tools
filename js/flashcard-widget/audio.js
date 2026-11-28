@@ -12,7 +12,6 @@
         var currentTargetAudio = null;
         var targetAudioHasPlayed = false;
         var correctAudio, wrongAudio;
-        var autoplayBlocked = false;
         var playbackSuspended = false;
         var playbackRequests = new WeakMap();
         var activeFades = new WeakMap();
@@ -355,8 +354,7 @@
             };
             var reportFailure = function (e) {
                 if (!isActive()) return;
-                if (e && e.name === 'NotAllowedError' && !autoplayBlocked) {
-                    autoplayBlocked = true;
+                if (e && e.name === 'NotAllowedError') {
                     requestQuizSoundGate(audio, { reason: 'autoplay-blocked', force: false });
                 }
                 error('Audio: Play failed', e);
@@ -570,8 +568,6 @@
             try { if (correctAudio) { correctAudio.onended = null; correctAudio.onerror = null; } } catch (_) { }
             try { if (wrongAudio) { wrongAudio.onended = null; wrongAudio.onerror = null; } } catch (_) { }
             try { $('#ll-tools-flashcard audio').remove(); } catch (_) { }
-
-            autoplayBlocked = false;
 
             return Promise.all(tasks.map(function (p) { return Promise.resolve(p).catch(function () { return; }); }))
                 .then(function () { return; });
@@ -965,13 +961,6 @@
             return normalizeUrlToPageOrigin(fallback);
         }
 
-        /**
-         * Clear autoplay block flag
-         */
-        function clearAutoplayBlock() {
-            autoplayBlocked = false;
-        }
-
         // Public API
         return {
             initializeAudio: initializeAudio,
@@ -989,7 +978,6 @@
             playFeedback: playFeedback,
             selectBestAudio: selectBestAudio,
             normalizeUrlToPageOrigin: normalizeUrlToPageOrigin,
-            clearAutoplayBlock: clearAutoplayBlock,
             getCurrentSessionId: function () { return currentSession; },
             getCurrentTargetAudio: function () { return currentTargetAudio; },
             getTargetAudioHasPlayed: function () { return targetAudioHasPlayed; },
