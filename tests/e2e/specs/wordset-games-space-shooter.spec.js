@@ -2863,6 +2863,123 @@ async function speakMockWordStackAttempt(page, bucket, { speechMs = 300, respons
   await page.clock.runFor(responseMs);
 }
 
+test('word stack keeps the screen awake only during a visible active round', async ({ page }) => {
+  await page.clock.install();
+  await mountGamesPage(page, {
+    isLoggedIn: true,
+    words: buildSpeakingStackWords(5),
+    audioLoadDelayMs: 0,
+    promptAudioDurationSeconds: 0.1,
+    configOverrides: {
+      games: {
+        catalog: { 'speaking-stack': { slug: 'speaking-stack', title: 'Word Stack' } },
+        speakingStack: {
+          slug: 'speaking-stack',
+          provider: 'hosted_api',
+          targetField: 'title',
+          initialSpawnCount: 5,
+          maxLoadedWords: 5,
+          silenceWindowMs: 400,
+          finalSilenceMs: 60000
+        }
+      }
+    }
+  });
+  await mockWordStackAttempts(page);
+  await page.evaluate(() => {
+    let visible = true;
+    let deferRequest = false;
+    let resolveRequest;
+    const requests = [];
+    const locks = [];
+    const acquire = () => {
+      const lock = new EventTarget();
+      lock.released = false;
+      lock.release = async () => {
+        lock.released = true;
+        lock.dispatchEvent(new Event('release'));
+      };
+      locks.push(lock);
+      return lock;
+    };
+    Object.defineProperties(document, {
+      visibilityState: { configurable: true, get: () => visible ? 'visible' : 'hidden' },
+      hidden: { configurable: true, get: () => !visible }
+    });
+    Object.defineProperty(navigator, 'wakeLock', {
+      configurable: true,
+      value: {
+        async request(type) {
+          requests.push(type);
+          if (!deferRequest) return acquire();
+          deferRequest = false;
+          return new Promise((resolve) => { resolveRequest = () => resolve(acquire()); });
+        }
+      }
+    });
+    window.__stackWakeTest = {
+      state: () => ({
+        requests,
+        held: locks.filter((lock) => !lock.released).length,
+        released: locks.filter((lock) => lock.released).length
+      }),
+      setVisible(next) {
+        visible = next;
+        document.dispatchEvent(new Event('visibilitychange'));
+      },
+      defer() { deferRequest = true; },
+      resolve() { resolveRequest(); }
+    };
+    window.__wordStackMatchResponder = (ids) => ({
+      matched: true,
+      matches: ids.map((word_id) => ({ matched: true, word_id, bucket: 'right', score: 100 }))
+    });
+  });
+
+  const checkLocks = (count, held, released) => expect.poll(() => page.evaluate(() => window.__stackWakeTest.state()))
+    .toEqual({ requests: Array(count).fill('screen'), held, released });
+  const setVisible = (visible) => page.evaluate((next) => window.__stackWakeTest.setVisible(next), visible);
+  const replay = page.locator('[data-ll-wordset-game-replay]');
+
+  await gameLaunchButton(page, 'speaking-stack').click();
+  await checkLocks(1, 1, 0);
+  await page.locator('[data-ll-wordset-game-pause-toggle]').click();
+  await checkLocks(1, 0, 1);
+  await setVisible(false);
+  await setVisible(true);
+  await checkLocks(1, 0, 1);
+  await replay.click();
+  await checkLocks(2, 1, 1);
+
+  await setVisible(false);
+  await checkLocks(2, 0, 2);
+  await setVisible(true);
+  await checkLocks(3, 1, 2);
+
+  await page.evaluate(() => window.dispatchEvent(new PageTransitionEvent('pagehide', { persisted: true })));
+  await checkLocks(3, 0, 3);
+  await page.evaluate(() => window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true })));
+  await checkLocks(4, 1, 3);
+
+  await page.clock.runFor(2300);
+  await speakMockWordStackAttempt(page, 'right');
+  await page.clock.runFor(1500);
+  await expect(page.locator('[data-ll-wordset-game-overlay-title]')).toHaveText('You cleared the stack');
+  await checkLocks(4, 0, 4);
+
+  await page.evaluate(() => window.__stackWakeTest.defer());
+  await replay.click();
+  await checkLocks(5, 0, 4);
+  await closeRunPopup(page);
+  await page.evaluate(() => window.__stackWakeTest.resolve());
+  await checkLocks(5, 0, 5);
+
+  await page.evaluate(() => Object.defineProperty(navigator, 'wakeLock', { value: undefined }));
+  await gameLaunchButton(page, 'speaking-stack').click();
+  await expect(page.locator('[data-ll-wordset-speaking-stack-stage]')).toBeVisible();
+  await checkLocks(5, 0, 5);
+});
+
 test('word stack picks up the pace for quick spoken rights without counting provider latency', async ({ page }) => {
   const fallSpeed = 200;
   const spawnGapMs = 5000;

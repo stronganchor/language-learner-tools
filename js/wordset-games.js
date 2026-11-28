@@ -6248,6 +6248,59 @@
         return false;
     }
 
+    function shouldKeepSpeakingStackScreenAwake(ctx) {
+        const run = ctx.run;
+        return isSpeakingStackRun(ctx, run) && !run.paused && !run.ended && !ctx.pageHidden
+            && root.document?.visibilityState === 'visible';
+    }
+
+    async function releaseSpeakingStackWakeLock(sentinel) {
+        if (sentinel && !sentinel.released) {
+            try {
+                await sentinel.release();
+            } catch (_) {
+                // The browser also releases this lock when the document becomes inactive.
+            }
+        }
+    }
+
+    function clearSpeakingStackWakeLock(ctx) {
+        const sentinel = ctx.speakingStackWakeLock;
+        ctx.speakingStackWakeLock = null;
+        ctx.speakingStackWakeLockRequest = null;
+        releaseSpeakingStackWakeLock(sentinel);
+    }
+
+    async function syncSpeakingStackWakeLock(ctx) {
+        if (!shouldKeepSpeakingStackScreenAwake(ctx)) {
+            clearSpeakingStackWakeLock(ctx);
+            return;
+        }
+
+        const wakeLock = root.navigator?.wakeLock;
+        if (typeof wakeLock?.request !== 'function' || ctx.speakingStackWakeLockRequest
+            || (ctx.speakingStackWakeLock && !ctx.speakingStackWakeLock.released)) {
+            return;
+        }
+
+        const request = {};
+        ctx.speakingStackWakeLockRequest = request;
+        try {
+            const sentinel = await wakeLock.request('screen');
+            if (ctx.speakingStackWakeLockRequest === request && shouldKeepSpeakingStackScreenAwake(ctx)) {
+                ctx.speakingStackWakeLock = sentinel;
+            } else {
+                releaseSpeakingStackWakeLock(sentinel);
+            }
+        } catch (_) {
+            // Wake-lock availability depends on the browser and device.
+        } finally {
+            if (ctx.speakingStackWakeLockRequest === request) {
+                ctx.speakingStackWakeLockRequest = null;
+            }
+        }
+    }
+
     function finishSpeakingStackRun(ctx, reason) {
         const run = ctx.run;
         if (!run || run.ended) {
@@ -6255,6 +6308,7 @@
         }
 
         run.ended = true;
+        clearSpeakingStackWakeLock(ctx);
         updateSpeakingStackBlastControl(ctx, run);
         teardownSpeaking(ctx);
         flushProgress(ctx);
@@ -6689,6 +6743,7 @@
         }
         run.pauseReason = String(opts.reason || 'manual');
         if (isSpeakingStackRun(ctx, run)) {
+            clearSpeakingStackWakeLock(ctx);
             run.blastTargeting = false;
             run.blastPlayback = null;
             updateSpeakingStackBlastControl(ctx, run);
@@ -6731,6 +6786,7 @@
         updatePauseUi(ctx);
 
         if (isSpeakingStackRun(ctx, run)) {
+            syncSpeakingStackWakeLock(ctx);
             updateSpeakingStackBlastControl(ctx, run);
             speakingState(ctx).audioContext = createSpeakingAudioContext();
             setSpeakingStatus(ctx, String(gameText(ctx, 'gamesSpeakingStackReady')));
@@ -6816,6 +6872,7 @@
     function stopRun(ctx, options) {
         const opts = options || {};
         const run = ctx.run;
+        clearSpeakingStackWakeLock(ctx);
         teardownSpeaking(ctx);
         if (!run) {
             return;
@@ -11582,6 +11639,7 @@
         setSpeakingStatus(ctx, String(gameText(ctx, 'gamesSpeakingStackReady')));
         setSpeakingStackHeard(ctx, '');
         scrollStageIntoView(ctx);
+        syncSpeakingStackWakeLock(ctx);
         queueSpeakingStackCaptureRestart(ctx, 40);
         ctx.run.rafId = root.requestAnimationFrame(function (timestamp) {
             runLoop(ctx, timestamp);
@@ -11645,6 +11703,7 @@
         }
 
         ctx.onVisibilityChange = function () {
+            syncSpeakingStackWakeLock(ctx);
             if (root.document && root.document.visibilityState === 'hidden') {
                 flushProgress(ctx);
             }
@@ -11663,7 +11722,13 @@
             showCatalog(ctx, { historyAlreadyHandled: true });
         };
         ctx.onPageHide = function () {
+            ctx.pageHidden = true;
+            clearSpeakingStackWakeLock(ctx);
             flushProgress(ctx);
+        };
+        ctx.onPageShow = function () {
+            ctx.pageHidden = false;
+            syncSpeakingStackWakeLock(ctx);
         };
         ctx.onResize = function () {
             syncCanvasSize(ctx);
@@ -11806,6 +11871,7 @@
         if (root.addEventListener) {
             root.addEventListener('popstate', ctx.onPopState);
             root.addEventListener('pagehide', ctx.onPageHide);
+            root.addEventListener('pageshow', ctx.onPageShow);
             root.addEventListener('resize', ctx.onResize);
             root.addEventListener('keydown', ctx.onKeyDown);
             root.addEventListener('keyup', ctx.onKeyUp);
@@ -11847,6 +11913,9 @@
             }
             if (ctx.onPageHide) {
                 root.removeEventListener('pagehide', ctx.onPageHide);
+            }
+            if (ctx.onPageShow) {
+                root.removeEventListener('pageshow', ctx.onPageShow);
             }
             if (ctx.onResize) {
                 root.removeEventListener('resize', ctx.onResize);
@@ -12579,6 +12648,9 @@
             launchEntryRequests: {},
             launchPromise: null,
             run: null,
+            pageHidden: false,
+            speakingStackWakeLock: null,
+            speakingStackWakeLockRequest: null,
             overlayMode: '',
             boundLifecycle: false,
             gameConfigs: gameConfigs,
