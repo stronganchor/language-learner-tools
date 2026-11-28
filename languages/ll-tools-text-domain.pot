@@ -2,14 +2,14 @@
 # This file is distributed under the same license as the Language Learner Tools plugin.
 msgid ""
 msgstr ""
-"Project-Id-Version: Language Learner Tools 6.7.134\n"
+"Project-Id-Version: Language Learner Tools 6.7.135\n"
 "Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/language-learner-tools\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-11-28T12:34:34+00:00\n"
+"POT-Creation-Date: 2026-11-28T12:38:37+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.10.0\n"
 "X-Domain: ll-tools-text-domain\n"
@@ -17800,25 +17800,26 @@ msgid "Preparing level progress…"
 msgstr ""
 
 #. translators: %s: ZIPA setting name.
-#: includes/lib/zipa-settings.php:38
+#: includes/lib/zipa-settings.php:41
 msgid "Check the ZIPA setting “%s”."
 msgstr ""
 
-#: includes/lib/zipa-settings.php:260
+#: includes/lib/zipa-settings.php:263
 msgid "Choose a valid wordset."
 msgstr ""
 
 #. translators: %d: Word post ID.
-#: includes/lib/zipa-settings.php:274
+#: includes/lib/zipa-settings.php:277
 msgid "Word %d must belong to this wordset."
 msgstr ""
 
 #. translators: %d: Word post ID.
-#: includes/lib/zipa-settings.php:281
+#: includes/lib/zipa-settings.php:284
 msgid "Choose a recording that belongs to word %d."
 msgstr ""
 
-#: includes/lib/zipa-settings.php:295
+#: includes/lib/zipa-settings.php:291
+#: includes/lib/zipa-settings.php:302
 msgid "WordPress could not save the ZIPA settings."
 msgstr ""
 

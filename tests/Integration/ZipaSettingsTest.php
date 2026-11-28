@@ -62,13 +62,19 @@ final class ZipaSettingsTest extends LL_Tools_TestCase {
                 'matcher' => [
                     'tiedPairs' => [],
                     'inputSymbols' => ['▁' => ' '],
-                    'ipaReplacements' => [['from' => '̥', 'to' => '', 'followedBy' => ['', ' ']]],
+                    'ipaReplacements' => [
+                        ['from' => '̥', 'to' => '', 'followedBy' => ['', ' ']],
+                        ['from' => "d\u{10784}", 'to' => 'dʷ'],
+                    ],
                     'closeForms' => [$word => ['target' => 'ʕbæɢæ', 'heard' => ['baɢæ']]],
                 ],
                 'stackCapture' => ['speechStartThreshold' => 0.04, 'silenceThreshold' => 0.02, 'feedbackHoldMs' => 900],
             ]);
             $input = ll_tools_zipa_admin_format_settings($settings);
             $this->assertTrue(ll_tools_zipa_admin_save_input($wordset, $input));
+            $raw = get_term_meta($wordset, LL_TOOLS_ZIPA_SETTINGS_META_KEY, true);
+            $this->assertIsString($raw);
+            $this->assertMatchesRegularExpression('/^[\x20-\x7E]+$/D', $raw);
             $stored = ll_tools_zipa_get_settings($wordset);
             $settings['browserModelManifestUrl'] = 'https://zipa.example.org/uploads/models/tuned.json';
             $this->assertSame($settings, $stored);

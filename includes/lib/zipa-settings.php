@@ -22,6 +22,9 @@ function ll_tools_zipa_default_settings(): array {
 
 function ll_tools_zipa_get_settings(int $wordset_id): array {
     $stored = $wordset_id > 0 ? get_term_meta($wordset_id, LL_TOOLS_ZIPA_SETTINGS_META_KEY, true) : [];
+    if (is_string($stored)) {
+        $stored = strlen($stored) <= 294912 ? json_decode($stored, true, 24) : null;
+    }
     if (!is_array($stored)) {
         return ll_tools_zipa_default_settings();
     }
@@ -282,15 +285,19 @@ function ll_tools_zipa_save_settings(int $wordset_id, array $raw) {
         }
     }
 
-    $stored = get_term_meta($wordset_id, LL_TOOLS_ZIPA_SETTINGS_META_KEY, true);
-    if ($stored === $settings) {
+    // Escaped Unicode keeps IPA extensions usable on legacy utf8mb3 termmeta tables.
+    $encoded = wp_json_encode($settings, JSON_UNESCAPED_SLASHES | JSON_PRESERVE_ZERO_FRACTION);
+    if (!is_string($encoded)) {
+        return new WP_Error('ll_zipa_save_failed', __('WordPress could not save the ZIPA settings.', 'll-tools-text-domain'));
+    }
+    if (get_term_meta($wordset_id, LL_TOOLS_ZIPA_SETTINGS_META_KEY, true) === $encoded) {
         return true;
     }
-    $result = update_term_meta($wordset_id, LL_TOOLS_ZIPA_SETTINGS_META_KEY, wp_slash($settings));
+    $result = update_term_meta($wordset_id, LL_TOOLS_ZIPA_SETTINGS_META_KEY, wp_slash($encoded));
     if (is_wp_error($result)) {
         return $result;
     }
-    return $result || get_term_meta($wordset_id, LL_TOOLS_ZIPA_SETTINGS_META_KEY, true) === $settings
+    return get_term_meta($wordset_id, LL_TOOLS_ZIPA_SETTINGS_META_KEY, true) === $encoded
         ? true
         : new WP_Error('ll_zipa_save_failed', __('WordPress could not save the ZIPA settings.', 'll-tools-text-domain'));
 }
