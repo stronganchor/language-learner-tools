@@ -6382,7 +6382,9 @@
         if (run.visibleTargetSince === null && getVisibleSpeakingStackCards(run).length) {
             run.visibleTargetSince = now;
         }
-        if (run.allWordsQueued && !getSpeakingStackActiveCards(run).length && !run.cards.some(function (card) { return !!(card && card.exploding); })) {
+        if (run.allWordsQueued && !getSpeakingStackActiveCards(run).length
+            && !hasSpeakingStackAttemptInProgress(ctx)
+            && !run.cards.some(function (card) { return !!(card && card.exploding); })) {
             finishSpeakingStackRun(ctx, 'win');
             removeResolvedObjects(run, now);
             return;
@@ -8819,7 +8821,9 @@
 
     function setSpeakingStackResultHeard(ctx, result, transcript) {
         setSpeakingStackHeard(ctx, getSpeakingDisplayTranscript(result, transcript), {
-            targetText: String(result && (result.display_target_text || result.target_text || result.normalized_target_text) || ''),
+            targetText: Array.isArray(result && result.matches)
+                ? ''
+                : String(result && (result.display_target_text || result.target_text || result.normalized_target_text) || ''),
             score: Number(result && result.score) || 0
         });
     }
@@ -10728,11 +10732,8 @@
         }, best);
     }
 
-    function scoreSpeakingStackTranscript(ctx, run, transcript) {
-        const activeCards = getSpeakingStackActiveCards(run);
-        const activeWordIds = uniqueIntList(activeCards.map(function (card) {
-            return toInt(card.word && card.word.id);
-        }));
+    function scoreSpeakingStackTranscript(ctx, run, transcript, activeCards) {
+        const activeWordIds = Array.from(activeCards.keys());
         if (!activeWordIds.length) {
             return Promise.resolve({
                 matched: false,
@@ -10751,7 +10752,7 @@
                 return Promise.reject(new Error(String(gameText(ctx, 'gamesSpeakingApiUnavailable'))));
             }
 
-            return Promise.all(activeCards.map(function (card) {
+            return Promise.all(Array.from(activeCards.values(), function (card) {
                 const candidateRun = $.extend({}, run, {
                     prompt: {
                         target: card.word
@@ -10939,25 +10940,6 @@
         });
     }
 
-    function findSpeakingStackCardByWordId(run, wordId) {
-        const targetId = toInt(wordId);
-        if (!targetId) {
-            return null;
-        }
-
-        for (let index = 0; index < run.cards.length; index += 1) {
-            const card = run.cards[index];
-            if (!card || card.exploding || card.removedFromStack) {
-                continue;
-            }
-            if (toInt(card.word && card.word.id) === targetId) {
-                return card;
-            }
-        }
-
-        return null;
-    }
-
     function getSpeakingStackFeedbackHoldMs(ctx) {
         const config = getGameConfig(ctx, SPEAKING_STACK_GAME_SLUG);
         return Math.max(120, toInt(config && config.feedbackHoldMs));
@@ -11100,11 +11082,6 @@
             duration: 300,
             style: 'ring'
         });
-        relayoutSpeakingStackCards(ctx, run);
-        if (!getVisibleSpeakingStackCards(run).length) {
-            run.visibleTargetSince = null;
-        }
-        setSpeakingStackProgressFromRun(ctx, run);
         if (!correctAudioUrl) {
             return Promise.resolve();
         }
@@ -11113,6 +11090,14 @@
             volume: getPromptAudioVolume(ctx, run),
             pausePrompt: false
         });
+    }
+
+    function refreshSpeakingStackAfterClear(ctx, run) {
+        relayoutSpeakingStackCards(ctx, run);
+        if (!getVisibleSpeakingStackCards(run).length) {
+            run.visibleTargetSince = null;
+        }
+        setSpeakingStackProgressFromRun(ctx, run);
     }
 
     function useSpeakingStackBlast(ctx, wordId) {
@@ -11132,6 +11117,7 @@
         setSpeakingStackHeard(ctx, '');
         setSpeakingStatus(ctx, String(gameText(ctx, 'gamesSpeakingStackBlastUsed')));
         const playback = clearSpeakingStackCard(ctx, run, card, String(card.word.speaking_best_correct_audio_url || ''), true);
+        refreshSpeakingStackAfterClear(ctx, run);
         run.blastPlayback = playback;
         updateSpeakingStackBlastControl(ctx, run);
         ctx.$pauseButton.get(0)?.focus({ preventScroll: true });
@@ -11145,44 +11131,58 @@
         });
     }
 
-    function handleSpeakingStackMatch(ctx, run, result, transcript) {
-        const card = findSpeakingStackCardByWordId(run, toInt(result && result.word_id));
-        if (!card) {
-            setSpeakingStatus(ctx, String(gameText(ctx, 'gamesSpeakingStackNoMatch')));
-            return false;
+    function handleSpeakingStackMatches(ctx, run, activeCards, result, transcript) {
+        setSpeakingStackResultHeard(ctx, result, transcript);
+        const replies = Array.isArray(result && result.matches) ? result.matches : (result && result.matched ? [result] : []);
+        const stillActive = new Set(getSpeakingStackActiveCards(run));
+        const targets = new Map(activeCards);
+        let cleared = 0;
+        let right = 0;
+        for (const reply of replies) {
+            const id = Number(reply && reply.word_id);
+            const card = targets.get(id);
+            const bucket = String(reply && reply.bucket || 'wrong');
+            if (!card || !stillActive.has(card) || toInt(card.word.id) !== id
+                || reply.matched === false || (bucket !== 'right' && bucket !== 'close')) {
+                continue;
+            }
+
+            targets.delete(id);
+            const correctAudioUrl = String(reply.best_correct_audio_url || card.word.speaking_best_correct_audio_url || '');
+            if (correctAudioUrl) {
+                run.lastCorrectAudioDurationMs += getLoadedAudioDurationMs(ctx, correctAudioUrl);
+            }
+            clearSpeakingStackCard(ctx, run, card, correctAudioUrl, false);
+            cleared += 1;
+            if (bucket === 'right') {
+                right += 1;
+            }
+            queueOutcome(ctx, {
+                target: card.word,
+                recordingType: 'isolation',
+                gameSlug: SPEAKING_STACK_GAME_SLUG
+            }, true, bucket === 'close', {
+                event_source: 'speaking_stack',
+                speaking_game_bucket: bucket,
+                speaking_score: clamp(Number(reply.score) || 0, 0, 100),
+                stt_provider: String(run.provider || ''),
+                speaking_target_field: String(run.targetField || '')
+            });
         }
 
-        const bucket = String(result && result.bucket || 'right');
-        const score = clamp(Number(result && result.score) || 0, 0, 100);
-        const correctAudioUrl = String(result && result.best_correct_audio_url || card.word && card.word.speaking_best_correct_audio_url || '');
-        run.lastCorrectAudioDurationMs = correctAudioUrl ? getLoadedAudioDurationMs(ctx, correctAudioUrl) : 0;
-        clearSpeakingStackCard(ctx, run, card, correctAudioUrl, false);
-        if (bucket === 'right') {
-            run.spokenCorrectCount += 1;
-            if (run.spokenCorrectCount % SPEAKING_STACK_RIGHTS_PER_BLAST === 0) {
-                run.blastCharges += 1;
+        if (cleared) {
+            refreshSpeakingStackAfterClear(ctx, run);
+            const previousCharges = Math.floor(run.spokenCorrectCount / SPEAKING_STACK_RIGHTS_PER_BLAST);
+            run.spokenCorrectCount += right;
+            const earned = Math.floor(run.spokenCorrectCount / SPEAKING_STACK_RIGHTS_PER_BLAST) - previousCharges;
+            if (earned) {
+                run.blastCharges += earned;
                 updateSpeakingStackBlastControl(ctx, run);
             }
         }
-        setSpeakingStatus(ctx, String({
-            right: gameText(ctx, 'gamesSpeakingResultRight'),
-            close: gameText(ctx, 'gamesSpeakingResultClose')
-        }[bucket] || gameText(ctx, 'gamesSpeakingResultRight')));
-        setSpeakingStackResultHeard(ctx, result, transcript);
-
-        queueOutcome(ctx, {
-            target: card.word,
-            recordingType: 'isolation',
-            gameSlug: SPEAKING_STACK_GAME_SLUG
-        }, true, bucket === 'close', {
-            event_source: 'speaking_stack',
-            speaking_game_bucket: bucket,
-            speaking_score: score,
-            stt_provider: String(run.provider || ''),
-            speaking_target_field: String(run.targetField || '')
-        });
-
-        return true;
+        setSpeakingStatus(ctx, String(gameText(ctx, right ? 'gamesSpeakingResultRight'
+            : cleared ? 'gamesSpeakingResultClose' : 'gamesSpeakingStackNoMatch')));
+        return {cleared, right};
     }
 
     function processSpeakingStackAttempt(ctx, blob) {
@@ -11218,19 +11218,36 @@
         }
 
         const attempt = {};
+        const activeCards = new Map(getSpeakingStackActiveCards(run).map(function (card) {
+            return [toInt(card.word.id), card];
+        }));
         state.transcribing = attempt;
         const quickResponse = state.stackQuickResponse;
         let holdFeedback = false;
         let quickRight = false;
+        let awaitedFeedback = false;
         const isCurrentAttempt = function () {
             return ctx.run === run && !run.ended && !run.paused && state.transcribing === attempt;
+        };
+        const applyResult = function (result, transcript) {
+            if (!isCurrentAttempt()) {
+                return;
+            }
+            const outcome = handleSpeakingStackMatches(ctx, run, activeCards, result, transcript);
+            holdFeedback = !outcome.cleared;
+            quickRight = outcome.right > 0 && quickResponse === true;
+            // Keep the recorder closed while the reference clips from a burst are queued.
+            awaitedFeedback = outcome.cleared > 1;
+            if (awaitedFeedback) {
+                return waitForFeedbackQueue(ctx);
+            }
         };
         const finishAttempt = function () {
             if (!isCurrentAttempt()) {
                 return;
             }
             const completedAt = currentTimestamp();
-            const playbackCooldownMs = Math.max(0, Number(run.lastCorrectAudioDurationMs) || 0);
+            const playbackCooldownMs = awaitedFeedback ? 0 : Math.max(0, Number(run.lastCorrectAudioDurationMs) || 0);
             const feedbackHoldMs = holdFeedback ? getSpeakingStackFeedbackHoldMs(ctx) : 120;
             const restartDelayMs = Math.max(feedbackHoldMs, playbackCooldownMs + (playbackCooldownMs > 0 ? 180 : 120));
             if (quickResponse !== null) {
@@ -11249,26 +11266,16 @@
             : String(gameText(ctx, 'gamesSpeakingStackProcessing'));
         setSpeakingStatus(ctx, stackProcessingLabel);
         if (isAudioMatcherProvider(run.provider)) {
-            const activeCards = getSpeakingStackActiveCards(run);
-            const candidateWords = activeCards.map(function (card) {
-                return card && card.word ? card.word : null;
-            }).filter(Boolean);
+            const candidateWords = Array.from(activeCards.values(), function (card) {
+                return card.word;
+            });
 
             scoreSpeakingAudioMatcher(ctx, run, blob, candidateWords).then(function (result) {
                 if (!isCurrentAttempt()) {
                     return;
                 }
                 run.lastTranscribeDurationMs = Math.max(0, currentTimestamp() - transcribeStartedAt);
-
-                setSpeakingStackResultHeard(ctx, result, result && result.transcript_text);
-                const matched = !!(result && result.matched && String(result.bucket || 'wrong') !== 'wrong');
-                if (!matched) {
-                    holdFeedback = true;
-                    setSpeakingStatus(ctx, String(gameText(ctx, 'gamesSpeakingStackNoMatch')));
-                    return;
-                }
-                const cleared = handleSpeakingStackMatch(ctx, run, result, String(result && result.transcript_text || ''));
-                quickRight = cleared && quickResponse === true && result.bucket === 'right';
+                return applyResult(result, String(result && result.transcript_text || ''));
             }).catch(function (error) {
                 if (!isCurrentAttempt()) {
                     return;
@@ -11297,20 +11304,8 @@
             if (!transcriptText) {
                 throw new Error(String(gameText(ctx, 'gamesSpeakingStackTooQuiet')));
             }
-            return scoreSpeakingStackTranscript(ctx, run, transcriptText).then(function (result) {
-                if (!isCurrentAttempt()) {
-                    return;
-                }
-
-                setSpeakingStackResultHeard(ctx, result, transcriptText);
-                const matched = !!(result && result.matched && String(result.bucket || 'wrong') !== 'wrong');
-                if (!matched) {
-                    holdFeedback = true;
-                    setSpeakingStatus(ctx, String(gameText(ctx, 'gamesSpeakingStackNoMatch')));
-                    return;
-                }
-                const cleared = handleSpeakingStackMatch(ctx, run, result, transcriptText);
-                quickRight = cleared && quickResponse === true && result.bucket === 'right';
+            return scoreSpeakingStackTranscript(ctx, run, transcriptText, activeCards).then(function (result) {
+                return applyResult(result, transcriptText);
             });
         }).catch(function (error) {
             if (!isCurrentAttempt()) {

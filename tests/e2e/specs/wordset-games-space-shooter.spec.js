@@ -2841,13 +2841,16 @@ async function mockWordStackAttempts(page, transcribeDelayMs = 0) {
       if (action !== 'll_wordset_games_match_speaking_attempt') {
         return fetch(url, options);
       }
-      const id = Number(data.getAll('word_ids[]')[0]);
+      const ids = data.getAll('word_ids[]').map(Number);
       const score = window.__wordStackBucket === 'right' ? 100 : 85;
+      const response = window.__wordStackMatchResponder
+        ? window.__wordStackMatchResponder(ids)
+        : { matched: true, word_id: ids[0], bucket: window.__wordStackBucket, score };
       return Promise.resolve({
         ok: true,
         json: () => Promise.resolve({
           success: true,
-          data: { matched: true, word_id: id, bucket: window.__wordStackBucket, score }
+          data: response
         })
       });
     };
@@ -2956,6 +2959,118 @@ test('word stack picks up the pace for quick spoken rights without counting prov
   await speak('close');
   expect(await readPace()).toMatchObject({ clears: 10, spokenRights: 9, speed: fallSpeed });
   await closeRunPopup(page);
+});
+
+test('word stack clears distinct matches in one utterance and plays the final references before ending', async ({ page }) => {
+  await page.clock.install();
+  await mountGamesPage(page, {
+    isLoggedIn: true,
+    words: buildSpeakingStackWords(5),
+    audioLoadDelayMs: 0,
+    promptAudioDurationSeconds: 0.8,
+    configOverrides: {
+      games: {
+        catalog: {
+          'speaking-stack': { slug: 'speaking-stack', title: 'Word Stack' }
+        },
+        speakingStack: {
+          slug: 'speaking-stack',
+          provider: 'hosted_api',
+          targetField: 'title',
+          initialSpawnCount: 5,
+          maxLoadedWords: 5,
+          fallSpeed: 100,
+          preFirstAttemptFallSpeed: 100,
+          maxRecordingMs: 60000,
+          silenceWindowMs: 400,
+          finalSilenceMs: 60000
+        }
+      }
+    }
+  });
+  await mockWordStackAttempts(page);
+  await page.evaluate(() => {
+    const match = (word_id) => ({ word_id, bucket: 'right', score: 100 });
+    window.__wordStackMatchResponder = (ids) => {
+      const [first, second] = ids.map(match);
+      const matches = ids.length === 5
+        ? [first, first, match(999999), second]
+        : ids.length === 3 ? [first, { ...second, bucket: 'wrong' }] : [first, second];
+      return {
+        ...first,
+        matched: true,
+        score: 85,
+        display_target_text: 'Mase',
+        display_transcript_text: 'Mase çele Dik',
+        matches
+      };
+    };
+  });
+  await gameLaunchButton(page, 'speaking-stack').click();
+  await expect(page.locator('[data-ll-wordset-speaking-stack-stage]')).toBeVisible();
+
+  const state = () => page.evaluate(() => {
+    const { run, speaking } = window.LLWordsetGames.__ctx;
+    return {
+      activeIds: run.cards.filter((card) => !card.exploding && !card.removedFromStack).map((card) => Number(card.word.id)),
+      visible: run.visibleTargetSince !== null,
+      ended: run.ended,
+      transcribing: !!speaking.transcribing,
+      quickRights: run.quickRightCount,
+      spokenRights: run.spokenCorrectCount,
+      outcomes: window.__queuedProgressEvents.filter((event) =>
+        event.type === 'word_outcome' && event.entry.payload.event_source === 'speaking_stack'
+      ).map((event) => Number(event.entry.word.id)),
+      clips: window.__audioEventLog.filter((event) => event.startsWith('prompt:speaking-') && event.endsWith('.mp3')),
+      finishedClips: window.__audioEventLog.filter((event) => event.startsWith('prompt:speaking-') && event.endsWith('.mp3-ended'))
+    };
+  });
+  for (let tick = 0; tick < 20 && !(await state()).visible; tick += 1) {
+    await page.clock.runFor(250);
+  }
+  const initial = await state();
+  expect(initial.visible).toBe(true);
+  expect(initial.activeIds).toHaveLength(5);
+  await page.evaluate(() => { window.LLWordsetGames.__ctx.run.spokenCorrectCount = 9; });
+
+  const [first, second, third, fourth, fifth] = initial.activeIds;
+  const clip = (id) => `prompt:speaking-${id}.mp3`;
+  await speakMockWordStackAttempt(page, 'right');
+  expect(await state()).toMatchObject({
+    activeIds: [third, fourth, fifth],
+    outcomes: [first, second],
+    spokenRights: 11,
+    transcribing: true,
+    clips: [clip(first)]
+  });
+  const heard = page.locator('[data-ll-wordset-speaking-stack-heard]');
+  await expect(heard).toHaveText('Mase çele Dik');
+  await expect(heard.locator('.ll-wordset-speaking-stage__diff-fragment')).toHaveCount(0);
+  await expect(page.locator('[data-ll-wordset-speaking-stack-blast-count]')).toHaveText('1');
+
+  await page.clock.runFor(2000);
+  expect(await state()).toMatchObject({ quickRights: 1, transcribing: false, clips: [clip(first), clip(second)] });
+
+  await speakMockWordStackAttempt(page, 'right');
+  expect(await state()).toMatchObject({ activeIds: [fourth, fifth], outcomes: [first, second, third] });
+  await page.clock.runFor(1200);
+
+  await speakMockWordStackAttempt(page, 'right');
+  expect(await state()).toMatchObject({
+    activeIds: [],
+    outcomes: initial.activeIds,
+    clips: [clip(first), clip(second), clip(third), clip(fourth)],
+    finishedClips: [first, second, third].map((id) => `${clip(id)}-ended`),
+    transcribing: true,
+    ended: false
+  });
+  await page.clock.runFor(2000);
+  expect(await state()).toMatchObject({
+    ended: true,
+    clips: initial.activeIds.map(clip),
+    finishedClips: initial.activeIds.map((id) => `${clip(id)}-ended`)
+  });
+  await expect(page.locator('[data-ll-wordset-game-overlay-title]')).toHaveText('You cleared the stack');
 });
 
 test.describe('word stack blast', () => {
