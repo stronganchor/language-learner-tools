@@ -299,6 +299,30 @@ function gameStatus(page, slug) {
   return gameCard(page, slug).locator('[data-ll-wordset-game-status]');
 }
 
+async function holdGameLaunchRequest(page) {
+  await page.evaluate(() => {
+    const $ = window.jQuery;
+    const post = $.post;
+    $.post = function (url, data) {
+      const request = post.call(this, url, data);
+      if (data?.action !== 'll_wordset_games_launch') {
+        return request;
+      }
+      const held = $.Deferred();
+      window.__releaseHeldGameLaunch = () => {
+        request.done(held.resolve).fail(held.reject);
+      };
+      return held.promise();
+    };
+  });
+  return async () => {
+    await page.evaluate(async () => {
+      window.__releaseHeldGameLaunch();
+      await new Promise(requestAnimationFrame);
+    });
+  };
+}
+
 async function waitForActivePrompt(page, slug) {
   await page.waitForFunction((expectedSlug) => {
     const run = window.LLWordsetGames.__debug.getRunState();
@@ -916,6 +940,7 @@ function buildGamesConfig(isLoggedIn, overrides = null) {
       gamesPreparingRun: 'Preparing game...',
       gamesLoginRequired: 'Sign in to play with your in-progress words.',
       gamesLoadError: 'Unable to load games right now.',
+      gamesRetry: 'Try again',
       gamesReadyCount: '%d words ready',
       gamesReadySequences: '%d sequences ready',
       gamesNeedWords: 'Need %d more words to unlock this game.',
@@ -5106,7 +5131,7 @@ test('space shooter launches with safe option mixes and records progress flows',
   expect(progressContext.wordsetId || progressContext.wordset_id).toBe(77);
 });
 
-test('deferred launch deadline clears a stalled request so a later click can retry', async ({ page }) => {
+test('deferred launch deadline offers a retry inside the game popup', async ({ page }) => {
   await mountGamesPage(page, {
     isLoggedIn: true,
     launchRequestHangs: true,
@@ -5133,20 +5158,21 @@ test('deferred launch deadline clears a stalled request so a later click can ret
     }
   });
 
-  await expect(gameLaunchButton(page, 'space-shooter')).toBeEnabled();
-  await page.evaluate(() => {
-    window.LLWordsetGames.__debug.launch('space-shooter');
-  });
+  await gameLaunchButton(page, 'space-shooter').click();
   await expect.poll(async () => page.evaluate(() => window.__gameAjaxCalls.length)).toBe(1);
 
-  await page.waitForTimeout(400);
-  await page.evaluate(() => {
-    window.LLWordsetGames.__debug.launch('space-shooter');
-  });
-
-  await expect.poll(async () => page.evaluate(() => window.__gameAjaxCalls.length)).toBe(2);
+  const overlay = page.locator('[data-ll-wordset-game-overlay]');
+  await expect(overlay).toHaveAttribute('data-ll-wordset-game-overlay-mode', 'launch-error');
+  await expect(overlay.locator('[data-ll-wordset-game-overlay-title]')).toHaveText('Unable to load games right now.');
+  await expect(overlay.getByRole('button', { name: 'Back to games' })).toBeVisible();
   expect(await page.evaluate(() => window.LLWordsetGames.__debug.getRunState())).toBeNull();
-  await expect(gameLaunchButton(page, 'space-shooter')).toBeEnabled();
+
+  await page.evaluate(() => {
+    window.__gameLaunchRequestHangs = false;
+  });
+  await overlay.getByRole('button', { name: 'Try again' }).click();
+  await waitForActivePrompt(page, 'space-shooter');
+  await expect.poll(async () => page.evaluate(() => window.__gameAjaxCalls.length)).toBe(2);
 });
 
 test('rapid launch clicks share one launch continuation and start one run', async ({ page }) => {
@@ -5176,7 +5202,7 @@ test('rapid launch clicks share one launch continuation and start one run', asyn
   expect(await page.evaluate(() => window.__progressContextSetCalls)).toBe(1);
 });
 
-test('deferred catalog metadata launches with selected-game payload', async ({ page }) => {
+test('Play opens the selected game while its deferred payload is still loading', async ({ page }) => {
   await mountGamesPage(page, {
     isLoggedIn: true,
     configOverrides: {
@@ -5205,10 +5231,20 @@ test('deferred catalog metadata launches with selected-game payload', async ({ p
   await expect(gameStatus(page, 'space-shooter')).toHaveText('7 words ready');
   await expect.poll(async () => page.evaluate(() => window.__gameAjaxCalls.slice())).toEqual([]);
 
-  await page.evaluate(() => {
-    window.LLWordsetGames.__debug.launch('space-shooter');
-  });
+  const releaseLaunch = await holdGameLaunchRequest(page);
+  await gameLaunchButton(page, 'space-shooter').click();
+  const modal = page.locator('[data-ll-wordset-game-run-modal]');
+  await expect(modal).toBeVisible({ timeout: 2000 });
+  await expect(modal.locator('[data-ll-wordset-game-stage]')).toHaveAttribute('data-ll-wordset-active-game', 'space-shooter');
+  await expect(modal.locator('[data-ll-wordset-game-loading]')).toBeVisible();
+  await expect(modal.locator('[data-ll-wordset-game-overlay]')).toHaveAttribute('aria-busy', 'true');
+  await expect(modal.getByRole('button', { name: 'Back to games' })).toBeVisible();
+  await expect(modal.locator('[data-ll-wordset-game-replay]')).toBeHidden({ timeout: 2000 });
+  expect(await page.evaluate(() => window.LLWordsetGames.__debug.getRunState())).toBeNull();
+
+  await releaseLaunch();
   await waitForActivePrompt(page, 'space-shooter');
+  await expect(modal.locator('[data-ll-wordset-game-loading]')).toBeHidden();
 
   const runState = await page.evaluate(() => window.LLWordsetGames.__debug.getRunState());
   expect(runState.totalRounds).toBeGreaterThanOrEqual(5);
@@ -5219,6 +5255,23 @@ test('deferred catalog metadata launches with selected-game payload', async ({ p
       game_slug: 'space-shooter'
     }
   ]);
+});
+
+test('exiting a game during loading prevents its late payload from reopening it', async ({ page }) => {
+  await mountGamesPage(page, { isLoggedIn: true });
+
+  const releaseLaunch = await holdGameLaunchRequest(page);
+  await gameLaunchButton(page, 'bubble-pop').click();
+  await expect(page.locator('[data-ll-wordset-game-loading]')).toBeVisible({ timeout: 2000 });
+
+  await closeRunPopup(page);
+  await releaseLaunch();
+  await expect(page.locator('[data-ll-wordset-game-run-modal]')).toBeHidden();
+  expect(await page.evaluate(() => window.LLWordsetGames.__debug.getRunState())).toBeNull();
+
+  await gameLaunchButton(page, 'space-shooter').click();
+  await releaseLaunch();
+  await waitForActivePrompt(page, 'space-shooter');
 });
 
 test('space shooter only deducts one life when buffered shots hit wrong cards in one prompt', async ({ page }) => {

@@ -724,6 +724,22 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
     backdrop-filter: blur(10px);
 }
 
+.ll-wordset-game-stage[data-ll-wordset-game-preparing] > :not(.ll-wordset-game-stage__overlay) {
+    visibility: hidden;
+}
+
+.ll-wordset-game-stage__overlay[data-ll-wordset-game-overlay-mode="loading"] {
+    flex-direction: column;
+    gap: 16px;
+}
+
+.ll-wordset-game-stage__overlay[data-ll-wordset-game-overlay-mode="loading"] .ll-wordset-game-stage__overlay-card {
+    width: auto;
+    padding: 0;
+    background: transparent;
+    box-shadow: none;
+}
+
 .ll-wordset-game-stage__loading {
     display: inline-flex;
     align-items: center;
@@ -883,7 +899,7 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
 .ll-wordset-games-page button.ll-wordset-games-length__option,
 .ll-wordset-games-page button.ll-wordset-game-stage__nav,
 .ll-wordset-games-page button.ll-wordset-game-stage__control,
-.ll-wordset-games-page button.ll-wordset-game-stage__overlay-button {
+.ll-wordset-games-page button.ll-wordset-game-stage__overlay-button:not([hidden]) {
     -webkit-appearance: none !important;
     appearance: none !important;
     border-style: solid !important;

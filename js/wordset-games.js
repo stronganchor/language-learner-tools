@@ -4347,7 +4347,7 @@
         return wrappedRequest;
     }
 
-    function fetchLaunchEntry(ctx, slug) {
+    function fetchLaunchEntry(ctx, slug, launch) {
         const normalizedSlug = normalizeGameSlug(slug || getDefaultCatalogSlug(ctx));
         const localEntry = getPreparedCatalogEntry(ctx, normalizedSlug);
         if (!ctx || isBrowserSpeakingGame(ctx, normalizedSlug)
@@ -4358,39 +4358,40 @@
         if (ctx.launchEntryCache && ctx.launchEntryCache[normalizedSlug]) {
             return Promise.resolve(ctx.launchEntryCache[normalizedSlug]);
         }
-        if (ctx.launchEntryRequests && ctx.launchEntryRequests[normalizedSlug]) {
-            return ctx.launchEntryRequests[normalizedSlug];
-        }
-
-        ctx.launchEntryRequests = ctx.launchEntryRequests || {};
-        ctx.launchEntryCache = ctx.launchEntryCache || {};
-
-        ctx.launchEntryRequests[normalizedSlug] = new Promise(function (resolve, reject) {
-            postWithDeadline(ctx.ajaxUrl, {
-                action: ctx.launchAction,
-                nonce: ctx.nonce,
-                wordset_id: ctx.wordsetId,
-                game_slug: normalizedSlug
-            }, ctx.launchRequestTimeoutMs).done(function (response) {
-                const entry = response && response.success && response.data && response.data.game && typeof response.data.game === 'object'
-                    ? buildPreparedEntry(ctx, normalizedSlug, response.data.game)
-                    : null;
-                if (!entry) {
-                    reject(new Error('missing_launch_entry'));
-                    return;
-                }
-                ctx.launchEntryCache[normalizedSlug] = entry;
-                resolve(entry);
-            }).fail(function () {
+        launch.request = postWithDeadline(ctx.ajaxUrl, {
+            action: ctx.launchAction,
+            nonce: ctx.nonce,
+            wordset_id: ctx.wordsetId,
+            game_slug: normalizedSlug
+        }, ctx.launchRequestTimeoutMs);
+        return new Promise(function (resolve, reject) {
+            launch.request.done(resolve).fail(function () {
                 reject(new Error('launch_request_failed'));
             });
-        }).finally(function () {
-            if (ctx.launchEntryRequests) {
-                delete ctx.launchEntryRequests[normalizedSlug];
+        }).then(function (response) {
+            const entry = response && response.success && response.data && response.data.game && typeof response.data.game === 'object'
+                ? buildPreparedEntry(ctx, normalizedSlug, response.data.game)
+                : null;
+            if (!entry) {
+                throw new Error('missing_launch_entry');
             }
+            if (ctx.pendingLaunch === launch && entry.launchable && entryHasLaunchPayload(entry)) {
+                ctx.launchEntryCache[normalizedSlug] = entry;
+            }
+            return entry;
         });
+    }
 
-        return ctx.launchEntryRequests[normalizedSlug];
+    function clearPendingLaunch(ctx) {
+        const launch = ctx.pendingLaunch;
+        if (!launch) {
+            return;
+        }
+        ctx.pendingLaunch = null;
+        if (launch.request) {
+            launch.request.abort();
+        }
+        closeSpeakingAudioContext(launch.audioContext);
     }
 
     function launchGame(ctx, slug) {
@@ -4402,42 +4403,61 @@
         )) {
             return Promise.resolve(null);
         }
-        if (ctx.launchPromise && typeof ctx.launchPromise.then === 'function') {
-            return ctx.launchPromise;
+        if (ctx.pendingLaunch) {
+            return ctx.pendingLaunch.promise;
         }
 
-        let launchAudioContext = ensureSpeakingSupported()
+        const audioContext = ensureSpeakingSupported()
             && (normalizedSlug === SPEAKING_PRACTICE_GAME_SLUG || normalizedSlug === SPEAKING_STACK_GAME_SLUG)
             ? createSpeakingAudioContext()
             : null;
-        const launchPromise = fetchLaunchEntry(ctx, normalizedSlug).catch(function () {
+        const launch = { audioContext: audioContext, request: null, promise: null, shownAt: currentTimestamp() };
+        ctx.pendingLaunch = launch;
+        ctx.activeGameSlug = normalizedSlug;
+        updateStageGameUi(ctx, normalizedSlug);
+        ctx.$stage.attr('data-ll-wordset-game-preparing', '').prop('hidden', false);
+        showOverlay(ctx, String(gameText(ctx, 'gamesPreparingRun')), '', { mode: 'loading', primaryLabel: '' });
+        setRunModalOpen(ctx, true);
+        activateGameInteractionGuard();
+
+        launch.promise = fetchLaunchEntry(ctx, normalizedSlug, launch).catch(function () {
             return entryHasLaunchPayload(fallbackEntry) ? fallbackEntry : null;
         }).then(function (entry) {
-            if (
-                api.__ctx !== ctx
-                || !entry
-                || !entry.launchable
-                || !entryHasLaunchPayload(entry)
-            ) {
+            if (api.__ctx !== ctx || ctx.pendingLaunch !== launch) {
                 return null;
+            }
+            if (!entry || !entry.launchable || !entryHasLaunchPayload(entry)) {
+                throw new Error('game_launch_unavailable');
             }
 
             startRun(ctx, entry);
-            if (launchAudioContext && ctx.run && normalizeGameSlug(ctx.run.slug) === normalizedSlug) {
-                speakingState(ctx).audioContext = launchAudioContext;
-                launchAudioContext = null;
+            if (!ctx.run || ctx.run.slug !== normalizedSlug) {
+                throw new Error('game_run_unavailable');
+            }
+            if (launch.audioContext) {
+                speakingState(ctx).audioContext = launch.audioContext;
+                launch.audioContext = null;
             }
             return entry;
-        });
-        let trackedLaunchPromise = null;
-        trackedLaunchPromise = launchPromise.finally(function () {
-            closeSpeakingAudioContext(launchAudioContext);
-            if (ctx.launchPromise === trackedLaunchPromise) {
-                ctx.launchPromise = null;
+        }).catch(function () {
+            if (api.__ctx === ctx && ctx.pendingLaunch === launch) {
+                stopRun(ctx, { flush: true });
+                ctx.activeGameSlug = normalizedSlug;
+                ctx.$stage.attr('data-ll-wordset-game-preparing', '').prop('hidden', false);
+                showOverlay(ctx, String(gameText(ctx, 'gamesLoadError')), '', {
+                    mode: 'launch-error',
+                    primaryLabel: String(gameText(ctx, 'gamesRetry'))
+                });
+                ctx.$overlayPrimary.trigger('focus');
+            }
+            return null;
+        }).finally(function () {
+            if (ctx.pendingLaunch === launch) {
+                clearPendingLaunch(ctx);
             }
         });
-        ctx.launchPromise = trackedLaunchPromise;
-        return trackedLaunchPromise;
+        ctx.$overlaySecondary.trigger('focus');
+        return launch.promise;
     }
 
     function updateAudioButtonUi($button, isPlaying) {
@@ -5296,11 +5316,14 @@
 
     function resetGamesSurface(ctx, options) {
         const opts = (options && typeof options === 'object') ? options : {};
+        if (!opts.keepModalOpen) {
+            clearPendingLaunch(ctx);
+        }
         stopRun(ctx, { flush: true });
         hideOverlay(ctx);
         ctx.activeGameSlug = '';
         updateStageGameUi(ctx, '');
-        ctx.$stage.prop('hidden', true);
+        ctx.$stage.removeAttr('data-ll-wordset-game-preparing').prop('hidden', true);
         if (!opts.keepModalOpen) {
             setRunModalOpen(ctx, false);
             deactivateGameInteractionGuard({
@@ -6654,7 +6677,7 @@
         const isLoadingMode = String(opts.mode || '') === 'loading';
 
         ctx.overlayMode = String(opts.mode || '');
-        ctx.$overlayTitle.text(title);
+        ctx.$overlayTitle.text(title).prop('hidden', isLoadingMode);
         ctx.$overlaySummary.text(summaryText).prop('hidden', summaryText === '');
         if (ctx.$overlayPrimary && ctx.$overlayPrimary.length) {
             ctx.$overlayPrimary.text(primaryLabel).prop('hidden', primaryLabel === '');
@@ -6663,7 +6686,7 @@
             ctx.$overlaySecondary.text(secondaryLabel).prop('hidden', secondaryLabel === '');
         }
         if (ctx.$overlayCard && ctx.$overlayCard.length) {
-            ctx.$overlayCard.prop('hidden', isLoadingMode);
+            ctx.$overlayCard.prop('hidden', isLoadingMode && secondaryLabel === '');
         }
         if (ctx.$overlayLoading && ctx.$overlayLoading.length) {
             ctx.$overlayLoading.prop('hidden', !isLoadingMode);
@@ -8437,7 +8460,7 @@
             lives: 1,
             promptsResolved: 0,
             totalRounds: selectedWords.length,
-            loadingShownAt: currentTimestamp(),
+            loadingShownAt: ctx.pendingLaunch.shownAt,
             loadingHideTimer: 0,
             paused: false,
             ended: false,
@@ -8502,7 +8525,7 @@
             totalRounds: selectedSequences.length,
             retryCount: 0,
             perfectSequenceCount: 0,
-            loadingShownAt: currentTimestamp(),
+            loadingShownAt: ctx.pendingLaunch.shownAt,
             loadingHideTimer: 0,
             paused: false,
             ended: false,
@@ -8598,7 +8621,7 @@
             promptTimerReadyAt: 0,
             promptTimerRemainingMs: 0,
             decorativeBubbleIdCounter: 0,
-            loadingShownAt: currentTimestamp(),
+            loadingShownAt: ctx.pendingLaunch.shownAt,
             loadingHideTimer: 0,
             speedRampTurns: gameConfig.introRampTurns,
             speedRampStartFactor: gameConfig.introRampStartFactor,
@@ -12645,8 +12668,7 @@
             promptReplayTimer: 0,
             bootstrapRequest: null,
             launchEntryCache: {},
-            launchEntryRequests: {},
-            launchPromise: null,
+            pendingLaunch: null,
             run: null,
             pageHidden: false,
             speakingStackWakeLock: null,

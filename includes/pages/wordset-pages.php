@@ -13529,6 +13529,7 @@ function ll_tools_get_wordset_games_i18n_messages(): array {
     return [
         'gamesLoading' => __('Checking game availability...', 'll-tools-text-domain'),
         'gamesPreparingRun' => __('Preparing game...', 'll-tools-text-domain'),
+        'gamesRetry' => __('Try again', 'll-tools-text-domain'),
         'gamesLoginRequired' => __('Sign in to play with your in-progress words.', 'll-tools-text-domain'),
         'gamesLoadError' => __('Unable to load games right now.', 'll-tools-text-domain'),
         'gamesReadyCount' => __('%d words ready', 'll-tools-text-domain'),
