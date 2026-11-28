@@ -353,21 +353,22 @@ function ll_tools_zipa_score(
             $items[] = ll_tools_zipa_result_payload($wordset_id, $part_result, $part_heard, $cards, $active_ids, 0);
         }
         if ($parts === [] && !str_contains($result['normalized_transcript_text'], ' ')) {
-            foreach ($matcher->split_spelling_burst($heard, $spellings) as $part) {
+            foreach ($matcher->split_spelling_burst($heard, $spellings, $transcript, $references) as $part) {
                 $id = $part['word_id'];
+                $part_ipa = $part['ipa'] ?? '';
                 if ($id === null) {
-                    $items[] = ['matched' => false, 'display_transcript_text' => $part['display']];
+                    $items[] = ['matched' => false, 'display_transcript_text' => $part['display'] ?? $display($part_ipa)];
                     continue;
                 }
                 $repaired = $part['repaired'];
                 $part_result = [
                     'matched' => true,
                     'word_id' => $id,
-                    'reason' => $repaired ? 'close_match' : 'orthographic_match',
+                    'reason' => $repaired ? 'close_match' : ($part_ipa !== '' ? 'phonemic_match' : 'orthographic_match'),
                     'score' => $repaired ? 85.0 : 100.0,
                     'bucket' => $repaired ? 'close' : 'right',
-                    'normalized_target_text' => $matcher->normalize($references[$id][0]),
-                    'normalized_transcript_text' => '',
+                    'normalized_target_text' => $part_ipa !== '' ? $part_ipa : $matcher->normalize($references[$id][0]),
+                    'normalized_transcript_text' => $part_ipa,
                 ];
                 $items[] = ll_tools_zipa_result_payload($wordset_id, $part_result, $spellings[$id], $cards, $active_ids, 0);
             }

@@ -9329,7 +9329,20 @@
         if (state.mediaStream && state.mediaStream.active !== false) {
             return Promise.resolve(state.mediaStream);
         }
-        return root.navigator.mediaDevices.getUserMedia({ audio: true });
+        const devices = root.navigator.mediaDevices;
+        const config = getGameConfig(ctx, ctx.run);
+        if (!isSpeakingStackRun(ctx, ctx.run) || !config?.closeMic) {
+            return devices.getUserMedia({ audio: true });
+        }
+        const audio = {
+            echoCancellation: { ideal: true },
+            noiseSuppression: { ideal: true },
+            autoGainControl: { ideal: false }
+        };
+        if (devices.getSupportedConstraints?.().voiceIsolation === true) {
+            audio.voiceIsolation = { ideal: true };
+        }
+        return devices.getUserMedia({ audio });
     }
 
     function chooseRecordingMimeType() {
@@ -12860,6 +12873,7 @@
 
         if (stackOptions) {
             const stack = ctx.gameConfigs[SPEAKING_STACK_GAME_SLUG];
+            stack.closeMic = stackOptions.closeMic === true;
             [
                 ['speechStartThreshold', 0.005, 0.3],
                 ['silenceThreshold', 0.005, 0.2],

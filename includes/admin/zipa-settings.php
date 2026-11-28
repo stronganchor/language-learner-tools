@@ -234,7 +234,7 @@ function ll_tools_zipa_render_admin(): void {
                         ll_tools_zipa_admin_textarea('cardReferences', __('Card reference overrides', 'll-tools-text-domain'), $input['cardReferences'],
                             __('Optional recording ID, image URL, title, and reference IPA assignments by word ID. Example {"123":{"recordingId":456,"ipa":"kæt"}}.', 'll-tools-text-domain'), 6);
                         ll_tools_zipa_admin_textarea('stackCapture', __('Word Stack microphone tuning', 'll-tools-text-domain'), $input['stackCapture'],
-                            __('Optional speechStartThreshold and silenceThreshold between zero and one, and feedbackHoldMs in milliseconds.', 'll-tools-text-domain'), 3);
+                            __('Set closeMic to true for browser noise suppression, with automatic gain turned off where supported. You can also set speechStartThreshold, silenceThreshold, and feedbackHoldMs.', 'll-tools-text-domain'), 3);
                         ?>
                     </table>
                 </details>

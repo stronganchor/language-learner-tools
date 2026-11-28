@@ -2,14 +2,14 @@
 # This file is distributed under the same license as the Language Learner Tools plugin.
 msgid ""
 msgstr ""
-"Project-Id-Version: Language Learner Tools 6.7.135\n"
+"Project-Id-Version: Language Learner Tools 6.7.136\n"
 "Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/language-learner-tools\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-11-28T12:38:37+00:00\n"
+"POT-Creation-Date: 2026-11-28T12:53:46+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.10.0\n"
 "X-Domain: ll-tools-text-domain\n"
@@ -13313,7 +13313,7 @@ msgid "Word Stack microphone tuning"
 msgstr ""
 
 #: includes/admin/zipa-settings.php:237
-msgid "Optional speechStartThreshold and silenceThreshold between zero and one, and feedbackHoldMs in milliseconds."
+msgid "Set closeMic to true for browser noise suppression, with automatic gain turned off where supported. You can also set speechStartThreshold, silenceThreshold, and feedbackHoldMs."
 msgstr ""
 
 #: includes/api/automation-rest.php:164
@@ -17804,22 +17804,22 @@ msgstr ""
 msgid "Check the ZIPA setting “%s”."
 msgstr ""
 
-#: includes/lib/zipa-settings.php:263
+#: includes/lib/zipa-settings.php:267
 msgid "Choose a valid wordset."
 msgstr ""
 
 #. translators: %d: Word post ID.
-#: includes/lib/zipa-settings.php:277
+#: includes/lib/zipa-settings.php:281
 msgid "Word %d must belong to this wordset."
 msgstr ""
 
 #. translators: %d: Word post ID.
-#: includes/lib/zipa-settings.php:284
+#: includes/lib/zipa-settings.php:288
 msgid "Choose a recording that belongs to word %d."
 msgstr ""
 
-#: includes/lib/zipa-settings.php:291
-#: includes/lib/zipa-settings.php:302
+#: includes/lib/zipa-settings.php:295
+#: includes/lib/zipa-settings.php:306
 msgid "WordPress could not save the ZIPA settings."
 msgstr ""
 
@@ -25103,11 +25103,11 @@ msgstr ""
 msgid "On-device ZIPA"
 msgstr ""
 
-#: includes/pages/wordset-zipa-games.php:439
+#: includes/pages/wordset-zipa-games.php:440
 msgid "Invalid speaking attempt."
 msgstr ""
 
-#: includes/pages/wordset-zipa-games.php:444
+#: includes/pages/wordset-zipa-games.php:445
 msgid "A speaking card is unavailable."
 msgstr ""
 

@@ -258,43 +258,98 @@ export function createZipaMatcher({
         return segments.length >= 2 ? segments : [];
     }
 
-    function splitJoinedBurst(text, forms) {
-        // An absent suffix has no full partition. Null means more than one partition or owner.
-        const suffixes = new Map([[text.length, []]]);
-        for (let offset = text.length - 1; offset >= 0; offset--) {
+    function joinedPartitions(text, forms, leading) {
+        // An absent boundary has no exact partition. Null means multiple partitions or owners.
+        const edge = leading ? 0 : text.length;
+        const step = leading ? 1 : -1;
+        const partitions = new Map([[edge, []]]);
+        for (let offset = edge + step; offset >= 0 && offset <= text.length; offset += step) {
             let partition;
             for (const [form, owners] of forms) {
-                const suffix = suffixes.get(offset + form.length);
-                if (suffix === undefined || !text.startsWith(form, offset)) continue;
-                if (partition !== undefined || owners > 1 || suffix === null) {
+                const previous = offset - step * form.length;
+                const rest = partitions.get(previous);
+                if (rest === undefined || !text.startsWith(form, leading ? previous : offset)) continue;
+                if (partition !== undefined || owners > 1 || rest === null) {
                     partition = null;
                     break;
                 }
-                partition = [form, ...suffix];
+                partition = leading ? [...rest, form] : [form, ...rest];
             }
-            if (partition !== undefined) suffixes.set(offset, partition);
+            if (partition !== undefined) partitions.set(offset, partition);
         }
-        return suffixes.get(0);
+        return partitions;
+    }
+
+    function splitJoinedBurst(text, forms) {
+        return joinedPartitions(text, forms, false).get(0);
+    }
+
+    function indexIpaForms(references) {
+        const forms = new Map();
+        const ids = new Map();
+        for (const [id, variants] of Object.entries(references ?? {})) {
+            if (!/^[1-9][0-9]*$/.test(id) || !Number.isSafeInteger(Number(id)) || !Array.isArray(variants)) continue;
+            for (const form of new Set(variants.map(normalizeIpa).filter(Boolean))) {
+                forms.set(form, (forms.get(form) || 0) + 1);
+                ids.set(form, Number(id));
+            }
+        }
+        return {forms, ids};
     }
 
     /** Split into bounded IPA, or return null if a joined split is ambiguous. */
     function splitIpaBurst(transcript, references) {
         const normalized = normalizeIpa(transcript);
         if (!normalized) return [];
-
-        const forms = new Map();
-        for (const [id, variants] of Object.entries(references ?? {})) {
-            if (!/^[1-9][0-9]*$/.test(id) || !Number.isSafeInteger(Number(id)) || !Array.isArray(variants)) continue;
-            for (const form of new Set(variants.map(normalizeIpa).filter(Boolean))) {
-                forms.set(form, (forms.get(form) || 0) + 1);
-            }
-        }
+        const {forms} = indexIpaForms(references);
         if (normalized.includes(' ')) return splitSpacedBurst(normalized, forms);
 
         // ZIPA usually omits word boundaries. Accept a joined run only when known forms account for every sound.
         const segments = splitJoinedBurst(normalized, forms);
         if (segments === null) return null;
         return segments && segments.length >= 2 && segments.length <= maxBurstSegments ? segments : [];
+    }
+
+    function splitsKnownPhrase(text, phrases, boundaries) {
+        for (const phrase of phrases) {
+            for (let start = text.indexOf(phrase); start !== -1; start = text.indexOf(phrase, start + 1)) {
+                if (boundaries.some(boundary => start < boundary && boundary < start + phrase.length)) return true;
+            }
+        }
+        return false;
+    }
+
+    function splitAroundUnknownMiddle(text, forms, ids, phrases, letterPattern, validMiddle) {
+        const [left, before] = Array.from(joinedPartitions(text, forms, true)).at(-1);
+        const [right, after] = Array.from(joinedPartitions(text, forms, false)).at(-1);
+        if (left === 0 || right === text.length || left >= right) return false;
+        if (!before || !after) return null;
+
+        const middle = text.slice(left, right);
+        const longest = Math.max(...Array.from(forms.keys(), form => Array.from(form).length));
+        if (!validMiddle(middle) || Array.from(middle).length > longest || before.length + after.length >= maxBurstSegments
+            || ids.get(before.at(-1)) === ids.get(after[0])
+            || [middle, before.at(-1), after[0]].some(form => (form.match(letterPattern) || []).length < 2)) return false;
+
+        const boundaries = [right];
+        let offset = 0;
+        for (const form of before) boundaries.push(offset += form.length);
+        offset = right;
+        for (const form of after) boundaries.push(offset += form.length);
+        if (splitsKnownPhrase(text, phrases, boundaries)) return null;
+        return {before, after, middle, left, right};
+    }
+
+    function splitIpaAroundUnknownMiddle(transcript, references) {
+        const normalized = normalizeIpa(transcript);
+        if (!normalized || normalized.includes(' ')) return [];
+        const {forms, ids} = indexIpaForms(references);
+        const phrases = Array.from(forms.keys()).filter(form => form.includes(' ')).map(form => form.replaceAll(' ', ''));
+        const spans = splitAroundUnknownMiddle(normalized, forms, ids, phrases, /[\p{Ll}ʕ]/gu,
+            middle => /^[\p{Ll}ʕ]/u.test(middle) && !/[͜͡]$/u.test(middle));
+        if (!spans) return spans === null ? null : [];
+        const scored = ipa => ({word_id: ids.get(ipa), repaired: false, ipa});
+        return [...spans.before.map(scored), {word_id: null, ipa: spans.middle}, ...spans.after.map(scored)];
     }
 
     function* joinedSpellingEdits(heard) {
@@ -420,20 +475,25 @@ export function createZipaMatcher({
         return recovered;
     }
 
-    /** Score a unique joined spelling, keeping a bounded misheard edge unscored. */
-    function splitSpellingBurst(heardSpelling, spellings) {
+    /** Recover a joined answer from spelling or from two exact anchors around one unknown middle. */
+    function splitSpellingBurst(heardSpelling, spellings, transcript = '', references = {}) {
         if (typeof heardSpelling !== 'string' || encoder.encode(heardSpelling).length > 256) return [];
         const heard = normalizeSpelling(heardSpelling);
-        if (!heard) return [];
+        if (!heard) return splitIpaAroundUnknownMiddle(transcript, references) ?? [];
 
         const forms = new Map();
         const ids = new Map();
+        const phrases = [];
         for (const [id, title] of Object.entries(spellings ?? {})) {
             const wordId = Number(id);
             if (!/^[1-9][0-9]*$/.test(id) || !Number.isSafeInteger(wordId) || typeof title !== 'string'
                 || encoder.encode(title).length > 256) continue;
             const form = normalizeSpelling(title);
-            if (!form) continue;
+            if (!form) {
+                const words = trimPhpWhitespace(title).split(/\s+/u).map(normalizeSpelling);
+                if (words.length > 1 && words.every(Boolean)) phrases.push(words.join(''));
+                continue;
+            }
             forms.set(form, (forms.get(form) || 0) + 1);
             ids.set(form, wordId);
         }
@@ -448,7 +508,26 @@ export function createZipaMatcher({
         if (repaired.length) return repaired;
         const anchored = splitWithUnmatchedEdge(heard, heardSpelling, forms, ids);
         if (anchored === null) return [];
-        return anchored.length ? anchored : splitWithUnknownEdge(heard, heardSpelling, forms, ids);
+        if (anchored.length) return anchored;
+
+        const ipaMiddle = splitIpaAroundUnknownMiddle(transcript, references);
+        if (ipaMiddle === null) return [];
+        if (ipaMiddle.length) return ipaMiddle;
+
+        const spans = splitAroundUnknownMiddle(heard, forms, ids, phrases, /\p{L}/gu,
+            middle => /^'?\p{L}(?:[\p{L}\p{M}'-]*[\p{L}\p{M}])?$/u.test(middle)
+                && (!repairableVowels || Array.from(middle).some(letter => repairableVowels.includes(letter))));
+        if (spans === null) return [];
+        if (spans) {
+            const raw = Array.from(trimPhpWhitespace(heardSpelling));
+            const display = raw.length === Array.from(heard).length
+                ? raw.slice(Array.from(heard.slice(0, spans.left)).length, Array.from(heard.slice(0, spans.right)).length).join('')
+                : spans.middle;
+            const scored = form => ({word_id: ids.get(form), repaired: false});
+            return [...spans.before.map(scored), {word_id: null, display}, ...spans.after.map(scored)];
+        }
+
+        return splitWithUnknownEdge(heard, heardSpelling, forms, ids);
     }
 
     return {normalizeIpa, scoreIpa, splitIpaBurst, splitSpellingBurst};

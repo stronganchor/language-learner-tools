@@ -212,7 +212,11 @@ function ll_tools_zipa_sanitize_card_references($raw): array {
 
 function ll_tools_zipa_sanitize_stack_capture($raw): array {
     $settings = [];
-    foreach (ll_tools_zipa_config_array($raw, 'stackCapture', 3) as $field => $value) {
+    foreach (ll_tools_zipa_config_array($raw, 'stackCapture', 4) as $field => $value) {
+        if ($field === 'closeMic' && is_bool($value)) {
+            $settings[$field] = $value;
+            continue;
+        }
         if (!is_int($value) && !is_float($value)) {
             throw ll_tools_zipa_setting_error((string) $field);
         }

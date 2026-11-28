@@ -279,9 +279,9 @@
                     return resultPayload(partResult, partHeard, activeIds, 0);
                 });
                 if (parts?.length === 0 && !result.normalized_transcript_text.includes(' ')) {
-                    for (const {word_id, repaired, display} of splitSpellingBurst(heard, spellings)) {
+                    for (const {word_id, repaired, display, ipa} of splitSpellingBurst(heard, spellings, transcript, variants)) {
                         if (word_id === null) {
-                            items.push({matched: false, display_transcript_text: display});
+                            items.push({matched: false, display_transcript_text: display ?? spellTranscript(ipa)});
                             continue;
                         }
                         const partResult = {
@@ -290,9 +290,9 @@
                             matched: true,
                             bucket: repaired ? 'close' : 'right',
                             score: repaired ? 85 : 100,
-                            reason: repaired ? 'close_match' : 'orthographic_match',
-                            normalized_transcript_text: '',
-                            normalized_target_text: normalizeIpa(variants[word_id][0]),
+                            reason: repaired ? 'close_match' : ipa ? 'phonemic_match' : 'orthographic_match',
+                            normalized_transcript_text: ipa ?? '',
+                            normalized_target_text: ipa ?? normalizeIpa(variants[word_id][0]),
                         };
                         items.push(resultPayload(partResult, spellings[word_id], activeIds, 0));
                     }

@@ -45,7 +45,23 @@ return IPA. Endpoint credentials stay on the WordPress server.
 
 Saved settings apply on the next visit to the Games page. Configure aliases
 only for the words that need them. Ambiguous matches remain uncredited. A
-recognized word clears a card only if that card is active.
+recognized word clears a card only if that card is active. For speech joined
+without spaces, Word Stack can skip one bounded unrecognized middle segment
+when distinct, unambiguous words match on both sides. A known multiword card
+stays intact.
+
+### Microphone capture
+
+Set `"closeMic": true` in **Word Stack microphone tuning** to try the close
+microphone profile. Both browser and hosted Word Stack request noise
+suppression, echo cancellation, and automatic gain off. A browser that
+advertises voice isolation is also asked to use it. All are preferences
+because devices vary in which settings they can apply. Remove the field or
+set it to false to return to the device's normal speech settings.
+
+Use a microphone close to the speaker for this profile. Automatic gain
+can make distant talk louder during pauses. The profile leaves the existing
+start and silence thresholds in place.
 
 ### Pronunciation rules
 

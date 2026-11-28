@@ -398,13 +398,9 @@ final class LL_Tools_Zipa_Matcher {
         return count($segments) >= 2 ? $segments : [];
     }
 
-    /** Split a failed whole-utterance match into bounded IPA, or return null if a joined split is ambiguous. */
-    public function split_burst(string $transcript, array $references): ?array {
-        $normalized = $this->normalize($transcript);
-        if ($normalized === '') {
-            return [];
-        }
+    private function index_ipa_forms(array $references): array {
         $forms = [];
+        $owners = [];
         foreach ($references as $raw_id => $variants) {
             if (preg_match('/\A[1-9][0-9]*\z/D', (string) $raw_id) !== 1
                 || (float) $raw_id > 9007199254740991 || !is_array($variants)) {
@@ -419,8 +415,19 @@ final class LL_Tools_Zipa_Matcher {
             }
             foreach (array_keys($card_forms) as $form) {
                 $forms[$form] = ($forms[$form] ?? 0) + 1;
+                $owners[$form] = (int) $raw_id;
             }
         }
+        return [$forms, $owners];
+    }
+
+    /** Split a failed whole-utterance match into bounded IPA, or return null if a joined split is ambiguous. */
+    public function split_burst(string $transcript, array $references): ?array {
+        $normalized = $this->normalize($transcript);
+        if ($normalized === '') {
+            return [];
+        }
+        [$forms] = $this->index_ipa_forms($references);
         if (str_contains($normalized, ' ')) {
             return $this->split_spaced_burst($normalized, $forms);
         }
@@ -432,41 +439,133 @@ final class LL_Tools_Zipa_Matcher {
         return is_array($segments) && count($segments) >= 2 && count($segments) <= self::MAX_BURST_SEGMENTS ? $segments : [];
     }
 
-    /** Find a complete partition. False means no coverage and null means an ambiguous partition. */
-    private function split_joined_burst(string $normalized, array $forms): array|false|null {
+    /** Index exact partitions from an edge. A present null means ambiguous ownership or segmentation. */
+    private function joined_partitions(string $normalized, array $forms, bool $leading): array {
         $length = strlen($normalized);
-        $suffixes = [$length => []];
-        for ($offset = $length - 1; $offset >= 0; --$offset) {
+        $edge = $leading ? 0 : $length;
+        $step = $leading ? 1 : -1;
+        $partitions = [$edge => []];
+        for ($offset = $edge + $step; $offset >= 0 && $offset <= $length; $offset += $step) {
             $found = false;
             foreach ($forms as $form => $owners) {
-                $end = $offset + strlen($form);
-                if (!array_key_exists($end, $suffixes) || substr_compare($normalized, $form, $offset, strlen($form)) !== 0) {
+                $previous = $offset - $step * strlen($form);
+                $start = $leading ? $previous : $offset;
+                if (!array_key_exists($previous, $partitions) || substr_compare($normalized, $form, $start, strlen($form)) !== 0) {
                     continue;
                 }
-                $suffix = $suffixes[$end];
-                if ($found || $owners > 1 || $suffix === null) {
-                    $suffixes[$offset] = null;
+                $rest = $partitions[$previous];
+                if ($found || $owners > 1 || $rest === null) {
+                    $partitions[$offset] = null;
                     break;
                 }
-                $suffixes[$offset] = [$form, ...$suffix];
+                $partitions[$offset] = $leading ? [...$rest, $form] : [$form, ...$rest];
                 $found = true;
             }
         }
-        return array_key_exists(0, $suffixes) ? $suffixes[0] : false;
+        return $partitions;
     }
 
-    /** Recover known parts from an unambiguous full or anchored reading of joined spelling. */
-    public function split_spelling_burst(string $heard, array $spellings): array {
+    /** Find a complete partition. False means no coverage and null means an ambiguous partition. */
+    private function split_joined_burst(string $normalized, array $forms): array|false|null {
+        $partitions = $this->joined_partitions($normalized, $forms, false);
+        return array_key_exists(0, $partitions) ? $partitions[0] : false;
+    }
+
+    private function splits_known_phrase(string $text, array $phrases, array $boundaries): bool {
+        foreach ($phrases as $phrase) {
+            for ($start = strpos($text, $phrase); $start !== false; $start = strpos($text, $phrase, $start + 1)) {
+                foreach ($boundaries as $boundary) {
+                    if ($start < $boundary && $boundary < $start + strlen($phrase)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    /** Recover exact runs anchored at opposite edges with a single, bounded middle. */
+    private function split_around_unknown_middle(
+        string $text, array $forms, array $owners, array $phrases, string $letter_pattern, Closure $valid_middle
+    ): array|false|null {
+        $prefixes = $this->joined_partitions($text, $forms, true);
+        $suffixes = $this->joined_partitions($text, $forms, false);
+        $left = array_key_last($prefixes);
+        $right = array_key_last($suffixes);
+        if ($left === 0 || $right === strlen($text) || $left >= $right) {
+            return false;
+        }
+        $before = $prefixes[$left];
+        $after = $suffixes[$right];
+        if ($before === null || $after === null) {
+            return null;
+        }
+
+        $middle = substr($text, $left, $right - $left);
+        $longest = max(array_map(static fn(string $form): int => mb_strlen($form, 'UTF-8'), array_keys($forms)));
+        $left_anchor = end($before);
+        $right_anchor = $after[0];
+        if (!$valid_middle($middle) || mb_strlen($middle, 'UTF-8') > $longest || count($before) + count($after) >= self::MAX_BURST_SEGMENTS
+            || $owners[$left_anchor] === $owners[$right_anchor]
+            || preg_match_all($letter_pattern, $left_anchor) < 2 || preg_match_all($letter_pattern, $right_anchor) < 2
+            || preg_match_all($letter_pattern, $middle) < 2) {
+            return false;
+        }
+
+        $boundaries = [$right];
+        $offset = 0;
+        foreach ($before as $form) {
+            $boundaries[] = $offset += strlen($form);
+        }
+        $offset = $right;
+        foreach ($after as $form) {
+            $boundaries[] = $offset += strlen($form);
+        }
+        if ($this->splits_known_phrase($text, $phrases, $boundaries)) {
+            return null;
+        }
+        return [$before, $after, $middle, $left, $right];
+    }
+
+    private function split_ipa_around_unknown_middle(string $transcript, array $references): ?array {
+        $normalized = $this->normalize($transcript);
+        if ($normalized === '' || str_contains($normalized, ' ')) {
+            return [];
+        }
+        [$forms, $owners] = $this->index_ipa_forms($references);
+        $phrases = [];
+        foreach (array_keys($forms) as $form) {
+            if (str_contains($form, ' ')) {
+                $phrases[] = str_replace(' ', '', $form);
+            }
+        }
+        $spans = $this->split_around_unknown_middle($normalized, $forms, $owners, $phrases, '/[\p{Ll}ʕ]/u',
+            static fn(string $middle): bool => preg_match('/\A[\p{Ll}ʕ]/u', $middle) === 1 && preg_match('/[͜͡]\z/u', $middle) !== 1
+        );
+        if ($spans === false) {
+            return [];
+        }
+        if ($spans === null) {
+            return null;
+        }
+        [$before, $after, $middle] = $spans;
+        $scored = static fn(string $ipa): array => ['word_id' => $owners[$ipa], 'repaired' => false, 'ipa' => $ipa];
+        return [...array_map($scored, $before), ['word_id' => null, 'ipa' => $middle], ...array_map($scored, $after)];
+    }
+
+    /** Recover a joined answer from spelling or from two exact anchors around one unknown middle. */
+    public function split_spelling_burst(string $heard, array $spellings, string $transcript = '', array $references = []): array {
         if (strlen($heard) > 256 || preg_match('//u', $heard) !== 1) {
             return [];
         }
         $normalized = $this->normalize_spelling($heard);
         if ($normalized === '') {
-            return [];
+            return $this->split_ipa_around_unknown_middle($transcript, $references) ?? [];
         }
 
         $counts = [];
         $owners = [];
+        $phrases = [];
         foreach ($spellings as $raw_id => $title) {
             if (preg_match('/\A[1-9][0-9]*\z/D', (string) $raw_id) !== 1
                 || (float) $raw_id > 9007199254740991 || !is_string($title) || strlen($title) > 256) {
@@ -476,6 +575,11 @@ final class LL_Tools_Zipa_Matcher {
             if ($form !== '') {
                 $counts[$form] = ($counts[$form] ?? 0) + 1;
                 $owners[$form] = (int) $raw_id;
+            } else {
+                $words = array_map([$this, 'normalize_spelling'], preg_split('/\s+/u', trim($title)) ?: []);
+                if (count($words) > 1 && !in_array('', $words, true)) {
+                    $phrases[] = implode('', $words);
+                }
             }
         }
         $exact = $this->split_joined_burst($normalized, $counts);
@@ -498,6 +602,27 @@ final class LL_Tools_Zipa_Matcher {
         $partial = $this->split_spelling_with_vowel_miss($normalized, $display, $counts, $owners);
         if ($partial !== []) {
             return $partial ?? [];
+        }
+        $ipa_middle = $this->split_ipa_around_unknown_middle($transcript, $references);
+        if ($ipa_middle !== []) {
+            return $ipa_middle ?? [];
+        }
+        $vowels = $this->profile['repairableVowels'];
+        $spans = $this->split_around_unknown_middle($normalized, $counts, $owners, $phrases, '/\p{L}/u',
+            static fn(string $middle): bool => preg_match("/\A'?\p{L}(?:[\p{L}\p{M}'-]*[\p{L}\p{M}])?\z/u", $middle) === 1
+                && ($vowels === '' || preg_match('/[' . preg_quote($vowels, '/') . ']/u', $middle) === 1)
+        );
+        if ($spans === null) {
+            return [];
+        }
+        if ($spans !== false) {
+            [$before, $after, $middle, $left] = $spans;
+            if (mb_strlen($display, 'UTF-8') === mb_strlen($normalized, 'UTF-8')) {
+                $offset = mb_strlen(substr($normalized, 0, $left), 'UTF-8');
+                $middle = mb_substr($display, $offset, mb_strlen($middle, 'UTF-8'), 'UTF-8');
+            }
+            $scored = static fn(string $form): array => ['word_id' => $owners[$form], 'repaired' => false];
+            return [...array_map($scored, $before), ['word_id' => null, 'display' => $middle], ...array_map($scored, $after)];
         }
         return $this->split_spelling_with_unmatched_edge($normalized, $display, $counts, $owners);
     }

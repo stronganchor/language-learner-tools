@@ -1332,6 +1332,7 @@ async function mountGamesPage(page, {
         configurable: true,
         value: {
           getUserMedia(constraints) {
+            (window.__speakingMicRequests ||= []).push(constraints);
             window.__mediaRecorderLog.push(`get-user-media:${constraints && constraints.audio ? 'audio' : 'none'}`);
             return Promise.resolve({
               getTracks() {
@@ -2241,7 +2242,10 @@ for (const isLoggedIn of [false, true]) {
         launch_word_cap: words.length,
         words
       }]));
-      window.__mixedCatalogRegistered = games.useBrowserSpeakingCatalog(ctx, entries, bridge, {});
+      if (!guest) {
+        window.navigator.mediaDevices.getSupportedConstraints = () => ({voiceIsolation: true});
+      }
+      window.__mixedCatalogRegistered = games.useBrowserSpeakingCatalog(ctx, entries, bridge, {closeMic: !guest});
       window.__mixedOriginalPlay = root.querySelector('[data-game-slug="speaking-practice"] [data-ll-wordset-game-launch]');
     }, { guest: !isLoggedIn, words: buildSpeakingStackWords(59) });
 
@@ -2269,6 +2273,7 @@ for (const isLoggedIn of [false, true]) {
     await expect(page.locator('[data-ll-wordset-speaking-round]')).toHaveText('Word 1 of 59');
     await page.locator('[data-ll-wordset-speaking-record]').click();
     await expect(page.locator('[data-ll-wordset-speaking-transcript]')).toHaveText('browser-only transcript');
+    expect(await page.evaluate(() => window.__speakingMicRequests.at(-1))).toEqual({audio: true});
     expect(await page.evaluate(() => window.__mixedBrowserCalls)).toEqual(['transcribe', 'score']);
     expect(await page.evaluate(() => window.__speakingFetchLog)).toEqual([]);
     expect(await page.evaluate(() => window.__gameAjaxCalls.filter((call) => (
@@ -2283,6 +2288,14 @@ for (const isLoggedIn of [false, true]) {
     await closeRunPopup(page);
     await gameLaunchButton(page, 'speaking-stack').click();
     await expect(page.locator('[data-ll-wordset-speaking-stack-heard]')).toHaveText('browser-only transcript');
+    expect(await page.evaluate(() => window.__speakingMicRequests.at(-1))).toEqual(isLoggedIn ? {
+      audio: {
+        echoCancellation: {ideal: true},
+        noiseSuppression: {ideal: true},
+        autoGainControl: {ideal: false},
+        voiceIsolation: {ideal: true}
+      }
+    } : {audio: true});
     expect(await page.evaluate(() => window.__mixedBrowserCalls.slice(0, 4))).toEqual([
       'transcribe', 'score', 'transcribe', 'match'
     ]);

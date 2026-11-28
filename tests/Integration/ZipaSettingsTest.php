@@ -68,7 +68,7 @@ final class ZipaSettingsTest extends LL_Tools_TestCase {
                     ],
                     'closeForms' => [$word => ['target' => 'ʕbæɢæ', 'heard' => ['baɢæ']]],
                 ],
-                'stackCapture' => ['speechStartThreshold' => 0.04, 'silenceThreshold' => 0.02, 'feedbackHoldMs' => 900],
+                'stackCapture' => ['speechStartThreshold' => 0.04, 'silenceThreshold' => 0.02, 'feedbackHoldMs' => 900, 'closeMic' => true],
             ]);
             $input = ll_tools_zipa_admin_format_settings($settings);
             $this->assertTrue(ll_tools_zipa_admin_save_input($wordset, $input));
