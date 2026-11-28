@@ -13564,7 +13564,6 @@ function ll_tools_get_wordset_games_i18n_messages(): array {
         'gamesReplayRun' => __('Replay', 'll-tools-text-domain'),
         'gamesNewGame' => __('New game', 'll-tools-text-domain'),
         'gamesBackToCatalog' => __('Back to games', 'll-tools-text-domain'),
-        'gamesCloseConfirm' => __('Leave this game? Your current run will be lost.', 'll-tools-text-domain'),
         'gamesBoardLabelDefault' => __('Wordset game board', 'll-tools-text-domain'),
         'gamesBoardLabelSpaceShooter' => __('Space Shooter game board', 'll-tools-text-domain'),
         'gamesBoardLabelBubblePop' => __('Bubble Pop game board', 'll-tools-text-domain'),

@@ -5030,10 +5030,6 @@
         }, 600);
     }
 
-    function getGameCloseConfirmMessage(ctx) {
-        return String(gameText(ctx, 'gamesCloseConfirm'));
-    }
-
     function pushGameHistoryState() {
         if (!root.history || typeof root.history.pushState !== 'function') {
             return false;
@@ -5136,45 +5132,6 @@
         }
 
         consumeGameHistoryState();
-    }
-
-    function confirmAndCloseGameFromGuard(ctx, options) {
-        const opts = (options && typeof options === 'object') ? options : {};
-        let shouldClose = true;
-
-        try {
-            shouldClose = root.confirm(getGameCloseConfirmMessage(ctx));
-        } catch (_) {
-            shouldClose = true;
-        }
-
-        if (shouldClose) {
-            showCatalog(ctx, {
-                historyAlreadyHandled: !!opts.historyAlreadyHandled
-            });
-            return true;
-        }
-
-        if (opts.rearmHistory) {
-            pushGameHistoryState();
-        }
-
-        return false;
-    }
-
-    function requestCloseGame(ctx, options) {
-        const opts = (options && typeof options === 'object') ? options : {};
-        const run = ctx && ctx.run;
-        const shouldConfirm = !!(run && !run.ended && isGameGuardActive(ctx));
-
-        if (shouldConfirm) {
-            return confirmAndCloseGameFromGuard(ctx, opts);
-        }
-
-        showCatalog(ctx, {
-            historyAlreadyHandled: !!opts.historyAlreadyHandled
-        });
-        return true;
     }
 
     function toggleRunModalPageLock(isLocked) {
@@ -11680,10 +11637,7 @@
                 return;
             }
 
-            confirmAndCloseGameFromGuard(ctx, {
-                historyAlreadyHandled: true,
-                rearmHistory: true
-            });
+            showCatalog(ctx, { historyAlreadyHandled: true });
         };
         ctx.onPageHide = function () {
             flushProgress(ctx);
@@ -11699,7 +11653,7 @@
 
                 event.preventDefault();
                 event.stopPropagation();
-                confirmAndCloseGameFromGuard(ctx);
+                showCatalog(ctx);
                 return;
             }
 
@@ -11708,7 +11662,7 @@
                 if (cancelSpeakingStackBlastAim(ctx)) {
                     return;
                 }
-                requestCloseGame(ctx);
+                showCatalog(ctx);
                 return;
             }
             if (!ctx.run || ctx.run.paused || ctx.$stage.prop('hidden') || isBubblePopRun(ctx, ctx.run) || isSpeakingStackRun(ctx, ctx.run)) {
@@ -11946,7 +11900,7 @@
 
         ctx.$page.on('click' + MODULE_NS, '[data-ll-wordset-game-run-dismiss]', function (event) {
             event.preventDefault();
-            requestCloseGame(ctx);
+            showCatalog(ctx);
         });
 
         ctx.$page.on('click' + MODULE_NS, '[data-ll-wordset-game-run-dialog]', function (event) {
@@ -11954,15 +11908,11 @@
                 return;
             }
             event.preventDefault();
-            requestCloseGame(ctx);
+            showCatalog(ctx);
         });
 
         ctx.$page.on('click' + MODULE_NS, '[data-ll-wordset-game-return]', function (event) {
             event.preventDefault();
-            if (ctx.run && !ctx.run.ended && ctx.overlayMode !== 'game-over') {
-                requestCloseGame(ctx);
-                return;
-            }
             showCatalog(ctx);
         });
 

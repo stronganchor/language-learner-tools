@@ -306,22 +306,28 @@ async function waitForActivePrompt(page, slug) {
   }, slug);
 }
 
-async function closeRunPopup(page, { expectConfirm = true } = {}) {
-  let dialogPromise = null;
-  if (expectConfirm) {
-    dialogPromise = page.waitForEvent('dialog');
-    await page.evaluate(() => {
-      window.history.back();
-    });
-  } else {
-    await page.locator('[data-ll-wordset-game-run-dismiss]').click({ force: true });
+async function expectGameExit(page, exit) {
+  const dialogMessages = [];
+  const dismissDialog = async (dialog) => {
+    dialogMessages.push(dialog.message());
+    await dialog.dismiss();
+  };
+  page.on('dialog', dismissDialog);
+  try {
+    await exit();
+    expect(dialogMessages).toEqual([]);
+    await expect(page.locator('[data-ll-wordset-game-stage]')).toBeHidden();
+    await expect(page.locator('[data-ll-wordset-game-run-modal]')).toBeHidden();
+    await expect(page.locator('[data-ll-wordset-games-catalog]')).toBeVisible();
+    await expect.poll(() => page.evaluate(() => window.history.state?.llWordsetGameGuard ?? null)).toBeNull();
+    expect(dialogMessages).toEqual([]);
+  } finally {
+    page.off('dialog', dismissDialog);
   }
-  if (dialogPromise) {
-    const dialog = await dialogPromise;
-    await dialog.accept();
-  }
-  await expect(page.locator('[data-ll-wordset-game-stage]')).toBeHidden();
-  await expect(page.locator('[data-ll-wordset-game-run-modal]')).toBeHidden();
+}
+
+async function closeRunPopup(page) {
+  await expectGameExit(page, () => page.keyboard.press('Escape'));
 }
 
 async function failSpeakingHostedAction(page, actionName, options = {}) {
@@ -368,15 +374,6 @@ async function failSpeakingHostedAction(page, actionName, options = {}) {
     status: options.status || 503,
     statusText: options.statusText || 'Service Unavailable',
     message: options.message || 'Provider quota exceeded: raw upstream error'
-  });
-}
-
-async function clickOutsideGamePopup(page) {
-  await page.evaluate(() => {
-    const dialog = document.querySelector('[data-ll-wordset-game-run-dialog]');
-    if (dialog) {
-      dialog.click();
-    }
   });
 }
 
@@ -952,7 +949,6 @@ function buildGamesConfig(isLoggedIn, overrides = null) {
       gamesReplayRun: 'Replay',
       gamesNewGame: 'New game',
       gamesBackToCatalog: 'Back to games',
-      gamesCloseConfirm: 'Leave this game? Your current run will be lost.',
       gamesBoardLabelDefault: 'Wordset game board',
       gamesBoardLabelSpaceShooter: 'Space Shooter game board',
       gamesBoardLabelBubblePop: 'Bubble Pop game board',
@@ -3798,17 +3794,17 @@ test('game length selector defaults to 50 and a selected run ends in a win overl
   await expect(page.locator('[data-ll-wordset-game-return]')).toHaveText('Back to games');
 });
 
-test('game popup blocks pinch-style zoom and confirms before backspace or browser-back close', async ({ page }) => {
+test('game popup blocks pinch-style zoom and closes directly on Backspace or browser Back', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await mountGamesPage(page, { isLoggedIn: true });
+  const catalogUrl = page.url();
 
-  await page.evaluate(() => {
-    window.LLWordsetGames.__debug.launch('space-shooter');
-  });
-  await waitForActivePrompt(page, 'space-shooter');
-
-  const modal = page.locator('[data-ll-wordset-game-run-modal]');
-  await expect(modal).toBeVisible();
+  const launch = async () => {
+    await page.evaluate(() => window.LLWordsetGames.__debug.launch('space-shooter'));
+    await waitForActivePrompt(page, 'space-shooter');
+    await expect(page.locator('[data-ll-wordset-game-run-modal]')).toBeVisible();
+  };
+  await launch();
 
   const guardState = await page.evaluate(() => {
     const dispatchTouch = (type, points) => {
@@ -3844,55 +3840,25 @@ test('game popup blocks pinch-style zoom and confirms before backspace or browse
   expect(guardState.htmlGuard).toBe(true);
   expect(guardState.bodyGuard).toBe(true);
 
-  const cancelDialogPromise = page.waitForEvent('dialog');
-  await page.evaluate(() => {
-    window.setTimeout(() => {
-      document.dispatchEvent(new KeyboardEvent('keydown', {
-        key: 'Backspace',
-        bubbles: true,
-        cancelable: true
-      }));
-    }, 0);
-  });
-  const cancelDialog = await cancelDialogPromise;
-  expect(cancelDialog.message()).toContain('Leave this game?');
-  await cancelDialog.dismiss();
-
-  await expect(modal).toBeVisible();
-  await expect(page.locator('body')).toHaveClass(/ll-wordset-game-run-modal-open/);
-  await expect(page.locator('body')).toHaveClass(/ll-tools-wordset-game-guard-active/);
-
-  const acceptDialogPromise = page.waitForEvent('dialog');
-  await page.evaluate(() => {
-    window.setTimeout(() => window.history.back(), 0);
-  });
-  const acceptDialog = await acceptDialogPromise;
-  expect(acceptDialog.message()).toContain('Leave this game?');
-  await acceptDialog.accept();
-
-  await expect(modal).toBeHidden({ timeout: 30000 });
-  await expect(page.locator('[data-ll-wordset-game-stage]')).toBeHidden({ timeout: 30000 });
-  await expect(page.locator('body')).not.toHaveClass(/ll-wordset-game-run-modal-open/);
-  await expect(page.locator('body')).not.toHaveClass(/ll-tools-wordset-game-guard-active/);
+  const expectKeyboardExit = async (exit) => {
+    await expectGameExit(page, exit);
+    await expect(page).toHaveURL(catalogUrl);
+    await expect(page.locator('body')).not.toHaveClass(/ll-wordset-game-run-modal-open/);
+    await expect(page.locator('body')).not.toHaveClass(/ll-tools-wordset-game-guard-active/);
+  };
+  await expectKeyboardExit(() => page.keyboard.press('Backspace'));
+  await launch();
+  await expectKeyboardExit(() => page.goBack());
 });
 
-test('backdrop dismiss asks for confirmation before returning to the games catalog', async ({ page }) => {
+test('backdrop and dialog background return directly to the games catalog', async ({ page }) => {
   await mountGamesPage(page, { isLoggedIn: true });
 
-  await page.evaluate(() => {
-    window.LLWordsetGames.__debug.launch('bubble-pop');
-  });
-  await waitForActivePrompt(page, 'bubble-pop');
-
-  const dialogPromise = page.waitForEvent('dialog');
-  const dismissPromise = clickOutsideGamePopup(page);
-  const dialog = await dialogPromise;
-  expect(dialog.message()).toContain('Leave this game?');
-  await dialog.accept();
-  await dismissPromise;
-
-  await expect(page.locator('[data-ll-wordset-game-run-modal]')).toBeHidden();
-  await expect(page.locator('[data-ll-wordset-games-catalog]')).toBeVisible();
+  for (const selector of ['[data-ll-wordset-game-run-dismiss]', '[data-ll-wordset-game-run-dialog]']) {
+    await page.evaluate(() => window.LLWordsetGames.__debug.launch('bubble-pop'));
+    await waitForActivePrompt(page, 'bubble-pop');
+    await expectGameExit(page, () => page.locator(selector).dispatchEvent('click'));
+  }
 });
 
 test('space shooter auto-replays the prompt once after a short pause', async ({ page }) => {
@@ -4479,7 +4445,7 @@ test('bubble pop pause overlay uses the bubble theme for resume', async ({ page 
   ).toBe(true);
 });
 
-test('closing the game popup returns to the games catalog', async ({ page }) => {
+test('Back to games exits a paused game without prompting', async ({ page }) => {
   await mountGamesPage(page, { isLoggedIn: true });
 
   await page.evaluate(() => {
@@ -4487,7 +4453,10 @@ test('closing the game popup returns to the games catalog', async ({ page }) => 
   });
   await waitForActivePrompt(page, 'bubble-pop');
 
-  await closeRunPopup(page);
+  await page.locator('[data-ll-wordset-game-pause-toggle]').click();
+  const returnButton = page.locator('[data-ll-wordset-game-return]');
+  await expect(returnButton).toHaveText('Back to games');
+  await expectGameExit(page, () => returnButton.click());
 
   await expect(page.locator('[data-ll-wordset-games-catalog]')).toBeVisible();
   await expect(page.locator('[data-ll-wordset-games-back-label]')).toHaveText('Test Wordset');
