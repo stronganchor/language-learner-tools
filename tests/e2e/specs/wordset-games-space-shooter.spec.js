@@ -3588,6 +3588,66 @@ test('unscramble supports keyboard tile reordering, progress events, and complet
   await expect(page.locator('[data-ll-wordset-game-stage]')).toBeHidden();
 });
 
+test.describe('mobile Unscramble', () => {
+  test.use({ viewport: { width: 360, height: 700 }, hasTouch: true });
+
+  test('keeps image-clue tiles within the board and reorders them by touch', async ({ page, browserName }) => {
+    test.skip(browserName !== 'chromium', 'Native touch drags use the Chromium DevTools protocol.');
+    const [, word] = buildUnscrambleWords(2);
+    await mountGamesPage(page, {
+      isLoggedIn: true,
+      unscrambleWords: [{
+        ...word,
+        unscramble_prompt_type: 'image',
+        unscramble_prompt_text: '',
+        unscramble_prompt_image: 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"%3E%3C/svg%3E'
+      }],
+      configOverrides: {
+        games: {
+          catalog: { unscramble: { slug: 'unscramble', title: 'Unscramble' } },
+          unscramble: { slug: 'unscramble', minimumWordCount: 1, maxLoadedWords: 1 }
+        }
+      }
+    });
+
+    await gameLaunchButton(page, 'unscramble').tap();
+    const stage = page.locator('[data-ll-wordset-lineup-stage]');
+    await expect(stage).toHaveAttribute('data-lineup-prompt-type', 'image');
+    const tiles = stage.locator('[data-ll-wordset-unscramble-tile]');
+    await expect(tiles).toHaveCount(5);
+    const allTilesFit = await tiles.evaluateAll((elements) => {
+      const board = elements[0].parentElement.getBoundingClientRect();
+      const bounds = elements.map((element) => element.getBoundingClientRect());
+      return bounds.every((tile, index) => tile.left >= board.left
+        && tile.right <= board.right
+        && tile.top >= board.top
+        && tile.bottom <= board.bottom
+        && (index === 0 || tile.left >= bounds[index - 1].right));
+    });
+    expect(allTilesFit).toBe(true);
+
+    const { orderUnitIds: initialOrder } = await getUnscrambleUnitState(page);
+    const first = await tiles.first().boundingBox();
+    const last = await tiles.last().boundingBox();
+    const touch = await page.context().newCDPSession(page);
+    try {
+      await touch.send('Input.dispatchTouchEvent', {
+        type: 'touchStart',
+        touchPoints: [{ x: first.x + first.width / 2, y: first.y + first.height / 2 }]
+      });
+      await touch.send('Input.dispatchTouchEvent', {
+        type: 'touchMove',
+        touchPoints: [{ x: last.x + last.width / 2, y: last.y + last.height / 2 }]
+      });
+      await touch.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    } finally {
+      await touch.detach();
+    }
+    await expect.poll(async () => (await getUnscrambleUnitState(page)).orderUnitIds)
+      .toEqual([...initialOrder.slice(1), initialOrder[0]]);
+  });
+});
+
 test('games catalog keeps cards compact on wide screens and uses distinct launch themes for each game', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 1080 });
   await mountGamesPage(page, { isLoggedIn: true });
