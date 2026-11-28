@@ -11096,6 +11096,19 @@
         relayoutSpeakingStackCards(ctx, run);
         if (!getVisibleSpeakingStackCards(run).length) {
             run.visibleTargetSince = null;
+            const now = currentTimestamp();
+            let nextCard = getSpeakingStackActiveCards(run)[0];
+            if (!nextCard && !run.allWordsQueued) {
+                nextCard = spawnSpeakingStackCard(ctx, run, now);
+                scheduleNextSpeakingStackSpawn(ctx, run, now);
+            }
+            if (nextCard) {
+                // Give the player a prompt during feedback when the screen would be empty.
+                nextCard.y = Math.min(nextCard.stackTargetY, nextCard.height / 2);
+                nextCard.entryStartX = nextCard.x;
+                nextCard.entryStartY = nextCard.y;
+                run.visibleTargetSince = now;
+            }
         }
         setSpeakingStackProgressFromRun(ctx, run);
     }

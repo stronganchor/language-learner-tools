@@ -3073,6 +3073,106 @@ test('word stack clears distinct matches in one utterance and plays the final re
   await expect(page.locator('[data-ll-wordset-game-overlay-title]')).toHaveText('You cleared the stack');
 });
 
+test('word stack reveals a replacement immediately after single and rapid-fire clears', async ({ page }) => {
+  await page.clock.install();
+  await mountGamesPage(page, {
+    isLoggedIn: true,
+    words: buildSpeakingStackWords(7),
+    audioLoadDelayMs: 0,
+    promptAudioDurationSeconds: 1.2,
+    configOverrides: {
+      games: {
+        catalog: {
+          'speaking-stack': { slug: 'speaking-stack', title: 'Word Stack' }
+        },
+        speakingStack: {
+          slug: 'speaking-stack',
+          provider: 'hosted_api',
+          targetField: 'title',
+          initialSpawnCount: 3,
+          maxLoadedWords: 7,
+          spawnGapMs: 14000,
+          initialSpawnDelayMs: 14000,
+          fallSpeed: 300,
+          preFirstAttemptFallSpeed: 300,
+          maxRecordingMs: 60000,
+          silenceWindowMs: 400
+        }
+      }
+    }
+  });
+  await mockWordStackAttempts(page);
+  const stackState = () => page.evaluate(() => {
+    const { run, speaking, feedbackPlaying } = window.LLWordsetGames.__ctx;
+    const active = run.cards.filter((card) => !card.exploding && !card.removedFromStack);
+    return {
+      activeIds: active.map((card) => card.word.id),
+      visibleIds: active.filter((card) => card.y >= card.height / 2).map((card) => card.word.id),
+      queuedIds: run.wordQueue.map((word) => word.id),
+      cleared: run.clearedCount,
+      spawned: run.spawnedWordCount,
+      nextSpawnAt: run.nextSpawnAt,
+      timingRemaining: Math.max(run.nextSpawnAt, run.spawnHoldUntil) - performance.now(),
+      feedbackPlaying,
+      recording: !!speaking.mediaRecorder,
+      transcribing: !!speaking.transcribing
+    };
+  });
+  await gameLaunchButton(page, 'speaking-stack').click();
+  await page.clock.runFor(1800);
+  const initial = await stackState();
+  expect(initial.visibleIds).toHaveLength(3);
+  const [, second, incoming] = initial.visibleIds;
+  const [singleRefill, scheduledCard, burstRefill, lastQueued] = initial.queuedIds;
+
+  await speakMockWordStackAttempt(page, 'right');
+  expect(await stackState()).toMatchObject({
+    activeIds: [second, incoming], visibleIds: [second, incoming], cleared: 1,
+    nextSpawnAt: initial.nextSpawnAt, spawned: 3, queuedIds: initial.queuedIds
+  });
+  await page.clock.runFor(1800);
+  await page.evaluate((id) => {
+    const card = window.LLWordsetGames.__ctx.run.cards.find((candidate) => candidate.word.id === id);
+    card.y = card.entryStartY = -2000;
+  }, incoming);
+  expect((await stackState()).visibleIds).toEqual([second]);
+  await speakMockWordStackAttempt(page, 'right');
+  expect(await stackState()).toMatchObject({
+    activeIds: [incoming], visibleIds: [incoming], cleared: 2,
+    nextSpawnAt: initial.nextSpawnAt, spawned: 3, queuedIds: initial.queuedIds
+  });
+  await page.clock.runFor(1800);
+
+  await page.evaluate(() => { window.LLWordsetGames.__ctx.run.spawnHoldUntil = performance.now() + 8000; });
+  expect((await stackState()).timingRemaining).toBeGreaterThan(7000);
+  await speakMockWordStackAttempt(page, 'right');
+  const afterSingle = await stackState();
+  expect(afterSingle).toMatchObject({
+    activeIds: [singleRefill], visibleIds: [singleRefill], cleared: 3,
+    spawned: 4, queuedIds: [scheduledCard, burstRefill, lastQueued], feedbackPlaying: true, recording: false
+  });
+  expect(afterSingle.nextSpawnAt).toBeGreaterThan(initial.nextSpawnAt);
+  await page.clock.runFor(3000);
+  expect((await stackState()).spawned).toBe(4);
+  await page.clock.runFor(Math.ceil((await stackState()).timingRemaining) + 1200);
+  expect(await stackState()).toMatchObject({
+    activeIds: [singleRefill, scheduledCard], visibleIds: [singleRefill, scheduledCard], spawned: 5
+  });
+
+  await page.evaluate(() => {
+    window.__wordStackMatchResponder = (ids) => ({
+      matched: true,
+      matches: ids.map((word_id) => ({ word_id, bucket: 'right', score: 100 }))
+    });
+  });
+  await speakMockWordStackAttempt(page, 'right');
+  expect(await stackState()).toMatchObject({
+    activeIds: [burstRefill], visibleIds: [burstRefill], cleared: 5,
+    spawned: 6, queuedIds: [lastQueued], feedbackPlaying: true, recording: false, transcribing: true
+  });
+  await closeRunPopup(page);
+});
+
 test.describe('word stack blast', () => {
   test.use({ hasTouch: true });
 
