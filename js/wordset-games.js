@@ -16,6 +16,8 @@
     const GAME_LENGTH_ALL = 'all';
     const MODULE_NS = '.llWordsetGames';
     const UNSCRAMBLE_DRAG_NS = '.llWordsetGamesUnscrambleDrag';
+    const UNSCRAMBLE_TILE_SELECTOR = '[data-ll-wordset-unscramble-tile]';
+    const UNSCRAMBLE_MOVE_ANIMATION_ID = 'll-unscramble-tile-move';
     const GAME_PROMPT_RECORDING_TYPES = ['question', 'isolation', 'introduction'];
     const CARD_RATIO_MIN = 0.55;
     const CARD_RATIO_MAX = 2.5;
@@ -7867,7 +7869,7 @@
         return String(currentWord.audio || '').trim();
     }
 
-    function queueUnscrambleSolvedWordAdvance(ctx, run, word) {
+    function queueUnscrambleSolvedWordAdvance(ctx, run, word, movement) {
         if (!ctx || !run || !word || run.ended || run.unscrambleCompletionQueued) {
             return;
         }
@@ -7894,9 +7896,10 @@
             });
         }
 
-        Promise.resolve(playback).catch(function () {
+        const settledPlayback = Promise.resolve(playback).catch(function () {
             return false;
-        }).then(function () {
+        });
+        Promise.all([settledPlayback, movement]).then(function () {
             if (!ctx.run || ctx.run !== run || run.ended || !run.sequenceLocked || run.currentWord !== solvedWord) {
                 return;
             }
@@ -7911,7 +7914,7 @@
         });
     }
 
-    function syncUnscrambleStatus(ctx) {
+    function syncUnscrambleStatus(ctx, tilePositions) {
         const run = ctx && ctx.run;
         if (!run || !isUnscrambleRun(ctx, run) || !run.currentWord) {
             return;
@@ -7920,7 +7923,8 @@
         const check = evaluateUnscrambleOrder(run);
         run.lineupCheck = check;
 
-        if (check.totalCount > 0 && check.matchedCount >= check.totalCount) {
+        const solved = check.totalCount > 0 && check.matchedCount >= check.totalCount;
+        if (solved) {
             if (!run.sequenceLocked) {
                 const promptState = getLineupPromptState(run, run.currentWord, UNSCRAMBLE_GAME_SLUG);
                 run.sequenceLocked = true;
@@ -7942,24 +7946,68 @@
                         needed_retry: neededRetry ? 1 : 0
                     });
                 }
-
-                queueUnscrambleSolvedWordAdvance(ctx, run, run.currentWord);
             }
 
             setLineupStatus(ctx, String(gameText(ctx, 'gamesUnscrambleCorrect')), 'correct');
-            renderUnscrambleWord(ctx);
+        } else {
+            setLineupStatus(
+                ctx,
+                formatMessage(
+                    gameText(ctx, 'gamesUnscrambleStatus'),
+                    [Math.max(0, check.matchedCount), Math.max(1, check.totalCount)]
+                ),
+                'progress'
+            );
+        }
+
+        renderUnscrambleWord(ctx);
+        const movement = animateUnscrambleTiles(ctx, tilePositions);
+        if (solved) {
+            queueUnscrambleSolvedWordAdvance(ctx, run, run.currentWord, movement);
+        }
+    }
+
+    function captureUnscrambleTilePositions(ctx) {
+        const cards = ctx.$lineupCards.get(0);
+        if (!cards || typeof cards.animate !== 'function'
+            || (root.matchMedia && root.matchMedia('(prefers-reduced-motion: reduce)').matches)) {
+            return null;
+        }
+
+        const positions = new Map();
+        for (const tile of cards.querySelectorAll(UNSCRAMBLE_TILE_SELECTOR)) {
+            positions.set(tile.dataset.unitId, {
+                index: tile.dataset.lineupIndex,
+                rect: tile.getBoundingClientRect()
+            });
+        }
+        return positions;
+    }
+
+    function animateUnscrambleTiles(ctx, positions) {
+        if (!positions) {
             return;
         }
 
-        setLineupStatus(
-            ctx,
-            formatMessage(
-                gameText(ctx, 'gamesUnscrambleStatus'),
-                [Math.max(0, check.matchedCount), Math.max(1, check.totalCount)]
-            ),
-            'progress'
-        );
-        renderUnscrambleWord(ctx);
+        const movements = [];
+        for (const tile of ctx.$lineupCards.get(0).querySelectorAll(UNSCRAMBLE_TILE_SELECTOR)) {
+            const previous = positions.get(tile.dataset.unitId);
+            if (!previous || previous.index === tile.dataset.lineupIndex) {
+                continue;
+            }
+            const current = tile.getBoundingClientRect();
+            const x = previous.rect.left - current.left + (previous.rect.width - current.width) / 2;
+            const y = previous.rect.top - current.top + (previous.rect.height - current.height) / 2;
+            if (Math.abs(x) < 0.5 && Math.abs(y) < 0.5) {
+                continue;
+            }
+            const animation = tile.animate([
+                { transform: 'translate(' + String(x) + 'px, ' + String(y) + 'px)' },
+                { transform: 'none' }
+            ], { id: UNSCRAMBLE_MOVE_ANIMATION_ID, duration: 210, easing: 'ease-out' });
+            movements.push(Promise.resolve(animation.finished).catch(function () { return false; }));
+        }
+        return Promise.all(movements);
     }
 
     function moveUnscrambleTile(ctx, index, direction) {
@@ -7996,10 +8044,12 @@
             return false;
         }
 
+        const tilePositions = captureUnscrambleTilePositions(ctx);
+        teardownUnscrambleDrag(ctx);
         run.currentOrder = reorderedUnits;
         run.currentMoveCount = Math.max(0, toInt(run.currentMoveCount)) + 1;
         run.moveCount = Math.max(0, toInt(run.moveCount)) + 1;
-        syncUnscrambleStatus(ctx);
+        syncUnscrambleStatus(ctx, tilePositions);
         return true;
     }
 
@@ -8045,25 +8095,16 @@
         return null;
     }
 
-    function focusUnscrambleTile(ctx, unitId) {
+    function focusUnscrambleTile(ctx, unitId, preventScroll = false) {
         const targetUnitId = toInt(unitId);
         if (!ctx || !targetUnitId || !ctx.$lineupCards || !ctx.$lineupCards.length) {
             return;
         }
 
-        const focusTile = function () {
-            const $tile = ctx.$lineupCards.find('[data-ll-wordset-unscramble-tile][data-unit-id="' + String(targetUnitId) + '"]').first();
-            if ($tile.length) {
-                $tile.trigger('focus');
-            }
-        };
-
-        if (typeof root.requestAnimationFrame === 'function') {
-            root.requestAnimationFrame(focusTile);
-            return;
+        const tile = ctx.$lineupCards.get(0).querySelector(UNSCRAMBLE_TILE_SELECTOR + '[data-unit-id="' + String(targetUnitId) + '"]');
+        if (tile) {
+            tile.focus({ preventScroll: preventScroll });
         }
-
-        focusTile();
     }
 
     function getUnscrambleKeyboardMoveDirection(direction, event) {
@@ -8115,8 +8156,8 @@
     }
 
     function setUnscrambleDragTarget(ctx, target) {
-        const drag = ctx && ctx.unscrambleDrag;
-        if (!drag) {
+        const drag = ctx.unscrambleDrag;
+        if ((drag.$targetTile ? drag.$targetTile.get(0) : null) === target) {
             return;
         }
 
@@ -8124,8 +8165,7 @@
             drag.$targetTile.removeClass('is-drop-target');
         }
 
-        drag.targetIndex = target ? target.index : drag.sourceIndex;
-        drag.$targetTile = target ? $(target.element) : null;
+        drag.$targetTile = target ? $(target) : null;
 
         if (drag.$targetTile && drag.$targetTile.length) {
             drag.$targetTile.addClass('is-drop-target');
@@ -8133,61 +8173,41 @@
     }
 
     function getUnscrambleDragTarget(ctx, drag, point) {
-        if (!ctx || !drag || !point || !ctx.$lineupCards || !ctx.$lineupCards.length) {
+        if (!point) {
             return null;
         }
 
-        const cardsElement = ctx.$lineupCards.get(0);
-        const tileSelector = '[data-ll-wordset-unscramble-tile]';
-        let targetElement = null;
+        const cards = ctx.$lineupCards.get(0);
+        const board = cards.getBoundingClientRect();
+        if (point.x < board.left || point.x > board.right || point.y < board.top || point.y > board.bottom) {
+            return null;
+        }
 
-        if (root.document && typeof root.document.elementFromPoint === 'function') {
-            const hitTarget = root.document.elementFromPoint(point.x, point.y);
-            if (hitTarget && typeof hitTarget.closest === 'function') {
-                targetElement = hitTarget.closest(tileSelector);
+        // Include the original slot and fixed spaces so these locations cannot select a neighboring tile.
+        const sourceLeft = board.left + drag.sourceSlot.left - cards.scrollLeft;
+        const sourceTop = board.top + drag.sourceSlot.top - cards.scrollTop;
+        const source = {
+            left: sourceLeft, top: sourceTop,
+            right: sourceLeft + drag.sourceSlot.width, bottom: sourceTop + drag.sourceSlot.height
+        };
+        let closest = null;
+        let closestDistanceSquared = 6 ** 2;
+        for (const tile of cards.querySelectorAll('[data-ll-wordset-lineup-card]')) {
+            const rect = tile === drag.tile ? source : tile.getBoundingClientRect();
+            const x = Math.max(0, rect.left - point.x, point.x - rect.right);
+            const y = Math.max(0, rect.top - point.y, point.y - rect.bottom);
+            const distanceSquared = x * x + y * y;
+            if (distanceSquared < closestDistanceSquared) {
+                closest = tile;
+                closestDistanceSquared = distanceSquared;
             }
         }
-
-        if (!targetElement || targetElement === drag.tile) {
-            const candidateTiles = cardsElement.querySelectorAll ? cardsElement.querySelectorAll(tileSelector) : [];
-            let closestDistance = Infinity;
-            Array.prototype.forEach.call(candidateTiles, function (candidate) {
-                if (!candidate || candidate === drag.tile || typeof candidate.getBoundingClientRect !== 'function') {
-                    return;
-                }
-
-                const rect = candidate.getBoundingClientRect();
-                const centerX = rect.left + (rect.width / 2);
-                const centerY = rect.top + (rect.height / 2);
-                const dx = centerX - point.x;
-                const dy = centerY - point.y;
-                const distance = Math.sqrt((dx * dx) + (dy * dy));
-
-                if (distance < closestDistance) {
-                    closestDistance = distance;
-                    targetElement = candidate;
-                }
-            });
-        }
-
-        if (!targetElement || targetElement === drag.tile) {
-            return null;
-        }
-
-        const targetIndex = toInt(targetElement.getAttribute('data-lineup-index')) - 1;
-        if (targetIndex < 0 || targetIndex === drag.sourceIndex) {
-            return null;
-        }
-
-        return {
-            element: targetElement,
-            index: targetIndex
-        };
+        return closest && closest !== drag.tile && closest.matches(UNSCRAMBLE_TILE_SELECTOR) ? closest : null;
     }
 
     function startUnscrambleTileDrag(ctx, event, tileElement) {
         const run = ctx && ctx.run;
-        if (!run || !isUnscrambleRun(ctx, run) || run.ended || run.sequenceLocked || !tileElement) {
+        if (!run || !isUnscrambleRun(ctx, run) || run.ended || run.sequenceLocked || ctx.unscrambleDrag || !tileElement) {
             return;
         }
         if (shouldIgnoreSyntheticMouseFromTouch(ctx, event, 'unscramble-drag')) {
@@ -8206,13 +8226,25 @@
             return;
         }
 
-        if (ctx.unscrambleDrag) {
-            teardownUnscrambleDrag(ctx);
+        const cards = ctx.$lineupCards.get(0);
+        if (typeof cards.getAnimations === 'function') {
+            for (const animation of cards.getAnimations({ subtree: true })) {
+                if (animation.id === UNSCRAMBLE_MOVE_ANIMATION_ID) {
+                    animation.cancel();
+                }
+            }
         }
+        const board = cards.getBoundingClientRect();
+        const rect = tileElement.getBoundingClientRect();
 
         ctx.unscrambleDrag = {
             sourceIndex: sourceIndex,
-            targetIndex: sourceIndex,
+            sourceSlot: {
+                left: rect.left - board.left + cards.scrollLeft,
+                top: rect.top - board.top + cards.scrollTop,
+                width: rect.width,
+                height: rect.height
+            },
             unitId: unitId,
             tile: tileElement,
             $tile: $tile,
@@ -8290,16 +8322,17 @@
             return;
         }
 
-        const sourceIndex = drag.sourceIndex;
-        const targetIndex = drag.targetIndex;
-        const unitId = drag.unitId;
-        const shouldMove = !!drag.hasMoved && targetIndex >= 0 && targetIndex !== sourceIndex;
+        if (!drag.hasMoved || !event || event.type === 'pointercancel' || event.type === 'touchcancel') {
+            teardownUnscrambleDrag(ctx);
+            return;
+        }
 
-        teardownUnscrambleDrag(ctx);
-
-        if (shouldMove && moveUnscrambleTileToIndex(ctx, sourceIndex, targetIndex)) {
+        const target = getUnscrambleDragTarget(ctx, drag, getEventClientPoint(event, drag.touchId));
+        if (target && moveUnscrambleTileToIndex(ctx, drag.sourceIndex, toInt(target.dataset.lineupIndex) - 1)) {
             markRunActivity(ctx);
-            focusUnscrambleTile(ctx, unitId);
+            focusUnscrambleTile(ctx, drag.unitId, true);
+        } else {
+            teardownUnscrambleDrag(ctx);
         }
     }
 
@@ -12207,8 +12240,8 @@
             }
         });
 
-        ctx.$page.on('keydown' + MODULE_NS, '[data-ll-wordset-unscramble-tile]', function (event) {
-            if (!ctx.run || !isUnscrambleRun(ctx, ctx.run) || ctx.run.ended || ctx.run.sequenceLocked) {
+        ctx.$page.on('keydown' + MODULE_NS, UNSCRAMBLE_TILE_SELECTOR, function (event) {
+            if (!ctx.run || !isUnscrambleRun(ctx, ctx.run) || ctx.run.ended || ctx.run.sequenceLocked || ctx.unscrambleDrag) {
                 return;
             }
 
@@ -12241,7 +12274,7 @@
             ? 'pointerup' + UNSCRAMBLE_DRAG_NS + ' pointercancel' + UNSCRAMBLE_DRAG_NS
             : 'mouseup' + UNSCRAMBLE_DRAG_NS + ' touchend' + UNSCRAMBLE_DRAG_NS + ' touchcancel' + UNSCRAMBLE_DRAG_NS;
 
-        ctx.$page.on(pointerControls, '[data-ll-wordset-unscramble-tile]', function (event) {
+        ctx.$page.on(pointerControls, UNSCRAMBLE_TILE_SELECTOR, function (event) {
             if (!ctx.run || !isUnscrambleRun(ctx, ctx.run) || ctx.run.ended || ctx.run.sequenceLocked) {
                 return;
             }

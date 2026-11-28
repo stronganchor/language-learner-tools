@@ -2010,8 +2010,31 @@ async function getUnscrambleUnitState(page) {
       targetUnitIds: toIds(run && run.currentWord && run.currentWord.unscramble_units),
       orderUnitTexts: toTexts(run && run.currentOrder),
       targetUnitTexts: toTexts(run && run.currentWord && run.currentWord.unscramble_units),
+      moveCount: Number.parseInt(run && run.currentMoveCount, 10) || 0,
       sequenceLocked: !!(run && run.sequenceLocked),
       currentWordId: Number.parseInt(run && run.currentWord && run.currentWord.id, 10) || 0
+    };
+  });
+}
+
+async function recordUnscrambleTileAnimations(page) {
+  await page.evaluate(() => {
+    const animate = Element.prototype.animate;
+    window.__unscrambleTileAnimations = [];
+    Element.prototype.animate = function (keyframes, options) {
+      const animation = animate.call(this, keyframes, options);
+      if (this.matches('[data-ll-wordset-lineup-card][data-unit-id]')) {
+        const frames = animation.effect.getKeyframes();
+        const firstTransform = new DOMMatrixReadOnly(frames[0].transform);
+        const lastTransform = new DOMMatrixReadOnly(frames[frames.length - 1].transform);
+        window.__unscrambleTileAnimations.push({
+          id: Number(this.dataset.unitId),
+          dx: lastTransform.m41 - firstTransform.m41,
+          dy: lastTransform.m42 - firstTransform.m42,
+          duration: animation.effect.getTiming().duration
+        });
+      }
+      return animation;
     };
   });
 }
@@ -3662,6 +3685,7 @@ test('line up supports retry, card reordering, progress events, and completion',
 });
 
 test('unscramble supports keyboard tile reordering, progress events, and completion', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
   await mountGamesPage(page, {
     isLoggedIn: true,
     unscrambleWords: buildUnscrambleWords(1),
@@ -3689,6 +3713,7 @@ test('unscramble supports keyboard tile reordering, progress events, and complet
 
   await expect(gameLaunchButton(page, 'unscramble')).toBeEnabled();
   await expect(gameStatus(page, 'unscramble')).toHaveText('1 words ready');
+  await recordUnscrambleTileAnimations(page);
 
   await page.evaluate(() => {
     window.LLWordsetGames.__debug.launch('unscramble');
@@ -3710,6 +3735,17 @@ test('unscramble supports keyboard tile reordering, progress events, and complet
   await expect(page.locator('[data-ll-wordset-lineup-status]')).toBeVisible();
   await expect(page.locator('[data-ll-wordset-lineup-status]')).toHaveText(/\d of 7 letters are in the right place\./);
 
+  const [firstId, secondId, ...remainingIds] = initialState.orderUnitIds;
+  const firstTile = page.locator(`[data-ll-wordset-unscramble-tile][data-unit-id="${firstId}"]`);
+  await firstTile.press('ArrowRight');
+  await expect.poll(async () => (await getUnscrambleUnitState(page)).orderUnitIds)
+    .toEqual([secondId, firstId, ...remainingIds]);
+  await expect(firstTile).toBeFocused();
+  const animatedIds = await page.evaluate(() => window.__unscrambleTileAnimations.map(({ id }) => id));
+  expect(new Set(animatedIds)).toEqual(new Set([firstId, secondId]));
+
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.evaluate(() => { window.__unscrambleTileAnimations.length = 0; });
   await arrangeUnscrambleOrder(page, initialState.targetUnitIds);
   await expect.poll(async () => {
     const state = await getUnscrambleUnitState(page);
@@ -3718,6 +3754,7 @@ test('unscramble supports keyboard tile reordering, progress events, and complet
 
   await expect(page.locator('[data-ll-wordset-lineup-status]')).toHaveText('Solved.');
   await expect(page.locator('[data-ll-wordset-unscramble-skip]')).toBeHidden();
+  expect(await page.evaluate(() => window.__unscrambleTileAnimations)).toEqual([]);
 
   const solvedState = await page.evaluate(() => window.LLWordsetGames.__debug.getRunState());
   expect(solvedState.lineupSequenceLocked).toBe(true);
@@ -3747,18 +3784,23 @@ test('unscramble supports keyboard tile reordering, progress events, and complet
 test.describe('mobile Unscramble', () => {
   test.use({ viewport: { width: 360, height: 700 }, hasTouch: true });
 
-  async function dragTilesByTouch(page, first, last) {
+  async function dragTilesByTouch(page, source, moves, { endType = 'touchEnd', beforeDrop } = {}) {
     const touch = await page.context().newCDPSession(page);
     try {
       await touch.send('Input.dispatchTouchEvent', {
         type: 'touchStart',
-        touchPoints: [{ x: first.x + first.width / 2, y: first.y + first.height / 2 }]
+        touchPoints: [{ x: source.x + source.width / 2, y: source.y + source.height / 2 }]
       });
-      await touch.send('Input.dispatchTouchEvent', {
-        type: 'touchMove',
-        touchPoints: [{ x: last.x + last.width / 2, y: last.y + last.height / 2 }]
-      });
-      await touch.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+      for (const box of moves) {
+        await touch.send('Input.dispatchTouchEvent', {
+          type: 'touchMove',
+          touchPoints: [{ x: box.x + box.width / 2, y: box.y + box.height / 2 }]
+        });
+      }
+      if (beforeDrop) {
+        await beforeDrop();
+      }
+      await touch.send('Input.dispatchTouchEvent', { type: endType, touchPoints: [] });
     } finally {
       await touch.detach();
     }
@@ -3802,13 +3844,14 @@ test.describe('mobile Unscramble', () => {
     const { orderUnitIds: initialOrder } = await getUnscrambleUnitState(page);
     const first = await tiles.first().boundingBox();
     const last = await tiles.last().boundingBox();
-    await dragTilesByTouch(page, first, last);
+    await dragTilesByTouch(page, first, [last]);
     await expect.poll(async () => (await getUnscrambleUnitState(page)).orderUnitIds)
       .toEqual([...initialOrder.slice(1), initialOrder[0]]);
   });
 
-  test('wraps readable phrase tiles and drags across rows without moving spaces', async ({ page, browserName }) => {
+  test('wraps readable phrase tiles and animates only letters moved by a cross-row drag', async ({ page, browserName }) => {
     test.skip(browserName !== 'chromium', 'Native touch drags use the Chromium DevTools protocol.');
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
     const answer = 'Ğele vay dun';
     const units = Array.from(answer, (text, index) => ({ id: 100 + index, text, movable: text !== ' ' }));
     const [word] = buildUnscrambleWords(1);
@@ -3831,6 +3874,7 @@ test.describe('mobile Unscramble', () => {
     });
 
     await page.addStyleTag({ content: 'html { font-size: 14.5px; }' });
+    await recordUnscrambleTileAnimations(page);
     await gameLaunchButton(page, 'unscramble').tap();
     const stage = page.locator('[data-ll-wordset-lineup-stage]');
     const tiles = stage.locator('[data-ll-wordset-unscramble-tile]');
@@ -3851,15 +3895,58 @@ test.describe('mobile Unscramble', () => {
     expect(layout.minFontSize).toBeGreaterThanOrEqual(18);
     expect(layout.allTilesFit).toBe(true);
 
-    const { orderUnitIds: initialOrder } = await getUnscrambleUnitState(page);
-    const first = await tiles.first().boundingBox();
-    const last = await tiles.last().boundingBox();
-    expect(last.y).toBeGreaterThan(first.y);
-    await dragTilesByTouch(page, first, last);
+    const initialState = await getUnscrambleUnitState(page);
+    const initialOrder = initialState.orderUnitIds;
+    const sourceIndex = 1;
+    const targetIndex = 8;
+    const source = await tiles.nth(sourceIndex).boundingBox();
+    const target = await tiles.nth(targetIndex).boundingBox();
+    expect(target.y).toBeGreaterThan(source.y);
 
-    const movedLetters = [...initialOrder.slice(1), initialOrder[0]].filter((id) => units[id - 100].movable);
+    const board = await stage.locator('[data-ll-wordset-lineup-cards]').boundingBox();
+    const outside = { ...target, y: board.y - target.height / 2 - 24 };
+    for (const [description, moves, endType] of [
+      ['back to the original slot', [target, source], 'touchEnd'],
+      ['outside the board', [target, outside], 'touchEnd'],
+      ['interrupted by the browser', [target], 'touchCancel']
+    ]) {
+      await dragTilesByTouch(page, source, moves, { endType });
+      expect(await getUnscrambleUnitState(page), description).toEqual(initialState);
+    }
+    expect(await page.evaluate(() => window.__unscrambleTileAnimations)).toEqual([]);
+
+    await dragTilesByTouch(page, source, [{ ...target, x: target.x + 7 }]);
+
+    const movedLetters = initialOrder.filter((id) => units[id - 100].movable);
+    const [movedLetter] = movedLetters.splice(sourceIndex, 1);
+    movedLetters.splice(targetIndex, 0, movedLetter);
     const expectedOrder = units.map((unit) => unit.movable ? movedLetters.shift() : unit.id);
     await expect.poll(async () => (await getUnscrambleUnitState(page)).orderUnitIds).toEqual(expectedOrder);
+    expect((await getUnscrambleUnitState(page)).moveCount).toBe(initialState.moveCount + 1);
+
+    const movedIds = expectedOrder.filter((id, index) => id !== initialOrder[index]);
+    const animations = await page.evaluate(() => window.__unscrambleTileAnimations);
+    expect(new Set(animations.map((animation) => animation.id))).toEqual(new Set(movedIds));
+    expect(animations).toHaveLength(movedIds.length);
+    expect(animations.every(({ dx, dy, duration }) => Math.hypot(dx, dy) > 0 && duration > 0)).toBe(true);
+    expect(animations.some(({ id, dy }) => id !== movedLetter && dy !== 0)).toBe(true);
+
+    await stage.locator('[data-ll-wordset-lineup-cards]').evaluate((cards) =>
+      Promise.allSettled(cards.getAnimations({ subtree: true }).map((animation) => animation.finished)));
+    const beforeConcurrentInput = await getUnscrambleUnitState(page);
+    const [firstId, draggedId, targetId, ...remainingIds] = beforeConcurrentInput.orderUnitIds;
+    const expectedAfterDrag = [firstId, targetId, draggedId, ...remainingIds];
+    await dragTilesByTouch(page, await tiles.nth(1).boundingBox(), [await tiles.nth(2).boundingBox()], {
+      beforeDrop: async () => {
+        await expect(stage).toHaveAttribute('data-unscramble-dragging', '1');
+        expect(await getUnscrambleUnitState(page)).toEqual(beforeConcurrentInput);
+        await tiles.first().press('ArrowRight');
+        expect(await getUnscrambleUnitState(page)).toEqual(beforeConcurrentInput);
+      }
+    });
+    const afterDrag = await getUnscrambleUnitState(page);
+    expect(afterDrag.orderUnitIds).toEqual(expectedAfterDrag);
+    expect(afterDrag.moveCount).toBe(beforeConcurrentInput.moveCount + 1);
 
     await page.keyboard.press('Escape');
     await expect(page.locator('[data-ll-wordset-game-run-modal]')).toBeHidden();
