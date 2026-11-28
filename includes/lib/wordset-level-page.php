@@ -280,9 +280,14 @@ function ll_tools_wordset_level_request(int $user_id, array $request) {
 }
 
 function ll_tools_wordset_level_request_in_scope(int $user_id, int $wordset_id, array $payload, array $request) {
-    if (!ll_tools_wordset_page_category_search_payload_scope_is_current($wordset_id, (string) ($payload['access_signature'] ?? ''), $user_id)
+    $current_access = ll_tools_wordset_page_category_search_payload_access_signature($wordset_id, $user_id);
+    if ($current_access === '' || !hash_equals($current_access, (string) ($payload['access_signature'] ?? ''))
         || empty($payload['level_policy']) || !hash_equals($payload['level_policy'], ll_tools_wordset_level_policy_signature($wordset_id))) {
-        return new WP_Error('ll_level_scope_changed', __('Reload this page to update your levels.', 'll-tools-text-domain'), ['status' => 403]);
+        // Identity was already verified. Keep the displayed progress during refresh only while access still exists.
+        return new WP_Error('ll_level_scope_changed', __('Reload this page to update your levels.', 'll-tools-text-domain'), [
+            'status' => 403,
+            'preserve_progress' => $user_id > 0 && $current_access !== '',
+        ]);
     }
     $complete = true;
     $scope = $user_id ? ll_tools_wordset_level_visible_study_scope($payload['level_scope'], $user_id, $complete) : $payload['level_scope'];

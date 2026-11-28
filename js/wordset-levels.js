@@ -75,6 +75,7 @@
         const saves = new Map();
         let state = readState(history.state);
         let summary = null;
+        let lastCompleteSummary = null;
         let fetchError = false;
         let credentialsExpired = false;
         let request = null;
@@ -193,12 +194,24 @@
             catch (_) { location.replace(url.href); return; }
             location.reload();
         }
+        function retryProgress() {
+            if (!credentialsExpired) { refresh(); return; }
+            recoveryUsed = false;
+            reloadExpiredPage();
+        }
+        function progressUnavailable() {
+            return fetchError && (!credentialsExpired || recoveryUsed);
+        }
         function ajax(operation, data) {
-            function requireReload() {
-                if (operation === 'completion_seen' || credentialsExpired) return;
+            function requireReload(preserveProgress) {
+                if (operation === 'completion_seen') return;
+                if (!preserveProgress) {
+                    summary = null;
+                    lastCompleteSummary = null;
+                }
+                if (credentialsExpired) { render(); return; }
                 credentialsExpired = true;
                 fetchError = true;
-                summary = null;
                 window.clearTimeout(refreshTimer);
                 window.clearTimeout(dayResetTimer);
                 // A failed launch releases its loading overlay after the AJAX callbacks finish.
@@ -211,9 +224,13 @@
                 if (response === -1 || response === '-1') requireReload();
                 else if (!credentialsExpired && operation !== 'completion_seen' && response?.success && !response.data?.preparing) recoveryUsed = false;
             }).fail(xhr => {
-                const code = xhr.responseJSON?.data?.code;
+                const detail = xhr.responseJSON?.data;
+                const code = detail?.code;
                 if (xhr.status === 410 || String(xhr.responseText || '').trim() === '-1'
-                    || (xhr.status === 403 && ['ll_level_scope_changed','ll_level_access'].includes(code))) requireReload();
+                    || (xhr.status === 403 && ['ll_level_scope_changed','ll_level_access'].includes(code))) {
+                    requireReload(code === 'll_level_scope_expired'
+                        || (code === 'll_level_scope_changed' && detail.preserve_progress === true));
+                }
             });
         }
         function scheduleRefresh(delay) {
@@ -255,6 +272,7 @@
                     retryUntil = 0;
                     readyLessonCount = -1;
                     summary = data;
+                    lastCompleteSummary = data;
                     window.clearTimeout(dayResetTimer);
                     const resetIn = Number(data.next_reset_in) * 1000;
                     dayResetAt = resetIn > 0 ? Date.now() + resetIn : 0;
@@ -450,9 +468,9 @@
             slot.setAttribute('aria-hidden','true');
             return slot;
         }
-        function action(group, plan, categoryId, fallback) {
+        function action(group, plan, categoryId, stats = null) {
             const item = categoryId ? options.category(categoryId) : null;
-            const stats = summary && summary.levels[group.level];
+            const fallback = !stats;
             const planned = stats && plan === 'practice' && stats.practice_activity;
             const severalLessons = !fallback && planned && Array.isArray(planned.category_ids) && planned.category_ids.length > 1;
             const name = severalLessons
@@ -755,7 +773,7 @@
         }
         function card(group, existingPreviews, badgeChanges) {
             const id = Number(group.level);
-            const stats = summary && summary.levels && summary.levels[id];
+            const stats = summary?.levels[id] ?? lastCompleteSummary?.levels[id];
             const shell = element('article','ll-level-card');
             shell.dataset.llLevelCard = String(id);
             const row = element('div','ll-level-row');
@@ -783,7 +801,7 @@
                 open.setAttribute('aria-describedby',check.id);
                 head.prepend(check);
             }
-            const loadingStats = options.signedIn && !stats && !fetchError && (!summary || summary.preparing);
+            const loadingStats = options.signedIn && !stats && !progressUnavailable() && (!summary || summary.preparing);
             if (stats) {
                 addLevelFilterButtons(id,stats,badges,overview);
                 if (badgeLayout && id <= 3800 && badgeSlots[id - 1] !== String(badges.childElementCount)) {
@@ -808,15 +826,15 @@
             if (loadingStats && (group.nextId || group.practiceId)) {
                 actions.append(loadingPlaceholder('ll-level-activity'));
             } else if (stats) {
-                if (stats.next_category_id) actions.append(action(group,'learn',Number(stats.next_category_id)));
-                if (stats.practice_category_id) actions.append(action(group,'practice',Number(stats.practice_category_id)));
+                if (stats.next_category_id) actions.append(action(group,'learn',Number(stats.next_category_id),stats));
+                if (stats.practice_category_id) actions.append(action(group,'practice',Number(stats.practice_category_id),stats));
             }
             if (!actions.childElementCount && (group.nextId || group.practiceId)) {
-                actions.append(action(group,group.nextId ? 'learn' : 'practice',Number(group.nextId || group.practiceId),true));
+                actions.append(action(group,group.nextId ? 'learn' : 'practice',Number(group.nextId || group.practiceId)));
             }
             if (actions.childElementCount) row.append(actions);
             if (group.categoryIds.size && !complete) {
-                const progress = options.progressBar(stats,options.signedIn && !stats && !fetchError);
+                const progress = options.progressBar(stats,loadingStats);
                 progress.querySelector('summary').dataset.llFocusKey = 'progress-' + id;
                 shell.append(progress);
             }
@@ -843,20 +861,21 @@
             const focusedPreview = section.contains(focused) && focused.closest('.ll-level-lesson-previews');
             const fragment = document.createDocumentFragment();
             if (state.view === 'home') {
-                if (options.signedIn && !credentialsExpired && (!summary || summary.preparing || fetchError)) {
-                    const status = element('div',fetchError ? 'll-level-state' : 'screen-reader-text ll-level-loading-status');
+                const unavailable = progressUnavailable();
+                if (options.signedIn && (!summary || summary.preparing || fetchError)) {
+                    const status = element('div',unavailable ? 'll-level-state' : 'screen-reader-text ll-level-loading-status');
                     status.setAttribute('role','status');
-                    status.append(element('span','',fetchError ? t.error : t.loading));
-                    if (fetchError) {
-                        const retry = button(t.retry,'ll-level-retry','repeat',refresh);
+                    status.append(element('span','',unavailable ? t.error : t.loading));
+                    if (unavailable) {
+                        const retry = button(t.retry,'ll-level-retry','repeat',retryProgress);
                         retry.append(element('span','',t.retry)); status.append(retry);
                     }
                     fragment.append(status);
                 }
                 const grid = element('div','ll-level-grid');
-                const review = summary && dailyReview(summary.review);
+                const review = dailyReview(summary?.review ?? lastCompleteSummary?.review);
                 if (review) fragment.append(review);
-                else if (options.signedIn && (!summary || summary.preparing) && !fetchError && !credentialsExpired) {
+                else if (options.signedIn && (!summary || summary.preparing) && !unavailable) {
                     fragment.append(loadingPlaceholder('ll-level-review-placeholder'));
                 }
                 const badgeChanges = new Map();
@@ -1044,6 +1063,9 @@
         window.addEventListener('pageshow',event => {
             if (event.persisted) refreshOnReturn = true;
             resumeSummary();
+        });
+        window.addEventListener('online',() => {
+            if (fetchError) retryProgress();
         });
         $(document).on('lltools:flashcard-closed.llLevels',() => {
             if (credentialsExpired) reloadExpiredPage();

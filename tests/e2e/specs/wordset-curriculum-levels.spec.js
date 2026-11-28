@@ -104,10 +104,9 @@ async function mount(page, options = {}) {
       if (data.operation === 'summary') {
         if (options.holdSummary) await options.holdSummary;
         if (options.pauseSummary) await options.pauseSummary;
-        if (options.summaryFailures) {
-          const failure = options.summaryFailures[reqs.filter(r=>r.operation==='summary').length - 1];
-          if (failure) return route.fulfill(failure);
-        }
+        const attempt = reqs.filter(request=>request.operation==='summary').length;
+        const response = await options.summaryResponses?.[attempt - 1];
+        if (response) return route.fulfill(response);
         if (options.prepare && reqs.filter(r => r.operation === 'summary').length === 1) {
           return route.fulfill({status:503,json:{success:false,data:{code:'ll_level_progress_preparing',retry_after:1}}});
         }
@@ -1512,7 +1511,7 @@ async function mountWithFailingSummary(page, failures) {
   });
   let release;
   const pauseSummary = new Promise(resolve => { release = resolve; });
-  const requests = await mount(page,{signed:true,pauseSummary,summaryFailures:failures});
+  const requests = await mount(page,{signed:true,pauseSummary,summaryResponses:failures});
   return {documents, release, summaryCount:() => requests.filter(request => request.operation === 'summary').length};
 }
 
@@ -1529,40 +1528,100 @@ test('an expired level nonce automatically reloads the document and restores per
   expect(probe.summaryCount()).toBe(2);
 });
 
-test('a persistently expired level scope reloads once and leaves the lesson catalog browsable',async({page})=>{
-  const probe = await mountWithFailingSummary(page,[expiredLevelScope,expiredLevelScope]);
-  probe.release();
-  await expect.poll(probe.summaryCount).toBe(2);
-  const fallback = page.getByRole('button',{name:'Learn · Lesson 1'});
-  await expect(fallback).toBeVisible();
-  await expect(page.getByText('Reload this page to update your levels.')).toHaveCount(0);
-  await expect(page.getByRole('button',{name:'Reload',exact:true})).toHaveCount(0);
-  await page.getByRole('button',{name:'Browse lessons · Level 1',exact:true}).click();
-  await expect(page.locator('[data-ll-wordset-page]')).toHaveAttribute('data-ll-level-view','level');
-  await expect(page.locator('.ll-wordset-card[data-cat-id="1"]')).toBeVisible();
-  expect(probe.documents).toEqual(recoveredLevelDocuments);
-  await expect(page).toHaveURL(base+'/');
-  expect(probe.summaryCount()).toBe(2);
-});
+for (const recovery of ['Retry','reconnect']) {
+  test('an expired level scope remains browsable and recovers after '+recovery,async({page})=>{
+    const probe = await mountWithFailingSummary(page,[expiredLevelScope,expiredLevelScope]);
+    probe.release();
+    await expect.poll(probe.summaryCount).toBe(2);
+    const fallback = page.getByRole('button',{name:'Learn · Lesson 1'});
+    const retry = page.getByRole('button',{name:labels.retry,exact:true});
+    await expect(fallback).toBeVisible();
+    await expect(page.getByText(labels.error,{exact:true})).toBeVisible();
+    await expect(retry).toBeVisible();
+    await expect(page.getByText('Reload this page to update your levels.')).toHaveCount(0);
+    await expect(page.getByRole('button',{name:'Reload',exact:true})).toHaveCount(0);
+    await page.getByRole('button',{name:'Browse lessons · Level 1',exact:true}).click();
+    await expect(page.locator('[data-ll-wordset-page]')).toHaveAttribute('data-ll-level-view','level');
+    await expect(page.locator('.ll-wordset-card[data-cat-id="1"]')).toBeVisible();
+    expect(probe.documents).toEqual(recoveredLevelDocuments);
+    await expect(page).toHaveURL(base+'/');
+    expect(probe.summaryCount()).toBe(2);
+    await page.getByRole('button',{name:'Back',exact:true}).click();
+    await expect(page.locator('[data-ll-wordset-page]')).toHaveAttribute('data-ll-level-view','home');
+    if (recovery === 'Retry') await retry.click();
+    else await page.evaluate(()=>window.dispatchEvent(new Event('online')));
+    await expect(page.locator('.ll-level-review-all')).toBeVisible();
+    await expect(page.getByText(labels.error,{exact:true})).toHaveCount(0);
+    await expect(page).toHaveURL(base+'/');
+    expect(probe.documents).toEqual([...recoveredLevelDocuments,recoveredLevelDocuments[1]]);
+    expect(probe.summaryCount()).toBe(3);
+  });
+}
 
-test('an expiry discovered during a quiz waits until the quiz closes to reload',async({page})=>{
-  const probe = await mountWithFailingSummary(page,[expiredLevelScope]);
-  await page.evaluate(() => {
-    document.body.classList.add('ll-tools-flashcard-open');
-    window.jQuery(document).one('ajaxComplete',() => { window.summarySettled = true; });
+const deferredLevelRecoveryCases = [
+  {label:'scope expiry',failure:expiredLevelScope,preserve:true},
+  {label:'catalog change',failure:{status:403,json:{success:false,data:{code:'ll_level_scope_changed',preserve_progress:true}}},preserve:true},
+  {label:'loss of access',failure:{status:403,json:{success:false,data:{code:'ll_level_access'}}},preserve:false}
+];
+
+for (const scenario of deferredLevelRecoveryCases) {
+  test('a '+scenario.label+' during a quiz keeps progress only when safe',async({page})=>{
+    const probe = await mountWithFailingSummary(page,[null,scenario.failure]);
+    const first = page.locator('[data-ll-level-card="1"]');
+    const practice = first.getByRole('button',{name:'Practice · Lesson 2',exact:true});
+    const progress = first.locator('.ll-wordset-card__progress-toggle');
+    probe.release();
+    await expect(practice).toBeVisible();
+    await expect(progress).toHaveAttribute('aria-label', '3 Learned, 2 In progress, 5 New');
+    await page.evaluate(() => {
+      document.body.classList.add('ll-tools-flashcard-open');
+      window.jQuery(document).one('ajaxComplete',() => { window.summarySettled = true; });
+      window.dispatchEvent(new PageTransitionEvent('pageshow',{persisted:true}));
+    });
+    await expect.poll(()=>page.evaluate(()=>window.summarySettled)).toBe(true);
+    expect(probe.summaryCount()).toBe(2);
+    expect(probe.documents).toHaveLength(1);
+    if (scenario.preserve) {
+      await expect(practice).toBeVisible();
+      await expect(progress).toHaveAttribute('aria-label', '3 Learned, 2 In progress, 5 New');
+    } else {
+      await expect(practice).toHaveCount(0);
+      await expect(progress).toHaveAttribute('aria-label', 'Learned, In progress, New');
+    }
+    await expect(page.getByText('Reload this page to update your levels.')).toHaveCount(0);
+    await page.evaluate(() => {
+      document.body.classList.remove('ll-tools-flashcard-open');
+      window.jQuery(document).trigger('lltools:flashcard-closed');
+    });
+    await expect.poll(()=>probe.documents).toEqual(recoveredLevelDocuments);
+    await expect(practice).toBeVisible();
+    await expect(page).toHaveURL(base+'/');
+    expect(probe.summaryCount()).toBe(3);
   });
-  probe.release();
-  await expect.poll(()=>page.evaluate(()=>window.summarySettled)).toBe(true);
-  expect(probe.documents).toHaveLength(1);
-  await expect(page.getByText('Reload this page to update your levels.')).toHaveCount(0);
-  await page.evaluate(() => {
-    document.body.classList.remove('ll-tools-flashcard-open');
-    window.jQuery(document).trigger('lltools:flashcard-closed');
-  });
+}
+
+test('a partial refresh keeps known progress without reporting those rows as freshly ready',async({page})=>{
+  const partial = (levels,readyLessons) => ({json:{success:true,data:{
+    preparing:true,ready_lessons:readyLessons,ready_levels:Object.keys(levels).map(Number),levels
+  }}});
+  let release;
+  const next = new Promise(resolve=>{ release=resolve; });
+  const reqs = await mount(page,{signed:true,overlap:true,summaryResponses:[null,partial({},0),next]});
+  const summaries = () => reqs.filter(request=>request.operation==='summary');
+  const first = page.locator('[data-ll-level-card="1"]');
+  const practice = first.getByRole('button',{name:'Practice · 2 words in progress',exact:true});
+  const learned = first.locator('.ll-wordset-card__progress-segment--mastered');
+  await expect(practice).toBeVisible();
+  await page.evaluate(()=>window.dispatchEvent(new PageTransitionEvent('pageshow',{persisted:true})));
+  await expect.poll(()=>summaries().length).toBe(3);
+  expect(summaries()[2].ready_levels).toBe('');
+  await expect(practice).toBeVisible();
+  await expect(learned).toBeVisible();
   await expect(page.locator('.ll-level-review-all')).toBeVisible();
-  expect(probe.documents).toEqual(recoveredLevelDocuments);
-  await expect(page).toHaveURL(base+'/');
-  expect(probe.summaryCount()).toBe(2);
+  release(partial({2:{total:10,mastered:0,working:0,new:10,next_category_id:15,days:30}},1));
+  await expect.poll(()=>summaries().length).toBe(4);
+  expect(summaries()[3].ready_levels).toBe('2');
+  await expect(page.locator('.ll-level-review-all')).toBeVisible();
 });
 
 for (const view of ['level','search']) {

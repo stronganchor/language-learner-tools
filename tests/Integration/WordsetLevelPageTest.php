@@ -35,9 +35,13 @@ final class WordsetLevelPageTest extends LL_Tools_TestCase
         $export = ll_tools_privacy_export_study_settings($learner->user_email);
         $this->assertContains('ll-tools-level-intervals-' . $learner->ID, array_column($export['data'], 'item_id'));
         update_term_meta($wordset, 'll_wordset_category_ordering_mode', 'manual');
-        $this->assertSame('ll_level_scope_changed', ll_tools_wordset_level_request($learner->ID, $request)->get_error_code());
+        $stale = ll_tools_wordset_level_request($learner->ID, $request);
+        $this->assertSame('ll_level_scope_changed', $stale->get_error_code());
+        $this->assertTrue($stale->get_error_data()['preserve_progress']);
         wp_set_current_user($other);
-        $this->assertSame('ll_level_scope_changed', ll_tools_wordset_level_request($other, $request)->get_error_code());
+        $wrong_learner = ll_tools_wordset_level_request($other, $request);
+        $this->assertSame('ll_level_scope_changed', $wrong_learner->get_error_code());
+        $this->assertArrayNotHasKey('preserve_progress', $wrong_learner->get_error_data());
         $this->assertSame('ll_level_access', ll_tools_wordset_level_request($learner->ID, $request)->get_error_code());
         wp_set_current_user(0);
         $this->assertSame('ll_level_access', ll_tools_wordset_level_request(0, $request)->get_error_code());
